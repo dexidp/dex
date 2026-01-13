@@ -456,10 +456,12 @@ func testPasswordCRUD(t *testing.T, s storage.Storage) {
 	}
 
 	password1 := storage.Password{
-		Email:    "jane@example.com",
-		Hash:     passwordHash1,
-		Username: "jane",
-		UserID:   "foobar",
+		Email:             "jane@example.com",
+		Hash:              passwordHash1,
+		Username:          "jane",
+		PreferredUsername: "jane-public",
+		UserID:            "foobar",
+		Groups:            []string{"team-a", "team-a/admins"},
 	}
 	if err := s.CreatePassword(ctx, password1); err != nil {
 		t.Fatalf("create password token: %v", err)
@@ -475,10 +477,12 @@ func testPasswordCRUD(t *testing.T, s storage.Storage) {
 	}
 
 	password2 := storage.Password{
-		Email:    "john@example.com",
-		Hash:     passwordHash2,
-		Username: "john",
-		UserID:   "barfoo",
+		Email:             "john@example.com",
+		Hash:              passwordHash2,
+		Username:          "john",
+		PreferredUsername: "john-public",
+		UserID:            "barfoo",
+		Groups:            []string{"team-b"},
 	}
 	if err := s.CreatePassword(ctx, password2); err != nil {
 		t.Fatalf("create password token: %v", err)

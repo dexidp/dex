@@ -135,4 +135,15 @@ enablePasswordDB: true
 # A static list of passwords for the password connector.
 #
 # Alternatively, passwords my be added/updated through the gRPC API.
-# staticPasswords: []
+# staticPasswords:
+#  - email: "user@example.com"
+#    # bcrypt hash of the string "password"
+#    hash: "$2a$10$examplehash..."
+#    username: "user-login"
+#    # Optional. Maps to OIDC "preferred_username" claim.
+#    preferredUsername: "user-public"
+#    # Optional. Maps to OIDC "groups" claim (when 'groups' scope is requested).
+#    groups:
+#      - "team-a"
+#      - "team-a/admins"
+#    userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"

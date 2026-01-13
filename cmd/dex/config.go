@@ -95,19 +95,23 @@ type password storage.Password
 
 func (p *password) UnmarshalJSON(b []byte) error {
 	var data struct {
-		Email       string `json:"email"`
-		Username    string `json:"username"`
-		UserID      string `json:"userID"`
-		Hash        string `json:"hash"`
-		HashFromEnv string `json:"hashFromEnv"`
+		Email             string   `json:"email"`
+		Username          string   `json:"username"`
+		PreferredUsername string   `json:"preferredUsername"`
+		UserID            string   `json:"userID"`
+		Hash              string   `json:"hash"`
+		HashFromEnv       string   `json:"hashFromEnv"`
+		Groups            []string `json:"groups"`
 	}
 	if err := json.Unmarshal(b, &data); err != nil {
 		return err
 	}
 	*p = password(storage.Password{
-		Email:    data.Email,
-		Username: data.Username,
-		UserID:   data.UserID,
+		Email:             data.Email,
+		Username:          data.Username,
+		PreferredUsername: data.PreferredUsername,
+		UserID:            data.UserID,
+		Groups:            data.Groups,
 	})
 	if len(data.Hash) == 0 && len(data.HashFromEnv) > 0 {
 		data.Hash = os.Getenv(data.HashFromEnv)
@@ -275,12 +279,12 @@ var (
 	_ StorageConfig = (*ent.MySQL)(nil)
 )
 
-func getORMBasedSQLStorage(normal, entBased StorageConfig) func() StorageConfig {
+func getORMBasedSQLStorage(normal, entBased func() StorageConfig) func() StorageConfig {
 	return func() StorageConfig {
 		if featureflags.EntEnabled.Enabled() {
-			return entBased
+			return entBased()
 		}
-		return normal
+		return normal()
 	}
 }
 
@@ -309,9 +313,9 @@ var storages = map[string]func() StorageConfig{
 	"etcd":       func() StorageConfig { return new(etcd.Etcd) },
 	"kubernetes": func() StorageConfig { return new(kubernetes.Config) },
 	"memory":     func() StorageConfig { return new(memory.Config) },
-	"sqlite3":    getORMBasedSQLStorage(&sql.SQLite3{}, &ent.SQLite3{}),
-	"postgres":   getORMBasedSQLStorage(&sql.Postgres{}, &ent.Postgres{}),
-	"mysql":      getORMBasedSQLStorage(&sql.MySQL{}, &ent.MySQL{}),
+	"sqlite3":    getORMBasedSQLStorage(func() StorageConfig { return new(sql.SQLite3) }, func() StorageConfig { return new(ent.SQLite3) }),
+	"postgres":   getORMBasedSQLStorage(func() StorageConfig { return new(sql.Postgres) }, func() StorageConfig { return new(ent.Postgres) }),
+	"mysql":      getORMBasedSQLStorage(func() StorageConfig { return new(sql.MySQL) }, func() StorageConfig { return new(ent.MySQL) }),
 }
 
 // UnmarshalJSON allows Storage to implement the unmarshaler interface to
