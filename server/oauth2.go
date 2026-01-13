@@ -77,6 +77,10 @@ func (err *redirectedAuthErr) Handler() http.Handler {
 	return http.HandlerFunc(hf)
 }
 
+func newRedirectedAuthErr(authReq *storage.AuthRequest, typ, format string, a ...interface{}) *redirectedAuthErr {
+	return &redirectedAuthErr{authReq.State, authReq.RedirectURI, typ, fmt.Sprintf(format, a...)}
+}
+
 func tokenErr(w http.ResponseWriter, typ, description string, statusCode int) error {
 	data := struct {
 		Error       string `json:"error"`
@@ -612,6 +616,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		State:               state,
 		Nonce:               nonce,
 		ForceApprovalPrompt: q.Get("approval_prompt") == "force",
+		Prompt:              q.Get("prompt"),
 		Scopes:              scopes,
 		RedirectURI:         redirectURI,
 		ResponseTypes:       responseTypes,
