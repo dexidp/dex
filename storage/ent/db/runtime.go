@@ -96,6 +96,10 @@ func init() {
 	connectorDescName := connectorFields[2].Descriptor()
 	// connector.NameValidator is a validator for the "name" field. It is called by the builders before save.
 	connector.NameValidator = connectorDescName.Validators[0].(func(string) error)
+	// connectorDescHidden is the schema descriptor for hidden field.
+	connectorDescHidden := connectorFields[5].Descriptor()
+	// connector.DefaultHidden holds the default value on creation for the hidden field.
+	connector.DefaultHidden = connectorDescHidden.Default.(bool)
 	// connectorDescID is the schema descriptor for id field.
 	connectorDescID := connectorFields[0].Descriptor()
 	// connector.IDValidator is a validator for the "id" field. It is called by the builders before save.

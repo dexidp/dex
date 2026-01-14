@@ -626,6 +626,7 @@ func testConnectorCRUD(t *testing.T, s storage.Storage) {
 		Type:   "Default",
 		Name:   "Default",
 		Config: config1,
+		Hidden: false,
 	}
 
 	if err := s.CreateConnector(ctx, c1); err != nil {
@@ -643,6 +644,7 @@ func testConnectorCRUD(t *testing.T, s storage.Storage) {
 		Type:   "Mock",
 		Name:   "Mock",
 		Config: config2,
+		Hidden: false,
 	}
 
 	if err := s.CreateConnector(ctx, c2); err != nil {
