@@ -12,6 +12,7 @@ import (
 	"github.com/go-jose/go-jose/v4"
 	"github.com/stretchr/testify/require"
 
+	jwt_lib "github.com/dexidp/dex/internal/jwt"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
 )
@@ -668,7 +669,7 @@ func TestStorageKeySet(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			keySet := &storageKeySet{s}
+			keySet := jwt_lib.NewStorageKeySet(s)
 
 			_, err = keySet.VerifySignature(t.Context(), jwt)
 			if (err != nil && !tc.wantErr) || (err == nil && tc.wantErr) {
