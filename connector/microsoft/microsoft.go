@@ -32,11 +32,11 @@ const (
 )
 
 const (
-	// Microsoft requires this scope to access user's profile
-	scopeUser = "user.read"
-	// Microsoft requires this scope to list groups the user is a member of
-	// and resolve their ids to groups names.
-	scopeGroups = "directory.read.all"
+	// Microsoft requires the scopes to start with openid
+	scopeOpenID = "openid"
+	// Get the permissions configured on the application registration
+	// see https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-permissions-and-consent#the-default-scope
+	scopeDefault = "https://graph.microsoft.com/.default"
 	// Microsoft requires this scope to return a refresh token
 	// see https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-permissions-and-consent#offline_access
 	scopeOfflineAccess = "offline_access"
@@ -62,7 +62,7 @@ type Config struct {
 	PromptType string `json:"promptType"`
 	DomainHint string `json:"domainHint"`
 
-	Scopes []string `json:"scopes"` // defaults to scopeUser (user.read)
+	Scopes []string `json:"scopes"` // defaults to scopeOpenID (openid)
 }
 
 // Open returns a strategy for logging in through Microsoft.
@@ -153,11 +153,9 @@ func (c *microsoftConnector) oauth2Config(scopes connector.Scopes) *oauth2.Confi
 	if len(c.scopes) > 0 {
 		microsoftScopes = c.scopes
 	} else {
-		microsoftScopes = append(microsoftScopes, scopeUser)
+		microsoftScopes = append(microsoftScopes, scopeOpenID)
 	}
-	if c.groupsRequired(scopes.Groups) {
-		microsoftScopes = append(microsoftScopes, scopeGroups)
-	}
+	microsoftScopes = append(microsoftScopes, scopeDefault)
 
 	if scopes.OfflineAccess {
 		microsoftScopes = append(microsoftScopes, scopeOfflineAccess)
@@ -386,19 +384,13 @@ func (c *microsoftConnector) user(ctx context.Context, client *http.Client) (u u
 //	Supports $filter and $orderby.
 type group struct {
 	Name string `json:"displayName"`
+	Id   string `json:"id,omitempty"`
 }
 
 func (c *microsoftConnector) getGroups(ctx context.Context, client *http.Client, userID string) ([]string, error) {
-	userGroups, err := c.getGroupIDs(ctx, client)
+	userGroups, err := c.queryGroups(ctx, client)
 	if err != nil {
 		return nil, err
-	}
-
-	if c.groupNameFormat == GroupName {
-		userGroups, err = c.getGroupNames(ctx, client, userGroups)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	// ensure that the user is in at least one required group
@@ -412,51 +404,26 @@ func (c *microsoftConnector) getGroups(ctx context.Context, client *http.Client,
 	return userGroups, nil
 }
 
-func (c *microsoftConnector) getGroupIDs(ctx context.Context, client *http.Client) (ids []string, err error) {
-	// https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/api/user_getmembergroups
-	in := &struct {
-		SecurityEnabledOnly bool `json:"securityEnabledOnly"`
-	}{c.onlySecurityGroups}
-	reqURL := c.graphURL + "/v1.0/me/getMemberGroups"
-	for {
-		var out []string
-		var next string
-
-		next, err = c.post(ctx, client, reqURL, in, &out)
-		if err != nil {
-			return ids, err
-		}
-
-		ids = append(ids, out...)
-		if next == "" {
-			return
-		}
-		reqURL = next
-	}
-}
-
-func (c *microsoftConnector) getGroupNames(ctx context.Context, client *http.Client, ids []string) (groups []string, err error) {
-	if len(ids) == 0 {
-		return
-	}
-
-	// https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/api/directoryobject_getbyids
-	in := &struct {
-		IDs   []string `json:"ids"`
-		Types []string `json:"types"`
-	}{ids, []string{"group"}}
-	reqURL := c.graphURL + "/v1.0/directoryObjects/getByIds"
+func (c *microsoftConnector) queryGroups(ctx context.Context, client *http.Client) (groups []string, err error) {
+	reqURL := c.graphURL + "/v1.0/me/memberOf/microsoft.graph.group?$select=displayName,id"
 	for {
 		var out []group
 		var next string
 
-		next, err = c.post(ctx, client, reqURL, in, &out)
+		next, err = c.get(ctx, client, reqURL, &out)
 		if err != nil {
+			c.logger.Info("resolved groups", "groups", groups, "error", err.Error())
 			return groups, err
 		}
 
 		for _, g := range out {
-			groups = append(groups, g.Name)
+			if c.groupNameFormat == GroupName {
+				c.logger.Info("resolved another group", "name", g.Name)
+				groups = append(groups, g.Name)
+			} else {
+				c.logger.Info("resolved another group", "id", g.Id)
+				groups = append(groups, g.Id)
+			}
 		}
 		if next == "" {
 			return
@@ -466,6 +433,7 @@ func (c *microsoftConnector) getGroupNames(ctx context.Context, client *http.Cli
 }
 
 func (c *microsoftConnector) post(ctx context.Context, client *http.Client, reqURL string, in interface{}, out interface{}) (string, error) {
+	c.logger.Info("post url", "url", reqURL)
 	var payload bytes.Buffer
 
 	err := json.NewEncoder(&payload).Encode(in)
@@ -482,6 +450,36 @@ func (c *microsoftConnector) post(ctx context.Context, client *http.Client, reqU
 	resp, err := client.Do(req.WithContext(ctx))
 	if err != nil {
 		return "", fmt.Errorf("post URL %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", newGraphError(resp.Body)
+	}
+
+	var next string
+	if err = json.NewDecoder(resp.Body).Decode(&struct {
+		NextLink *string     `json:"@odata.nextLink"`
+		Value    interface{} `json:"value"`
+	}{&next, out}); err != nil {
+		return "", fmt.Errorf("JSON decode: %v", err)
+	}
+
+	return next, nil
+}
+
+func (c *microsoftConnector) get(ctx context.Context, client *http.Client, reqURL string, out interface{}) (string, error) {
+	c.logger.Info("get url", "url", reqURL)
+
+	req, err := http.NewRequest("GET", reqURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("new req: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req.WithContext(ctx))
+	if err != nil {
+		return "", fmt.Errorf("get URL %v", err)
 	}
 	defer resp.Body.Close()
 
