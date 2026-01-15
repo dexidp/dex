@@ -17,6 +17,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	admin "google.golang.org/api/admin/directory/v1"
+	cloudidentity "google.golang.org/api/cloudidentity/v1"
 	"google.golang.org/api/impersonate"
 	"google.golang.org/api/option"
 
@@ -160,6 +161,7 @@ type googleConnector struct {
 	domainToAdminEmail             map[string]string
 	fetchTransitiveGroupMembership bool
 	adminSrv                       map[string]*admin.Service
+	cloudIdentitySrv               *cloudidentity.Service
 	promptType                     string
 }
 
@@ -261,19 +263,15 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 		}
 	}
 
-	var groups []string
-	if s.Groups && len(c.adminSrv) > 0 {
-		checkedGroups := make(map[string]struct{})
-		groups, err = c.getGroups(claims.Email, c.fetchTransitiveGroupMembership, checkedGroups)
-		if err != nil {
-			return identity, fmt.Errorf("google: could not retrieve groups: %v", err)
-		}
+	groups, err := c.getGroups(ctx, s, token, claims.Email, c.fetchTransitiveGroupMembership)
+	if err != nil {
+		return identity, fmt.Errorf("google: could not retrieve groups: %v", err)
+	}
 
-		if len(c.groups) > 0 {
-			groups = pkg_groups.Filter(groups, c.groups)
-			if len(groups) == 0 {
-				return identity, fmt.Errorf("google: user %q is not in any of the required groups", claims.Username)
-			}
+	if len(c.groups) > 0 {
+		groups = pkg_groups.Filter(groups, c.groups)
+		if len(groups) == 0 {
+			return identity, fmt.Errorf("google: user %q is not in any of the required groups", claims.Username)
 		}
 	}
 
@@ -288,49 +286,131 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 	return identity, nil
 }
 
-// getGroups creates a connection to the admin directory service and lists
-// all groups the user is a member of
-func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership bool, checkedGroups map[string]struct{}) ([]string, error) {
+// getGroups makes a best effort attempt to retrieve groups the provided email is a member of.
+func (c *googleConnector) getGroups(ctx context.Context, s connector.Scopes, token *oauth2.Token, email string, fetchTransitiveGroupMembership bool) ([]string, error) {
+	if c.hasCloudIdentityGroupScope() {
+		return c.getGroupsUsingUser(ctx, token, email, fetchTransitiveGroupMembership)
+	}
+	if s.Groups && c.adminSrv != nil {
+		return c.getGroupsUsingAdmin(ctx, email, fetchTransitiveGroupMembership)
+	}
+	return nil, nil
+}
+
+// hasCloudIdentityGroupScope returns true if the provided scopes contain the required scope
+// to retrieve groups from the Cloud Identity API.
+func (c *googleConnector) hasCloudIdentityGroupScope() bool {
+	return slices.ContainsFunc(c.oauth2Config.Scopes, func(s string) bool {
+		return s == cloudidentity.CloudPlatformScope || s == cloudidentity.CloudIdentityGroupsScope || s == cloudidentity.CloudIdentityGroupsReadonlyScope
+	})
+}
+
+// getGroupsUsingUser uses the Cloud Identity API to retrieve groups the provided email is a member
+// of. This method returns groups from direct and transitive memberships.
+//
+// In contrast to getGroupsUsingAdmin, this method does NOT require the authenticated client
+// to have been granted domain-wide delegation. Instead, it relies on the OAuth access token
+// having the appropriate permissions from requesting the Cloud Identity API scope
+// (see hasCloudIdentityGroupScope).
+func (c *googleConnector) getGroupsUsingUser(ctx context.Context, token *oauth2.Token, email string, fetchTransitiveGroupMembership bool) ([]string, error) {
+	svc, err := c.createCloudIdentityService(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+
 	var userGroups []string
-	var err error
-	groupsList := &admin.Groups{}
+	resp := &cloudidentity.SearchDirectGroupsResponse{}
+
+	checkedGroups := make(map[string]struct{})
+	stack := []string{email}
+	for len(stack) > 0 {
+		n := len(stack) - 1
+		curEmail := stack[n]
+		stack = stack[:n]
+
+		query := fmt.Sprintf("member_key_id=='%s'", curEmail)
+		for {
+			resp, err = svc.Groups.Memberships.SearchDirectGroups("groups/-").
+				Context(ctx).Query(query).PageToken(resp.NextPageToken).Do()
+			if err != nil {
+				return nil, fmt.Errorf("could not list groups: %v", err)
+			}
+
+			for _, m := range resp.Memberships {
+				group := m.GroupKey.Id
+				if _, exists := checkedGroups[group]; exists {
+					continue
+				}
+				checkedGroups[group] = struct{}{}
+				userGroups = append(userGroups, group)
+				if !fetchTransitiveGroupMembership {
+					continue
+				}
+				stack = append(stack, group)
+			}
+
+			if resp.NextPageToken == "" {
+				break
+			}
+		}
+	}
+
+	return userGroups, nil
+}
+
+// createCloudIdentityService is a small helper useful for testing by allowing to override
+// the cloud identity service.
+func (c *googleConnector) createCloudIdentityService(ctx context.Context, token *oauth2.Token) (*cloudidentity.Service, error) {
+	if c.cloudIdentitySrv != nil {
+		return c.cloudIdentitySrv, nil
+	}
+	return cloudidentity.NewService(ctx, option.WithHTTPClient(c.oauth2Config.Client(ctx, token)))
+}
+
+// getGroupsUsingAdmin uses the Admin SDK API to retrieve groups the provided email is a member of.
+//
+// This method requires the authenticated client to have been granted domain-wide delegation.
+func (c *googleConnector) getGroupsUsingAdmin(ctx context.Context, email string, fetchTransitiveGroupMembership bool) ([]string, error) {
 	domain := c.extractDomainFromEmail(email)
 	adminSrv, err := c.findAdminService(domain)
 	if err != nil {
 		return nil, err
 	}
 
-	for {
-		groupsList, err = adminSrv.Groups.List().
-			UserKey(email).PageToken(groupsList.NextPageToken).Do()
-		if err != nil {
-			return nil, fmt.Errorf("could not list groups: %v", err)
-		}
+	var userGroups []string
+	resp := &admin.Groups{}
 
-		for _, group := range groupsList.Groups {
-			if _, exists := checkedGroups[group.Email]; exists {
-				continue
-			}
+	checkedGroups := make(map[string]struct{})
+	stack := []string{email}
+	for len(stack) > 0 {
+		n := len(stack) - 1
+		curEmail := stack[n]
+		stack = stack[:n]
 
-			checkedGroups[group.Email] = struct{}{}
-			// TODO (joelspeed): Make desired group key configurable
-			userGroups = append(userGroups, group.Email)
-
-			if !fetchTransitiveGroupMembership {
-				continue
-			}
-
-			// getGroups takes a user's email/alias as well as a group's email/alias
-			transitiveGroups, err := c.getGroups(group.Email, fetchTransitiveGroupMembership, checkedGroups)
+		for {
+			resp, err = adminSrv.Groups.List().
+				Context(ctx).UserKey(curEmail).PageToken(resp.NextPageToken).Do()
 			if err != nil {
-				return nil, fmt.Errorf("could not list transitive groups: %v", err)
+				return nil, fmt.Errorf("could not list groups: %v", err)
 			}
 
-			userGroups = append(userGroups, transitiveGroups...)
-		}
+			for _, g := range resp.Groups {
+				group := g.Email
+				if _, exists := checkedGroups[group]; exists {
+					continue
+				}
+				checkedGroups[group] = struct{}{}
+				// TODO (joelspeed): Make desired group key configurable
+				userGroups = append(userGroups, group)
+				if !fetchTransitiveGroupMembership {
+					continue
+				}
+				stack = append(stack, group)
+			}
 
-		if groupsList.NextPageToken == "" {
-			break
+			if resp.NextPageToken == "" {
+				break
+			}
 		}
 	}
 
