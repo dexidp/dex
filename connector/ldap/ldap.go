@@ -652,20 +652,19 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 					},
 				})
 			}
-			continue
-		}
-
-		for _, attr := range c.getAttrs(user, matcher.UserAttr) {
-			obtained, filter, err := c.queryGroups(ctx, matcher.GroupAttr, attr)
-			if err != nil {
-				return nil, err
+		} else {
+			for _, attr := range c.getAttrs(user, matcher.UserAttr) {
+				obtained, filter, err := c.queryGroups(ctx, matcher.GroupAttr, attr)
+				if err != nil {
+					return nil, err
+				}
+				gotGroups := len(obtained) != 0
+				if !gotGroups {
+					// TODO(ericchiang): Is this going to spam the logs?
+					c.logger.Error("ldap: groups search returned no groups", "filter", filter)
+				}
+				groups = append(groups, obtained...)
 			}
-			gotGroups := len(obtained) != 0
-			if !gotGroups {
-				// TODO(ericchiang): Is this going to spam the logs?
-				c.logger.Error("ldap: groups search returned no groups", "filter", filter)
-			}
-			groups = append(groups, obtained...)
 		}
 
 		// If RecursionGroupAttr is not set, convert direct groups into names and return
