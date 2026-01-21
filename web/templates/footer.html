@@ -1,3 +1,32 @@
     </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const passwordInput = document.getElementById('password');
+            const togglePassword = document.getElementById('togglePassword');
+
+            togglePassword.addEventListener('click', function() {
+                // Toggle the type attribute
+                const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                passwordInput.setAttribute('type', type);
+
+                // Toggle the icon
+                this.classList.toggle('show');
+            });
+
+            // Add keyboard support
+            togglePassword.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    this.click();
+                }
+            });
+        });
+    </script>
+    <!-- <script type="text/javascript">
+        document.querySelector('form').onsubmit = function(e) {
+          var el = document.querySelector('#submit-login');
+          el.setAttribute('disabled', 'disabled');
+        };
+    </script> -->
   </body>
 </html>

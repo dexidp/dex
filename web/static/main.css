@@ -7,11 +7,18 @@ body {
 }
 
 .dex-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   color: #333;
   margin: 45px auto;
-  max-width: 500px;
-  min-width: 320px;
+  max-width: 100%;
+  min-width: 33%;
+  max-height: 100%;
+  min-height: 50%;
   text-align: center;
+  height: 100%;
+  width: 100%;
 }
 
 .dex-btn {
@@ -38,6 +45,7 @@ body {
 }
 
 .dex-btn-icon {
+  background-color: #FFFFFF;
   background-position: center;
   background-repeat: no-repeat;
   background-size: 24px;
@@ -48,9 +56,36 @@ body {
   width: 36px;
 }
 
+.dex-org-logo {
+  height: 175px;
+  margin: 20px;
+  width: 175px;
+}
+
+.dex-asama-logo {
+  background-color: #FFFFFF;
+  background-size: contain;
+  background-image: url(../static/img/asama-logo.png);
+}
+
+.dex-password-toggle-icon {
+  background-image: url(../static/img/password-toggle.png);
+  background-size: contain;
+}
+
+input[type="checkbox"]:checked + .dex-password-toggle-icon {
+    background-image: url('img/show.png'); /* Change to "hide" icon when checked */
+}
+
+input[type="checkbox"]:checked ~ .password-input-wrapper {
+    -webkit-text-security: none; /* For Safari */
+    text-security: none; /* For other browsers */
+    -moz-text-security: none; /* For older Firefox versions */
+}
+
 .dex-btn-icon--google {
   background-color: #FFFFFF;
-  background-image: url(../static/img/google-icon.svg);;
+  background-image: url(../static/img/google-icon.svg);
 }
 
 .dex-btn-icon--local {
@@ -64,7 +99,7 @@ body {
 }
 
 .dex-btn-icon--github {
-  background-color: #F5F5F5;
+  background-color: #FFFFFF;
   background-image: url(../static/img/github-icon.svg);
 }
 
@@ -116,15 +151,17 @@ body {
 }
 
 .dex-btn-text {
-  font-weight: 600;
+  font-size: 15px;
+  font-family: sans-serif;
   line-height: 36px;
-  padding: 6px 12px;
+  padding: 0px 10px;
   text-align: center;
+  color: #1A1A1A;
 }
 
 .dex-subtle-text {
-  color: #999;
-  font-size: 12px;
+  font-size: 15px;
+  color: #1A1A1A;
 }
 
 .dex-separator {
@@ -132,11 +169,11 @@ body {
 }
 
 .dex-list {
-  color: #999;
   display: inline-block;
-  font-size: 12px;
+  font-size: 13px;
   list-style: circle;
   text-align: left;
+  color: #1A1A1A;
 }
 
 .dex-error-box {
