@@ -46,6 +46,7 @@ import (
 	"github.com/dexidp/dex/connector/openshift"
 	"github.com/dexidp/dex/connector/saml"
 	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/memory"
 	"github.com/dexidp/dex/web"
 )
 
@@ -64,6 +65,9 @@ type Connector struct {
 // Multiple servers using the same storage are expected to be configured identically.
 type Config struct {
 	Issuer string
+
+	// Use cookies and keep active sessions in storage
+	EnableRememberMe bool
 
 	// The backing persistence layer.
 	Storage storage.Storage
@@ -172,7 +176,8 @@ type Server struct {
 	// Map of connector IDs to connectors.
 	connectors map[string]Connector
 
-	storage storage.Storage
+	storage        storage.Storage
+	sessionStorage storage.ActiveSessionStorage
 
 	mux http.Handler
 
@@ -180,6 +185,8 @@ type Server struct {
 
 	// If enabled, don't prompt user for approval after logging in through connector.
 	skipApproval bool
+
+	enableRememberMe bool
 
 	// If enabled, show the connector selection screen even if there's only one
 	alwaysShowLogin bool
@@ -316,6 +323,10 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		templates:              tmpls,
 		passwordConnector:      c.PasswordConnector,
 		logger:                 c.Logger,
+		enableRememberMe:       c.EnableRememberMe,
+	}
+	if c.EnableRememberMe {
+		s.sessionStorage = memory.NewSessionStore(s.logger)
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
@@ -650,6 +661,14 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 					s.logger.InfoContext(ctx, "garbage collection run, delete auth",
 						"requests", r.AuthRequests, "auth_codes", r.AuthCodes,
 						"device_requests", r.DeviceRequests, "device_tokens", r.DeviceTokens)
+				}
+				if s.sessionStorage != nil {
+					if r, err := s.sessionStorage.GarbageCollect(ctx, now()); err != nil {
+						s.logger.ErrorContext(ctx, "garbage collection for session storage failed", "err", err)
+					} else if !r.IsEmpty() {
+						s.logger.InfoContext(ctx, "garbage collection for session storage run",
+							"sessions", r.Sessions)
+					}
 				}
 			}
 		}
