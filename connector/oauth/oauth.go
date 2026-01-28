@@ -191,8 +191,12 @@ func (c *oauthConnector) HandleCallback(s connector.Scopes, r *http.Request) (id
 	if s.Groups {
 		groups := map[string]struct{}{}
 
-		c.addGroupsFromMap(groups, userInfoResult)
-		c.addGroupsFromToken(groups, token.AccessToken)
+		if err := c.addGroupsFromMap(groups, userInfoResult); err != nil {
+			c.logger.Warn("OAuth Connector: failed to add groups from userinfo", "error", err)
+		}
+		if err := c.addGroupsFromToken(groups, token.AccessToken); err != nil {
+			c.logger.Warn("OAuth Connector: failed to add groups from token", "error", err)
+		}
 
 		for groupName := range groups {
 			identity.Groups = append(identity.Groups, groupName)
@@ -214,7 +218,15 @@ func (c *oauthConnector) HandleCallback(s connector.Scopes, r *http.Request) (id
 func (c *oauthConnector) addGroupsFromMap(groups map[string]struct{}, result map[string]interface{}) error {
 	groupsClaim, ok := result[c.groupsKey].([]interface{})
 	if !ok {
-		return errors.New("cannot convert to slice")
+		// sometimes the groups claim is a slice encoded as a JSON string
+		groupsStr, ok := result[c.groupsKey].(string)
+		if !ok {
+			return fmt.Errorf("%T claim is not a list or JSON-encoded list", result[c.groupsKey])
+		}
+		err := json.Unmarshal([]byte(groupsStr), &groupsClaim)
+		if err != nil {
+			return fmt.Errorf("failed to decode groups claim: %v", err)
+		}
 	}
 
 	for _, group := range groupsClaim {
