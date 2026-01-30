@@ -10,12 +10,14 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/groups"
+	"github.com/dexidp/dex/pkg/httpclient"
 )
 
 const (
@@ -35,6 +37,7 @@ type Config struct {
 	Groups              []string `json:"groups"`
 	UseLoginAsID        bool     `json:"useLoginAsID"`
 	GetGroupsPermission bool     `json:"getGroupsPermission"`
+	RootCAData          []byte   `json:"rootCAData,omitempty"`
 }
 
 type gitlabUser struct {
@@ -51,6 +54,19 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 	if c.BaseURL == "" {
 		c.BaseURL = "https://gitlab.com"
 	}
+	var httpClient *http.Client
+	if len(c.RootCAData) > 0 {
+		var err error
+		httpClient, err = httpclient.NewHTTPClient([]string{string(c.RootCAData)}, false)
+		if err != nil {
+			// Keep backward-compatible error semantics for invalid PEM input.
+			if strings.Contains(err.Error(), "not in PEM format") {
+				return nil, fmt.Errorf("gitlab: invalid rootCAData")
+			}
+			return nil, fmt.Errorf("gitlab: failed to create HTTP client: %v", err)
+		}
+		httpClient.Timeout = 30 * time.Second
+	}
 	return &gitlabConnector{
 		baseURL:             c.BaseURL,
 		redirectURI:         c.RedirectURI,
@@ -60,6 +76,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 		groups:              c.Groups,
 		useLoginAsID:        c.UseLoginAsID,
 		getGroupsPermission: c.GetGroupsPermission,
+		httpClient:          httpClient,
 	}, nil
 }
 
