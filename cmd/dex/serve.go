@@ -307,6 +307,10 @@ func runServe(options serveOptions) error {
 		PrometheusRegistry:         prometheusRegistry,
 		HealthChecker:              healthChecker,
 		ContinueOnConnectorFailure: featureflags.ContinueOnConnectorFailure.Enabled(),
+		EnableRememberMe:           c.Sessions.Enable,
+	}
+	if c.Sessions.Enable {
+		logger.Info("remember me experimental feature enabled")
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)

@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
+
+	"github.com/dexidp/dex/connector"
 )
 
 var (
@@ -60,6 +62,7 @@ type GCResult struct {
 	AuthCodes      int64
 	DeviceRequests int64
 	DeviceTokens   int64
+	Sessions       int64
 }
 
 // IsEmpty returns whether the garbage collection result is empty or not.
@@ -67,7 +70,8 @@ func (g *GCResult) IsEmpty() bool {
 	return g.AuthRequests == 0 &&
 		g.AuthCodes == 0 &&
 		g.DeviceRequests == 0 &&
-		g.DeviceTokens == 0
+		g.DeviceTokens == 0 &&
+		g.Sessions == 0
 }
 
 // Storage is the storage interface used by the server. Implementations are
@@ -140,6 +144,19 @@ type Storage interface {
 	// GarbageCollect deletes all expired AuthCodes,
 	// AuthRequests, DeviceRequests, and DeviceTokens.
 	GarbageCollect(ctx context.Context, now time.Time) (GCResult, error)
+}
+
+type ActiveSessionStorage interface {
+	GetSession(ctx context.Context, identifier string) (ActiveSession, error)
+	CreateSession(ctx context.Context, identifier string, data ActiveSession) error
+	GarbageCollect(ctx context.Context, now time.Time) (GCResult, error)
+}
+
+type ActiveSession struct {
+	// TODO(juf): Think about storing only claim/identity data or reference to OfflineSession
+	// and create a new token every time instead
+	Expiry   time.Time
+	Identity connector.Identity
 }
 
 // Client represents an OAuth2 client.
