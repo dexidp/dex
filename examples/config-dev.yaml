@@ -169,3 +169,13 @@ staticPasswords:
   - "team-a"
   - "team-a/admins"
   userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
+
+# Settings for signing JWT tokens. Available options:
+# - "local": use local keys (only RSA keys supported)
+# - "vault": use Vault Transit backend (RSA and EC keys supported)
+# signer:
+#   type: vault
+#   vault:
+#     addr: http://127.0.0.1:8200
+#     token: root
+#     keyName: dex-key

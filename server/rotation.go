@@ -64,36 +64,6 @@ type keyRotator struct {
 	logger *slog.Logger
 }
 
-// startKeyRotation begins key rotation in a new goroutine, closing once the context is canceled.
-//
-// The method blocks until after the first attempt to rotate keys has completed. That way
-// healthy storages will return from this call with valid keys.
-func (s *Server) startKeyRotation(ctx context.Context, strategy rotationStrategy, now func() time.Time) {
-	rotator := keyRotator{s.storage, strategy, now, s.logger}
-
-	// Try to rotate immediately so properly configured storages will have keys.
-	if err := rotator.rotate(); err != nil {
-		if err == errAlreadyRotated {
-			s.logger.Info("key rotation not needed", "err", err)
-		} else {
-			s.logger.Error("failed to rotate keys", "err", err)
-		}
-	}
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(time.Second * 30):
-				if err := rotator.rotate(); err != nil {
-					s.logger.Error("failed to rotate keys", "err", err)
-				}
-			}
-		}
-	}()
-}
-
 func (k keyRotator) rotate() error {
 	keys, err := k.GetKeys(context.Background())
 	if err != nil && err != storage.ErrNotFound {

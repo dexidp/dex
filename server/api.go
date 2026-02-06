@@ -279,7 +279,7 @@ func (d dexAPI) GetVersion(ctx context.Context, req *api.VersionReq) (*api.Versi
 }
 
 func (d dexAPI) GetDiscovery(ctx context.Context, req *api.DiscoveryReq) (*api.DiscoveryResp, error) {
-	discoveryDoc := d.server.constructDiscovery()
+	discoveryDoc := d.server.constructDiscovery(ctx)
 	data, err := json.Marshal(discoveryDoc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal discovery data: %v", err)

@@ -351,21 +351,6 @@ func genSubject(userID string, connID string) (string, error) {
 }
 
 func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string) (idToken string, expiry time.Time, err error) {
-	keys, err := s.storage.GetKeys(ctx)
-	if err != nil {
-		s.logger.ErrorContext(ctx, "failed to get keys", "err", err)
-		return "", expiry, err
-	}
-
-	signingKey := keys.SigningKey
-	if signingKey == nil {
-		return "", expiry, fmt.Errorf("no key to sign payload with")
-	}
-	signingAlg, err := signatureAlgorithm(signingKey)
-	if err != nil {
-		return "", expiry, err
-	}
-
 	issuedAt := s.now()
 	expiry = issuedAt.Add(s.idTokensValidFor)
 
@@ -381,6 +366,13 @@ func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage
 		Nonce:    nonce,
 		Expiry:   expiry.Unix(),
 		IssuedAt: issuedAt.Unix(),
+	}
+
+	// Determine signing algorithm from signer
+	signingAlg, err := s.signer.Algorithm(ctx)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to get signing algorithm", "err", err)
+		return "", expiry, fmt.Errorf("failed to get signing algorithm: %v", err)
 	}
 
 	if accessToken != "" {
@@ -445,7 +437,7 @@ func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage
 		return "", expiry, fmt.Errorf("could not serialize claims: %v", err)
 	}
 
-	if idToken, err = signPayload(signingKey, signingAlg, payload); err != nil {
+	if idToken, err = s.signer.Sign(ctx, payload); err != nil {
 		return "", expiry, fmt.Errorf("failed to sign payload: %v", err)
 	}
 	return idToken, expiry, nil
@@ -705,12 +697,12 @@ func validateConnectorID(connectors []storage.Connector, connectorID string) boo
 	return false
 }
 
-// storageKeySet implements the oidc.KeySet interface backed by Dex storage
-type storageKeySet struct {
-	storage.Storage
+// signerKeySet implements the oidc.KeySet interface backed by the Dex signer
+type signerKeySet struct {
+	signer Signer
 }
 
-func (s *storageKeySet) VerifySignature(ctx context.Context, jwt string) (payload []byte, err error) {
+func (s *signerKeySet) VerifySignature(ctx context.Context, jwt string) (payload []byte, err error) {
 	jws, err := jose.ParseSigned(jwt, []jose.SignatureAlgorithm{jose.RS256, jose.RS384, jose.RS512, jose.ES256, jose.ES384, jose.ES512})
 	if err != nil {
 		return nil, err
@@ -722,14 +714,9 @@ func (s *storageKeySet) VerifySignature(ctx context.Context, jwt string) (payloa
 		break
 	}
 
-	skeys, err := s.Storage.GetKeys(ctx)
+	keys, err := s.signer.ValidationKeys(ctx)
 	if err != nil {
 		return nil, err
-	}
-
-	keys := []*jose.JSONWebKey{skeys.SigningKeyPub}
-	for _, vk := range skeys.VerificationKeys {
-		keys = append(keys, vk.PublicKey)
 	}
 
 	for _, key := range keys {

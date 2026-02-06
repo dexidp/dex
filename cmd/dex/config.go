@@ -35,6 +35,9 @@ type Config struct {
 
 	Frontend server.WebConfig `json:"frontend"`
 
+	// Signer configuration controls signing of JWT tokens issued by Dex.
+	Signer server.SignerConfig `json:"signer"`
+
 	// StaticConnectors are user defined connectors specified in the ConfigMap
 	// Write operations, like updating a connector, will fail.
 	StaticConnectors []Connector `json:"connectors"`
