@@ -15,6 +15,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"hash"
+	"os"
 
 	"github.com/go-jose/go-jose/v4"
 	vault "github.com/openbao/openbao/api/v2"
@@ -25,6 +26,37 @@ type VaultSignerConfig struct {
 	Addr    string `json:"addr"`
 	Token   string `json:"token"`
 	KeyName string `json:"keyName"`
+}
+
+// UnmarshalJSON unmarshals a VaultSignerConfig and applies environment variables.
+// If Addr or Token are not provided in the config, they are read from VAULT_ADDR
+// and VAULT_TOKEN environment variables respectively.
+func (c *VaultSignerConfig) UnmarshalJSON(data []byte) error {
+	type Alias VaultSignerConfig
+	aux := &struct {
+		*Alias
+	}{
+		Alias: (*Alias)(c),
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	// Apply environment variables if config values are empty
+	if c.Addr == "" {
+		if addr := os.Getenv("VAULT_ADDR"); addr != "" {
+			c.Addr = addr
+		}
+	}
+
+	if c.Token == "" {
+		if token := os.Getenv("VAULT_TOKEN"); token != "" {
+			c.Token = token
+		}
+	}
+
+	return nil
 }
 
 // vaultSigner signs payloads using HashiCorp Vault's Transit backend.
