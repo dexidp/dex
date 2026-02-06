@@ -89,8 +89,8 @@ type discovery struct {
 	Claims            []string `json:"claims_supported"`
 }
 
-func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
-	d := s.constructDiscovery()
+func (s *Server) discoveryHandler(ctx context.Context) (http.HandlerFunc, error) {
+	d := s.constructDiscovery(ctx)
 
 	data, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
@@ -104,7 +104,7 @@ func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 	}), nil
 }
 
-func (s *Server) constructDiscovery() discovery {
+func (s *Server) constructDiscovery(ctx context.Context) discovery {
 	d := discovery{
 		Issuer:            s.issuerURL.String(),
 		Auth:              s.absURL("/auth"),
@@ -125,7 +125,7 @@ func (s *Server) constructDiscovery() discovery {
 	}
 
 	// Determine signing algorithm from signer
-	signingAlg, err := s.signer.Algorithm(context.Background())
+	signingAlg, err := s.signer.Algorithm(ctx)
 	if err != nil {
 		s.logger.Error("failed to get signing algorithm", "err", err)
 	} else {

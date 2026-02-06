@@ -475,7 +475,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	}
 	r.NotFoundHandler = http.NotFoundHandler()
 
-	discoveryHandler, err := s.discoveryHandler()
+	discoveryHandler, err := s.discoveryHandler(ctx)
 	if err != nil {
 		return nil, err
 	}
