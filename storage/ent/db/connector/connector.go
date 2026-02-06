@@ -19,6 +19,8 @@ const (
 	FieldResourceVersion = "resource_version"
 	// FieldConfig holds the string denoting the config field in the database.
 	FieldConfig = "config"
+	// FieldHidden holds the string denoting the hidden field in the database.
+	FieldHidden = "hidden"
 	// Table holds the table name of the connector in the database.
 	Table = "connectors"
 )
@@ -30,6 +32,7 @@ var Columns = []string{
 	FieldName,
 	FieldResourceVersion,
 	FieldConfig,
+	FieldHidden,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -47,6 +50,8 @@ var (
 	TypeValidator func(string) error
 	// NameValidator is a validator for the "name" field. It is called by the builders before save.
 	NameValidator func(string) error
+	// DefaultHidden holds the default value on creation for the "hidden" field.
+	DefaultHidden bool
 	// IDValidator is a validator for the "id" field. It is called by the builders before save.
 	IDValidator func(string) error
 )
@@ -72,4 +77,9 @@ func ByName(opts ...sql.OrderTermOption) OrderOption {
 // ByResourceVersion orders the results by the resource_version field.
 func ByResourceVersion(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldResourceVersion, opts...).ToFunc()
+}
+
+// ByHidden orders the results by the hidden field.
+func ByHidden(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldHidden, opts...).ToFunc()
 }

@@ -43,6 +43,20 @@ func (_c *ConnectorCreate) SetConfig(v []byte) *ConnectorCreate {
 	return _c
 }
 
+// SetHidden sets the "hidden" field.
+func (_c *ConnectorCreate) SetHidden(v bool) *ConnectorCreate {
+	_c.mutation.SetHidden(v)
+	return _c
+}
+
+// SetNillableHidden sets the "hidden" field if the given value is not nil.
+func (_c *ConnectorCreate) SetNillableHidden(v *bool) *ConnectorCreate {
+	if v != nil {
+		_c.SetHidden(*v)
+	}
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *ConnectorCreate) SetID(v string) *ConnectorCreate {
 	_c.mutation.SetID(v)
@@ -56,6 +70,7 @@ func (_c *ConnectorCreate) Mutation() *ConnectorMutation {
 
 // Save creates the Connector in the database.
 func (_c *ConnectorCreate) Save(ctx context.Context) (*Connector, error) {
+	_c.defaults()
 	return withHooks(ctx, _c.sqlSave, _c.mutation, _c.hooks)
 }
 
@@ -78,6 +93,14 @@ func (_c *ConnectorCreate) Exec(ctx context.Context) error {
 func (_c *ConnectorCreate) ExecX(ctx context.Context) {
 	if err := _c.Exec(ctx); err != nil {
 		panic(err)
+	}
+}
+
+// defaults sets the default values of the builder before save.
+func (_c *ConnectorCreate) defaults() {
+	if _, ok := _c.mutation.Hidden(); !ok {
+		v := connector.DefaultHidden
+		_c.mutation.SetHidden(v)
 	}
 }
 
@@ -104,6 +127,9 @@ func (_c *ConnectorCreate) check() error {
 	}
 	if _, ok := _c.mutation.Config(); !ok {
 		return &ValidationError{Name: "config", err: errors.New(`db: missing required field "Connector.config"`)}
+	}
+	if _, ok := _c.mutation.Hidden(); !ok {
+		return &ValidationError{Name: "hidden", err: errors.New(`db: missing required field "Connector.hidden"`)}
 	}
 	if v, ok := _c.mutation.ID(); ok {
 		if err := connector.IDValidator(v); err != nil {
@@ -161,6 +187,10 @@ func (_c *ConnectorCreate) createSpec() (*Connector, *sqlgraph.CreateSpec) {
 		_spec.SetField(connector.FieldConfig, field.TypeBytes, value)
 		_node.Config = value
 	}
+	if value, ok := _c.mutation.Hidden(); ok {
+		_spec.SetField(connector.FieldHidden, field.TypeBool, value)
+		_node.Hidden = value
+	}
 	return _node, _spec
 }
 
@@ -182,6 +212,7 @@ func (_c *ConnectorCreateBulk) Save(ctx context.Context) ([]*Connector, error) {
 	for i := range _c.builders {
 		func(i int, root context.Context) {
 			builder := _c.builders[i]
+			builder.defaults()
 			var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
 				mutation, ok := m.(*ConnectorMutation)
 				if !ok {
