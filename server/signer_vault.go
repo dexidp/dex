@@ -17,7 +17,7 @@ import (
 	"hash"
 
 	"github.com/go-jose/go-jose/v4"
-	vault "github.com/hashicorp/vault/api"
+	vault "github.com/openbao/openbao/api/v2"
 )
 
 // VaultSignerConfig holds configuration for the Vault signer.
