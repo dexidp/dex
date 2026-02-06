@@ -862,6 +862,17 @@ func setupServer(tok map[string]interface{}, idTokenDesired bool) (*httptest.Ser
 		})
 	})
 
+	mux.HandleFunc("/.well-known/oauth-authorization-server", func(w http.ResponseWriter, r *http.Request) {
+		url := fmt.Sprintf("http://%s", r.Host)
+
+		json.NewEncoder(w).Encode(&map[string]string{
+			"issuer":                 url,
+			"token_endpoint":         fmt.Sprintf("%s/token", url),
+			"authorization_endpoint": fmt.Sprintf("%s/authorize", url),
+			"jwks_uri":               fmt.Sprintf("%s/keys", url),
+		})
+	})
+
 	return httptest.NewServer(mux), nil
 }
 
