@@ -190,10 +190,19 @@ type FilterGroupClaims struct {
 	GroupsFilter string `json:"groupsFilter"`
 }
 
+// ValueOrClaim represents a value that can be either a literal string or a reference to a claim.
+// If Claim is set, its value from the claims map will be used.
+// Otherwise, Value (the literal string) will be used.
+type ValueOrClaim struct {
+	Value     string `json:"value,omitempty"`
+	Claim     string `json:"claim,omitempty"`
+	Separator string `json:"separator,omitempty"`
+}
+
 // ModifyGroupNames allows to modify the group claims by adding a prefix and/or suffix to each group.
 type ModifyGroupNames struct {
-	Prefix string `json:"prefix"`
-	Suffix string `json:"suffix"`
+	Prefix ValueOrClaim `json:"prefix"`
+	Suffix ValueOrClaim `json:"suffix"`
 }
 
 // Domains that don't support basic auth. golang.org/x/oauth2 has an internal
@@ -314,8 +323,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		groupsKey:                 c.ClaimMapping.GroupsKey,
 		newGroupFromClaims:        c.ClaimMutations.NewGroupFromClaims,
 		groupsFilter:              groupsFilter,
-		groupsPrefix:              c.ClaimMutations.ModifyGroupNames.Prefix,
-		groupsSuffix:              c.ClaimMutations.ModifyGroupNames.Suffix,
+		modifyGroupNames:          c.ClaimMutations.ModifyGroupNames,
 	}, nil
 }
 
@@ -346,8 +354,7 @@ type oidcConnector struct {
 	groupsKey                 string
 	newGroupFromClaims        []NewGroupFromClaims
 	groupsFilter              *regexp.Regexp
-	groupsPrefix              string
-	groupsSuffix              string
+	modifyGroupNames          ModifyGroupNames
 }
 
 func (c *oidcConnector) Close() error {
@@ -439,6 +446,28 @@ func (c *oidcConnector) TokenIdentity(ctx context.Context, subjectTokenType, sub
 		TokenType:   subjectTokenType,
 	}
 	return c.createIdentity(ctx, identity, token, exchangeCaller)
+}
+
+// resolveValueOrClaim resolves either a literal value or a claim reference.
+// isPrefix indicates if this is for a prefix (true) or suffix (false).
+func resolveValueOrClaim(v ValueOrClaim, claims map[string]interface{}, isPrefix bool) string {
+	var result string
+	if v.Claim != "" {
+		if s, ok := claims[v.Claim].(string); ok {
+			result = s
+		}
+	} else {
+		result = v.Value
+	}
+
+	if result != "" && v.Separator != "" {
+		if isPrefix {
+			result += v.Separator
+		} else {
+			result = v.Separator + result
+		}
+	}
+	return result
 }
 
 func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.Identity, token *oauth2.Token, caller caller) (connector.Identity, error) {
@@ -588,9 +617,12 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	}
 
 	// add prefix/suffix to groups
-	if c.groupsPrefix != "" || c.groupsSuffix != "" {
+	if c.modifyGroupNames.Prefix.Value != "" || c.modifyGroupNames.Prefix.Claim != "" ||
+		c.modifyGroupNames.Suffix.Value != "" || c.modifyGroupNames.Suffix.Claim != "" {
 		for i, group := range groups {
-			groups[i] = c.groupsPrefix + group + c.groupsSuffix
+			prefix := resolveValueOrClaim(c.modifyGroupNames.Prefix, claims, true)
+			suffix := resolveValueOrClaim(c.modifyGroupNames.Suffix, claims, false)
+			groups[i] = prefix + group + suffix
 		}
 	}
 
