@@ -307,6 +307,7 @@ func runServe(options serveOptions) error {
 		PrometheusRegistry:         prometheusRegistry,
 		HealthChecker:              healthChecker,
 		ContinueOnConnectorFailure: featureflags.ContinueOnConnectorFailure.Enabled(),
+		Signer:                     c.Signer,
 	}
 	if c.Expiry.SigningKeys != "" {
 		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)

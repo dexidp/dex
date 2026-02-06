@@ -116,6 +116,8 @@ type Config struct {
 
 	Logger *slog.Logger
 
+	Signer SignerConfig
+
 	PrometheusRegistry *prometheus.Registry
 
 	HealthChecker gosundheit.Health
@@ -154,6 +156,12 @@ type WebConfig struct {
 
 	// Map of extra values passed into the templates
 	Extra map[string]string
+}
+
+// SignerConfig holds the server's signer configuration.
+type SignerConfig struct {
+	Type  string            `json:"type"`
+	Vault VaultSignerConfig `json:"vault"`
 }
 
 func value(val, defaultValue time.Duration) time.Duration {
@@ -200,6 +208,8 @@ type Server struct {
 	refreshTokenPolicy *RefreshTokenPolicy
 
 	logger *slog.Logger
+
+	signer Signer
 }
 
 // NewServer constructs a server from the provided config.
@@ -316,6 +326,19 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		templates:              tmpls,
 		passwordConnector:      c.PasswordConnector,
 		logger:                 c.Logger,
+	}
+
+	// Initialize signer
+	if c.Signer.Type == "vault" {
+		s.signer, err = newVaultSigner(c.Signer.Vault)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize vault signer: %v", err)
+		}
+		s.logger.Info("signer configured", "type", "vault")
+	} else {
+		// Default to local signer
+		s.signer = newLocalSigner(c.Storage, rotationStrategy, now, c.Logger)
+		s.logger.Info("signer configured", "type", "local")
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
@@ -514,7 +537,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 	s.mux = r
 
-	s.startKeyRotation(ctx, rotationStrategy, now)
+	s.signer.Start(ctx)
 	s.startGarbageCollection(ctx, value(c.GCFrequency, 5*time.Minute), now)
 
 	return s, nil
