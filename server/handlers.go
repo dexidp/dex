@@ -72,7 +72,7 @@ func (s *Server) handlePublicKeys(w http.ResponseWriter, r *http.Request) {
 	w.Write(data)
 }
 
-type discovery struct {
+type discoveryOIDC struct {
 	Issuer            string   `json:"issuer"`
 	Auth              string   `json:"authorization_endpoint"`
 	Token             string   `json:"token_endpoint"`
@@ -90,8 +90,36 @@ type discovery struct {
 	Claims            []string `json:"claims_supported"`
 }
 
-func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
-	d := s.constructDiscovery()
+type discoveryOAuth2 struct {
+	Issuer            string   `json:"issuer"`
+	Auth              string   `json:"authorization_endpoint"`
+	Token             string   `json:"token_endpoint"`
+	Keys              string   `json:"jwks_uri"`
+	DeviceEndpoint    string   `json:"device_authorization_endpoint,omitempty"`
+	Introspect        string   `json:"introspection_endpoint,omitempty"`
+	GrantTypes        []string `json:"grant_types_supported"`
+	ResponseTypes     []string `json:"response_types_supported"`
+	CodeChallengeAlgs []string `json:"code_challenge_methods_supported,omitempty"`
+	Scopes            []string `json:"scopes_supported,omitempty"`
+	AuthMethods       []string `json:"token_endpoint_auth_methods_supported,omitempty"`
+}
+
+type DiscoveryType int
+
+const (
+	DiscoveryOIDC DiscoveryType = iota
+	DiscoveryOAuth2
+)
+
+func (s *Server) discoveryHandler(t DiscoveryType) (http.HandlerFunc, error) {
+	var d interface{}
+
+	switch t {
+	case DiscoveryOAuth2:
+		d = s.constructDiscoveryOAuth2()
+	default:
+		d = s.constructDiscoveryOIDC()
+	}
 
 	data, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
@@ -105,8 +133,8 @@ func (s *Server) discoveryHandler() (http.HandlerFunc, error) {
 	}), nil
 }
 
-func (s *Server) constructDiscovery() discovery {
-	d := discovery{
+func (s *Server) constructDiscoveryOIDC() discoveryOIDC {
+	d := discoveryOIDC{
 		Issuer:            s.issuerURL.String(),
 		Auth:              s.absURL("/auth"),
 		Token:             s.absURL("/token"),
@@ -131,6 +159,31 @@ func (s *Server) constructDiscovery() discovery {
 	sort.Strings(d.ResponseTypes)
 
 	d.GrantTypes = s.supportedGrantTypes
+	return d
+}
+
+func (s *Server) constructDiscoveryOAuth2() discoveryOAuth2 {
+	d := discoveryOAuth2{
+		Issuer:            s.issuerURL.String(),
+		Auth:              s.absURL("/auth"),
+		Token:             s.absURL("/token"),
+		Keys:              s.absURL("/keys"),
+		DeviceEndpoint:    s.absURL("/device/code"),
+		Introspect:        s.absURL("/token/introspect"),
+		CodeChallengeAlgs: []string{codeChallengeMethodS256, codeChallengeMethodPlain},
+		Scopes:            []string{"offline_access"},
+		AuthMethods:       []string{"client_secret_basic", "client_secret_post"},
+	}
+
+	// response_types_supported
+	for responseType := range s.supportedResponseTypes {
+		d.ResponseTypes = append(d.ResponseTypes, responseType)
+	}
+	sort.Strings(d.ResponseTypes)
+
+	// grant_types_supported
+	d.GrantTypes = s.supportedGrantTypes
+
 	return d
 }
 
