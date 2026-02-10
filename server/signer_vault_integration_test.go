@@ -32,11 +32,9 @@ import (
 // To test both systems in parallel, set both sets of environment variables.
 
 type conformanceTestConfig struct {
-	name     string
-	addr     string
-	token    string
-	addrEnv  string
-	tokenEnv string
+	name  string
+	addr  string
+	token string
 }
 
 // getTestConfigs returns list of test configs based on environment variables
@@ -48,11 +46,9 @@ func getTestConfigs(t *testing.T) []conformanceTestConfig {
 	vaultToken := os.Getenv("DEX_VAULT_TOKEN")
 	if vaultAddr != "" && vaultToken != "" {
 		configs = append(configs, conformanceTestConfig{
-			name:     "Vault",
-			addr:     vaultAddr,
-			token:    vaultToken,
-			addrEnv:  "DEX_VAULT_ADDR",
-			tokenEnv: "DEX_VAULT_TOKEN",
+			name:  "Vault",
+			addr:  vaultAddr,
+			token: vaultToken,
 		})
 	}
 
@@ -61,11 +57,9 @@ func getTestConfigs(t *testing.T) []conformanceTestConfig {
 	openbaoToken := os.Getenv("DEX_OPENBAO_TOKEN")
 	if openbaoAddr != "" && openbaoToken != "" {
 		configs = append(configs, conformanceTestConfig{
-			name:     "OpenBao",
-			addr:     openbaoAddr,
-			token:    openbaoToken,
-			addrEnv:  "DEX_OPENBAO_ADDR",
-			tokenEnv: "DEX_OPENBAO_TOKEN",
+			name:  "OpenBao",
+			addr:  openbaoAddr,
+			token: openbaoToken,
 		})
 	}
 
@@ -139,14 +133,7 @@ func TestVaultSignerConformance_SigningAndVerification(t *testing.T) {
 						t.Fatalf("failed to create key: %v", err)
 					}
 
-					// Clean up
-					defer func() {
-						updateData := map[string]interface{}{
-							"deletion_allowed": true,
-						}
-						client.Logical().WriteWithContext(ctx, fmt.Sprintf("transit/keys/%s/config", keyName), updateData)
-						client.Logical().DeleteWithContext(ctx, fmt.Sprintf("transit/keys/%s", keyName))
-					}()
+					defer cleanupTests(t, ctx, client, keyName)
 
 					// Create signer
 					signerConfig := VaultSignerConfig{
@@ -191,7 +178,10 @@ func TestVaultSignerConformance_SigningAndVerification(t *testing.T) {
 						"exp": time.Now().Add(time.Hour).Unix(),
 						"iat": time.Now().Unix(),
 					}
-					payloadBytes, _ := json.Marshal(payload)
+					payloadBytes, err := json.Marshal(payload)
+					if err != nil {
+						t.Fatalf("failed to marshal payload: %v", err)
+					}
 
 					jwtString, err := signer.Sign(ctx, payloadBytes)
 					if err != nil {
@@ -221,12 +211,19 @@ func TestVaultSignerConformance_SigningAndVerification(t *testing.T) {
 					// Test 4: Multiple signatures with same key
 					for i := 0; i < 3; i++ {
 						randomPayload := make([]byte, 32)
-						rand.Read(randomPayload)
+						_, err := rand.Read(randomPayload)
+						if err != nil {
+							t.Fatalf("failed to generate random payload: %v", err)
+						}
+
 						payloadData := map[string]interface{}{
 							"data": base64.StdEncoding.EncodeToString(randomPayload),
 							"iat":  time.Now().Unix(),
 						}
-						payloadBytes, _ := json.Marshal(payloadData)
+						payloadBytes, err := json.Marshal(payloadData)
+						if err != nil {
+							t.Fatalf("failed to marshal payload: %v", err)
+						}
 
 						jwtString, err := signer.Sign(ctx, payloadBytes)
 						if err != nil {
@@ -283,14 +280,7 @@ func TestVaultSignerConformance_KeyRotation(t *testing.T) {
 				t.Fatalf("failed to create key: %v", err)
 			}
 
-			// Clean up
-			defer func() {
-				updateData := map[string]interface{}{
-					"deletion_allowed": true,
-				}
-				client.Logical().WriteWithContext(ctx, fmt.Sprintf("transit/keys/%s/config", keyName), updateData)
-				client.Logical().DeleteWithContext(ctx, fmt.Sprintf("transit/keys/%s", keyName))
-			}()
+			defer cleanupTests(t, ctx, client, keyName)
 
 			// Create signer
 			signerConfig := VaultSignerConfig{
@@ -305,7 +295,11 @@ func TestVaultSignerConformance_KeyRotation(t *testing.T) {
 
 			// Sign with initial key version
 			payload1 := map[string]interface{}{"version": "v1", "iat": time.Now().Unix()}
-			payload1Bytes, _ := json.Marshal(payload1)
+			payload1Bytes, err := json.Marshal(payload1)
+			if err != nil {
+				t.Fatalf("failed to marshal payload: %v", err)
+			}
+
 			jwt1, err := signer.Sign(ctx, payload1Bytes)
 			if err != nil {
 				t.Fatalf("failed to sign with v1: %v", err)
@@ -328,7 +322,11 @@ func TestVaultSignerConformance_KeyRotation(t *testing.T) {
 
 			// Sign with new key version
 			payload2 := map[string]interface{}{"version": "v2", "iat": time.Now().Unix()}
-			payload2Bytes, _ := json.Marshal(payload2)
+			payload2Bytes, err := json.Marshal(payload2)
+			if err != nil {
+				t.Fatalf("failed to marshal payload: %v", err)
+			}
+
 			jwt2, err := signer.Sign(ctx, payload2Bytes)
 			if err != nil {
 				t.Fatalf("failed to sign with v2: %v", err)
@@ -411,14 +409,7 @@ func TestVaultSignerConformance_PublicKeyDiscovery(t *testing.T) {
 				t.Fatalf("failed to create key: %v", err)
 			}
 
-			// Clean up
-			defer func() {
-				updateData := map[string]interface{}{
-					"deletion_allowed": true,
-				}
-				client.Logical().WriteWithContext(ctx, fmt.Sprintf("transit/keys/%s/config", keyName), updateData)
-				client.Logical().DeleteWithContext(ctx, fmt.Sprintf("transit/keys/%s", keyName))
-			}()
+			defer cleanupTests(t, ctx, client, keyName)
 
 			// Create signer
 			signerConfig := VaultSignerConfig{
@@ -480,7 +471,11 @@ func TestVaultSignerConformance_PublicKeyDiscovery(t *testing.T) {
 				"exp": time.Now().Add(time.Hour).Unix(),
 				"iat": time.Now().Unix(),
 			}
-			payloadBytes, _ := json.Marshal(payload)
+			payloadBytes, err := json.Marshal(payload)
+			if err != nil {
+				t.Fatalf("failed to marshal payload: %v", err)
+			}
+
 			jwtString, err := signer.Sign(ctx, payloadBytes)
 			if err != nil {
 				t.Fatalf("failed to sign JWT: %v", err)
@@ -537,4 +532,18 @@ func enableTransitEngine(client *vault.Client) error {
 	}
 
 	return nil
+}
+
+func cleanupTests(t *testing.T, ctx context.Context, client *vault.Client, keyName string) {
+	updateData := map[string]interface{}{
+		"deletion_allowed": true,
+	}
+	_, err := client.Logical().WriteWithContext(ctx, fmt.Sprintf("transit/keys/%s/config", keyName), updateData)
+	if err != nil {
+		t.Logf("failed to update key config: %v", err)
+	}
+	_, err = client.Logical().DeleteWithContext(ctx, fmt.Sprintf("transit/keys/%s", keyName))
+	if err != nil {
+		t.Logf("failed to delete key: %v", err)
+	}
 }
