@@ -247,7 +247,57 @@ func (v *vaultSigner) getTransitKeysMap(ctx context.Context) (map[int64]*jose.JS
 func parsePEMToJWK(pemStr string) (*jose.JSONWebKey, error) {
 	block, _ := pem.Decode([]byte(pemStr))
 	if block == nil {
-		return nil, fmt.Errorf("failed to parse PEM block")
+		// OpenBao may return ED25519 keys as raw base64-encoded strings instead of PEM
+		// Try to decode as raw base64 ED25519 key
+		keyBytes, err := base64.StdEncoding.DecodeString(pemStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse PEM block or base64: %v", err)
+		}
+
+		// Check if it's a raw 32-byte ED25519 key
+		if len(keyBytes) == 32 {
+			ed25519Key := ed25519.PublicKey(keyBytes)
+
+			jwk := &jose.JSONWebKey{
+				Key:       ed25519Key,
+				Algorithm: "EdDSA",
+				Use:       "sig",
+			}
+
+			thumbprint, err := jwk.Thumbprint(crypto.SHA256)
+			if err != nil {
+				return nil, err
+			}
+			jwk.KeyID = base64.RawURLEncoding.EncodeToString(thumbprint)
+
+			return jwk, nil
+		}
+
+		// Try to parse as PKIX public key
+		pub, err := x509.ParsePKIXPublicKey(keyBytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse raw key: %v", err)
+		}
+
+		// Create JWK for ED25519 key
+		ed25519Key, ok := pub.(ed25519.PublicKey)
+		if !ok {
+			return nil, fmt.Errorf("expected ED25519 key, got %T", pub)
+		}
+
+		jwk := &jose.JSONWebKey{
+			Key:       ed25519Key,
+			Algorithm: "EdDSA",
+			Use:       "sig",
+		}
+
+		thumbprint, err := jwk.Thumbprint(crypto.SHA256)
+		if err != nil {
+			return nil, err
+		}
+		jwk.KeyID = base64.RawURLEncoding.EncodeToString(thumbprint)
+
+		return jwk, nil
 	}
 
 	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
