@@ -13,5 +13,5 @@ var (
 	APIConnectorsCRUD = newFlag("api_connectors_crud", false)
 
 	// ContinueOnConnectorFailure allows the server to start even if some connectors fail to initialize.
-	ContinueOnConnectorFailure = newFlag("continue_on_connector_failure", false)
+	ContinueOnConnectorFailure = newFlag("continue_on_connector_failure", true)
 )
