@@ -593,7 +593,7 @@ func TestValidRedirectURI(t *testing.T) {
 	}
 }
 
-func TestStorageKeySet(t *testing.T) {
+func TestSignerKeySet(t *testing.T) {
 	logger := newLogger(t)
 	s := memory.New(logger)
 	if err := s.UpdateKeys(t.Context(), func(keys storage.Keys) (storage.Keys, error) {
@@ -668,7 +668,12 @@ func TestStorageKeySet(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			keySet := &storageKeySet{s}
+			// We use a localSigner here to bridge the storage to the Signer interface.
+			// Since VerifySignature only needs ValidationKeys (which only needs storage),
+			// we don't need to initialize the rotator or other fields.
+			keySet := &signerKeySet{
+				signer: &localSigner{storage: s},
+			}
 
 			_, err = keySet.VerifySignature(t.Context(), jwt)
 			if (err != nil && !tc.wantErr) || (err == nil && tc.wantErr) {
