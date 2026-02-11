@@ -23,7 +23,7 @@ require (
 	github.com/kylelemons/godebug v1.1.0
 	github.com/lib/pq v1.11.1
 	github.com/mattermost/xml-roundtrip-validator v0.1.0
-	github.com/mattn/go-sqlite3 v1.14.33
+	github.com/mattn/go-sqlite3 v1.14.34
 	github.com/oklog/run v1.2.0
 	github.com/openbao/openbao/api/v2 v2.5.1
 	github.com/pkg/errors v0.9.1
