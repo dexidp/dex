@@ -17,6 +17,10 @@ import (
 
 var _ = yaml.YAMLToJSON
 
+func boolPtr(v bool) *bool {
+	return &v
+}
+
 func TestValidConfiguration(t *testing.T) {
 	configuration := Config{
 		Issuer: "http://127.0.0.1:5556/dex",
@@ -116,6 +120,8 @@ staticPasswords:
   # bcrypt hash of the string "password"
   hash: "$2a$10$33EMT0cVYVlPy6WAMCLsceLYjWhuHpbz5yuZxu/GAFj03J9Lytjuy"
   username: "admin"
+  name: "Admin User"
+  emailVerified: false
   preferredUsername: "admin-public"
   groups:
   - "team-a"
@@ -213,6 +219,8 @@ additionalFeatures: [
 				Email:             "admin@example.com",
 				Hash:              []byte("$2a$10$33EMT0cVYVlPy6WAMCLsceLYjWhuHpbz5yuZxu/GAFj03J9Lytjuy"),
 				Username:          "admin",
+				Name:              "Admin User",
+				EmailVerified:     boolPtr(false),
 				PreferredUsername: "admin-public",
 				UserID:            "08a8684b-db88-4b73-90a9-3cd1661f5466",
 				Groups: []string{

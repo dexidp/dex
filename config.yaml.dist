@@ -155,6 +155,10 @@ enablePasswordDB: true
 #    # bcrypt hash of the string "password"
 #    hash: "$2a$10$examplehash..."
 #    username: "user-login"
+#    # Optional. Maps to OIDC "name" claim. Defaults to username.
+#    name: "User Full Name"
+#    # Optional. Maps to OIDC "email_verified" claim. Defaults to true.
+#    emailVerified: true
 #    # Optional. Maps to OIDC "preferred_username" claim.
 #    preferredUsername: "user-public"
 #    # Optional. Maps to OIDC "groups" claim (when 'groups' scope is requested).

@@ -24,6 +24,10 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
+func boolPtr(v bool) *bool {
+	return &v
+}
+
 func TestHandleHealth(t *testing.T) {
 	httpServer, server := newTestServer(t, nil)
 	defer httpServer.Close()
@@ -438,6 +442,8 @@ func TestHandlePassword_LocalPasswordDBClaims(t *testing.T) {
 	require.NoError(t, s.storage.CreatePassword(ctx, storage.Password{
 		Email:             "user@example.com",
 		Username:          "user-login",
+		Name:              "User Full Name",
+		EmailVerified:     boolPtr(false),
 		PreferredUsername: "user-public",
 		UserID:            "user-id",
 		Groups:            []string{"team-a", "team-a/admins"},
@@ -474,10 +480,14 @@ func TestHandlePassword_LocalPasswordDBClaims(t *testing.T) {
 	require.NoError(t, err)
 
 	var claims struct {
+		Name              string   `json:"name"`
+		EmailVerified     bool     `json:"email_verified"`
 		PreferredUsername string   `json:"preferred_username"`
 		Groups            []string `json:"groups"`
 	}
 	require.NoError(t, idToken.Claims(&claims))
+	require.Equal(t, "User Full Name", claims.Name)
+	require.False(t, claims.EmailVerified)
 	require.Equal(t, "user-public", claims.PreferredUsername)
 	require.Equal(t, []string{"team-a", "team-a/admins"}, claims.Groups)
 }

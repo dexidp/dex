@@ -571,6 +571,20 @@ type passwordDB struct {
 	s storage.Storage
 }
 
+func resolvePasswordName(p storage.Password) string {
+	if p.Name != "" {
+		return p.Name
+	}
+	return p.Username
+}
+
+func resolvePasswordEmailVerified(p storage.Password) bool {
+	if p.EmailVerified != nil {
+		return *p.EmailVerified
+	}
+	return true
+}
+
 func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, password string) (connector.Identity, bool, error) {
 	p, err := db.s.GetPassword(ctx, email)
 	if err != nil {
@@ -589,10 +603,10 @@ func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, passw
 	}
 	return connector.Identity{
 		UserID:            p.UserID,
-		Username:          p.Username,
+		Username:          resolvePasswordName(p),
 		PreferredUsername: p.PreferredUsername,
 		Email:             p.Email,
-		EmailVerified:     true,
+		EmailVerified:     resolvePasswordEmailVerified(p),
 		Groups:            p.Groups,
 	}, true, nil
 }
@@ -617,8 +631,9 @@ func (db passwordDB) Refresh(ctx context.Context, s connector.Scopes, identity c
 	//
 	// No other fields are expected to be refreshable as email is effectively used
 	// as an ID.
-	identity.Username = p.Username
+	identity.Username = resolvePasswordName(p)
 	identity.PreferredUsername = p.PreferredUsername
+	identity.EmailVerified = resolvePasswordEmailVerified(p)
 	identity.Groups = p.Groups
 
 	return identity, nil

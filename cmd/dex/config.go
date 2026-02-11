@@ -100,7 +100,9 @@ func (p *password) UnmarshalJSON(b []byte) error {
 	var data struct {
 		Email             string   `json:"email"`
 		Username          string   `json:"username"`
+		Name              string   `json:"name"`
 		PreferredUsername string   `json:"preferredUsername"`
+		EmailVerified     *bool    `json:"emailVerified"`
 		UserID            string   `json:"userID"`
 		Hash              string   `json:"hash"`
 		HashFromEnv       string   `json:"hashFromEnv"`
@@ -112,7 +114,9 @@ func (p *password) UnmarshalJSON(b []byte) error {
 	*p = password(storage.Password{
 		Email:             data.Email,
 		Username:          data.Username,
+		Name:              data.Name,
 		PreferredUsername: data.PreferredUsername,
+		EmailVerified:     data.EmailVerified,
 		UserID:            data.UserID,
 		Groups:            data.Groups,
 	})
