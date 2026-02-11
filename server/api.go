@@ -470,6 +470,10 @@ func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq
 		return nil, fmt.Errorf("create connector: %v", err)
 	}
 
+	if d.server != nil {
+		d.server.CloseConnector(req.Connector.Id)
+	}
+
 	return &api.CreateConnectorResp{}, nil
 }
 
@@ -538,6 +542,11 @@ func (d dexAPI) DeleteConnector(ctx context.Context, req *api.DeleteConnectorReq
 		d.logger.Error("api: failed to delete connector", "err", err)
 		return nil, fmt.Errorf("delete connector: %v", err)
 	}
+
+	if d.server != nil {
+		d.server.CloseConnector(req.Id)
+	}
+
 	return &api.DeleteConnectorResp{}, nil
 }
 
