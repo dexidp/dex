@@ -1,4 +1,4 @@
-package server
+package signer
 
 import (
 	"encoding/json"
@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestVaultSignerConfigUnmarshalJSON_WithEnvVars(t *testing.T) {
+func TestVaultConfigUnmarshalJSON_WithEnvVars(t *testing.T) {
 	// Save original environment variables
 	originalAddr := os.Getenv("VAULT_ADDR")
 	originalToken := os.Getenv("VAULT_TOKEN")
@@ -22,13 +22,13 @@ func TestVaultSignerConfigUnmarshalJSON_WithEnvVars(t *testing.T) {
 	tests := []struct {
 		name    string
 		json    string
-		want    VaultSignerConfig
+		want    VaultConfig
 		wantErr bool
 	}{
 		{
 			name: "empty config uses env vars",
 			json: `{"keyName": "signing-key"}`,
-			want: VaultSignerConfig{
+			want: VaultConfig{
 				Addr:    "http://vault.example.com:8200",
 				Token:   "s.xxxxxxxxxxxxxxxx",
 				KeyName: "signing-key",
@@ -38,7 +38,7 @@ func TestVaultSignerConfigUnmarshalJSON_WithEnvVars(t *testing.T) {
 		{
 			name: "config values override env vars",
 			json: `{"addr": "http://custom.vault.com:8200", "token": "s.custom", "keyName": "signing-key"}`,
-			want: VaultSignerConfig{
+			want: VaultConfig{
 				Addr:    "http://custom.vault.com:8200",
 				Token:   "s.custom",
 				KeyName: "signing-key",
@@ -48,7 +48,7 @@ func TestVaultSignerConfigUnmarshalJSON_WithEnvVars(t *testing.T) {
 		{
 			name: "partial config uses env vars for missing values",
 			json: `{"addr": "http://custom.vault.com:8200", "keyName": "signing-key"}`,
-			want: VaultSignerConfig{
+			want: VaultConfig{
 				Addr:    "http://custom.vault.com:8200",
 				Token:   "s.xxxxxxxxxxxxxxxx",
 				KeyName: "signing-key",
@@ -58,7 +58,7 @@ func TestVaultSignerConfigUnmarshalJSON_WithEnvVars(t *testing.T) {
 		{
 			name: "empty token in config uses env var",
 			json: `{"addr": "http://custom.vault.com:8200", "token": "", "keyName": "signing-key"}`,
-			want: VaultSignerConfig{
+			want: VaultConfig{
 				Addr:    "http://custom.vault.com:8200",
 				Token:   "s.xxxxxxxxxxxxxxxx",
 				KeyName: "signing-key",
@@ -69,7 +69,7 @@ func TestVaultSignerConfigUnmarshalJSON_WithEnvVars(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var got VaultSignerConfig
+			var got VaultConfig
 			err := json.Unmarshal([]byte(tt.json), &got)
 
 			if (err != nil) != tt.wantErr {
@@ -90,7 +90,7 @@ func TestVaultSignerConfigUnmarshalJSON_WithEnvVars(t *testing.T) {
 	}
 }
 
-func TestVaultSignerConfigUnmarshalJSON_WithoutEnvVars(t *testing.T) {
+func TestVaultConfigUnmarshalJSON_WithoutEnvVars(t *testing.T) {
 	// Save original environment variables
 	originalAddr := os.Getenv("VAULT_ADDR")
 	originalToken := os.Getenv("VAULT_TOKEN")
@@ -106,13 +106,13 @@ func TestVaultSignerConfigUnmarshalJSON_WithoutEnvVars(t *testing.T) {
 	tests := []struct {
 		name    string
 		json    string
-		want    VaultSignerConfig
+		want    VaultConfig
 		wantErr bool
 	}{
 		{
 			name: "config values used when env vars not set",
 			json: `{"addr": "http://vault.example.com:8200", "token": "s.xxxxxxxxxxxxxxxx", "keyName": "signing-key"}`,
-			want: VaultSignerConfig{
+			want: VaultConfig{
 				Addr:    "http://vault.example.com:8200",
 				Token:   "s.xxxxxxxxxxxxxxxx",
 				KeyName: "signing-key",
@@ -122,7 +122,7 @@ func TestVaultSignerConfigUnmarshalJSON_WithoutEnvVars(t *testing.T) {
 		{
 			name: "empty config when env vars not set",
 			json: `{"keyName": "signing-key"}`,
-			want: VaultSignerConfig{
+			want: VaultConfig{
 				Addr:    "",
 				Token:   "",
 				KeyName: "signing-key",
@@ -132,7 +132,7 @@ func TestVaultSignerConfigUnmarshalJSON_WithoutEnvVars(t *testing.T) {
 		{
 			name: "only keyName required in config",
 			json: `{"keyName": "my-key"}`,
-			want: VaultSignerConfig{
+			want: VaultConfig{
 				Addr:    "",
 				Token:   "",
 				KeyName: "my-key",
@@ -143,7 +143,7 @@ func TestVaultSignerConfigUnmarshalJSON_WithoutEnvVars(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var got VaultSignerConfig
+			var got VaultConfig
 			err := json.Unmarshal([]byte(tt.json), &got)
 
 			if (err != nil) != tt.wantErr {
@@ -164,7 +164,7 @@ func TestVaultSignerConfigUnmarshalJSON_WithoutEnvVars(t *testing.T) {
 	}
 }
 
-func TestVaultSignerConfigUnmarshalJSON_InvalidJSON(t *testing.T) {
+func TestVaultConfigUnmarshalJSON_InvalidJSON(t *testing.T) {
 	tests := []struct {
 		name    string
 		json    string
@@ -184,7 +184,7 @@ func TestVaultSignerConfigUnmarshalJSON_InvalidJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var got VaultSignerConfig
+			var got VaultConfig
 			err := json.Unmarshal([]byte(tt.json), &got)
 
 			if (err != nil) != tt.wantErr {

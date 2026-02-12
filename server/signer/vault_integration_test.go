@@ -1,4 +1,4 @@
-package server
+package signer
 
 import (
 	"context"
@@ -136,7 +136,7 @@ func TestVaultSignerConformance_SigningAndVerification(t *testing.T) {
 					defer cleanupTests(t, ctx, client, keyName)
 
 					// Create signer
-					signerConfig := VaultSignerConfig{
+					signerConfig := VaultConfig{
 						Addr:    config.addr,
 						Token:   config.token,
 						KeyName: keyName,
@@ -283,7 +283,7 @@ func TestVaultSignerConformance_KeyRotation(t *testing.T) {
 			defer cleanupTests(t, ctx, client, keyName)
 
 			// Create signer
-			signerConfig := VaultSignerConfig{
+			signerConfig := VaultConfig{
 				Addr:    config.addr,
 				Token:   config.token,
 				KeyName: keyName,
@@ -412,7 +412,7 @@ func TestVaultSignerConformance_PublicKeyDiscovery(t *testing.T) {
 			defer cleanupTests(t, ctx, client, keyName)
 
 			// Create signer
-			signerConfig := VaultSignerConfig{
+			signerConfig := VaultConfig{
 				Addr:    config.addr,
 				Token:   config.token,
 				KeyName: keyName,

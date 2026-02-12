@@ -1,4 +1,4 @@
-package server
+package signer
 
 import (
 	"context"
@@ -21,18 +21,18 @@ import (
 	vault "github.com/openbao/openbao/api/v2"
 )
 
-// VaultSignerConfig holds configuration for the Vault signer.
-type VaultSignerConfig struct {
+// VaultConfig holds configuration for the Vault signer.
+type VaultConfig struct {
 	Addr    string `json:"addr"`
 	Token   string `json:"token"`
 	KeyName string `json:"keyName"`
 }
 
-// UnmarshalJSON unmarshals a VaultSignerConfig and applies environment variables.
+// UnmarshalJSON unmarshals a VaultConfig and applies environment variables.
 // If Addr or Token are not provided in the config, they are read from VAULT_ADDR
 // and VAULT_TOKEN environment variables respectively.
-func (c *VaultSignerConfig) UnmarshalJSON(data []byte) error {
-	type Alias VaultSignerConfig
+func (c *VaultConfig) UnmarshalJSON(data []byte) error {
+	type Alias VaultConfig
 	aux := &struct {
 		*Alias
 	}{
@@ -59,6 +59,11 @@ func (c *VaultSignerConfig) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// Open creates a new Vault signer.
+func (c *VaultConfig) Open(ctx context.Context) (Signer, error) {
+	return newVaultSigner(*c)
+}
+
 // vaultSigner signs payloads using HashiCorp Vault's Transit backend.
 type vaultSigner struct {
 	client  *vault.Client
@@ -66,7 +71,7 @@ type vaultSigner struct {
 }
 
 // newVaultSigner creates a new Vault signer that uses Transit backend for signing.
-func newVaultSigner(c VaultSignerConfig) (*vaultSigner, error) {
+func newVaultSigner(c VaultConfig) (*vaultSigner, error) {
 	config := vault.DefaultConfig()
 	config.Address = c.Addr
 

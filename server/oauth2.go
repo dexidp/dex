@@ -25,6 +25,7 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -699,7 +700,7 @@ func validateConnectorID(connectors []storage.Connector, connectorID string) boo
 
 // signerKeySet implements the oidc.KeySet interface backed by the Dex signer
 type signerKeySet struct {
-	signer Signer
+	signer signer.Signer
 }
 
 func (s *signerKeySet) VerifySignature(ctx context.Context, jwt string) (payload []byte, err error) {

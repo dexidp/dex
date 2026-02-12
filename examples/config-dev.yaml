@@ -184,9 +184,13 @@ staticPasswords:
 # Settings for signing JWT tokens. Available options:
 # - "local": use local keys (only RSA keys supported)
 # - "vault": use Vault Transit backend (RSA and EC keys supported)
-# signer:
+signer:
+  type: local
+  config:
+    keysRotationPeriod: "6h"
+# signer
 #   type: vault
-#   vault:
+#   config:
 #     addr: http://127.0.0.1:8200
 #     token: root
 #     keyName: dex-key

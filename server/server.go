@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"crypto/rsa"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -45,6 +44,7 @@ import (
 	"github.com/dexidp/dex/connector/oidc"
 	"github.com/dexidp/dex/connector/openshift"
 	"github.com/dexidp/dex/connector/saml"
+	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/web"
 )
@@ -96,7 +96,6 @@ type Config struct {
 	// If enabled, the connectors selection page will always be shown even if there's only one
 	AlwaysShowLoginScreen bool
 
-	RotateKeysAfter        time.Duration // Defaults to 6 hours.
 	IDTokensValidFor       time.Duration // Defaults to 24 hours
 	AuthRequestsValidFor   time.Duration // Defaults to 24 hours
 	DeviceRequestsValidFor time.Duration // Defaults to 5 minutes
@@ -116,7 +115,8 @@ type Config struct {
 
 	Logger *slog.Logger
 
-	Signer SignerConfig
+	// Signer is used to sign tokens.
+	Signer signer.Signer
 
 	PrometheusRegistry *prometheus.Registry
 
@@ -156,12 +156,6 @@ type WebConfig struct {
 
 	// Map of extra values passed into the templates
 	Extra map[string]string
-}
-
-// SignerConfig holds the server's signer configuration.
-type SignerConfig struct {
-	Type  string            `json:"type"`
-	Vault VaultSignerConfig `json:"vault"`
 }
 
 func value(val, defaultValue time.Duration) time.Duration {
@@ -209,25 +203,15 @@ type Server struct {
 
 	logger *slog.Logger
 
-	signer Signer
+	signer signer.Signer
 }
 
 // NewServer constructs a server from the provided config.
 func NewServer(ctx context.Context, c Config) (*Server, error) {
-	return newServer(ctx, c, defaultRotationStrategy(
-		value(c.RotateKeysAfter, 6*time.Hour),
-		value(c.IDTokensValidFor, 24*time.Hour),
-	))
+	return newServer(ctx, c)
 }
 
-// NewServerWithKey constructs a server from the provided config and a static signing key.
-func NewServerWithKey(ctx context.Context, c Config, privateKey *rsa.PrivateKey) (*Server, error) {
-	return newServer(ctx, c, staticRotationStrategy(
-		privateKey,
-	))
-}
-
-func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy) (*Server, error) {
+func newServer(ctx context.Context, c Config) (*Server, error) {
 	issuerURL, err := url.Parse(c.Issuer)
 	if err != nil {
 		return nil, fmt.Errorf("server: can't parse issuer URL")
@@ -326,19 +310,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		templates:              tmpls,
 		passwordConnector:      c.PasswordConnector,
 		logger:                 c.Logger,
-	}
-
-	// Initialize signer
-	if c.Signer.Type == "vault" {
-		s.signer, err = newVaultSigner(c.Signer.Vault)
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize vault signer: %v", err)
-		}
-		s.logger.Info("signer configured", "type", "vault")
-	} else {
-		// Default to local signer
-		s.signer = newLocalSigner(c.Storage, rotationStrategy, now, c.Logger)
-		s.logger.Info("signer configured", "type", "local")
+		signer:                 c.Signer,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
