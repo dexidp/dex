@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dexidp/dex/server/signer"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/stretchr/testify/require"
 
@@ -668,11 +669,14 @@ func TestSignerKeySet(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			// We use a localSigner here to bridge the storage to the Signer interface.
-			// Since VerifySignature only needs ValidationKeys (which only needs storage),
-			// we don't need to initialize the rotator or other fields.
+			// Create a mock signer for testing
+			sig, err := signer.NewMockSigner(testKey)
+			if err != nil {
+				t.Fatal(err)
+			}
+
 			keySet := &signerKeySet{
-				signer: &localSigner{storage: s},
+				signer: sig,
 			}
 
 			_, err = keySet.VerifySignature(t.Context(), jwt)

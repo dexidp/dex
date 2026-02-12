@@ -2,6 +2,7 @@ package signer
 
 import (
 	"context"
+
 	"github.com/go-jose/go-jose/v4"
 )
 

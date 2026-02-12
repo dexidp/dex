@@ -60,7 +60,7 @@ func (c *VaultConfig) UnmarshalJSON(data []byte) error {
 }
 
 // Open creates a new Vault signer.
-func (c *VaultConfig) Open(ctx context.Context) (Signer, error) {
+func (c *VaultConfig) Open(_ context.Context) (Signer, error) {
 	return newVaultSigner(*c)
 }
 
@@ -90,7 +90,7 @@ func newVaultSigner(c VaultConfig) (*vaultSigner, error) {
 	}, nil
 }
 
-func (v *vaultSigner) Start(ctx context.Context) {
+func (v *vaultSigner) Start(_ context.Context) {
 	// Vault signer does not need background rotation tasks
 }
 

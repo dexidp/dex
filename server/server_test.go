@@ -22,6 +22,7 @@ import (
 
 	gosundheit "github.com/AppsFlyer/go-sundheit"
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/dexidp/dex/server/signer"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/prometheus/client_golang/prometheus"
@@ -84,6 +85,11 @@ func newTestServer(t *testing.T, updateConfig func(c *Config)) (*httptest.Server
 	logger := newLogger(t)
 	ctx := t.Context()
 
+	sig, err := signer.NewMockSigner(testKey)
+	if err != nil {
+		t.Fatalf("failed to create mock signer: %v", err)
+	}
+
 	config := Config{
 		Issuer:  s.URL,
 		Storage: memory.New(logger),
@@ -102,6 +108,7 @@ func newTestServer(t *testing.T, updateConfig func(c *Config)) (*httptest.Server
 			grantTypeImplicit,
 			grantTypePassword,
 		},
+		Signer: sig,
 	}
 	if updateConfig != nil {
 		updateConfig(&config)
@@ -118,8 +125,7 @@ func newTestServer(t *testing.T, updateConfig func(c *Config)) (*httptest.Server
 		t.Fatalf("create connector: %v", err)
 	}
 
-	var err error
-	if server, err = newServer(ctx, config, staticRotationStrategy(testKey)); err != nil {
+	if server, err = newServer(ctx, config); err != nil {
 		t.Fatal(err)
 	}
 
@@ -144,6 +150,11 @@ func newTestServerMultipleConnectors(t *testing.T, updateConfig func(c *Config))
 	logger := newLogger(t)
 	ctx := t.Context()
 
+	sig, err := signer.NewMockSigner(testKey)
+	if err != nil {
+		t.Fatalf("failed to create mock signer: %v", err)
+	}
+
 	config := Config{
 		Issuer:  s.URL,
 		Storage: memory.New(logger),
@@ -152,6 +163,7 @@ func newTestServerMultipleConnectors(t *testing.T, updateConfig func(c *Config))
 		},
 		Logger:             logger,
 		PrometheusRegistry: prometheus.NewRegistry(),
+		Signer:             sig,
 	}
 	if updateConfig != nil {
 		updateConfig(&config)
@@ -177,8 +189,7 @@ func newTestServerMultipleConnectors(t *testing.T, updateConfig func(c *Config))
 		t.Fatalf("create connector: %v", err)
 	}
 
-	var err error
-	if server, err = newServer(ctx, config, staticRotationStrategy(testKey)); err != nil {
+	if server, err = newServer(ctx, config); err != nil {
 		t.Fatal(err)
 	}
 	server.skipApproval = true // Don't prompt for approval, just immediately redirect with code.
@@ -1962,6 +1973,11 @@ func TestConnectorFailureHandling(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			logger := newLogger(t)
 
+			sig, err := signer.NewMockSigner(testKey)
+			if err != nil {
+				t.Fatalf("failed to create mock signer: %v", err)
+			}
+
 			config := Config{
 				Issuer:  "http://localhost",
 				Storage: memory.New(logger),
@@ -1972,6 +1988,7 @@ func TestConnectorFailureHandling(t *testing.T) {
 				PrometheusRegistry:         prometheus.NewRegistry(),
 				HealthChecker:              gosundheit.New(),
 				ContinueOnConnectorFailure: tc.continueOnConnectorFailure,
+				Signer:                     sig,
 			}
 
 			// Create connectors in storage
@@ -1981,7 +1998,7 @@ func TestConnectorFailureHandling(t *testing.T) {
 				}
 			}
 
-			server, err := newServer(ctx, config, staticRotationStrategy(testKey))
+			server, err := newServer(ctx, config)
 
 			if tc.wantErr {
 				if err == nil {
