@@ -598,13 +598,13 @@ func (c *conn) CreatePassword(ctx context.Context, p storage.Password) error {
 	p.Email = strings.ToLower(p.Email)
 	_, err := c.Exec(`
 		insert into password (
-			email, hash, username, preferred_username, user_id, groups
+			email, hash, username, preferred_username, user_id, groups, name, email_verified
 		)
 		values (
-			$1, $2, $3, $4, $5, $6
+			$1, $2, $3, $4, $5, $6, $7, $8
 		);
 	`,
-		p.Email, p.Hash, p.Username, p.PreferredUsername, p.UserID, encoder(p.Groups),
+		p.Email, p.Hash, p.Username, p.PreferredUsername, p.UserID, encoder(p.Groups), p.Name, p.EmailVerified,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -629,10 +629,10 @@ func (c *conn) UpdatePassword(ctx context.Context, email string, updater func(p 
 		_, err = tx.Exec(`
 			update password
 			set
-				hash = $1, username = $2, preferred_username = $3, user_id = $4, groups = $5
-			where email = $6;
+				hash = $1, username = $2, preferred_username = $3, user_id = $4, groups = $5, name = $6, email_verified = $7
+			where email = $8;
 		`,
-			np.Hash, np.Username, np.PreferredUsername, np.UserID, encoder(np.Groups), p.Email,
+			np.Hash, np.Username, np.PreferredUsername, np.UserID, encoder(np.Groups), np.Name, np.EmailVerified, p.Email,
 		)
 		if err != nil {
 			return fmt.Errorf("update password: %v", err)
@@ -648,7 +648,7 @@ func (c *conn) GetPassword(ctx context.Context, email string) (storage.Password,
 func getPassword(ctx context.Context, q querier, email string) (p storage.Password, err error) {
 	return scanPassword(q.QueryRow(`
 		select
-			email, hash, username, preferred_username, user_id, groups
+			email, hash, username, preferred_username, user_id, groups, name, email_verified
 		from password where email = $1;
 	`, strings.ToLower(email)))
 }
@@ -656,7 +656,7 @@ func getPassword(ctx context.Context, q querier, email string) (p storage.Passwo
 func (c *conn) ListPasswords(ctx context.Context) ([]storage.Password, error) {
 	rows, err := c.Query(`
 		select
-			email, hash, username, preferred_username, user_id, groups
+			email, hash, username, preferred_username, user_id, groups, name, email_verified
 		from password;
 	`)
 	if err != nil {
@@ -679,14 +679,18 @@ func (c *conn) ListPasswords(ctx context.Context) ([]storage.Password, error) {
 }
 
 func scanPassword(s scanner) (p storage.Password, err error) {
+	var emailVerified sql.NullBool
 	err = s.Scan(
-		&p.Email, &p.Hash, &p.Username, &p.PreferredUsername, &p.UserID, decoder(&p.Groups),
+		&p.Email, &p.Hash, &p.Username, &p.PreferredUsername, &p.UserID, decoder(&p.Groups), &p.Name, &emailVerified,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return p, storage.ErrNotFound
 		}
 		return p, fmt.Errorf("select password: %v", err)
+	}
+	if emailVerified.Valid {
+		p.EmailVerified = &emailVerified.Bool
 	}
 	return p, nil
 }

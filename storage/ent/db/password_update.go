@@ -62,6 +62,20 @@ func (_u *PasswordUpdate) SetNillableUsername(v *string) *PasswordUpdate {
 	return _u
 }
 
+// SetName sets the "name" field.
+func (_u *PasswordUpdate) SetName(v string) *PasswordUpdate {
+	_u.mutation.SetName(v)
+	return _u
+}
+
+// SetNillableName sets the "name" field if the given value is not nil.
+func (_u *PasswordUpdate) SetNillableName(v *string) *PasswordUpdate {
+	if v != nil {
+		_u.SetName(*v)
+	}
+	return _u
+}
+
 // SetPreferredUsername sets the "preferred_username" field.
 func (_u *PasswordUpdate) SetPreferredUsername(v string) *PasswordUpdate {
 	_u.mutation.SetPreferredUsername(v)
@@ -73,6 +87,26 @@ func (_u *PasswordUpdate) SetNillablePreferredUsername(v *string) *PasswordUpdat
 	if v != nil {
 		_u.SetPreferredUsername(*v)
 	}
+	return _u
+}
+
+// SetEmailVerified sets the "email_verified" field.
+func (_u *PasswordUpdate) SetEmailVerified(v bool) *PasswordUpdate {
+	_u.mutation.SetEmailVerified(v)
+	return _u
+}
+
+// SetNillableEmailVerified sets the "email_verified" field if the given value is not nil.
+func (_u *PasswordUpdate) SetNillableEmailVerified(v *bool) *PasswordUpdate {
+	if v != nil {
+		_u.SetEmailVerified(*v)
+	}
+	return _u
+}
+
+// ClearEmailVerified clears the value of the "email_verified" field.
+func (_u *PasswordUpdate) ClearEmailVerified() *PasswordUpdate {
+	_u.mutation.ClearEmailVerified()
 	return _u
 }
 
@@ -181,8 +215,17 @@ func (_u *PasswordUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Username(); ok {
 		_spec.SetField(password.FieldUsername, field.TypeString, value)
 	}
+	if value, ok := _u.mutation.Name(); ok {
+		_spec.SetField(password.FieldName, field.TypeString, value)
+	}
 	if value, ok := _u.mutation.PreferredUsername(); ok {
 		_spec.SetField(password.FieldPreferredUsername, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.EmailVerified(); ok {
+		_spec.SetField(password.FieldEmailVerified, field.TypeBool, value)
+	}
+	if _u.mutation.EmailVerifiedCleared() {
+		_spec.ClearField(password.FieldEmailVerified, field.TypeBool)
 	}
 	if value, ok := _u.mutation.UserID(); ok {
 		_spec.SetField(password.FieldUserID, field.TypeString, value)
@@ -252,6 +295,20 @@ func (_u *PasswordUpdateOne) SetNillableUsername(v *string) *PasswordUpdateOne {
 	return _u
 }
 
+// SetName sets the "name" field.
+func (_u *PasswordUpdateOne) SetName(v string) *PasswordUpdateOne {
+	_u.mutation.SetName(v)
+	return _u
+}
+
+// SetNillableName sets the "name" field if the given value is not nil.
+func (_u *PasswordUpdateOne) SetNillableName(v *string) *PasswordUpdateOne {
+	if v != nil {
+		_u.SetName(*v)
+	}
+	return _u
+}
+
 // SetPreferredUsername sets the "preferred_username" field.
 func (_u *PasswordUpdateOne) SetPreferredUsername(v string) *PasswordUpdateOne {
 	_u.mutation.SetPreferredUsername(v)
@@ -263,6 +320,26 @@ func (_u *PasswordUpdateOne) SetNillablePreferredUsername(v *string) *PasswordUp
 	if v != nil {
 		_u.SetPreferredUsername(*v)
 	}
+	return _u
+}
+
+// SetEmailVerified sets the "email_verified" field.
+func (_u *PasswordUpdateOne) SetEmailVerified(v bool) *PasswordUpdateOne {
+	_u.mutation.SetEmailVerified(v)
+	return _u
+}
+
+// SetNillableEmailVerified sets the "email_verified" field if the given value is not nil.
+func (_u *PasswordUpdateOne) SetNillableEmailVerified(v *bool) *PasswordUpdateOne {
+	if v != nil {
+		_u.SetEmailVerified(*v)
+	}
+	return _u
+}
+
+// ClearEmailVerified clears the value of the "email_verified" field.
+func (_u *PasswordUpdateOne) ClearEmailVerified() *PasswordUpdateOne {
+	_u.mutation.ClearEmailVerified()
 	return _u
 }
 
@@ -401,8 +478,17 @@ func (_u *PasswordUpdateOne) sqlSave(ctx context.Context) (_node *Password, err 
 	if value, ok := _u.mutation.Username(); ok {
 		_spec.SetField(password.FieldUsername, field.TypeString, value)
 	}
+	if value, ok := _u.mutation.Name(); ok {
+		_spec.SetField(password.FieldName, field.TypeString, value)
+	}
 	if value, ok := _u.mutation.PreferredUsername(); ok {
 		_spec.SetField(password.FieldPreferredUsername, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.EmailVerified(); ok {
+		_spec.SetField(password.FieldEmailVerified, field.TypeBool, value)
+	}
+	if _u.mutation.EmailVerifiedCleared() {
+		_spec.ClearField(password.FieldEmailVerified, field.TypeBool)
 	}
 	if value, ok := _u.mutation.UserID(); ok {
 		_spec.SetField(password.FieldUserID, field.TypeString, value)

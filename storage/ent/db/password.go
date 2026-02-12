@@ -23,8 +23,12 @@ type Password struct {
 	Hash []byte `json:"hash,omitempty"`
 	// Username holds the value of the "username" field.
 	Username string `json:"username,omitempty"`
+	// Name holds the value of the "name" field.
+	Name string `json:"name,omitempty"`
 	// PreferredUsername holds the value of the "preferred_username" field.
 	PreferredUsername string `json:"preferred_username,omitempty"`
+	// EmailVerified holds the value of the "email_verified" field.
+	EmailVerified *bool `json:"email_verified,omitempty"`
 	// UserID holds the value of the "user_id" field.
 	UserID string `json:"user_id,omitempty"`
 	// Groups holds the value of the "groups" field.
@@ -39,9 +43,11 @@ func (*Password) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case password.FieldHash, password.FieldGroups:
 			values[i] = new([]byte)
+		case password.FieldEmailVerified:
+			values[i] = new(sql.NullBool)
 		case password.FieldID:
 			values[i] = new(sql.NullInt64)
-		case password.FieldEmail, password.FieldUsername, password.FieldPreferredUsername, password.FieldUserID:
+		case password.FieldEmail, password.FieldUsername, password.FieldName, password.FieldPreferredUsername, password.FieldUserID:
 			values[i] = new(sql.NullString)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -82,11 +88,24 @@ func (_m *Password) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Username = value.String
 			}
+		case password.FieldName:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field name", values[i])
+			} else if value.Valid {
+				_m.Name = value.String
+			}
 		case password.FieldPreferredUsername:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field preferred_username", values[i])
 			} else if value.Valid {
 				_m.PreferredUsername = value.String
+			}
+		case password.FieldEmailVerified:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field email_verified", values[i])
+			} else if value.Valid {
+				_m.EmailVerified = new(bool)
+				*_m.EmailVerified = value.Bool
 			}
 		case password.FieldUserID:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -147,8 +166,16 @@ func (_m *Password) String() string {
 	builder.WriteString("username=")
 	builder.WriteString(_m.Username)
 	builder.WriteString(", ")
+	builder.WriteString("name=")
+	builder.WriteString(_m.Name)
+	builder.WriteString(", ")
 	builder.WriteString("preferred_username=")
 	builder.WriteString(_m.PreferredUsername)
+	builder.WriteString(", ")
+	if v := _m.EmailVerified; v != nil {
+		builder.WriteString("email_verified=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("user_id=")
 	builder.WriteString(_m.UserID)

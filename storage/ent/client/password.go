@@ -14,7 +14,9 @@ func (d *Database) CreatePassword(ctx context.Context, password storage.Password
 		SetEmail(password.Email).
 		SetHash(password.Hash).
 		SetUsername(password.Username).
+		SetName(password.Name).
 		SetPreferredUsername(password.PreferredUsername).
+		SetNillableEmailVerified(password.EmailVerified).
 		SetUserID(password.UserID).
 		SetGroups(password.Groups).
 		Save(ctx)
@@ -88,7 +90,9 @@ func (d *Database) UpdatePassword(ctx context.Context, email string, updater fun
 		SetEmail(newPassword.Email).
 		SetHash(newPassword.Hash).
 		SetUsername(newPassword.Username).
+		SetName(newPassword.Name).
 		SetPreferredUsername(newPassword.PreferredUsername).
+		SetNillableEmailVerified(newPassword.EmailVerified).
 		SetUserID(newPassword.UserID).
 		SetGroups(newPassword.Groups).
 		Save(ctx)

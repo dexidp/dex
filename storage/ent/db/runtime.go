@@ -212,12 +212,16 @@ func init() {
 	passwordDescUsername := passwordFields[2].Descriptor()
 	// password.UsernameValidator is a validator for the "username" field. It is called by the builders before save.
 	password.UsernameValidator = passwordDescUsername.Validators[0].(func(string) error)
+	// passwordDescName is the schema descriptor for name field.
+	passwordDescName := passwordFields[3].Descriptor()
+	// password.DefaultName holds the default value on creation for the name field.
+	password.DefaultName = passwordDescName.Default.(string)
 	// passwordDescPreferredUsername is the schema descriptor for preferred_username field.
-	passwordDescPreferredUsername := passwordFields[3].Descriptor()
+	passwordDescPreferredUsername := passwordFields[4].Descriptor()
 	// password.DefaultPreferredUsername holds the default value on creation for the preferred_username field.
 	password.DefaultPreferredUsername = passwordDescPreferredUsername.Default.(string)
 	// passwordDescUserID is the schema descriptor for user_id field.
-	passwordDescUserID := passwordFields[4].Descriptor()
+	passwordDescUserID := passwordFields[6].Descriptor()
 	// password.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
 	password.UserIDValidator = passwordDescUserID.Validators[0].(func(string) error)
 	refreshtokenFields := schema.RefreshToken{}.Fields()
