@@ -64,6 +64,24 @@ jobs:
           - 35357
         options: --health-cmd "curl --fail http://localhost:5000/v3" --health-interval 10s --health-timeout 5s --health-retries 5
 
+      vault:
+        image: hashicorp/vault:1.21
+        ports:
+          - 8200
+        env:
+          VAULT_DEV_ROOT_TOKEN_ID: root-token
+          VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+        options: --health-cmd "vault status -address=http://localhost:8200 || exit 1" --health-interval 10s --health-timeout 5s --health-retries 5
+
+      openbao:
+        image: quay.io/openbao/openbao:2.5
+        ports:
+          - 8210
+        env:
+          BAO_DEV_ROOT_TOKEN_ID: root-token
+          BAO_DEV_LISTEN_ADDRESS: "0.0.0.0:8210"
+        options: --health-cmd "bao status -address=http://localhost:8210 || exit 1" --health-interval 10s --health-timeout 5s --health-retries 5
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -128,6 +146,11 @@ jobs:
           DEX_KEYSTONE_ADMIN_URL: http://localhost:${{ job.services.keystone.ports[35357] }}
           DEX_KEYSTONE_ADMIN_USER: demo
           DEX_KEYSTONE_ADMIN_PASS: DEMO_PASS
+
+          DEX_VAULT_ADDR: http://localhost:${{ job.services.vault.ports[8200] }}
+          DEX_VAULT_TOKEN: root-token
+          DEX_OPENBAO_ADDR: http://localhost:${{ job.services.openbao.ports[8210] }}
+          DEX_OPENBAO_TOKEN: root-token
 
           DEX_KUBERNETES_CONFIG_PATH: ~/.kube/config
 
