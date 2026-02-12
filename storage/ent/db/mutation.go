@@ -6320,7 +6320,9 @@ type PasswordMutation struct {
 	email              *string
 	hash               *[]byte
 	username           *string
+	name               *string
 	preferred_username *string
+	email_verified     *bool
 	user_id            *string
 	groups             *[]string
 	appendgroups       []string
@@ -6536,6 +6538,42 @@ func (m *PasswordMutation) ResetUsername() {
 	m.username = nil
 }
 
+// SetName sets the "name" field.
+func (m *PasswordMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *PasswordMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the Password entity.
+// If the Password object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PasswordMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *PasswordMutation) ResetName() {
+	m.name = nil
+}
+
 // SetPreferredUsername sets the "preferred_username" field.
 func (m *PasswordMutation) SetPreferredUsername(s string) {
 	m.preferred_username = &s
@@ -6570,6 +6608,55 @@ func (m *PasswordMutation) OldPreferredUsername(ctx context.Context) (v string, 
 // ResetPreferredUsername resets all changes to the "preferred_username" field.
 func (m *PasswordMutation) ResetPreferredUsername() {
 	m.preferred_username = nil
+}
+
+// SetEmailVerified sets the "email_verified" field.
+func (m *PasswordMutation) SetEmailVerified(b bool) {
+	m.email_verified = &b
+}
+
+// EmailVerified returns the value of the "email_verified" field in the mutation.
+func (m *PasswordMutation) EmailVerified() (r bool, exists bool) {
+	v := m.email_verified
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEmailVerified returns the old "email_verified" field's value of the Password entity.
+// If the Password object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PasswordMutation) OldEmailVerified(ctx context.Context) (v *bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEmailVerified is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEmailVerified requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEmailVerified: %w", err)
+	}
+	return oldValue.EmailVerified, nil
+}
+
+// ClearEmailVerified clears the value of the "email_verified" field.
+func (m *PasswordMutation) ClearEmailVerified() {
+	m.email_verified = nil
+	m.clearedFields[password.FieldEmailVerified] = struct{}{}
+}
+
+// EmailVerifiedCleared returns if the "email_verified" field was cleared in this mutation.
+func (m *PasswordMutation) EmailVerifiedCleared() bool {
+	_, ok := m.clearedFields[password.FieldEmailVerified]
+	return ok
+}
+
+// ResetEmailVerified resets all changes to the "email_verified" field.
+func (m *PasswordMutation) ResetEmailVerified() {
+	m.email_verified = nil
+	delete(m.clearedFields, password.FieldEmailVerified)
 }
 
 // SetUserID sets the "user_id" field.
@@ -6707,7 +6794,7 @@ func (m *PasswordMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *PasswordMutation) Fields() []string {
-	fields := make([]string, 0, 6)
+	fields := make([]string, 0, 8)
 	if m.email != nil {
 		fields = append(fields, password.FieldEmail)
 	}
@@ -6717,8 +6804,14 @@ func (m *PasswordMutation) Fields() []string {
 	if m.username != nil {
 		fields = append(fields, password.FieldUsername)
 	}
+	if m.name != nil {
+		fields = append(fields, password.FieldName)
+	}
 	if m.preferred_username != nil {
 		fields = append(fields, password.FieldPreferredUsername)
+	}
+	if m.email_verified != nil {
+		fields = append(fields, password.FieldEmailVerified)
 	}
 	if m.user_id != nil {
 		fields = append(fields, password.FieldUserID)
@@ -6740,8 +6833,12 @@ func (m *PasswordMutation) Field(name string) (ent.Value, bool) {
 		return m.Hash()
 	case password.FieldUsername:
 		return m.Username()
+	case password.FieldName:
+		return m.Name()
 	case password.FieldPreferredUsername:
 		return m.PreferredUsername()
+	case password.FieldEmailVerified:
+		return m.EmailVerified()
 	case password.FieldUserID:
 		return m.UserID()
 	case password.FieldGroups:
@@ -6761,8 +6858,12 @@ func (m *PasswordMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldHash(ctx)
 	case password.FieldUsername:
 		return m.OldUsername(ctx)
+	case password.FieldName:
+		return m.OldName(ctx)
 	case password.FieldPreferredUsername:
 		return m.OldPreferredUsername(ctx)
+	case password.FieldEmailVerified:
+		return m.OldEmailVerified(ctx)
 	case password.FieldUserID:
 		return m.OldUserID(ctx)
 	case password.FieldGroups:
@@ -6797,12 +6898,26 @@ func (m *PasswordMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetUsername(v)
 		return nil
+	case password.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
 	case password.FieldPreferredUsername:
 		v, ok := value.(string)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetPreferredUsername(v)
+		return nil
+	case password.FieldEmailVerified:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEmailVerified(v)
 		return nil
 	case password.FieldUserID:
 		v, ok := value.(string)
@@ -6848,6 +6963,9 @@ func (m *PasswordMutation) AddField(name string, value ent.Value) error {
 // mutation.
 func (m *PasswordMutation) ClearedFields() []string {
 	var fields []string
+	if m.FieldCleared(password.FieldEmailVerified) {
+		fields = append(fields, password.FieldEmailVerified)
+	}
 	if m.FieldCleared(password.FieldGroups) {
 		fields = append(fields, password.FieldGroups)
 	}
@@ -6865,6 +6983,9 @@ func (m *PasswordMutation) FieldCleared(name string) bool {
 // error if the field is not defined in the schema.
 func (m *PasswordMutation) ClearField(name string) error {
 	switch name {
+	case password.FieldEmailVerified:
+		m.ClearEmailVerified()
+		return nil
 	case password.FieldGroups:
 		m.ClearGroups()
 		return nil
@@ -6885,8 +7006,14 @@ func (m *PasswordMutation) ResetField(name string) error {
 	case password.FieldUsername:
 		m.ResetUsername()
 		return nil
+	case password.FieldName:
+		m.ResetName()
+		return nil
 	case password.FieldPreferredUsername:
 		m.ResetPreferredUsername()
+		return nil
+	case password.FieldEmailVerified:
+		m.ResetEmailVerified()
 		return nil
 	case password.FieldUserID:
 		m.ResetUserID()

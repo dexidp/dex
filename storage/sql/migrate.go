@@ -338,4 +338,40 @@ var migrations = []migration{
 		},
 		flavor: &flavorMySQL,
 	},
+	// Migration for adding name and email_verified to password table (Postgres)
+	{
+		stmts: []string{
+			`
+			alter table password
+				add column name text not null default '';`,
+			`
+			alter table password
+				add column email_verified boolean;`,
+		},
+		flavor: &flavorPostgres,
+	},
+	// Migration for adding name and email_verified to password table (SQLite3)
+	{
+		stmts: []string{
+			`
+			alter table password
+				add column name text not null default '';`,
+			`
+			alter table password
+				add column email_verified boolean;`,
+		},
+		flavor: &flavorSQLite3,
+	},
+	// Migration for adding name and email_verified to password table (MySQL)
+	{
+		stmts: []string{
+			`
+			alter table password
+				add column name text not null default '';`,
+			`
+			alter table password
+				add column email_verified boolean;`,
+		},
+		flavor: &flavorMySQL,
+	},
 }

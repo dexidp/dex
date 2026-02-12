@@ -37,6 +37,20 @@ func (_c *PasswordCreate) SetUsername(v string) *PasswordCreate {
 	return _c
 }
 
+// SetName sets the "name" field.
+func (_c *PasswordCreate) SetName(v string) *PasswordCreate {
+	_c.mutation.SetName(v)
+	return _c
+}
+
+// SetNillableName sets the "name" field if the given value is not nil.
+func (_c *PasswordCreate) SetNillableName(v *string) *PasswordCreate {
+	if v != nil {
+		_c.SetName(*v)
+	}
+	return _c
+}
+
 // SetPreferredUsername sets the "preferred_username" field.
 func (_c *PasswordCreate) SetPreferredUsername(v string) *PasswordCreate {
 	_c.mutation.SetPreferredUsername(v)
@@ -47,6 +61,20 @@ func (_c *PasswordCreate) SetPreferredUsername(v string) *PasswordCreate {
 func (_c *PasswordCreate) SetNillablePreferredUsername(v *string) *PasswordCreate {
 	if v != nil {
 		_c.SetPreferredUsername(*v)
+	}
+	return _c
+}
+
+// SetEmailVerified sets the "email_verified" field.
+func (_c *PasswordCreate) SetEmailVerified(v bool) *PasswordCreate {
+	_c.mutation.SetEmailVerified(v)
+	return _c
+}
+
+// SetNillableEmailVerified sets the "email_verified" field if the given value is not nil.
+func (_c *PasswordCreate) SetNillableEmailVerified(v *bool) *PasswordCreate {
+	if v != nil {
+		_c.SetEmailVerified(*v)
 	}
 	return _c
 }
@@ -98,6 +126,10 @@ func (_c *PasswordCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *PasswordCreate) defaults() {
+	if _, ok := _c.mutation.Name(); !ok {
+		v := password.DefaultName
+		_c.mutation.SetName(v)
+	}
 	if _, ok := _c.mutation.PreferredUsername(); !ok {
 		v := password.DefaultPreferredUsername
 		_c.mutation.SetPreferredUsername(v)
@@ -124,6 +156,9 @@ func (_c *PasswordCreate) check() error {
 		if err := password.UsernameValidator(v); err != nil {
 			return &ValidationError{Name: "username", err: fmt.Errorf(`db: validator failed for field "Password.username": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.Name(); !ok {
+		return &ValidationError{Name: "name", err: errors.New(`db: missing required field "Password.name"`)}
 	}
 	if _, ok := _c.mutation.PreferredUsername(); !ok {
 		return &ValidationError{Name: "preferred_username", err: errors.New(`db: missing required field "Password.preferred_username"`)}
@@ -174,9 +209,17 @@ func (_c *PasswordCreate) createSpec() (*Password, *sqlgraph.CreateSpec) {
 		_spec.SetField(password.FieldUsername, field.TypeString, value)
 		_node.Username = value
 	}
+	if value, ok := _c.mutation.Name(); ok {
+		_spec.SetField(password.FieldName, field.TypeString, value)
+		_node.Name = value
+	}
 	if value, ok := _c.mutation.PreferredUsername(); ok {
 		_spec.SetField(password.FieldPreferredUsername, field.TypeString, value)
 		_node.PreferredUsername = value
+	}
+	if value, ok := _c.mutation.EmailVerified(); ok {
+		_spec.SetField(password.FieldEmailVerified, field.TypeBool, value)
+		_node.EmailVerified = &value
 	}
 	if value, ok := _c.mutation.UserID(); ok {
 		_spec.SetField(password.FieldUserID, field.TypeString, value)

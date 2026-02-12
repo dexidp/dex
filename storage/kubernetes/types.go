@@ -433,7 +433,9 @@ type Password struct {
 
 	Hash              []byte   `json:"hash,omitempty"`
 	Username          string   `json:"username,omitempty"`
+	Name              string   `json:"name,omitempty"`
 	PreferredUsername string   `json:"preferredUsername,omitempty"`
+	EmailVerified     *bool    `json:"emailVerified,omitempty"`
 	UserID            string   `json:"userID,omitempty"`
 	Groups            []string `json:"groups,omitempty"`
 }
@@ -459,7 +461,9 @@ func (cli *client) fromStoragePassword(p storage.Password) Password {
 		Email:             email,
 		Hash:              p.Hash,
 		Username:          p.Username,
+		Name:              p.Name,
 		PreferredUsername: p.PreferredUsername,
+		EmailVerified:     p.EmailVerified,
 		UserID:            p.UserID,
 		Groups:            p.Groups,
 	}
@@ -470,7 +474,9 @@ func toStoragePassword(p Password) storage.Password {
 		Email:             p.Email,
 		Hash:              p.Hash,
 		Username:          p.Username,
+		Name:              p.Name,
 		PreferredUsername: p.PreferredUsername,
+		EmailVerified:     p.EmailVerified,
 		UserID:            p.UserID,
 		Groups:            p.Groups,
 	}

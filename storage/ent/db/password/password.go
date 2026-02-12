@@ -17,8 +17,12 @@ const (
 	FieldHash = "hash"
 	// FieldUsername holds the string denoting the username field in the database.
 	FieldUsername = "username"
+	// FieldName holds the string denoting the name field in the database.
+	FieldName = "name"
 	// FieldPreferredUsername holds the string denoting the preferred_username field in the database.
 	FieldPreferredUsername = "preferred_username"
+	// FieldEmailVerified holds the string denoting the email_verified field in the database.
+	FieldEmailVerified = "email_verified"
 	// FieldUserID holds the string denoting the user_id field in the database.
 	FieldUserID = "user_id"
 	// FieldGroups holds the string denoting the groups field in the database.
@@ -33,7 +37,9 @@ var Columns = []string{
 	FieldEmail,
 	FieldHash,
 	FieldUsername,
+	FieldName,
 	FieldPreferredUsername,
+	FieldEmailVerified,
 	FieldUserID,
 	FieldGroups,
 }
@@ -53,6 +59,8 @@ var (
 	EmailValidator func(string) error
 	// UsernameValidator is a validator for the "username" field. It is called by the builders before save.
 	UsernameValidator func(string) error
+	// DefaultName holds the default value on creation for the "name" field.
+	DefaultName string
 	// DefaultPreferredUsername holds the default value on creation for the "preferred_username" field.
 	DefaultPreferredUsername string
 	// UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
@@ -77,9 +85,19 @@ func ByUsername(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUsername, opts...).ToFunc()
 }
 
+// ByName orders the results by the name field.
+func ByName(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldName, opts...).ToFunc()
+}
+
 // ByPreferredUsername orders the results by the preferred_username field.
 func ByPreferredUsername(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldPreferredUsername, opts...).ToFunc()
+}
+
+// ByEmailVerified orders the results by the email_verified field.
+func ByEmailVerified(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldEmailVerified, opts...).ToFunc()
 }
 
 // ByUserID orders the results by the user_id field.
