@@ -255,22 +255,22 @@ func parsePEMToJWK(pemStr string) (*jose.JSONWebKey, error) {
 		}
 
 		// Check if it's a raw 32-byte ED25519 key
-        var ed25519Key ed25519.PublicKey
+		var ed25519Key ed25519.PublicKey
 		if len(keyBytes) == 32 {
 			ed25519Key = ed25519.PublicKey(keyBytes)
 		} else {
-		    // Try to parse as PKIX public key
-		    pub, err := x509.ParsePKIXPublicKey(keyBytes)
-		    if err != nil {
-			    return nil, fmt.Errorf("failed to parse raw key: %v", err)
-		    }
+			// Try to parse as PKIX public key
+			pub, err := x509.ParsePKIXPublicKey(keyBytes)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse raw key: %v", err)
+			}
 
-		    // Create JWK for ED25519 key
- 		    var ok bool
-		    ed25519Key, ok = pub.(ed25519.PublicKey)
-		    if !ok {
-			    return nil, fmt.Errorf("expected ED25519 key, got %T", pub)
-		    }
+			// Create JWK for ED25519 key
+			var ok bool
+			ed25519Key, ok = pub.(ed25519.PublicKey)
+			if !ok {
+				return nil, fmt.Errorf("expected ED25519 key, got %T", pub)
+			}
 		}
 
 		jwk := &jose.JSONWebKey{
