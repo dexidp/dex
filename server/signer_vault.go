@@ -266,7 +266,8 @@ func parsePEMToJWK(pemStr string) (*jose.JSONWebKey, error) {
 		    }
 
 		    // Create JWK for ED25519 key
-		    ed25519Key, ok := pub.(ed25519.PublicKey)
+ 		    var ok bool
+		    ed25519Key, ok = pub.(ed25519.PublicKey)
 		    if !ok {
 			    return nil, fmt.Errorf("expected ED25519 key, got %T", pub)
 		    }
