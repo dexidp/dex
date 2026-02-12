@@ -149,28 +149,28 @@ type Storage interface {
 //   - Public clients: https://developers.google.com/api-client-library/python/auth/installed-app
 type Client struct {
 	// Client ID and secret used to identify the client.
-	ID        string `json:"id" yaml:"id"`
-	IDEnv     string `json:"idEnv" yaml:"idEnv"`
-	Secret    string `json:"secret" yaml:"secret"`
-	SecretEnv string `json:"secretEnv" yaml:"secretEnv"`
+	ID        string `json:"id"`
+	IDEnv     string `json:"idEnv"`
+	Secret    string `json:"secret"`
+	SecretEnv string `json:"secretEnv"`
 
 	// A registered set of redirect URIs. When redirecting from dex to the client, the URI
 	// requested to redirect to MUST match one of these values, unless the client is "public".
-	RedirectURIs []string `json:"redirectURIs" yaml:"redirectURIs"`
+	RedirectURIs []string `json:"redirectURIs"`
 
 	// TrustedPeers are a list of peers which can issue tokens on this client's behalf using
 	// the dynamic "oauth2:server:client_id:(client_id)" scope. If a peer makes such a request,
 	// this client's ID will appear as the ID Token's audience.
 	//
 	// Clients inherently trust themselves.
-	TrustedPeers []string `json:"trustedPeers" yaml:"trustedPeers"`
+	TrustedPeers []string `json:"trustedPeers"`
 
 	// Public clients must use either use a redirectURL 127.0.0.1:X or "urn:ietf:wg:oauth:2.0:oob"
-	Public bool `json:"public" yaml:"public"`
+	Public bool `json:"public"`
 
 	// Name and LogoURL used when displaying this client to the end user.
-	Name    string `json:"name" yaml:"name"`
-	LogoURL string `json:"logoURL" yaml:"logoURL"`
+	Name    string `json:"name"`
+	LogoURL string `json:"logoURL"`
 }
 
 // Claims represents the ID Token claims supported by the server.
