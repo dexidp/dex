@@ -33,16 +33,6 @@ type rotationStrategy struct {
 	key func() (*rsa.PrivateKey, error)
 }
 
-// staticRotationStrategy returns a strategy which never rotates keys.
-func staticRotationStrategy(key *rsa.PrivateKey) rotationStrategy {
-	return rotationStrategy{
-		// Setting these values to 100 years is easier than having a flag indicating no rotation.
-		rotationFrequency: time.Hour * 8760 * 100,
-		idTokenValidFor:   time.Hour * 8760 * 100,
-		key:               func() (*rsa.PrivateKey, error) { return key, nil },
-	}
-}
-
 // defaultRotationStrategy returns a strategy which rotates keys every provided period,
 // holding onto the public parts for some specified amount of time.
 func defaultRotationStrategy(rotationFrequency, idTokenValidFor time.Duration) rotationStrategy {

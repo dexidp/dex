@@ -292,7 +292,7 @@ func runServe(options serveOptions) error {
 	healthChecker := gosundheit.New()
 
 	// Parse expiry durations
-	var idTokensValidFor = 24 * time.Hour // default
+	idTokensValidFor := 24 * time.Hour // default
 	if c.Expiry.IDTokens != "" {
 		var err error
 		idTokensValidFor, err = time.ParseDuration(c.Expiry.IDTokens)

@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dexidp/dex/server/signer"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
 )

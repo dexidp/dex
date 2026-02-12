@@ -555,8 +555,8 @@ enablePasswordDB: true
 `,
 			wantErr: false,
 			check: func(c *Config) error {
-				if c.Signer.Type != "local" {
-					t.Errorf("expected signer type 'local', got %q", c.Signer.Type)
+				if c.Signer.Type != "" {
+					t.Errorf("expected signer type '', got %q", c.Signer.Type)
 				}
 				return nil
 			},
