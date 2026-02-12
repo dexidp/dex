@@ -257,7 +257,7 @@ func parsePEMToJWK(pemStr string) (*jose.JSONWebKey, error) {
 		// Check if it's a raw 32-byte ED25519 key
         var ed25519Key ed25519.PublicKey
 		if len(keyBytes) == 32 {
-			ed25519Key := ed25519.PublicKey(keyBytes)
+			ed25519Key = ed25519.PublicKey(keyBytes)
 		} else {
 		    // Try to parse as PKIX public key
 		    pub, err := x509.ParsePKIXPublicKey(keyBytes)
