@@ -14,4 +14,7 @@ var (
 
 	// ContinueOnConnectorFailure allows the server to start even if some connectors fail to initialize.
 	ContinueOnConnectorFailure = newFlag("continue_on_connector_failure", true)
+
+	// ConfigDisallowUnknownFields enables to forbid unknown fields in the config while unmarshaling.
+	ConfigDisallowUnknownFields = newFlag("config_disallow_unknown_fields", false)
 )

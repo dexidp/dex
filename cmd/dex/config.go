@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -21,6 +22,15 @@ import (
 	"github.com/dexidp/dex/storage/memory"
 	"github.com/dexidp/dex/storage/sql"
 )
+
+func configUnmarshaller(b []byte, v interface{}) error {
+	if featureflags.ConfigDisallowUnknownFields.Enabled() {
+		return json.Unmarshal(b, v)
+	}
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+	return dec.Decode(v)
+}
 
 // Config is the config format for the main application.
 type Config struct {
@@ -108,7 +118,7 @@ func (p *password) UnmarshalJSON(b []byte) error {
 		HashFromEnv       string   `json:"hashFromEnv"`
 		Groups            []string `json:"groups"`
 	}
-	if err := json.Unmarshal(b, &data); err != nil {
+	if err := configUnmarshaller(b, &data); err != nil {
 		return err
 	}
 	*p = password(storage.Password{
@@ -332,7 +342,7 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 		Type   string          `json:"type"`
 		Config json.RawMessage `json:"config"`
 	}
-	if err := json.Unmarshal(b, &store); err != nil {
+	if err := configUnmarshaller(b, &store); err != nil {
 		return fmt.Errorf("parse storage: %v", err)
 	}
 	f, ok := storages[store.Type]
@@ -345,7 +355,7 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 		data := []byte(store.Config)
 		if featureflags.ExpandEnv.Enabled() {
 			var rawMap map[string]interface{}
-			if err := json.Unmarshal(store.Config, &rawMap); err != nil {
+			if err := configUnmarshaller(store.Config, &rawMap); err != nil {
 				return fmt.Errorf("unmarshal config for env expansion: %v", err)
 			}
 
@@ -362,7 +372,7 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 			data = expandedData
 		}
 
-		if err := json.Unmarshal(data, storageConfig); err != nil {
+		if err := configUnmarshaller(data, storageConfig); err != nil {
 			return fmt.Errorf("parse storage config: %v", err)
 		}
 	}
@@ -393,7 +403,7 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 
 		Config json.RawMessage `json:"config"`
 	}
-	if err := json.Unmarshal(b, &conn); err != nil {
+	if err := configUnmarshaller(b, &conn); err != nil {
 		return fmt.Errorf("parse connector: %v", err)
 	}
 	f, ok := server.ConnectorsConfig[conn.Type]
@@ -406,7 +416,7 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 		data := []byte(conn.Config)
 		if featureflags.ExpandEnv.Enabled() {
 			var rawMap map[string]interface{}
-			if err := json.Unmarshal(conn.Config, &rawMap); err != nil {
+			if err := configUnmarshaller(conn.Config, &rawMap); err != nil {
 				return fmt.Errorf("unmarshal config for env expansion: %v", err)
 			}
 
@@ -423,7 +433,7 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 			data = expandedData
 		}
 
-		if err := json.Unmarshal(data, connConfig); err != nil {
+		if err := configUnmarshaller(data, connConfig); err != nil {
 			return fmt.Errorf("parse connector config: %v", err)
 		}
 	}

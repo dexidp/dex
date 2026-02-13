@@ -15,10 +15,10 @@ var defaultDialTimeout = 2 * time.Second
 
 // SSL represents SSL options for etcd databases.
 type SSL struct {
-	ServerName string `json:"serverName" yaml:"serverName"`
-	CAFile     string `json:"caFile" yaml:"caFile"`
-	KeyFile    string `json:"keyFile" yaml:"keyFile"`
-	CertFile   string `json:"certFile" yaml:"certFile"`
+	ServerName string `json:"serverName"`
+	CAFile     string `json:"caFile"`
+	KeyFile    string `json:"keyFile"`
+	CertFile   string `json:"certFile"`
 }
 
 // Etcd options for connecting to etcd databases.
@@ -26,11 +26,11 @@ type SSL struct {
 // configure an etcd namespace either via Namespace field or using `etcd grpc-proxy
 // --namespace=<prefix>`
 type Etcd struct {
-	Endpoints []string `json:"endpoints" yaml:"endpoints"`
-	Namespace string   `json:"namespace" yaml:"namespace"`
-	Username  string   `json:"username" yaml:"username"`
-	Password  string   `json:"password" yaml:"password"`
-	SSL       SSL      `json:"ssl" yaml:"ssl"`
+	Endpoints []string `json:"endpoints"`
+	Namespace string   `json:"namespace"`
+	Username  string   `json:"username"`
+	Password  string   `json:"password"`
+	SSL       SSL      `json:"ssl"`
 }
 
 // Open creates a new storage implementation backed by Etcd
