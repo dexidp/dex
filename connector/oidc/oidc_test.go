@@ -65,8 +65,7 @@ func TestHandleCallback(t *testing.T) {
 		token                     map[string]interface{}
 		groupsRegex               string
 		newGroupFromClaims        []NewGroupFromClaims
-		groupsPrefix              string
-		groupsSuffix              string
+		modifyGroupNames          ModifyGroupNames
 	}{
 		{
 			name:               "simpleCase",
@@ -406,7 +405,9 @@ func TestHandleCallback(t *testing.T) {
 			expectUserName:     "namevalue",
 			expectGroups:       []string{"prefix-group1", "prefix-group2", "prefix-groupA", "prefix-groupB"},
 			expectedEmailField: "emailvalue",
-			groupsPrefix:       "prefix-",
+			modifyGroupNames: ModifyGroupNames{
+				Prefix: ValueOrClaim{Value: "prefix-"},
+			},
 			token: map[string]interface{}{
 				"sub":            "subvalue",
 				"name":           "namevalue",
@@ -423,7 +424,9 @@ func TestHandleCallback(t *testing.T) {
 			expectUserName:     "namevalue",
 			expectGroups:       []string{"group1-suffix", "group2-suffix", "groupA-suffix", "groupB-suffix"},
 			expectedEmailField: "emailvalue",
-			groupsSuffix:       "-suffix",
+			modifyGroupNames: ModifyGroupNames{
+				Suffix: ValueOrClaim{Value: "-suffix"},
+			},
 			token: map[string]interface{}{
 				"sub":            "subvalue",
 				"name":           "namevalue",
@@ -440,8 +443,10 @@ func TestHandleCallback(t *testing.T) {
 			expectUserName:     "namevalue",
 			expectGroups:       []string{"prefix-group1-suffix", "prefix-group2-suffix", "prefix-groupA-suffix", "prefix-groupB-suffix"},
 			expectedEmailField: "emailvalue",
-			groupsPrefix:       "prefix-",
-			groupsSuffix:       "-suffix",
+			modifyGroupNames: ModifyGroupNames{
+				Prefix: ValueOrClaim{Value: "prefix-"},
+				Suffix: ValueOrClaim{Value: "-suffix"},
+			},
 			token: map[string]interface{}{
 				"sub":            "subvalue",
 				"name":           "namevalue",
@@ -521,8 +526,7 @@ func TestHandleCallback(t *testing.T) {
 			config.ClaimMapping.GroupsKey = tc.groupsKey
 			config.ClaimMutations.NewGroupFromClaims = tc.newGroupFromClaims
 			config.ClaimMutations.FilterGroupClaims.GroupsFilter = tc.groupsRegex
-			config.ClaimMutations.ModifyGroupNames.Prefix = tc.groupsPrefix
-			config.ClaimMutations.ModifyGroupNames.Suffix = tc.groupsSuffix
+			config.ClaimMutations.ModifyGroupNames = tc.modifyGroupNames
 
 			conn, err := newConnector(config)
 			if err != nil {
