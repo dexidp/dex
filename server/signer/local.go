@@ -1,4 +1,4 @@
-package server
+package signer
 
 import (
 	"context"
@@ -11,22 +11,34 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
+// LocalConfig holds configuration for the local signer.
+type LocalConfig struct {
+	// KeysRotationPeriod defines the duration of time after which the signing keys will be rotated.
+	KeysRotationPeriod string `json:"keysRotationPeriod"`
+}
+
+// Open creates a new local signer.
+func (c *LocalConfig) Open(_ context.Context, s storage.Storage, idTokenValidFor time.Duration, now func() time.Time, logger *slog.Logger) (Signer, error) {
+	rotateKeysAfter, err := time.ParseDuration(c.KeysRotationPeriod)
+	if err != nil {
+		return nil, fmt.Errorf("invalid config value %q for local signer rotation period: %v", c.KeysRotationPeriod, err)
+	}
+
+	strategy := defaultRotationStrategy(rotateKeysAfter, idTokenValidFor)
+	r := &keyRotator{s, strategy, now, logger}
+	return &localSigner{
+		storage: s,
+		rotator: r,
+		logger:  logger,
+	}, nil
+}
+
 // localSigner signs payloads using keys stored in the Dex storage.
 // It manages key rotation and storage using the existing keyRotator logic.
 type localSigner struct {
 	storage storage.Storage
 	rotator *keyRotator
 	logger  *slog.Logger
-}
-
-// newLocalSigner creates a new local signer and starts the key rotation loop.
-func newLocalSigner(s storage.Storage, strategy rotationStrategy, now func() time.Time, logger *slog.Logger) *localSigner {
-	r := &keyRotator{s, strategy, now, logger}
-	return &localSigner{
-		storage: s,
-		rotator: r,
-		logger:  logger,
-	}
 }
 
 // Start begins key rotation in a new goroutine, closing once the context is canceled.

@@ -37,6 +37,7 @@ import (
 	"github.com/dexidp/dex/api/v2"
 	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server"
+	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -290,6 +291,65 @@ func runServe(options serveOptions) error {
 
 	healthChecker := gosundheit.New()
 
+	// Parse expiry durations
+	idTokensValidFor := 24 * time.Hour // default
+	if c.Expiry.IDTokens != "" {
+		var err error
+		idTokensValidFor, err = time.ParseDuration(c.Expiry.IDTokens)
+		if err != nil {
+			return fmt.Errorf("invalid config value %q for id token expiry: %v", c.Expiry.IDTokens, err)
+		}
+		logger.Info("config id tokens", "valid_for", idTokensValidFor)
+	}
+
+	// Create signer
+	var signerInstance signer.Signer
+	switch c.Signer.Type {
+	case "vault":
+		vaultConfig, ok := c.Signer.Config.(*signer.VaultConfig)
+		if !ok {
+			return fmt.Errorf("invalid vault signer config")
+		}
+		signerInstance, err = vaultConfig.Open(context.Background())
+		if err != nil {
+			return fmt.Errorf("failed to open vault signer: %v", err)
+		}
+		logger.Info("signer configured", "type", "vault")
+	case "local":
+		localConfig, ok := c.Signer.Config.(*signer.LocalConfig)
+		if !ok {
+			return fmt.Errorf("invalid local signer config")
+		}
+		if localConfig.KeysRotationPeriod == "" {
+			return fmt.Errorf("failed to open local signer: signer.config.keysRotationPeriod must be specified")
+		}
+		if c.Expiry.SigningKeys != "" {
+			logger.Warn("both expiry.signingKeys and signer.config.keysRotationPeriod specified, using signer.config.keysRotationPeriod")
+		}
+		signerInstance, err = localConfig.Open(context.Background(), s, idTokensValidFor, now, logger)
+		if err != nil {
+			return fmt.Errorf("failed to open local signer: %v", err)
+		}
+		logger.Info("signer configured", "type", "local", "keys_rotation_period", localConfig.KeysRotationPeriod)
+	case "": // Default to local signer
+		// Handle deprecated expiry.signingKeys configuration
+		if c.Expiry.SigningKeys != "" {
+			logger.Warn("config expiry.signingKeys will be removed in a future release",
+				"use_instead", "signer.config.keysRotationPeriod",
+				"current_value", c.Expiry.SigningKeys, "deprecated", true)
+		} else {
+			c.Expiry.SigningKeys = "6h"
+		}
+		localConfig := signer.LocalConfig{KeysRotationPeriod: c.Expiry.SigningKeys}
+		signerInstance, err = localConfig.Open(context.Background(), s, idTokensValidFor, now, logger)
+		if err != nil {
+			return fmt.Errorf("failed to open local signer: %v", err)
+		}
+		logger.Info("signer configured", "type", "local", "keys_rotation_period", localConfig.KeysRotationPeriod)
+	default:
+		return fmt.Errorf("unknown signer type %q", c.Signer.Type)
+	}
+
 	serverConfig := server.Config{
 		AllowedGrantTypes:          c.OAuth2.GrantTypes,
 		SupportedResponseTypes:     c.OAuth2.ResponseTypes,
@@ -307,24 +367,10 @@ func runServe(options serveOptions) error {
 		PrometheusRegistry:         prometheusRegistry,
 		HealthChecker:              healthChecker,
 		ContinueOnConnectorFailure: featureflags.ContinueOnConnectorFailure.Enabled(),
-		Signer:                     c.Signer,
+		Signer:                     signerInstance,
+		IDTokensValidFor:           idTokensValidFor,
 	}
-	if c.Expiry.SigningKeys != "" {
-		signingKeys, err := time.ParseDuration(c.Expiry.SigningKeys)
-		if err != nil {
-			return fmt.Errorf("invalid config value %q for signing keys expiry: %v", c.Expiry.SigningKeys, err)
-		}
-		logger.Info("config signing keys", "expire_after", signingKeys)
-		serverConfig.RotateKeysAfter = signingKeys
-	}
-	if c.Expiry.IDTokens != "" {
-		idTokens, err := time.ParseDuration(c.Expiry.IDTokens)
-		if err != nil {
-			return fmt.Errorf("invalid config value %q for id token expiry: %v", c.Expiry.IDTokens, err)
-		}
-		logger.Info("config id tokens", "valid_for", idTokens)
-		serverConfig.IDTokensValidFor = idTokens
-	}
+
 	if c.Expiry.AuthRequests != "" {
 		authRequests, err := time.ParseDuration(c.Expiry.AuthRequests)
 		if err != nil {

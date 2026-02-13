@@ -1,4 +1,4 @@
-package server
+package signer
 
 import (
 	"context"
@@ -31,16 +31,6 @@ type rotationStrategy struct {
 	// Keys are always RSA keys. Though cryptopasta recommends ECDSA keys, not every
 	// client may support these (e.g. github.com/coreos/go-oidc/oidc).
 	key func() (*rsa.PrivateKey, error)
-}
-
-// staticRotationStrategy returns a strategy which never rotates keys.
-func staticRotationStrategy(key *rsa.PrivateKey) rotationStrategy {
-	return rotationStrategy{
-		// Setting these values to 100 years is easier than having a flag indicating no rotation.
-		rotationFrequency: time.Hour * 8760 * 100,
-		idTokenValidFor:   time.Hour * 8760 * 100,
-		key:               func() (*rsa.PrivateKey, error) { return key, nil },
-	}
 }
 
 // defaultRotationStrategy returns a strategy which rotates keys every provided period,
@@ -146,74 +136,4 @@ func (k keyRotator) rotate() error {
 	}
 	k.logger.Info("keys rotated", "next_rotation", nextRotation)
 	return nil
-}
-
-type RefreshTokenPolicy struct {
-	rotateRefreshTokens bool // enable rotation
-
-	absoluteLifetime  time.Duration // interval from token creation to the end of its life
-	validIfNotUsedFor time.Duration // interval from last token update to the end of its life
-	reuseInterval     time.Duration // interval within which old refresh token is allowed to be reused
-
-	now func() time.Time
-
-	logger *slog.Logger
-}
-
-func NewRefreshTokenPolicy(logger *slog.Logger, rotation bool, validIfNotUsedFor, absoluteLifetime, reuseInterval string) (*RefreshTokenPolicy, error) {
-	r := RefreshTokenPolicy{now: time.Now, logger: logger}
-	var err error
-
-	if validIfNotUsedFor != "" {
-		r.validIfNotUsedFor, err = time.ParseDuration(validIfNotUsedFor)
-		if err != nil {
-			return nil, fmt.Errorf("invalid config value %q for refresh token valid if not used for: %v", validIfNotUsedFor, err)
-		}
-		logger.Info("config refresh tokens", "valid_if_not_used_for", validIfNotUsedFor)
-	}
-
-	if absoluteLifetime != "" {
-		r.absoluteLifetime, err = time.ParseDuration(absoluteLifetime)
-		if err != nil {
-			return nil, fmt.Errorf("invalid config value %q for refresh tokens absolute lifetime: %v", absoluteLifetime, err)
-		}
-		logger.Info("config refresh tokens", "absolute_lifetime", absoluteLifetime)
-	}
-
-	if reuseInterval != "" {
-		r.reuseInterval, err = time.ParseDuration(reuseInterval)
-		if err != nil {
-			return nil, fmt.Errorf("invalid config value %q for refresh tokens reuse interval: %v", reuseInterval, err)
-		}
-		logger.Info("config refresh tokens", "reuse_interval", reuseInterval)
-	}
-
-	r.rotateRefreshTokens = !rotation
-	logger.Info("config refresh tokens rotation", "enabled", r.rotateRefreshTokens)
-	return &r, nil
-}
-
-func (r *RefreshTokenPolicy) RotationEnabled() bool {
-	return r.rotateRefreshTokens
-}
-
-func (r *RefreshTokenPolicy) CompletelyExpired(lastUsed time.Time) bool {
-	if r.absoluteLifetime == 0 {
-		return false // expiration disabled
-	}
-	return r.now().After(lastUsed.Add(r.absoluteLifetime))
-}
-
-func (r *RefreshTokenPolicy) ExpiredBecauseUnused(lastUsed time.Time) bool {
-	if r.validIfNotUsedFor == 0 {
-		return false // expiration disabled
-	}
-	return r.now().After(lastUsed.Add(r.validIfNotUsedFor))
-}
-
-func (r *RefreshTokenPolicy) AllowedToReuse(lastUsed time.Time) bool {
-	if r.reuseInterval == 0 {
-		return false // expiration disabled
-	}
-	return !r.now().After(lastUsed.Add(r.reuseInterval))
 }
