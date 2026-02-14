@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/netip"
 	"os"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -79,6 +81,13 @@ func (c Config) Validate() error {
 		{c.GRPC.TLSMinVersion != "" && c.GRPC.TLSMinVersion != "1.2" && c.GRPC.TLSMinVersion != "1.3", "supported TLS versions are: 1.2, 1.3"},
 		{c.GRPC.TLSMaxVersion != "" && c.GRPC.TLSMaxVersion != "1.2" && c.GRPC.TLSMaxVersion != "1.3", "supported TLS versions are: 1.2, 1.3"},
 		{c.GRPC.TLSMaxVersion != "" && c.GRPC.TLSMinVersion != "" && c.GRPC.TLSMinVersion > c.GRPC.TLSMaxVersion, "TLSMinVersion greater than TLSMaxVersion"},
+	}
+
+	if err := c.Storage.Retry.Validate(); err != nil {
+		checks = append(checks, struct {
+			bad    bool
+			errMsg string
+		}{true, err.Error()})
 	}
 
 	var checkErrors []string
@@ -267,6 +276,50 @@ type GRPC struct {
 type Storage struct {
 	Type   string        `json:"type"`
 	Config StorageConfig `json:"config"`
+	Retry  Retry         `json:"retry"`
+}
+
+// Retry holds retry mechanism configuration.
+type Retry struct {
+	MaxAttempts   int     `json:"maxAttempts"`   // Defaults to 5
+	InitialDelay  string  `json:"initialDelay"`  // Defaults to 1s
+	MaxDelay      string  `json:"maxDelay"`      // Defaults to 5s
+	BackoffFactor float64 `json:"backoffFactor"` // Defaults to 2
+}
+
+func (r *Retry) Validate() error {
+	// If retry is configured but empty, return an error
+	if r.MaxAttempts == 0 && r.InitialDelay == "" && r.MaxDelay == "" && r.BackoffFactor == 0 {
+		return fmt.Errorf("empty configuration is supplied for storage retry")
+	}
+
+	if r.MaxAttempts < 1 {
+		return fmt.Errorf("storage retry max attempts must be at least 1")
+	}
+
+	initialDelay, err := time.ParseDuration(r.InitialDelay)
+	if err != nil || initialDelay <= 0 {
+		return fmt.Errorf("storage retry initial delay must be a positive duration in go time format")
+	}
+
+	maxDelay, err := time.ParseDuration(r.MaxDelay)
+	if err != nil || maxDelay <= 0 {
+		return fmt.Errorf("storage retry max delay must be a positive duration in go time format")
+	}
+
+	if maxDelay < initialDelay {
+		return fmt.Errorf("storage retry max delay must be greater than or equal to initial delay")
+	}
+
+	if r.BackoffFactor <= 1 {
+		return fmt.Errorf("storage retry backoff factor must be greater than 1")
+	}
+	// exponential backoff algorithm-specific check
+	if float64(maxDelay) < float64(initialDelay)*math.Pow(r.BackoffFactor, float64(r.MaxAttempts-1)) {
+		return fmt.Errorf("storage retry max delay is too small for the given initial delay, backoff factor, and max attempts")
+	}
+
+	return nil
 }
 
 // StorageConfig is a configuration that can create a storage.
@@ -331,6 +384,7 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 	var store struct {
 		Type   string          `json:"type"`
 		Config json.RawMessage `json:"config"`
+		Retry  Retry           `json:"retry"`
 	}
 	if err := json.Unmarshal(b, &store); err != nil {
 		return fmt.Errorf("parse storage: %v", err)
@@ -366,9 +420,16 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 			return fmt.Errorf("parse storage config: %v", err)
 		}
 	}
+
 	*s = Storage{
 		Type:   store.Type,
 		Config: storageConfig,
+		Retry: Retry{
+			MaxAttempts:   value(store.Retry.MaxAttempts, 5),
+			InitialDelay:  value(store.Retry.InitialDelay, time.Second.String()),
+			MaxDelay:      value(store.Retry.MaxDelay, (5 * time.Second).String()),
+			BackoffFactor: value(store.Retry.BackoffFactor, 2),
+		},
 	}
 	return nil
 }
@@ -484,4 +545,12 @@ type RefreshToken struct {
 	ReuseInterval     string `json:"reuseInterval"`
 	AbsoluteLifetime  string `json:"absoluteLifetime"`
 	ValidIfNotUsedFor string `json:"validIfNotUsedFor"`
+}
+
+func value[T comparable](val, defaultValue T) T {
+	var zero T
+	if val == zero {
+		return defaultValue
+	}
+	return val
 }

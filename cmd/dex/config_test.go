@@ -29,6 +29,12 @@ func TestValidConfiguration(t *testing.T) {
 			Config: &sql.SQLite3{
 				File: "examples/dex.db",
 			},
+			Retry: Retry{
+				MaxAttempts:   5,
+				InitialDelay:  "1s",
+				MaxDelay:      "5m",
+				BackoffFactor: 2,
+			},
 		},
 		Web: Web{
 			HTTP: "127.0.0.1:5556",
@@ -58,7 +64,8 @@ func TestInvalidConfiguration(t *testing.T) {
 	wanted := `invalid Config:
 	-	no issuer specified in config file
 	-	no storage supplied in config file
-	-	must supply a HTTP/HTTPS  address to listen on`
+	-	must supply a HTTP/HTTPS  address to listen on
+	-	empty configuration is supplied for storage retry`
 	if got != wanted {
 		t.Fatalf("Expected error message to be %q, got %q", wanted, got)
 	}
@@ -76,6 +83,11 @@ storage:
     maxIdleConns: 3
     connMaxLifetime: 30
     connectionTimeout: 3
+  retry:
+    maxAttempts: 10
+    initialDelay: "4s"
+    maxDelay: "5m"
+    backoffFactor: 2
 web:
   https: 127.0.0.1:5556
   tlsMinVersion: 1.3
@@ -161,6 +173,12 @@ additionalFeatures: [
 					ConnMaxLifetime:   30,
 					ConnectionTimeout: 3,
 				},
+			},
+			Retry: Retry{
+				MaxAttempts:   10,
+				InitialDelay:  "4s",
+				MaxDelay:      "5m",
+				BackoffFactor: 2,
 			},
 		},
 		Web: Web{
@@ -312,6 +330,11 @@ storage:
     maxIdleConns: 3
     connMaxLifetime: 30
     connectionTimeout: 3
+  retry:
+    maxAttempts: 5
+    initialDelay: 2s
+    maxDelay: 10s
+    backoffFactor: 2
 web:
   http: 127.0.0.1:5556
 
@@ -392,6 +415,12 @@ logger:
 					ConnectionTimeout: 3,
 				},
 			},
+			Retry: Retry{
+				MaxAttempts:   5,
+				InitialDelay:  "2s",
+				MaxDelay:      "10s",
+				BackoffFactor: 2,
+			},
 		},
 		Web: Web{
 			HTTP: "127.0.0.1:5556",
@@ -469,3 +498,24 @@ logger:
 		t.Errorf("got!=want: %s", diff)
 	}
 }
+
+// func TestUnmarshalConfigWithRetry(t *testing.T) {
+// 	rawConfig := []byte(`
+// storage:
+//   type: postgres
+//   config:
+//     host: 10.0.0.1
+//     port: 65432
+//   retry:
+//     attempts: 10
+//     delay: 1s
+// `)
+
+// 	var c Config
+// 	err := yaml.Unmarshal(rawConfig, &c)
+// 	require.NoError(t, err)
+
+// 	require.Equal(t, "postgres", c.Storage.Type)
+// 	require.Equal(t, 10, c.Storage.Retry.Attempts)
+// 	require.Equal(t, "1s", c.Storage.Retry.Delay)
+// }

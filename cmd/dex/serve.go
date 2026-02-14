@@ -197,7 +197,7 @@ func runServe(options serveOptions) error {
 		grpcOptions = append(grpcOptions, grpc.Creds(credentials.NewTLS(tlsConfig)))
 	}
 
-	s, err := c.Storage.Config.Open(logger)
+	s, err := initializeStorageWithRetry(c.Storage, logger)
 	if err != nil {
 		return fmt.Errorf("failed to initialize storage: %v", err)
 	}
@@ -694,4 +694,41 @@ func loadTLSConfig(certFile, keyFile, caFile string, baseConfig *tls.Config) (*t
 // recordBuildInfo publishes information about Dex version and runtime info through an info metric (gauge).
 func recordBuildInfo() {
 	buildInfo.WithLabelValues(version, runtime.Version(), fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)).Set(1)
+}
+
+// initializeStorageWithRetry opens a connection to the storage backend with a retry mechanism.
+func initializeStorageWithRetry(storageConfig Storage, logger *slog.Logger) (storage.Storage, error) {
+	var s storage.Storage
+	var err error
+
+	maxAttempts := storageConfig.Retry.MaxAttempts
+	initialDelay, _ := time.ParseDuration(storageConfig.Retry.InitialDelay)
+	maxDelay, _ := time.ParseDuration(storageConfig.Retry.MaxDelay)
+	backoffFactor := storageConfig.Retry.BackoffFactor
+
+	delay := initialDelay
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		s, err = storageConfig.Config.Open(logger)
+		if err == nil {
+			return s, nil
+		}
+
+		logger.Error("Failed to initialize storage",
+			"attempt", fmt.Sprintf("%d/%d", attempt, maxAttempts),
+			"error", err)
+
+		if attempt < maxAttempts {
+			logger.Info("Retrying storage initialization",
+				"nextAttemptIn", delay.String())
+			time.Sleep(delay)
+
+			// Calculate next delay using exponential backoff
+			delay = time.Duration(float64(delay) * backoffFactor)
+			if delay > maxDelay {
+				delay = maxDelay
+			}
+		}
+	}
+	return nil, fmt.Errorf("failed to initialize storage after %d attempts: %v", maxAttempts, err)
 }
