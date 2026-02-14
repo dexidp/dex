@@ -505,3 +505,21 @@ objectClass: groupOfNames
 cn: circularGroup2
 member: cn=circularGroup1,ou=Groups,ou=TestNestedGroups,dc=example,dc=org
 member: cn=john,ou=People,ou=TestNestedGroups,dc=example,dc=org
+
+########################################################################
+
+dn: ou=TestUsernameWithMultipleAttributes,dc=example,dc=org
+objectClass: organizationalUnit
+ou: TestUsernameWithMultipleAttributes
+
+dn: ou=People,ou=TestUsernameWithMultipleAttributes,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+
+dn: cn=jane,ou=People,ou=TestUsernameWithMultipleAttributes,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: jane
+mail: janedoe@example.com
+userpassword: foo
