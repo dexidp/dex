@@ -35,6 +35,10 @@ build: bin/dex ## Build Dex binaries.
 
 examples: bin/grpc-client bin/example-app ## Build example app.
 
+.PHONY: update-gomplate
+update-gomplate: ## Check and update gomplate version in Dockerfile.
+	@./scripts/update-gomplate
+
 .PHONY: release-binary
 release-binary: LD_FLAGS = "-w -X main.version=$(VERSION) -extldflags \"-static\""
 release-binary: ## Build release binaries (used to build a final container image).
