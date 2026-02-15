@@ -204,6 +204,11 @@ jobs:
           key: trivy-cache-${{ steps.date.outputs.date }}
           restore-keys: trivy-cache-
 
+      - name: Debug - list extracted files
+        run: |
+          ls -la image/
+          find image -type f | head -20
+
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284 # 0.34.0
         with:
@@ -214,9 +219,9 @@ jobs:
           scan-ref: "."
           cache-dir: "./cache"
         # Disable skipping trivy cache for now
-        # env:
-        #   TRIVY_SKIP_DB_UPDATE: true
-        #   TRIVY_SKIP_JAVA_DB_UPDATE: true
+        env:
+          TRIVY_SKIP_DB_UPDATE: true
+          TRIVY_SKIP_JAVA_DB_UPDATE: true
 
       ## Trivy-db uses `0600` permissions.
       ## But `action/cache` use `runner` user by default
