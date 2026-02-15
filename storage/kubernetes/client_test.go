@@ -62,6 +62,7 @@ func TestInClusterTransport(t *testing.T) {
 		"test",
 		logger,
 		true,
+		"",
 	)
 	require.NoError(t, err)
 
