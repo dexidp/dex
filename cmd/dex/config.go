@@ -14,6 +14,7 @@ import (
 
 	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server"
+	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent"
 	"github.com/dexidp/dex/storage/etcd"
@@ -36,7 +37,7 @@ type Config struct {
 	Frontend server.WebConfig `json:"frontend"`
 
 	// Signer configuration controls signing of JWT tokens issued by Dex.
-	Signer server.SignerConfig `json:"signer"`
+	Signer Signer `json:"signer"`
 
 	// StaticConnectors are user defined connectors specified in the ConfigMap
 	// Write operations, like updating a connector, will fail.
@@ -369,6 +370,74 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 	*s = Storage{
 		Type:   store.Type,
 		Config: storageConfig,
+	}
+	return nil
+}
+
+// Signer holds app's signer configuration.
+type Signer struct {
+	Type   string       `json:"type"`
+	Config SignerConfig `json:"config"`
+}
+
+// SignerConfig is a configuration that can create a signer.
+type SignerConfig interface{}
+
+var (
+	_ SignerConfig = (*signer.LocalConfig)(nil)
+	_ SignerConfig = (*signer.VaultConfig)(nil)
+)
+
+var signerConfigs = map[string]func() SignerConfig{
+	"local": func() SignerConfig { return new(signer.LocalConfig) },
+	"vault": func() SignerConfig { return new(signer.VaultConfig) },
+}
+
+// UnmarshalJSON allows Signer to implement the unmarshaler interface to
+// dynamically determine the type of the signer config.
+func (s *Signer) UnmarshalJSON(b []byte) error {
+	var signerData struct {
+		Type   string          `json:"type"`
+		Config json.RawMessage `json:"config"`
+	}
+	if err := json.Unmarshal(b, &signerData); err != nil {
+		return fmt.Errorf("parse signer: %v", err)
+	}
+
+	f, ok := signerConfigs[signerData.Type]
+	if !ok {
+		return fmt.Errorf("unknown signer type %q", signerData.Type)
+	}
+
+	signerConfig := f()
+	if len(signerData.Config) != 0 {
+		data := []byte(signerData.Config)
+		if featureflags.ExpandEnv.Enabled() {
+			var rawMap map[string]interface{}
+			if err := json.Unmarshal(signerData.Config, &rawMap); err != nil {
+				return fmt.Errorf("unmarshal config for env expansion: %v", err)
+			}
+
+			// Recursively expand environment variables in the map
+			expandEnvInMap(rawMap)
+
+			// Marshal the expanded map back to JSON
+			expandedData, err := json.Marshal(rawMap)
+			if err != nil {
+				return fmt.Errorf("marshal expanded config: %v", err)
+			}
+
+			data = expandedData
+		}
+
+		if err := json.Unmarshal(data, signerConfig); err != nil {
+			return fmt.Errorf("parse signer config: %v", err)
+		}
+	}
+
+	*s = Signer{
+		Type:   signerData.Type,
+		Config: signerConfig,
 	}
 	return nil
 }
