@@ -204,19 +204,13 @@ jobs:
           key: trivy-cache-${{ steps.date.outputs.date }}
           restore-keys: trivy-cache-
 
-      - name: Debug - list extracted files
-        run: |
-          ls -la image/
-          find image -type f | head -20
-
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284 # 0.34.0
         with:
-          input: image
           format: sarif
           output: trivy-results.sarif
-          scan-type: "fs"
-          scan-ref: "."
+          scan-type: "image"
+          scan-ref: ${{ steps.image-ref.outputs.value }}
           cache-dir: "./cache"
         # Disable skipping trivy cache for now
         env:
