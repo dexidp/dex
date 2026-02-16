@@ -157,7 +157,8 @@ jobs:
           cat image/index.json
 
       - name: Fetch image
-        run: skopeo copy oci-archive:image.tar docker-archive:docker-image.tar
+        run: |
+          skopeo copy oci-archive:image.tar: docker-archive:docker-image.tar
 
       # Uncomment the following lines for debugging:
       # - name: Upload image as artifact
