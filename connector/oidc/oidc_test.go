@@ -794,6 +794,88 @@ func TestProviderOverride(t *testing.T) {
 	})
 }
 
+func TestModifyGroupNames_CaseConversionAndRewrite(t *testing.T) {
+	testServer, err := setupServer(map[string]interface{}{
+		"sub":            "subvalue",
+		"name":           "namevalue",
+		"groups":         []string{"My.Group.One", "Another.Group"},
+		"email":          "emailvalue",
+		"email_verified": true,
+	}, true)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name               string
+		caseConversion     string
+		rewriteRegex       string
+		rewriteReplacement string
+		expectGroups       []string
+	}{
+		{
+			name:           "to_lower",
+			caseConversion: "lower",
+			expectGroups:   []string{"my.group.one", "another.group"},
+		},
+		{
+			name:           "to_upper",
+			caseConversion: "upper",
+			expectGroups:   []string{"MY.GROUP.ONE", "ANOTHER.GROUP"},
+		},
+		{
+			name:               "replace_dot_with_underscore",
+			rewriteRegex:       `\.`,
+			rewriteReplacement: "_",
+			expectGroups:       []string{"My_Group_One", "Another_Group"},
+		},
+		{
+			name:               "replace_dot_with_underscore_and_lower",
+			rewriteRegex:       `\.`,
+			rewriteReplacement: "_",
+			caseConversion:     "lower",
+			expectGroups:       []string{"my_group_one", "another_group"},
+		},
+		{
+			name:               "replace_dot_with_underscore_and_upper",
+			rewriteRegex:       `\.`,
+			rewriteReplacement: "_",
+			caseConversion:     "upper",
+			expectGroups:       []string{"MY_GROUP_ONE", "ANOTHER_GROUP"},
+		},
+		{
+			name:           "no_conversion",
+			caseConversion: "",
+			expectGroups:   []string{"My.Group.One", "Another.Group"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			config := Config{
+				Issuer:                    testServer.URL,
+				ClientID:                  "clientID",
+				ClientSecret:              "clientSecret",
+				Scopes:                    []string{"email", "groups"},
+				RedirectURI:               fmt.Sprintf("%s/callback", testServer.URL),
+				InsecureEnableGroups:      true,
+				InsecureSkipEmailVerified: true,
+			}
+			config.ClaimMutations.ModifyGroupNames.CaseConversion = tc.caseConversion
+			config.ClaimMutations.ModifyGroupNames.RewriteRegex = tc.rewriteRegex
+			config.ClaimMutations.ModifyGroupNames.RewriteReplacement = tc.rewriteReplacement
+
+			conn, err := newConnector(config)
+			require.NoError(t, err)
+
+			req, err := newRequestWithAuthCode(testServer.URL, "someCode")
+			require.NoError(t, err)
+
+			identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectGroups, identity.Groups)
+		})
+	}
+}
+
 func setupServer(tok map[string]interface{}, idTokenDesired bool) (*httptest.Server, error) {
 	key, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
