@@ -154,6 +154,9 @@ jobs:
 
       - name: Check Images
         run: |
+          docker images
+          docker load --input image.tar
+          docker images
           cat image/index.json
           jq -r '.manifests[0].annotations["org.opencontainers.image.ref.name"]' image/index.json
 
