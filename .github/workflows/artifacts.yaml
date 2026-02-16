@@ -155,10 +155,12 @@ jobs:
       - name: Check Images
         run: |
           cat image/index.json
+          jq -r '.manifests[0].annotations["org.opencontainers.image.ref.name"]' image/index.json
 
       - name: Fetch image
         run: |
-          skopeo copy oci-archive:image.tar: docker-archive:docker-image.tar
+          FIRST_TAG=$(jq -r '.manifests[0].annotations["org.opencontainers.image.ref.name"]' image/index.json)
+          skopeo copy oci-archive:image.tar:${FIRST_TAG} docker-archive:docker-image.tar
 
       # Uncomment the following lines for debugging:
       # - name: Upload image as artifact
