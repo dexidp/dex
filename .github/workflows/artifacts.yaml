@@ -142,26 +142,13 @@ jobs:
         id: image-ref
         run: echo "value=${{ steps.image-name.outputs.value }}@${{ steps.build.outputs.digest }}" >> "$GITHUB_OUTPUT"
 
-      - name: Prepare image fs
-        run: |
-          docker load --input image.tar
-          docker export $(docker create --rm ${{ steps.image-name.outputs.value }}@${{ steps.build.outputs.digest }}) -o docker-image.tar
-
-          mkdir -p docker-image
-          tar -xf docker-image.tar -C docker-image
-
       # Uncomment the following lines for debugging:
       # - name: Upload image as artifact
       #   uses: actions/upload-artifact@v3
       #   with:
       #     name: "[${{ github.job }}] OCI tarball"
       #     path: image.tar
-
-      - name: Debug - list extracted files
-        run: |        
-          ls -la docker-image/
-          find docker-image -type f | head -20
-
+      #
       # - name: List tags
       #   run: skopeo --insecure-policy list-tags oci:image
       #
@@ -194,6 +181,14 @@ jobs:
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
         if: inputs.publish
+
+      - name: Prepare image fs for scanning
+        run: |
+          docker load --input image.tar
+          docker export $(docker create --rm ${{ steps.image-name.outputs.value }}@${{ steps.build.outputs.digest }}) -o docker-image.tar
+
+          mkdir -p docker-image
+          tar -xf docker-image.tar -C docker-image
 
       ## Use cache for the trivy-db to avoid the TOOMANYREQUESTS error https://github.com/aquasecurity/trivy-action/pull/397
       ## To avoid the trivy-db becoming outdated, we save the cache for one day
