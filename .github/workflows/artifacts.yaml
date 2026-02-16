@@ -142,22 +142,13 @@ jobs:
         id: image-ref
         run: echo "value=${{ steps.image-name.outputs.value }}@${{ steps.build.outputs.digest }}" >> "$GITHUB_OUTPUT"
 
-      - name: Fetch image
-        run: skopeo --insecure-policy copy docker://${{ steps.image-ref.outputs.value }} oci-archive:image.tar
-        if: inputs.publish
-
       # Uncomment the following lines for debugging:
       # - name: Upload image as artifact
       #   uses: actions/upload-artifact@v3
       #   with:
       #     name: "[${{ github.job }}] OCI tarball"
       #     path: image.tar
-
-      - name: Extract OCI tarball
-        run: |
-          mkdir -p image
-          tar -xf image.tar -C image
-
+      #
       # - name: List tags
       #   run: skopeo --insecure-policy list-tags oci:image
       #
@@ -191,6 +182,14 @@ jobs:
           push-to-registry: true
         if: inputs.publish
 
+      - name: Prepare image fs for scanning
+        run: |
+          docker load --input image.tar
+          docker export $(docker create --rm ${{ steps.image-name.outputs.value }}@${{ steps.build.outputs.digest }}) -o docker-image.tar
+
+          mkdir -p docker-image
+          tar -xf docker-image.tar -C docker-image
+
       ## Use cache for the trivy-db to avoid the TOOMANYREQUESTS error https://github.com/aquasecurity/trivy-action/pull/397
       ## To avoid the trivy-db becoming outdated, we save the cache for one day
       - name: Get data
@@ -207,22 +206,25 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284 # 0.34.0
         with:
-          input: image
+          input: docker-image
           format: sarif
           output: trivy-results.sarif
-          scan-type: "fs"
+          scan-type: "rootfs"
           scan-ref: "."
           cache-dir: "./cache"
         # Disable skipping trivy cache for now
-        # env:
-        #   TRIVY_SKIP_DB_UPDATE: true
-        #   TRIVY_SKIP_JAVA_DB_UPDATE: true
+        env:
+          TRIVY_SKIP_DB_UPDATE: true
+          TRIVY_SKIP_JAVA_DB_UPDATE: true
 
       ## Trivy-db uses `0600` permissions.
       ## But `action/cache` use `runner` user by default
       ## So we need to change the permissions before caching the database.
       - name: change permissions for trivy.db
         run: sudo chmod 0644 ./cache/db/trivy.db
+
+      - name: Check Trivy sarif
+        run: cat trivy-results.sarif
 
       - name: Upload Trivy scan results as artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
