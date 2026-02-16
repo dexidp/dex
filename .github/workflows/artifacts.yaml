@@ -159,8 +159,9 @@ jobs:
 
       - name: Fetch image
         run: |
+          mkdir -p docker-image
           FIRST_TAG=$(jq -r '.manifests[0].annotations["org.opencontainers.image.ref.name"]' image/index.json)
-          skopeo copy oci-archive:image.tar:${FIRST_TAG} docker-archive:docker-image.tar
+          skopeo copy oci-archive:image.tar:${FIRST_TAG} dir:./docker-image
 
       # Uncomment the following lines for debugging:
       # - name: Upload image as artifact
@@ -168,11 +169,6 @@ jobs:
       #   with:
       #     name: "[${{ github.job }}] OCI tarball"
       #     path: image.tar
-
-      - name: Extract tarball
-        run: |
-          mkdir -p docker-image
-          tar -xf docker-image.tar -C docker-image
 
       - name: Debug - list extracted files
         run: |        
