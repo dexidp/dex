@@ -143,7 +143,7 @@ jobs:
         run: echo "value=${{ steps.image-name.outputs.value }}@${{ steps.build.outputs.digest }}" >> "$GITHUB_OUTPUT"
 
       - name: Fetch image
-        run: skopeo --insecure-policy copy docker://${{ steps.image-ref.outputs.value }} oci-archive:image.tar
+        run: skopeo --insecure-policy copy docker://${{ steps.image-ref.outputs.value }} docker-archive:image.tar
         if: inputs.publish
 
       # Uncomment the following lines for debugging:
@@ -153,10 +153,15 @@ jobs:
       #     name: "[${{ github.job }}] OCI tarball"
       #     path: image.tar
 
-      - name: Extract OCI tarball
+      - name: Extract tarball
         run: |
           mkdir -p image
           tar -xf image.tar -C image
+
+      - name: Debug - list extracted files
+        run: |
+          ls -la image/
+          find image -type f | head -20
 
       # - name: List tags
       #   run: skopeo --insecure-policy list-tags oci:image
@@ -207,10 +212,11 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@c1824fd6edce30d7ab345a9989de00bbd46ef284 # 0.34.0
         with:
+          input: image
           format: sarif
           output: trivy-results.sarif
-          scan-type: "image"
-          scan-ref: ${{ steps.image-ref.outputs.value }}
+          scan-type: "fs"
+          scan-ref: "."
           cache-dir: "./cache"
         # Disable skipping trivy cache for now
         env:
