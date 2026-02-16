@@ -218,7 +218,11 @@ func runServe(options serveOptions) error {
 				if client.ID != "" {
 					return fmt.Errorf("invalid config: ID and IDEnv fields are exclusive for client %q", client.ID)
 				}
-				c.StaticClients[i].ID = os.Getenv(client.IDEnv)
+				id := os.Getenv(client.IDEnv)
+				if id == "" {
+					return fmt.Errorf("invalid config: could not find IDEnv %q", id)
+				}
+				c.StaticClients[i].ID = id
 			}
 			if client.Secret == "" && client.SecretEnv == "" && !client.Public {
 				return fmt.Errorf("invalid config: Secret or SecretEnv field is required for client %q", client.ID)
@@ -227,7 +231,11 @@ func runServe(options serveOptions) error {
 				if client.Secret != "" {
 					return fmt.Errorf("invalid config: Secret and SecretEnv fields are exclusive for client %q", client.ID)
 				}
-				c.StaticClients[i].Secret = os.Getenv(client.SecretEnv)
+				secret := os.Getenv(client.SecretEnv)
+				if secret == "" {
+					return fmt.Errorf("invalid config: could not find SecretEnv %q", client.SecretEnv)
+				}
+				c.StaticClients[i].Secret = secret
 			}
 			logger.Info("config static client", "client_name", client.Name)
 		}
