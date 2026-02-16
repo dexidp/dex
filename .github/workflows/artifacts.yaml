@@ -144,7 +144,6 @@ jobs:
 
       - name: Fetch image
         run: skopeo --insecure-policy copy docker://${{ steps.image-ref.outputs.value }} docker-archive:image.tar
-        if: inputs.publish
 
       # Uncomment the following lines for debugging:
       # - name: Upload image as artifact
