@@ -142,32 +142,13 @@ jobs:
         id: image-ref
         run: echo "value=${{ steps.image-name.outputs.value }}@${{ steps.build.outputs.digest }}" >> "$GITHUB_OUTPUT"
 
-      - name: Extract OCI tarball
+      - name: Prepare image fs
         run: |
-          mkdir -p image
-          tar -xf image.tar -C image
-
-      - name: Debug - list extracted OCI files
-        run: |        
-          ls -la image/
-          find image -type f | head -20
-
-      - name: Check Images
-        run: |
-          docker images
           docker load --input image.tar
-          docker images
-          cat image/index.json
-          jq -r '.manifests[0].annotations["org.opencontainers.image.ref.name"]' image/index.json
-
-      - name: Fetch image
-        run: |
-          FIRST_TAG=$(jq -r '.manifests[0].annotations["org.opencontainers.image.ref.name"]' image/index.json)
           docker export $(docker create --rm ${{ steps.image-name.outputs.value }}@${{ steps.build.outputs.digest }}) -o docker-image.tar
 
           mkdir -p docker-image
           tar -xf docker-image.tar -C docker-image
-
 
       # Uncomment the following lines for debugging:
       # - name: Upload image as artifact
@@ -246,6 +227,9 @@ jobs:
       ## So we need to change the permissions before caching the database.
       - name: change permissions for trivy.db
         run: sudo chmod 0644 ./cache/db/trivy.db
+
+      - name: Check Trivy sarif
+        run: cat trivy-results.sarif
 
       - name: Upload Trivy scan results as artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
