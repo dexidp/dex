@@ -159,7 +159,7 @@ jobs:
 
       - name: Extract tarball
         run: |
-          mkdir -p image
+          mkdir -p docker-image
           tar -xf docker-image.tar -C docker-image
 
       - name: Debug - list extracted files
