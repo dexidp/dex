@@ -143,7 +143,7 @@ jobs:
         run: echo "value=${{ steps.image-name.outputs.value }}@${{ steps.build.outputs.digest }}" >> "$GITHUB_OUTPUT"
 
       - name: Fetch image
-        run: skopeo --insecure-policy copy docker://${{ steps.image-ref.outputs.value }} docker-archive:docker-image.tar
+        run: skopeo --insecure-policy copy oci-archive:image.tar docker-archive:docker-image.tar
 
       # Uncomment the following lines for debugging:
       # - name: Upload image as artifact
