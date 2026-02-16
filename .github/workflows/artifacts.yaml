@@ -142,10 +142,19 @@ jobs:
         id: image-ref
         run: echo "value=${{ steps.image-name.outputs.value }}@${{ steps.build.outputs.digest }}" >> "$GITHUB_OUTPUT"
 
+      - name: Extract OCI tarball
+        run: |
+          mkdir -p image
+          tar -xf image.tar -C image
+
       - name: Debug - list extracted OCI files
         run: |        
           ls -la image/
           find image -type f | head -20
+
+      - name: Check Images
+        run: |
+          cat image/index.json
 
       - name: Fetch image
         run: skopeo copy oci-archive:image.tar docker-archive:docker-image.tar
