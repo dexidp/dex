@@ -142,8 +142,12 @@ jobs:
         id: image-ref
         run: echo "value=${{ steps.image-name.outputs.value }}@${{ steps.build.outputs.digest }}" >> "$GITHUB_OUTPUT"
 
+      - name: Debug - list images
+        run: |
+          cat image/index.json
+
       - name: Fetch image
-        run: skopeo --insecure-policy copy oci-archive:image.tar docker-archive:docker-image.tar
+        run: skopeo copy oci-archive:image.tar:$(skopeo list-tags oci-archive:image.tar | jq -r '.Tags[0]') docker-archive:docker-image.tar
 
       # Uncomment the following lines for debugging:
       # - name: Upload image as artifact
@@ -158,7 +162,7 @@ jobs:
           tar -xf docker-image.tar -C docker-image
 
       - name: Debug - list extracted files
-        run: |
+        run: |        
           ls -la image/
           find image -type f | head -20
 
