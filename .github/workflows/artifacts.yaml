@@ -214,7 +214,7 @@ jobs:
           input: docker-image
           format: sarif
           output: trivy-results.sarif
-          scan-type: "fs"
+          scan-type: "rootfs"
           scan-ref: "."
           cache-dir: "./cache"
         # Disable skipping trivy cache for now
