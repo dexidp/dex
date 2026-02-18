@@ -708,7 +708,7 @@ func TestRedirectedAuthErrHandler(t *testing.T) {
 		},
 		{
 			name:        "valid redirect uri with query params",
-			redirectURI: "https://example.com/callback?existing=param",
+			redirectURI: "https://example.com/callback?existing=param&another=value",
 			state:       "state456",
 			errType:     errAccessDenied,
 			description: "User denied access",
@@ -778,6 +778,16 @@ func TestRedirectedAuthErrHandler(t *testing.T) {
 				}
 				if tc.description != "" && query.Get("error_description") != tc.description {
 					t.Errorf("expected error_description %q, got %q", tc.description, query.Get("error_description"))
+				}
+
+				// Verify that existing query parameters are preserved
+				if tc.name == "valid redirect uri with query params" {
+					if query.Get("existing") != "param" {
+						t.Errorf("expected existing parameter 'param', got %q", query.Get("existing"))
+					}
+					if query.Get("another") != "value" {
+						t.Errorf("expected another parameter 'value', got %q", query.Get("another"))
+					}
 				}
 			}
 		})
