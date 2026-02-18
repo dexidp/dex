@@ -64,13 +64,25 @@ func (err *redirectedAuthErr) Handler() http.Handler {
 		if err.Description != "" {
 			v.Add("error_description", err.Description)
 		}
-		var redirectURI string
-		if strings.Contains(err.RedirectURI, "?") {
-			redirectURI = err.RedirectURI + "&" + v.Encode()
-		} else {
-			redirectURI = err.RedirectURI + "?" + v.Encode()
+
+		// Parse the redirect URI to ensure it's valid before redirecting
+		u, parseErr := url.Parse(err.RedirectURI)
+		if parseErr != nil {
+			// If URI parsing fails, respond with an error instead of redirecting
+			http.Error(w, "Invalid redirect URI", http.StatusBadRequest)
+			return
 		}
-		http.Redirect(w, r, redirectURI, http.StatusSeeOther)
+
+		// Add error parameters to the URL
+		query := u.Query()
+		for key, values := range v {
+			for _, value := range values {
+				query.Add(key, value)
+			}
+		}
+		u.RawQuery = query.Encode()
+
+		http.Redirect(w, r, u.String(), http.StatusSeeOther)
 	}
 	return http.HandlerFunc(hf)
 }

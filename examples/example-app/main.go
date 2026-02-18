@@ -274,11 +274,21 @@ func (a *app) handleLogin(w http.ResponseWriter, r *http.Request) {
 		scopes = append(scopes, "offline_access")
 	}
 	authCodeURL = a.oauth2Config(scopes).AuthCodeURL(exampleAppState, authCodeOptions...)
-	if connectorID != "" {
-		authCodeURL = authCodeURL + "&connector_id=" + connectorID
+
+	// Parse the auth code URL and safely add connector_id parameter if provided
+	u, err := url.Parse(authCodeURL)
+	if err != nil {
+		http.Error(w, "Failed to parse auth URL", http.StatusInternalServerError)
+		return
 	}
 
-	http.Redirect(w, r, authCodeURL, http.StatusSeeOther)
+	if connectorID != "" {
+		query := u.Query()
+		query.Set("connector_id", connectorID)
+		u.RawQuery = query.Encode()
+	}
+
+	http.Redirect(w, r, u.String(), http.StatusSeeOther)
 }
 
 func (a *app) handleCallback(w http.ResponseWriter, r *http.Request) {
