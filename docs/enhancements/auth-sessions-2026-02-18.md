@@ -81,7 +81,31 @@ sessions:
   # Session lifetime settings (matches refresh token expiry naming)
   absoluteLifetime: "24h"         # Maximum session lifetime, default: 24h
   validIfNotUsedFor: "1h"         # Session expires if not used, default: 1h
+
+  # Default SSO trust policy for clients without explicit trustedPeers config
+  # Options:
+  #   "all" - clients without trustedPeers trust all other clients (Keycloak-like)
+  #   "none" - clients without trustedPeers don't trust anyone (default)
+  trustedPeersDefault: "none"
+
+  # Default "Remember Me" checkbox state
+  # Options:
+  #   "checked" - checkbox is checked by default, user can uncheck
+  #   "unchecked" - checkbox is unchecked by default, user can check (default)
+  rememberMeDefault: "unchecked"
 ```
+
+**trustedPeersDefault** controls the default SSO behavior:
+- `"none"` (default): Clients without explicit `trustedPeers` config don't participate in SSO
+- `"all"`: Clients without explicit `trustedPeers` config trust all other clients (realm-wide SSO like Keycloak)
+
+Clients with explicit `trustedPeers` configuration always use their configured value.
+
+**rememberMeDefault** controls the initial checkbox state:
+- `"unchecked"` (default): User must explicitly check "Remember Me" to create session
+- `"checked"`: Checkbox is pre-checked, user can uncheck if they don't want persistent session
+
+This value is passed to templates as `.RememberMeChecked` boolean.
 
 **SSO via TrustedPeers**: SSO between clients is controlled by the existing `trustedPeers` configuration on clients. The `trustedPeers` setting defines **which clients can USE this client's session**, not which clients this client can use.
 
@@ -299,21 +323,69 @@ var (
 
 #### New Storage Entities
 
-One new entity is required, designed to work with KV backends (no foreign keys, no JOINs):
 
-##### UserIdentity
+Two entities are required to properly handle the case where a user might be logged into different clients as different identities in the same browser:
+
+###### AuthSession
 
 ```go
 // storage/storage.go
 
-// UserIdentity represents a user's persistent identity and authentication state.
-// This entity stores:
-// - Browser session state (active/inactive, expiration)
-// - Consent decisions per client
-// - Future: 2FA enrollment (TOTP secrets, WebAuthn credentials)
+// AuthSession represents a browser's authentication state.
+// One per browser, referenced by session cookie.
+// Key: SessionID (random 32-byte string, stored in cookie)
+type AuthSession struct {
+    // ID is the session identifier stored in cookie
+    ID string
+
+    // ClientStates maps clientID → authentication state for that client
+    // Allows different users/identities per client in same browser
+    ClientStates map[string]*ClientAuthState
+
+    // CreatedAt is when this browser session started
+    CreatedAt time.Time
+
+    // LastActivity is when any client was last accessed
+    LastActivity time.Time
+
+    // IPAddress at session creation (for audit)
+    IPAddress string
+
+    // UserAgent at session creation (for audit)
+    UserAgent string
+}
+
+// ClientAuthState represents authentication state for a specific client within a browser session
+type ClientAuthState struct {
+    // UserID + ConnectorID identify which UserIdentity is authenticated for this client
+    UserID      string
+    ConnectorID string
+
+    // Active indicates if authentication is active for this client
+    Active bool
+
+    // ExpiresAt is when this client authentication expires (absolute lifetime)
+    ExpiresAt time.Time
+
+    // LastActivity for this specific client
+    LastActivity time.Time
+
+    // LastTokenIssuedAt for logout notifications
+    LastTokenIssuedAt time.Time
+}
+```
+
+###### UserIdentity
+
+```go
+// storage/storage.go
+
+// UserIdentity represents a user's persistent identity data.
+// Stores data that persists across sessions:
+// - Consent decisions
+// - Future: 2FA enrollment
 //
-// Key: composite of UserID + ConnectorID (one identity per user per connector)
-// The session cookie references this identity, but the ID is NOT the cookie value.
+// Key: composite of UserID + ConnectorID (one per user per connector)
 type UserIdentity struct {
     // UserID is the subject identifier from the connector
     UserID string
@@ -321,25 +393,16 @@ type UserIdentity struct {
     // ConnectorID is the connector that authenticated the user
     ConnectorID string
 
-    // SessionID is the current browser session ID (stored in cookie)
-    // Regenerated on each new login for security (prevents session fixation)
-    SessionID string
-
-    // Claims holds the user's identity claims (refreshed on each login)
+    // Claims holds the user's identity claims
+    // Updated on:
+    // 1. Each login (from connector callback)
+    // 2. Each refresh token usage (from RefreshConnector.Refresh)
+    // This ensures claims stay in sync with OfflineSessions and upstream IDP
     Claims Claims
 
     // Consents stores user consent per client: map[clientID][]scopes
     // Persists across sessions so user doesn't need to re-consent
     Consents map[string][]string
-
-    // Clients tracks which clients have received tokens from current session.
-    // Used for:
-    // 1. Logout notifications: Know which clients to notify on logout (future front-channel/back-channel logout)
-    // 2. Session audit: Admin can see which apps user accessed in current session
-    // 3. Token revocation: On logout, revoke refresh tokens only for clients in this session
-    // Map structure: clientID → lastTokenIssuedAt
-    // Cleared when session becomes inactive (logout or expiration)
-    Clients map[string]time.Time
 
     // CreatedAt is when this identity was first created
     CreatedAt time.Time
@@ -347,32 +410,220 @@ type UserIdentity struct {
     // LastLogin is when the user last authenticated (used for auth_time claim)
     LastLogin time.Time
 
-    // LastActivity is when the session was last used
-    LastActivity time.Time
-
-    // SessionExpiresAt is when the current session expires
-    SessionExpiresAt time.Time
-
-    // Active indicates if there is a currently active session
-    // false = user must re-authenticate to get a new SessionID
-    // Admin can set this to false to force re-authentication
-    Active bool
-
-    // BlockedUntil is set when user is blocked from logging.
-    // Used for manually blocking users from authenticating in the future.
+    // BlockedUntil is set when user is blocked from logging in
     BlockedUntil time.Time
 
-    // IPAddress is the client IP at last login (for audit)
-    IPAddress string
-
-    // UserAgent is the browser user agent at last login (for audit)
-    UserAgent string
-
-    // Future: 2FA fields to stora the data for the second factor
+    // Future: 2FA fields
     // TOTPSecret string
     // WebAuthnCredentials []WebAuthnCredential
 }
 ```
+
+**Two-Entity Design Rationale**
+
+| Entity | Purpose | Lifecycle | Key |
+|--------|---------|-----------|-----|
+| AuthSession | Browser binding, per-client auth state | Short-lived (session timeout) | SessionID (cookie) |
+| UserIdentity | User data, consents, 2FA | Long-lived (persists) | UserID + ConnectorID |
+
+**How It Works: Different Users in Different Clients**
+
+```
+Auth Session (cookie: dex_session=abc123)
+├── ClientStates["client-A"]:
+│   └── UserID: "alice", ConnectorID: "google", Active: true
+├── ClientStates["client-B"]:
+│   └── UserID: "bob", ConnectorID: "ldap", Active: true
+└── ClientStates["client-C"]:
+    └── (empty - never authenticated)
+
+UserIdentity (alice + google):
+├── Claims: {email: alice@example.com, ...}
+├── Consents: {"client-A": ["openid", "email"]}
+└── LastLogin: 2024-01-01
+
+UserIdentity (bob + ldap):
+├── Claims: {email: bob@corp.com, ...}
+├── Consents: {"client-B": ["openid", "groups"]}
+└── LastLogin: 2024-01-02
+```
+
+**How SSO Works**
+
+When user accesses client-B with existing session:
+
+1. Get `AuthSession` by cookie
+2. Check `ClientStates["client-B"]`:
+   - If exists and active → user already authenticated for this client
+3. If not, check SSO:
+   - Find any `ClientStates[X]` where client-X has `trustedPeers` containing "client-B"
+   - If found → SSO! Copy auth state to `ClientStates["client-B"]`
+   - If not found → require authentication
+
+**SSO Session Lookup Algorithm**
+
+```go
+// findSSOSession searches for a valid SSO source session for the target client
+func (s *Server) findSSOSession(authSession *AuthSession, targetClientID string) (*ClientAuthState, *UserIdentity) {
+    targetClient, err := s.storage.GetClient(ctx, targetClientID)
+    if err != nil {
+        return nil, nil
+    }
+
+    // Iterate through all active client states in this browser session
+    for sourceClientID, state := range authSession.ClientStates {
+        // Skip inactive or expired states
+        if !state.Active || time.Now().After(state.ExpiresAt) {
+            continue
+        }
+
+        // Get the source client configuration
+        sourceClient, err := s.storage.GetClient(ctx, sourceClientID)
+        if err != nil {
+            continue
+        }
+
+        // Check if source client trusts the target client
+        // SSO is allowed if:
+        // 1. Source client has trustedPeers: ["*"] (trusts everyone)
+        // 2. Source client has targetClientID in its trustedPeers list
+        if !s.clientTrusts(sourceClient, targetClientID) {
+            continue
+        }
+
+        // Found a valid SSO source! Get the user identity
+        identity, err := s.storage.GetUserIdentity(ctx, state.UserID, state.ConnectorID)
+        if err != nil {
+            continue
+        }
+
+        // Check if user is not blocked
+        if identity.BlockedUntil.After(time.Now()) {
+            continue
+        }
+
+        return state, identity
+    }
+
+    return nil, nil
+}
+
+// clientTrusts checks if sourceClient trusts targetClientID for SSO
+func (s *Server) clientTrusts(sourceClient Client, targetClientID string) bool {
+    for _, peer := range sourceClient.TrustedPeers {
+        if peer == "*" || peer == targetClientID {
+            return true
+        }
+    }
+    return false
+}
+```
+
+**SSO Lookup Flow Diagram**
+
+```
+User accesses client-B with existing session
+                │
+                ▼
+┌─────────────────────────────────┐
+│ Get AuthSession from cookie     │
+└─────────────────────────────────┘
+                │
+                ▼
+┌─────────────────────────────────┐
+│ Check ClientStates["client-B"]  │
+│ exists and active?              │
+└─────────────────────────────────┘
+        │               │
+       Yes              No
+        │               │
+        ▼               ▼
+┌──────────────┐  ┌─────────────────────────────────┐
+│ Use existing │  │ For each ClientStates[X]:       │
+│ session      │  │   - Is state active?            │
+└──────────────┘  │   - Get client-X config         │
+                  │   - Does client-X trust B?      │
+                  │     (X.trustedPeers has B or *) │
+                  └─────────────────────────────────┘
+                          │               │
+                    Found match       No match
+                          │               │
+                          ▼               ▼
+                  ┌──────────────┐  ┌──────────────┐
+                  │ SSO! Copy    │  │ Require      │
+                  │ state to B   │  │ authentication│
+                  └──────────────┘  └──────────────┘
+```
+
+**Example: SSO Flow**
+
+```
+1. User logs into client-A as alice
+   AuthSession.ClientStates["client-A"] = {UserID: "alice", Active: true}
+
+2. User accesses client-B
+   - client-A.trustedPeers includes "client-B" ✓
+   - SSO! Copy: ClientStates["client-B"] = {UserID: "alice", Active: true}
+   - Issue tokens for alice to client-B
+```
+
+**Example: No SSO, Different User**
+
+```
+1. User logged into client-A as alice
+   AuthSession.ClientStates["client-A"] = {UserID: "alice", Active: true}
+
+2. User accesses client-B (client-A does NOT trust client-B)
+   - No SSO available
+   - Redirect to connector for authentication
+
+3. User logs in as bob (different account)
+   AuthSession.ClientStates["client-B"] = {UserID: "bob", Active: true}
+
+Same browser, two different users, no conflict!
+```
+
+**Claims Synchronization with Refresh Tokens**
+
+When a refresh token is used:
+1. `RefreshConnector.Refresh()` returns updated claims
+2. Update `OfflineSessions.ConnectorData` (existing behavior)
+3. **NEW**: Also update `UserIdentity.Claims`:
+
+```go
+// In refresh token handler
+func (s *Server) handleRefreshToken(...) {
+    // ...existing refresh logic...
+
+    newIdentity, err := refreshConn.Refresh(ctx, scopes, oldIdentity)
+    if err != nil {
+        // Handle refresh failure
+    }
+
+    // Update OfflineSessions (existing)
+    s.storage.UpdateOfflineSessions(...)
+
+    // Update UserIdentity claims (NEW)
+    if s.sessionsEnabled {
+        s.storage.UpdateUserIdentity(ctx, newIdentity.UserID, connectorID,
+            func(u UserIdentity) (UserIdentity, error) {
+                u.Claims = storage.Claims{
+                    UserID:    newIdentity.UserID,
+                    Username:  newIdentity.Username,
+                    Email:     newIdentity.Email,
+                    Groups:    newIdentity.Groups,
+                    // ...
+                }
+                return u, nil
+            })
+    }
+}
+```
+
+This ensures `UserIdentity.Claims` stays synchronized with:
+- Connector's current user data
+- `OfflineSessions.ConnectorData`
+- Actual refresh token claims
 
 **Why UserIdentity instead of AuthSession?**
 
@@ -383,36 +634,35 @@ The name `UserIdentity` is chosen because this entity stores more than just sess
 
 **Session ID Regeneration**
 
-The `SessionID` is regenerated on each new login:
-- Prevents session fixation attacks
-- New SessionID is set in cookie on successful authentication
-- Old SessionID immediately becomes invalid
-- If user logs in from multiple browsers, each login invalidates previous session
+The `AuthSession.ID` is regenerated when:
+- User logs in from a new browser (new session created)
+- Security concern requires new session (e.g., after password change)
 
-**Single Session per Identity**
+Individual `ClientStates` can be invalidated without changing the auth session ID.
 
-Each `UserIdentity` has at most one active session (`SessionID`):
-- User logs in from Browser A → gets SessionID-1
-- User logs in from Browser B → gets SessionID-2, Browser A's session is invalidated
-- This is simpler and more secure (no session sprawl)
-- **Future:** Could add multi-session support if needed
+**Multiple Users in Same Browser**
+
+With the two-entity design:
+- `AuthSession` tracks which user is authenticated for which client
+- Different clients can have different users (if no SSO trust)
+- Same user can be authenticated for multiple clients (SSO or separate logins)
 
 **SSO and Different Users**
 
 With SSO enabled between clients, the same user is used for all trusted clients:
 - User logs in to client-A as "alice@example.com"
 - User accesses client-B (trusted by client-A) → automatically authenticated as "alice@example.com"
-- User cannot be "alice" in client-A and "bob" in client-B simultaneously in the same browser
+- SSO reuses the identity from the trusting client
 
 If user needs to login as different identity to a trusted client:
 - Use `prompt=login` to force re-authentication
-- This starts a new session, logging out from previous identity in ALL trusted clients
+- This creates new ClientState for that client with potentially different user
 
-This is standard OIDC SSO behavior (same as Keycloak, Okta, etc.).
+Without SSO, user can be different identities in different clients (see examples above).
 
 #### Storage Interface Extensions
 
-Standard CRUD operations are added to the storage interface:
+Two new entities require CRUD operations:
 
 ```go
 // storage/storage.go
@@ -420,49 +670,78 @@ Standard CRUD operations are added to the storage interface:
 type Storage interface {
     // ...existing methods...
 
+    // AuthSession management
+    CreateAuthSession(ctx context.Context, s AuthSession) error
+    GetAuthSession(ctx context.Context, sessionID string) (AuthSession, error)
+    UpdateAuthSession(ctx context.Context, sessionID string, updater func(s AuthSession) (AuthSession, error)) error
+    DeleteAuthSession(ctx context.Context, sessionID string) error
+
     // UserIdentity management
     CreateUserIdentity(ctx context.Context, u UserIdentity) error
     GetUserIdentity(ctx context.Context, userID, connectorID string) (UserIdentity, error)
-    GetUserIdentityBySessionID(ctx context.Context, sessionID string) (UserIdentity, error)
     UpdateUserIdentity(ctx context.Context, userID, connectorID string, updater func(u UserIdentity) (UserIdentity, error)) error
     DeleteUserIdentity(ctx context.Context, userID, connectorID string) error
+
+    // List for admin API
+    ListUserIdentities(ctx context.Context) ([]UserIdentity, error)
 }
 ```
 
+**Garbage Collection**
+
+```go
+type GCResult struct {
+    // ...existing fields...
+    AuthSessions int64  // NEW: expired auth sessions cleaned up
+}
+```
+
+`AuthSession` objects are garbage collected when:
+- `LastActivity + validIfNotUsedFor` exceeded (inactivity)
+- All `ClientStates` have expired
+
+`UserIdentity` objects are NOT garbage collected (preserve consents, future 2FA).
+
 #### Session Expiration
 
-Sessions become inactive (`Active = false`) when:
-- `SessionExpiresAt` (absolute lifetime) is reached
-- `LastActivity + validIfNotUsedFor` is reached (inactivity timeout)
-- Admin explicitly deactivates via API
-- User logs out
+**AuthSession expiration:**
+- Entire session expires when `LastActivity + validIfNotUsedFor` is reached
+- On expiration, `AuthSession` is deleted by GC
+- User must re-authenticate for all clients
 
-The `Active` flag is checked on each request. If expired, it's set to `false` and user must re-authenticate.
+**ClientAuthState expiration (per-client within AuthSession):**
+- Each client state has its own `ExpiresAt` (absolute lifetime)
+- Client state expires when `ExpiresAt` is reached
+- Other clients in same browser remain active
+- User must re-authenticate only for expired client
 
-**Why Active flag instead of just checking ExpiresAt?**
-- Admin can force re-authentication by setting `Active = false`
-- Allows "revoke session" without deleting the identity (preserves consents, future 2FA)
-- Clear semantic: `Active = false` means "session ended, user must login again"
+**Admin can force re-authentication:**
+- Delete `AuthSession` → user must re-auth for all clients
+- Set `ClientStates[clientID].Active = false` → user must re-auth for that client only
 
 #### Deletion Risks
 
-Deleting a `UserIdentity` has consequences:
+**Deleting AuthSession:**
+- User must re-authenticate for all clients
+- No data loss (consents preserved in UserIdentity)
+- Safe operation for logout
 
-| What's Lost | Impact                                      |
-|-------------|---------------------------------------------|
+**Deleting UserIdentity:**
+
+| What's Lost | Impact |
+|-------------|--------|
 | Consent decisions | User must re-approve scopes for all clients |
-| Future: 2FA enrollment | The second factor will be regenerated       |
-| Session tracking | No logout notification to clients           |
+| Future: 2FA enrollment | User must re-enroll TOTP/WebAuthn |
 
-**When to delete:**
+**When to delete UserIdentity:**
 - User explicitly requests account deletion (GDPR)
 - Admin cleanup of stale identities
 - User removed from upstream identity provider
 
-**When NOT to delete (deactivate instead):**
-- Regular logout - set `Active = false`
-- Session expiration - set `Active = false`
-- Security concern - set `Active = false` to force re-auth or set `BlockedUntil` to block user from logging in for a period of time.
+**When NOT to delete (delete AuthSession instead):**
+- Regular logout - delete AuthSession or set ClientState.Active = false
+- Session expiration - GC handles AuthSession cleanup
+- Security concern - delete AuthSession to force re-auth
 
 #### Session Cookie Format
 
@@ -534,6 +813,40 @@ type Sessions struct {
 
     // ValidIfNotUsedFor is the inactivity timeout (default: "1h")
     ValidIfNotUsedFor string `json:"validIfNotUsedFor"`
+
+    // TrustedPeersDefault is the default SSO trust policy
+    // "all" = trust all clients, "none" = trust no one (default: "none")
+    TrustedPeersDefault string `json:"trustedPeersDefault"`
+
+    // RememberMeDefault is the default checkbox state
+    // "checked" = pre-checked, "unchecked" = not checked (default: "unchecked")
+    RememberMeDefault string `json:"rememberMeDefault"`
+}
+```
+
+**Using trustedPeersDefault in SSO logic:**
+
+```go
+func (s *Server) clientTrusts(sourceClient Client, targetClientID string) bool {
+    trustedPeers := sourceClient.TrustedPeers
+
+    // If client has no explicit trustedPeers, use default
+    if len(trustedPeers) == 0 {
+        switch s.sessionsConfig.TrustedPeersDefault {
+        case "all":
+            return true // Trust everyone by default
+        default: // "none"
+            return false // Trust no one by default
+        }
+    }
+
+    // Explicit configuration
+    for _, peer := range trustedPeers {
+        if peer == "*" || peer == targetClientID {
+            return true
+        }
+    }
+    return false
 }
 ```
 
@@ -554,19 +867,30 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
     prompt := r.Form.Get("prompt")
     maxAge := r.Form.Get("max_age")
     idTokenHint := r.Form.Get("id_token_hint")
+    clientID := r.Form.Get("client_id")
 
-    // Get identity from session cookie
-    identity, err := s.getIdentityFromCookie(r)
+    // Get auth session from cookie
+    authSession, err := s.getAuthSessionFromCookie(r)
+
+    // Get client auth state for this specific client
+    var clientState *ClientAuthState
+    var userIdentity *UserIdentity
+    if authSession != nil {
+        clientState = authSession.ClientStates[clientID]
+        if clientState != nil && clientState.Active {
+            userIdentity, _ = s.storage.GetUserIdentity(ctx, clientState.UserID, clientState.ConnectorID)
+        }
+    }
 
     // Handle max_age parameter (OIDC Core 3.1.2.1)
-    // max_age specifies maximum authentication age in seconds
-    if maxAge != "" && identity != nil && identity.Active {
+    if maxAge != "" && userIdentity != nil {
         maxAgeSeconds, err := strconv.Atoi(maxAge)
         if err == nil && maxAgeSeconds >= 0 {
-            authAge := time.Since(identity.LastLogin)
+            authAge := time.Since(userIdentity.LastLogin)
             if authAge > time.Duration(maxAgeSeconds)*time.Second {
                 // Session is too old, force re-authentication
-                identity = nil
+                clientState = nil
+                userIdentity = nil
             }
         }
     }
@@ -574,12 +898,12 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
     switch prompt {
     case "none":
         // Silent authentication - must have valid session and consent
-        if err != nil || identity == nil || !identity.Active {
+        if clientState == nil || userIdentity == nil {
             s.authErr(w, r, redirectURI, "login_required", state)
             return
         }
         // Check consent in identity
-        consentedScopes, hasConsent := identity.Consents[clientID]
+        consentedScopes, hasConsent := userIdentity.Consents[clientID]
         if !hasConsent || !s.scopesCovered(consentedScopes, requestedScopes) {
             s.authErr(w, r, redirectURI, "consent_required", state)
             return
@@ -587,16 +911,20 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
         // Issue tokens without UI
 
     case "login":
-        // Force re-authentication - ignore existing session
-        identity = nil
+        // Force re-authentication - ignore existing session for this client
+        clientState = nil
+        userIdentity = nil
         // Continue to connector login
 
     case "consent":
         // Force consent screen even if previously consented
-        // Continue but don't check session consent
+        // Continue but don't check consent
 
     default: // "" - normal flow
-        // Use session if available and active
+        // Check for SSO from trusted clients if no direct session
+        if clientState == nil && authSession != nil {
+            clientState, userIdentity = s.findSSOSession(authSession, clientID)
+        }
     }
 
     // Validate id_token_hint if provided
@@ -606,18 +934,40 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
             s.authErr(w, r, redirectURI, "invalid_request", state)
             return
         }
-        if identity != nil && identity.UserID != claims.Subject {
+        if userIdentity != nil && userIdentity.UserID != claims.Subject {
             // Identity user doesn't match hint
             if prompt == "none" {
                 s.authErr(w, r, redirectURI, "login_required", state)
                 return
             }
             // Force re-login for different user
-            identity = nil
+            clientState = nil
+            userIdentity = nil
         }
     }
 
     // ...continue with flow...
+}
+
+// findSSOSession looks for a valid SSO session from a trusted client
+func (s *Server) findSSOSession(authSession *AuthSession, targetClientID string) (*ClientAuthState, *UserIdentity) {
+    for sourceClientID, state := range authSession.ClientStates {
+        if !state.Active {
+            continue
+        }
+        sourceClient, _ := s.storage.GetClient(ctx, sourceClientID)
+        if sourceClient == nil {
+            continue
+        }
+        // Check if source client trusts target client
+        if s.clientTrusts(sourceClient, targetClientID) {
+            identity, _ := s.storage.GetUserIdentity(ctx, state.UserID, state.ConnectorID)
+            if identity != nil {
+                return state, identity
+            }
+        }
+    }
+    return nil, nil
 }
 ```
 
@@ -642,32 +992,33 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
     idTokenHint := r.FormValue("id_token_hint")
     postLogoutRedirectURI := r.FormValue("post_logout_redirect_uri")
     state := r.FormValue("state")
+    clientID := r.FormValue("client_id") // Optional: logout from specific client
 
-    // Get identity from session cookie
-    identity, _ := s.getIdentityFromCookie(r)
+    // Get auth session from cookie
+    authSession, _ := s.getAuthSessionFromCookie(r)
 
-    // Validate id_token_hint and match to identity
+    // Validate id_token_hint if provided
+    var hintUserID, hintConnectorID string
     if idTokenHint != "" {
         claims, err := s.validateIDTokenHint(idTokenHint)
-        if err == nil && identity != nil && identity.UserID == claims.Subject {
-            // Valid hint matching identity
+        if err == nil {
+            hintUserID = claims.Subject
+            // Extract connector from token if possible
         }
     }
 
-    if identity != nil {
-        // Deactivate session (preserves consents, future 2FA enrollment)
-        s.storage.UpdateUserIdentity(ctx, identity.UserID, identity.ConnectorID,
-            func(u UserIdentity) (UserIdentity, error) {
-                u.Active = false
-                u.SessionID = "" // Invalidate session ID
-                u.Clients = nil  // Clear client tracking
-                return u, nil
-            })
+    if authSession != nil {
+        if clientID != "" {
+            // Logout from specific client only
+            delete(authSession.ClientStates, clientID)
+            s.storage.UpdateAuthSession(ctx, authSession.ID, ...)
+        } else {
+            // Logout from all clients - delete entire auth session
+            s.storage.DeleteAuthSession(ctx, authSession.ID)
+        }
 
-        // Revoke all refresh tokens for this user/connector
-        // This ensures complete logout
-
-        // Future: Call LogoutConnector.Logout() for upstream logout
+        // Revoke refresh tokens for logged-out clients
+        // ...
     }
 
     // Clear cookie and redirect
@@ -720,6 +1071,23 @@ func (s *Server) constructDiscovery(ctx context.Context) discovery {
 
 When sessions are enabled, add "Remember Me" checkbox to authentication flow.
 
+**Template Data**
+
+The server passes these values to templates:
+
+```go
+type templateData struct {
+    // ...existing fields...
+
+    // SessionsEnabled indicates if sessions feature is active
+    SessionsEnabled bool
+
+    // RememberMeChecked is the default checkbox state from config
+    // true if sessions.rememberMeDefault == "checked"
+    RememberMeChecked bool
+}
+```
+
 **For PasswordConnector (login form exists in Dex):**
 
 ```html
@@ -729,7 +1097,8 @@ When sessions are enabled, add "Remember Me" checkbox to authentication flow.
 
     {{ if .SessionsEnabled }}
     <div class="remember-me">
-        <input type="checkbox" id="remember_me" name="remember_me" value="true">
+        <input type="checkbox" id="remember_me" name="remember_me" value="true"
+               {{ if .RememberMeChecked }}checked{{ end }}>
         <label for="remember_me">Remember me</label>
     </div>
     {{ end }}
@@ -740,9 +1109,9 @@ When sessions are enabled, add "Remember Me" checkbox to authentication flow.
 
 **For CallbackConnector (no login form in Dex):**
 
-For OAuth/OIDC/SAML connectors, the user is redirected to upstream IDP and there's no Dex login form. Options:
+For OAuth/OIDC/SAML connectors, the user is redirected to upstream IDP and there's no Dex login form.
 
-1. **Show on Approval Page** (recommended): Add "Remember Me" checkbox to the approval/consent page. User sees it after returning from upstream IDP, before granting consent.
+**Show on Approval Page** (recommended): Add "Remember Me" checkbox to the approval/consent page. User sees it after returning from upstream IDP, before granting consent.
 
 ```html
 <!-- templates/approval.html -->
@@ -751,7 +1120,8 @@ For OAuth/OIDC/SAML connectors, the user is redirected to upstream IDP and there
 
     {{ if .SessionsEnabled }}
     <div class="remember-me">
-        <input type="checkbox" id="remember_me" name="remember_me" value="true">
+        <input type="checkbox" id="remember_me" name="remember_me" value="true"
+               {{ if .RememberMeChecked }}checked{{ end }}>
         <label for="remember_me">Remember me on this device</label>
     </div>
     {{ end }}
@@ -760,21 +1130,13 @@ For OAuth/OIDC/SAML connectors, the user is redirected to upstream IDP and there
 </form>
 ```
 
-2. **Configurable Default**: If `skipApprovalScreen: true`, user never sees approval page. In this case, use a configurable default:
-
-```yaml
-sessions:
-  # ...
-  # Default remember_me value when approval screen is skipped
-  # Options: "always", "never", "prompt" (show intermediate page)
-  rememberMeDefault: "never"  # default: "never" for backwards compatibility
-```
-
-**Recommendation**: Start with option 1 (approval page). If `skipApprovalScreen: true`, default to no session (current behavior). This maintains backwards compatibility and gives users explicit control.
+**When skipApprovalScreen is true**: If approval screen is skipped, the `rememberMeDefault` config determines behavior:
+- `"unchecked"` (default): No session created (current Dex behavior preserved)
+- `"checked"`: Session always created automatically
 
 **Remember Me Behavior**:
-- **Unchecked (default)**: No browser session is created. User must re-authenticate on each browser session. This preserves current Dex behavior.
-- **Checked**: A persistent session is created. Session cookie persists across browser restarts until `absoluteLifetime` or `validIfNotUsedFor` expires.
+- **Unchecked**: No auth session is created. User must re-authenticate on each browser session. This preserves current Dex behavior.
+- **Checked**: A persistent auth session is created. Session cookie persists across browser restarts until `absoluteLifetime` or `validIfNotUsedFor` expires.
 
 #### Connector Type Considerations
 
@@ -817,7 +1179,7 @@ Both types work the same way with sessions - the connector type only affects:
 
 #### Migration Path
 
-1. Deploy new Dex version - storage migrations create `UserIdentity` table/resource automatically (no feature flag needed for schema)
+1. Deploy new Dex version - storage migrations create `AuthSession` and `UserIdentity` tables/resources automatically (no feature flag needed for schema)
 2. Enable feature flag `DEX_SESSIONS_ENABLED=true` when ready to use sessions
 3. Add `sessions:` configuration block
 4. Sessions start being created for new logins when "Remember Me" is checked
