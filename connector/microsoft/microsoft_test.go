@@ -3,6 +3,7 @@ package microsoft
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -117,6 +118,56 @@ func TestUserGroupsFromGraphAPI(t *testing.T) {
 	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, req)
 	expectNil(t, err)
 	expectEquals(t, identity.Groups, []string{"a", "b"})
+}
+
+func TestClientAssertionTokenExchange(t *testing.T) {
+	assertion := "dummy-jwt-assertion"
+	file, err := os.CreateTemp("", "assertion.jwt")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(file.Name())
+	file.WriteString(assertion)
+	file.Close()
+
+	tokenCalled := false
+	var receivedAssertion, receivedSecret string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" && r.URL.Path == "/testtenant/oauth2/v2.0/token" {
+			bodyBytes, _ := io.ReadAll(r.Body)
+			r.Body.Close()
+			form, _ := url.ParseQuery(string(bodyBytes))
+			receivedAssertion = form.Get("client_assertion")
+			receivedSecret = form.Get("client_secret")
+			tokenCalled = true
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"access_token": "token", "expires_in": 3600}`))
+		}
+	}))
+	defer ts.Close()
+
+	conn := microsoftConnector{
+		apiURL:          ts.URL,
+		graphURL:        ts.URL,
+		redirectURI:     "https://test.com",
+		clientID:        clientID,
+		clientSecret:    "should-not-be-used",
+		tenant:          "testtenant",
+		clientAssertion: file.Name(),
+	}
+
+	req, _ := http.NewRequest("GET", ts.URL, nil)
+	conn.HandleCallback(connector.Scopes{}, req)
+
+	if !tokenCalled {
+		t.Errorf("Token endpoint was not called")
+	}
+	if receivedAssertion != assertion {
+		t.Errorf("Expected client_assertion to be %q, got %q", assertion, receivedAssertion)
+	}
+	if receivedSecret != "" {
+		t.Errorf("Expected client_secret to be empty, got %q", receivedSecret)
+	}
 }
 
 func newTestServer(responses map[string]testResponse) *httptest.Server {
