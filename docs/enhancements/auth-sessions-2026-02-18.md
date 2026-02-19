@@ -88,11 +88,10 @@ sessions:
   #   "none" - clients without trustedPeers don't trust anyone (default)
   trustedPeersDefault: "none"
 
-  # Default "Remember Me" checkbox state
-  # Options:
-  #   "checked" - checkbox is checked by default, user can uncheck
-  #   "unchecked" - checkbox is unchecked by default, user can check (default)
-  rememberMeDefault: "unchecked"
+  # Whether "Remember Me" checkbox is checked by default in login/approval forms
+  # When true: checkbox is pre-checked, user can uncheck
+  # When false: checkbox is unchecked, user must check to persist session (default)
+  rememberMeCheckedByDefault: false
 ```
 
 **trustedPeersDefault** controls the default SSO behavior:
@@ -101,10 +100,7 @@ sessions:
 
 Clients with explicit `trustedPeers` configuration always use their configured value.
 
-**rememberMeDefault** controls the initial checkbox state:
-- `"unchecked"` (default): User must explicitly check "Remember Me" to create session
-- `"checked"`: Checkbox is pre-checked, user can uncheck if they don't want persistent session
-
+**rememberMeCheckedByDefault** controls the initial checkbox state in templates.
 This value is passed to templates as `.RememberMeChecked` boolean.
 
 **SSO via TrustedPeers**: SSO between clients is controlled by the existing `trustedPeers` configuration on clients. The `trustedPeers` setting defines **which clients can USE this client's session**, not which clients this client can use.
@@ -165,7 +161,7 @@ staticClients:
 - `HttpOnly: true` - Not accessible via JavaScript
 - `Secure: true` - Only sent over HTTPS (automatically disabled for localhost in dev)
 - `SameSite: Lax` - CSRF protection
-- `Path: /` - Available for all Dex endpoints
+- `Path: <issuerURL.Path>` - Derived from issuer URL (e.g., `/dex` for `https://example.com/dex`)
 
 These settings are not configurable to prevent security misconfigurations.
 
@@ -194,23 +190,24 @@ These settings are not configurable to prevent security misconfigurations.
      │                 │                  │                   │
      │  Callback with  │                  │                   │
      │  identity       │                  │                   │
-     │  (remember_me?) │                  │                   │
      ├────────────────>│                  │                   │
      │                 │                  │                   │
-     │                 │  If remember_me: │                   │
      │                 │  Create/update   │                   │
-     │                 │  UserIdentity    │                   │
+     │                 │  AuthSession     │                   │
+     │                 │  (ALWAYS)        │                   │
      │                 ├─────────────────>│                   │
      │                 │                  │                   │
-     │  Set-Cookie     │                  │                   │
-     │  (if remember)  │                  │                   │
-     │  + redirect to  │                  │                   │
-     │  /approval      │                  │                   │
+     │  Set-Cookie:    │                  │                   │
+     │  - Session cookie (no MaxAge)      │                   │
+     │    if Remember Me unchecked        │                   │
+     │  - Persistent cookie (with MaxAge) │                   │
+     │    if Remember Me checked          │                   │
+     │  + redirect to /approval           │                   │
      │<────────────────│                  │                   │
      │                 │                  │                   │
 ```
 
-**Note**: Session is only created/updated when "Remember Me" is checked. Without it, authentication proceeds as it does today (no persistent session).
+**Key Point**: AuthSession is always created on successful authentication. The "Remember Me" checkbox only controls whether the cookie is a session cookie (deleted on browser close) or a persistent cookie (survives browser restart). This is consistent with Keycloak's behavior.
 
 #### SSO Flow (Returning User)
 
@@ -340,6 +337,12 @@ type AuthSession struct {
 
     // ClientStates maps clientID → authentication state for that client
     // Allows different users/identities per client in same browser
+    //
+    // Design note: This map-based approach is consistent with how OfflineSessions
+    // stores refresh tokens per client (OfflineSessions.Refresh map). Given that
+    // the number of OAuth clients in a typical deployment is bounded and relatively
+    // small (tens to hundreds, not thousands), the serialized size of this map
+    // will not exceed practical storage limits for any supported backend.
     ClientStates map[string]*ClientAuthState
 
     // CreatedAt is when this browser session started
@@ -748,13 +751,55 @@ type GCResult struct {
 The session cookie contains only the session ID (not the session data):
 
 ```
-Cookie: dex_session=<session_id>; Path=/; Secure; HttpOnly; SameSite=Lax
+Cookie: dex_session=<session_id>; Path=<issuer_path>; Secure; HttpOnly; SameSite=Lax
+```
+
+**Cookie Path**: Derived from the issuer URL path (`issuerURL.Path`). For example:
+- Issuer: `https://dex.example.com/` → `Path=/`
+- Issuer: `https://example.com/dex` → `Path=/dex`
+
+This is consistent with how Dex already handles routing - all endpoints are prefixed with the issuer path.
+
+**Session Creation vs Cookie Persistence (Keycloak-like behavior)**
+
+Unlike some implementations where "Remember Me" controls session creation, we follow Keycloak's approach:
+
+- **AuthSession is ALWAYS created** on successful authentication
+- **"Remember Me" controls cookie persistence**:
+  - Unchecked: Session cookie (expires when browser closes)
+  - Checked: Persistent cookie (expires at `absoluteLifetime`)
+
+This approach is better because:
+1. SSO works within a browser session even without "Remember Me"
+2. Consent decisions are preserved during the browser session
+3. `prompt=none` works correctly within browser session
+4. More intuitive: "Remember Me" = "remember me after I close the browser"
+
+```go
+func (s *Server) setSessionCookie(w http.ResponseWriter, sessionID string, rememberMe bool) {
+    cookie := &http.Cookie{
+        Name:     s.sessionsConfig.CookieName,
+        Value:    sessionID,
+        Path:     s.issuerURL.Path,
+        HttpOnly: true,
+        Secure:   s.issuerURL.Scheme == "https",
+        SameSite: http.SameSiteLaxMode,
+    }
+
+    if rememberMe {
+        // Persistent cookie - survives browser restart
+        cookie.MaxAge = int(s.sessionsConfig.absoluteLifetime.Seconds())
+    }
+    // else: Session cookie - no MaxAge, browser deletes on close
+
+    http.SetCookie(w, cookie)
+}
 ```
 
 Session ID generation:
 ```go
 func NewSessionID() string {
-    return newSecureID(32) // Same as existing NewID but 32 bytes
+    return newSecureID(32) // 256-bit random value
 }
 ```
 
@@ -818,9 +863,9 @@ type Sessions struct {
     // "all" = trust all clients, "none" = trust no one (default: "none")
     TrustedPeersDefault string `json:"trustedPeersDefault"`
 
-    // RememberMeDefault is the default checkbox state
-    // "checked" = pre-checked, "unchecked" = not checked (default: "unchecked")
-    RememberMeDefault string `json:"rememberMeDefault"`
+    // RememberMeCheckedByDefault controls the initial checkbox state in templates
+    // true = pre-checked, false = unchecked (default: false)
+    RememberMeCheckedByDefault bool `json:"rememberMeCheckedByDefault"`
 }
 ```
 
@@ -831,7 +876,7 @@ func (s *Server) clientTrusts(sourceClient Client, targetClientID string) bool {
     trustedPeers := sourceClient.TrustedPeers
 
     // If client has no explicit trustedPeers, use default
-    if len(trustedPeers) == 0 {
+    if trustedPeers == nil {
         switch s.sessionsConfig.TrustedPeersDefault {
         case "all":
             return true // Trust everyone by default
@@ -840,7 +885,13 @@ func (s *Server) clientTrusts(sourceClient Client, targetClientID string) bool {
         }
     }
 
-    // Explicit configuration
+    // Explicit configuration: empty slice means explicitly trust no one
+    // This is different from nil (not configured)
+    if len(trustedPeers) == 0 {
+        return false
+    }
+
+    // Check explicit trust list
     for _, peer := range trustedPeers {
         if peer == "*" || peer == targetClientID {
             return true
@@ -849,6 +900,11 @@ func (s *Server) clientTrusts(sourceClient Client, targetClientID string) bool {
     return false
 }
 ```
+
+**Three states for trustedPeers:**
+1. `nil` (not configured) → use `trustedPeersDefault`
+2. `[]` (empty slice) → explicitly trust no one
+3. `["client-a", ...]` or `["*"]` → explicit trust list
 
 #### Prompt Parameter Handling
 
@@ -1082,8 +1138,8 @@ type templateData struct {
     // SessionsEnabled indicates if sessions feature is active
     SessionsEnabled bool
 
-    // RememberMeChecked is the default checkbox state from config
-    // true if sessions.rememberMeDefault == "checked"
+    // RememberMeChecked is the default checkbox state
+    // Set from config: sessions.rememberMeCheckedByDefault
     RememberMeChecked bool
 }
 ```
@@ -1130,13 +1186,15 @@ For OAuth/OIDC/SAML connectors, the user is redirected to upstream IDP and there
 </form>
 ```
 
-**When skipApprovalScreen is true**: If approval screen is skipped, the `rememberMeDefault` config determines behavior:
-- `"unchecked"` (default): No session created (current Dex behavior preserved)
-- `"checked"`: Session always created automatically
+**When skipApprovalScreen is true**: If approval screen is skipped, the `rememberMeCheckedByDefault` config determines cookie persistence:
+- `false` (default): Session cookie (deleted on browser close)
+- `true`: Persistent cookie (survives browser restart)
 
-**Remember Me Behavior**:
-- **Unchecked**: No auth session is created. User must re-authenticate on each browser session. This preserves current Dex behavior.
-- **Checked**: A persistent auth session is created. Session cookie persists across browser restarts until `absoluteLifetime` or `validIfNotUsedFor` expires.
+**Remember Me Behavior** (Keycloak-like):
+- **AuthSession is ALWAYS created** on successful authentication regardless of checkbox
+- **Checkbox controls cookie persistence only**:
+  - **Unchecked**: Session cookie - expires when browser closes. SSO works within browser session.
+  - **Checked**: Persistent cookie - survives browser restart until `absoluteLifetime` expires.
 
 #### Connector Type Considerations
 
@@ -1161,10 +1219,57 @@ Both types work the same way with sessions - the connector type only affects:
 | Risk | Mitigation |
 |------|------------|
 | Session hijacking | Secure cookie flags (HttpOnly, Secure, SameSite), short idle timeout |
-| Session fixation | Generate new session ID after authentication |
-| CSRF on logout | Require id_token_hint or confirmation page |
+| Session fixation | Generate new session ID after authentication (see below) |
+| CSRF on logout | GET shows confirmation page, POST performs logout |
 | Cookie theft | Bind session to fingerprint (IP range, partial user agent) - optional |
 | Storage exposure | Session IDs are random 256-bit values, no sensitive data in cookie |
+
+**Session Fixation Protection**
+
+Session fixation attacks occur when an attacker sets a known session ID in a victim's browser before authentication, then hijacks the session after the victim logs in.
+
+References:
+- [OWASP Session Fixation](https://owasp.org/www-community/attacks/Session_fixation)
+- [OWASP Session Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)
+
+**Mitigations implemented:**
+
+1. **Regenerate session ID on authentication**: When a user successfully authenticates, ALWAYS generate a new `AuthSession.ID` even if a session already exists. Never reuse a pre-authentication session ID.
+
+```go
+// This is not the real method signature, but the implementation example of a specific behavior.
+func (s *Server) onSuccessfulAuthentication(w http.ResponseWriter, userID, connectorID, clientID string, rememberMe bool) {
+    // ALWAYS generate new session ID - prevents session fixation
+    newSessionID := NewSessionID()
+
+    // Create or update AuthSession with NEW ID
+    authSession := &AuthSession{
+        ID:           newSessionID,  // Always new, never reuse
+        ClientStates: make(map[string]*ClientAuthState),
+        CreatedAt:    time.Now(),
+        // ...
+    }
+
+    // Set cookie with new session ID
+    s.setSessionCookie(w, newSessionID, rememberMe)
+}
+```
+
+2. **Don't accept session IDs from URL parameters**: Session IDs are ONLY accepted from cookies, never from query parameters or POST data.
+
+3. **Strict cookie settings**: `HttpOnly`, `Secure`, `SameSite=Lax` prevent common session theft vectors.
+
+4. **Session binding (optional future enhancement)**: Bind session to client characteristics (IP range, user agent) to detect stolen cookies.
+
+**Handling existing sessions during authentication:**
+
+When a user authenticates and an existing `AuthSession` is found:
+1. Generate a completely new session ID
+2. Copy relevant state from old session to new session (if any)
+3. Delete the old `AuthSession` from storage
+4. Set cookie with new session ID
+
+This ensures that even if an attacker set a session cookie before authentication, they cannot use it after the victim logs in.
 
 #### Operational Risks
 
@@ -1182,7 +1287,7 @@ Both types work the same way with sessions - the connector type only affects:
 1. Deploy new Dex version - storage migrations create `AuthSession` and `UserIdentity` tables/resources automatically (no feature flag needed for schema)
 2. Enable feature flag `DEX_SESSIONS_ENABLED=true` when ready to use sessions
 3. Add `sessions:` configuration block
-4. Sessions start being created for new logins when "Remember Me" is checked
+4. Sessions start being created for all new logins; "Remember Me" controls cookie persistence (session vs persistent cookie)
 5. Existing refresh tokens continue to work
 
 **Note**: Storage schema changes (new tables/CRDs) are applied on startup regardless of feature flag. The feature flag only controls whether sessions are actually created and used. This simplifies deployment - you can deploy the new version, then enable sessions later without another deployment.
