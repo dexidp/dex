@@ -358,7 +358,11 @@ type AuthSession struct {
     UserAgent string
 }
 
-// ClientAuthState represents authentication state for a specific client within a browser session
+// ClientAuthState represents authentication state for a specific client within an auth session.
+// Expiration follows OIDC conventions with both absolute and idle timeout:
+// - ExpiresAt enforces absolute lifetime (sessions.absoluteLifetime)
+// - LastActivity + sessions.validIfNotUsedFor enforces idle timeout
+// A client state is considered expired if EITHER condition is met.
 type ClientAuthState struct {
     // UserID + ConnectorID identify which UserIdentity is authenticated for this client
     UserID      string
@@ -367,13 +371,18 @@ type ClientAuthState struct {
     // Active indicates if authentication is active for this client
     Active bool
 
-    // ExpiresAt is when this client authentication expires (absolute lifetime)
+    // ExpiresAt is the absolute expiration time for this client session.
+    // Set to time.Now() + absoluteLifetime at session creation.
+    // Cannot be extended - hard upper bound on session duration.
     ExpiresAt time.Time
 
-    // LastActivity for this specific client
+    // LastActivity is when this client session was last used (token issued, SSO check, etc.)
+    // Used with validIfNotUsedFor to enforce idle timeout.
+    // Updated on each request that touches this client state.
     LastActivity time.Time
 
-    // LastTokenIssuedAt for logout notifications
+    // LastTokenIssuedAt is when a token was last issued for this client.
+    // Used for logout notifications and audit.
     LastTokenIssuedAt time.Time
 }
 ```
@@ -708,15 +717,41 @@ type GCResult struct {
 #### Session Expiration
 
 **AuthSession expiration:**
-- Entire session expires when `LastActivity + validIfNotUsedFor` is reached
+- Entire session expires when `LastActivity + validIfNotUsedFor` is reached (idle timeout)
 - On expiration, `AuthSession` is deleted by GC
 - User must re-authenticate for all clients
 
 **ClientAuthState expiration (per-client within AuthSession):**
-- Each client state has its own `ExpiresAt` (absolute lifetime)
-- Client state expires when `ExpiresAt` is reached
-- Other clients in same browser remain active
-- User must re-authenticate only for expired client
+
+Each client state enforces **both** absolute lifetime and idle timeout, consistent with standard OIDC session semantics:
+
+```go
+func (s *Server) isClientStateValid(state *ClientAuthState) bool {
+    now := time.Now()
+
+    // 1. Check absolute lifetime - hard upper bound, cannot be extended
+    if now.After(state.ExpiresAt) {
+        return false
+    }
+
+    // 2. Check idle timeout - session unused for too long
+    if now.After(state.LastActivity.Add(s.sessionsConfig.validIfNotUsedFor)) {
+        return false
+    }
+
+    // 3. Check explicit deactivation (admin revoked)
+    if !state.Active {
+        return false
+    }
+
+    return true
+}
+```
+
+When a client state expires:
+- Other clients in same auth session remain active
+- User must re-authenticate only for the expired client
+- On successful re-authentication, a new `ClientAuthState` is created with fresh `ExpiresAt`
 
 **Admin can force re-authentication:**
 - Delete `AuthSession` → user must re-auth for all clients
@@ -1212,6 +1247,19 @@ Both types work the same way with sessions - the connector type only affects:
 1. Initial authentication flow (redirect vs password form)
 2. How identity refresh works (via refresh tokens, not sessions)
 
+#### Connector Configuration Changes
+
+Sessions reference a `ConnectorID`, but connector configuration may change after session creation (e.g., OIDC issuer URL changes, LDAP server replaced, connector removed entirely).
+
+**Behavior**: Dex does NOT automatically invalidate sessions when connector configuration changes. This is by design - Dex has no mechanism to detect configuration changes at runtime, and connectors are typically reconfigured during planned maintenance.
+
+**Administrator responsibility**: When connector configuration changes in a way that invalidates existing user identities (e.g., connector removed, upstream IdP replaced), administrators should:
+1. Terminate affected sessions via gRPC admin API (future: `DexSessions.TerminateByConnector(connectorID)`)
+2. Or wait for sessions to expire naturally
+3. Or restart Dex with `DEX_SESSIONS_ENABLED=false` temporarily to force re-authentication
+
+If a session references a connector that no longer exists, the session will fail gracefully at the next use: `GetConnector()` will return an error, and the user will be redirected to authenticate again.
+
 ### Risks and Mitigations
 
 #### Security Risks
@@ -1275,12 +1323,36 @@ This ensures that even if an attacker set a session cookie before authentication
 
 | Risk | Mitigation |
 |------|------------|
-| Storage growth | Sessions are per-user like OfflineSessions; admin API allows cleanup |
+| Storage growth | AuthSessions are GC'd on inactivity; UserIdentities are per-user like OfflineSessions; admin API allows cleanup |
+| Storage performance | Additional read per request to resolve session cookie. Impact depends on backend — see note below |
 | Migration complexity | Feature flag allows gradual rollout, no breaking changes |
+
+**Storage Performance Note**
+
+Enabling sessions introduces an additional storage read on each authorization request (to resolve the session cookie to an `AuthSession`). The actual performance impact depends on the storage backend:
+
+- **SQL (Postgres, MySQL, SQLite)**: Session lookup by primary key is a single indexed read — negligible overhead
+- **etcd**: Single key-value lookup — negligible overhead
+- **Kubernetes CRDs**: GET by resource name — slightly higher latency than SQL/etcd but still within acceptable bounds (may require [priority&fairness](https://kubernetes.io/docs/concepts/cluster-administration/flow-control/) tuning)
+- **Memory**: In-process map lookup — no overhead
+
+At this stage, we do not have production metrics to quantify the exact impact. The storage access pattern is identical to existing `OfflineSessions` lookups (single record by key), which are already proven in production. It is recommended to monitor storage latency after enabling sessions and adjusting `validIfNotUsedFor` if the GC frequency needs tuning.
 
 #### Breaking Changes
 
 **None** - Sessions are opt-in via feature flag and configuration. Existing deployments continue to work without changes.
+
+#### Rollback Plan
+
+Sessions are fully controlled by the `DEX_SESSIONS_ENABLED` feature flag. Rollback is straightforward:
+
+1. **Disable feature flag**: Set `DEX_SESSIONS_ENABLED=false` (or remove it)
+2. **Immediate effect**: Dex stops creating, reading, and validating sessions. All authorization requests proceed as before sessions were introduced — connector authentication on every request, no SSO, no session cookies
+3. **Cookie cleanup**: Existing session cookies in browsers become inert — Dex ignores them when sessions are disabled. They expire naturally per their MaxAge or when the browser is closed
+4. **Storage cleanup**: `AuthSession` and `UserIdentity` records remain in storage but are unused. They can be cleaned up manually or left to accumulate no further growth
+5. **No downtime required**: Feature flag can be toggled without restart if environment variable reload is supported; otherwise, a rolling restart is sufficient
+
+**Key guarantee**: Disabling the feature flag returns Dex to its pre-sessions behavior with zero side effects. No existing functionality (refresh tokens, connector authentication, token issuance) depends on sessions. Additional tables in the database const nothing and can be deleted later.
 
 #### Migration Path
 
