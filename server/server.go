@@ -494,6 +494,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	// For easier connector-specific web server configuration, e.g. for the
 	// "authproxy" connector.
 	handleFunc("/callback/{connector}", s.handleConnectorCallback)
+	handleFunc("/saml/slo/{connector}", s.handleSAMLSLO)
 	handleFunc("/approval", s.handleApproval)
 	handle("/healthz", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !c.HealthChecker.IsHealthy() {

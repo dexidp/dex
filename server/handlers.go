@@ -1054,9 +1054,10 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 				return nil, err
 			}
 			offlineSessions := storage.OfflineSessions{
-				UserID:  refresh.Claims.UserID,
-				ConnID:  refresh.ConnectorID,
-				Refresh: make(map[string]*storage.RefreshTokenRef),
+				UserID:        refresh.Claims.UserID,
+				ConnID:        refresh.ConnectorID,
+				Refresh:       make(map[string]*storage.RefreshTokenRef),
+				ConnectorData: refresh.ConnectorData,
 			}
 			offlineSessions.Refresh[tokenRef.ClientID] = &tokenRef
 
@@ -1082,6 +1083,9 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 			// Update existing OfflineSession obj with new RefreshTokenRef.
 			if err := s.storage.UpdateOfflineSessions(ctx, session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
 				old.Refresh[tokenRef.ClientID] = &tokenRef
+				if len(refresh.ConnectorData) > 0 {
+					old.ConnectorData = refresh.ConnectorData
+				}
 				return old, nil
 			}); err != nil {
 				s.logger.ErrorContext(ctx, "failed to update offline session", "err", err)
@@ -1499,4 +1503,85 @@ func usernamePrompt(conn connector.PasswordConnector) string {
 		return attr
 	}
 	return "Username"
+}
+
+func (s *Server) handleSAMLSLO(w http.ResponseWriter, r *http.Request) {
+	connID, err := url.PathUnescape(mux.Vars(r)["connector"])
+	if err != nil {
+		s.logger.ErrorContext(r.Context(), "SAML SLO: failed to parse connector ID", "err", err)
+		http.Error(w, "Missing connector ID", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+
+	conn, err := s.getConnector(ctx, connID)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "SAML SLO: failed to get connector", "connector_id", connID, "err", err)
+		http.Error(w, "Connector not found", http.StatusNotFound)
+		return
+	}
+
+	sloConnector, ok := conn.Connector.(connector.SAMLSLOConnector)
+	if !ok {
+		s.logger.ErrorContext(ctx, "SAML SLO: connector does not support SLO", "connector_id", connID)
+		http.Error(w, "Connector does not support SLO", http.StatusBadRequest)
+		return
+	}
+
+	nameID, err := sloConnector.HandleSLO(w, r)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "SAML SLO: failed to process LogoutRequest", "connector_id", connID, "err", err)
+		http.Error(w, "Failed to process LogoutRequest", http.StatusBadRequest)
+		return
+	}
+
+	s.logger.InfoContext(ctx, "SAML SLO: processing logout", "connector_id", connID, "name_id", nameID)
+
+	if err := s.invalidateUserSessions(ctx, connID, nameID); err != nil {
+		s.logger.ErrorContext(ctx, "SAML SLO: failed to invalidate sessions", "connector_id", connID, "name_id", nameID, "err", err)
+		http.Error(w, "Failed to invalidate sessions", http.StatusInternalServerError)
+		return
+	}
+
+	s.logger.InfoContext(ctx, "SAML SLO: successfully invalidated sessions", "connector_id", connID, "name_id", nameID)
+	w.WriteHeader(http.StatusOK)
+}
+
+// invalidateUserSessions removes all refresh tokens for a user identified by
+// their NameID from a specific connector. It uses OfflineSessions to find
+// the user's refresh tokens and deletes them.
+func (s *Server) invalidateUserSessions(ctx context.Context, connectorID, nameID string) error {
+	// NameID from SAML is used as the user ID in the connector.
+	// OfflineSessions are keyed by (userID, connectorID).
+	// The userID in OfflineSessions is the connector-specific user ID (NameID for SAML).
+
+	offlineSessions, err := s.storage.GetOfflineSessions(ctx, nameID, connectorID)
+	if err != nil {
+		if err == storage.ErrNotFound {
+			s.logger.InfoContext(ctx, "SAML SLO: no offline sessions found", "name_id", nameID, "connector_id", connectorID)
+			return nil // No sessions to invalidate
+		}
+		return fmt.Errorf("failed to get offline sessions: %v", err)
+	}
+
+	// Delete all refresh tokens associated with this offline session
+	for _, tokenRef := range offlineSessions.Refresh {
+		if err := s.storage.DeleteRefresh(ctx, tokenRef.ID); err != nil {
+			if err == storage.ErrNotFound {
+				continue // Token already deleted
+			}
+			s.logger.ErrorContext(ctx, "SAML SLO: failed to delete refresh token", "token_id", tokenRef.ID, "err", err)
+			// Continue deleting other tokens even if one fails
+		}
+	}
+
+	// Delete the offline session itself
+	if err := s.storage.DeleteOfflineSessions(ctx, nameID, connectorID); err != nil {
+		if err != storage.ErrNotFound {
+			return fmt.Errorf("failed to delete offline sessions: %v", err)
+		}
+	}
+
+	return nil
 }
