@@ -155,6 +155,13 @@ jobs:
         run: skopeo --insecure-policy copy docker://${{ steps.image-ref.outputs.value }} oci-archive:image.tar
         if: inputs.publish
 
+      - name: Debug - Check metadata
+        run: |
+          echo "digest: ${{ steps.build.outputs.digest }}"
+          echo "imageid: ${{ steps.build.outputs.imageid }}"
+          echo '${{ steps.build.outputs.metadata }}' > metadata.json
+          cat metadata.json
+
       # Uncomment the following lines for debugging:
       # - name: Upload image as artifact
       #   uses: actions/upload-artifact@v3
