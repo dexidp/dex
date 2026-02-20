@@ -163,17 +163,18 @@ jobs:
       #     path: image.tar
 
       - name: Extract OCI tarball
+        id: extract-oci
         run: |
           mkdir -p image
           tar -xf image.tar -C image
 
-          jq -r '.manifests[] |
-            select(.annotations["io.containerd.image.name"] != null) |
-            "\(.annotations["io.containerd.image.name"])|\(.annotations["org.opencontainers.image.ref.name"])"
-          ' image/index.json | while IFS='|' read full_name tag; do
-            echo "Copying $tag -> $full_name"
-            skopeo copy "oci:image:$tag" "docker-daemon:$full_name"
-          done
+          image_name=$(jq -r '.manifests[0].annotations["io.containerd.image.name"]' image/index.json)
+          image_tag=$(jq -r '.manifests[0].annotations["org.opencontainers.image.ref.name"]' image/index.json)
+
+          echo "Copying $image_tag -> $image_name"
+          skopeo copy "oci:image:$image_tag" "docker-daemon:$image_name"
+
+          echo "value=$image_name" >> "$GITHUB_OUTPUT"
 
       # - name: List tags
       #   run: skopeo --insecure-policy list-tags oci:image
@@ -210,8 +211,7 @@ jobs:
 
       - name: Prepare image fs for scanning
         run: |
-          image_name=$(jq -r '.manifests[0].annotations["io.containerd.image.name"]' image/index.json)
-          docker export $(docker create --rm $image_name) -o docker-image.tar
+          docker export $(docker create --rm ${{ steps.extract-oci.outputs.value }}) -o docker-image.tar
 
           mkdir -p docker-image
           tar -xf docker-image.tar -C docker-image
