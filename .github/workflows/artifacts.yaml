@@ -175,6 +175,8 @@ jobs:
           skopeo copy "oci:image:$image_tag" "docker-daemon:$image_name"
 
           echo "value=$image_name" >> "$GITHUB_OUTPUT"
+        if: ${{ !inputs.publish }}
+
 
       # - name: List tags
       #   run: skopeo --insecure-policy list-tags oci:image
@@ -211,7 +213,8 @@ jobs:
 
       - name: Prepare image fs for scanning
         run: |
-          docker export $(docker create --rm ${{ steps.extract-oci.outputs.value }}) -o docker-image.tar
+          image_ref=${{ steps.extract-oci.outputs.value != '' && steps.extract-oci.outputs.value || steps.image-ref.outputs.value }}
+          docker export $(docker create --rm $image_ref) -o docker-image.tar
 
           mkdir -p docker-image
           tar -xf docker-image.tar -C docker-image
