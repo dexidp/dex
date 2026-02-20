@@ -21,6 +21,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
 
+	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -891,4 +893,462 @@ func setNonEmpty(vals url.Values, key, value string) {
 	if value != "" {
 		vals.Set(key, value)
 	}
+}
+
+// mockSAMLSLOConnector implements connector.SAMLConnector and connector.SAMLSLOConnector for testing.
+type mockSAMLSLOConnector struct {
+	sloNameID string
+	sloErr    error
+}
+
+func (m *mockSAMLSLOConnector) POSTData(s connector.Scopes, requestID string) (ssoURL, samlRequest string, err error) {
+	return "", "", nil
+}
+
+func (m *mockSAMLSLOConnector) HandlePOST(s connector.Scopes, samlResponse, inResponseTo string) (connector.Identity, error) {
+	return connector.Identity{}, nil
+}
+
+func (m *mockSAMLSLOConnector) HandleSLO(w http.ResponseWriter, r *http.Request) (string, error) {
+	return m.sloNameID, m.sloErr
+}
+
+// mockNonSLOConnector implements connector.CallbackConnector but NOT SAMLSLOConnector.
+type mockNonSLOConnector struct{}
+
+func (m *mockNonSLOConnector) LoginURL(s connector.Scopes, callbackURL, state string) (string, error) {
+	return "", nil
+}
+
+func (m *mockNonSLOConnector) HandleCallback(s connector.Scopes, r *http.Request) (connector.Identity, error) {
+	return connector.Identity{}, nil
+}
+
+// registerTestConnector creates a connector in storage and registers it in the server's connectors map.
+func registerTestConnector(t *testing.T, s *Server, connID string, c connector.Connector) {
+	t.Helper()
+	ctx := t.Context()
+
+	storageConn := storage.Connector{
+		ID:              connID,
+		Type:            "saml",
+		Name:            "Test SAML",
+		ResourceVersion: "1",
+	}
+	if err := s.storage.CreateConnector(ctx, storageConn); err != nil {
+		t.Fatalf("failed to create connector in storage: %v", err)
+	}
+
+	s.mu.Lock()
+	s.connectors[connID] = Connector{
+		ResourceVersion: "1",
+		Connector:       c,
+	}
+	s.mu.Unlock()
+}
+
+func TestHandleSAMLSLO(t *testing.T) {
+	t.Run("SuccessfulSLO", func(t *testing.T) {
+		httpServer, server := newTestServer(t, nil)
+		defer httpServer.Close()
+
+		ctx := t.Context()
+		connID := "saml-slo-test"
+		nameID := "user@example.com"
+
+		mockConn := &mockSAMLSLOConnector{
+			sloNameID: nameID,
+		}
+		registerTestConnector(t, server, connID, mockConn)
+
+		// Create refresh tokens and offline session
+		refreshToken1 := storage.RefreshToken{
+			ID:          "refresh-token-1",
+			Token:       "token-1",
+			CreatedAt:   time.Now(),
+			LastUsed:    time.Now(),
+			ClientID:    "test-client",
+			ConnectorID: connID,
+			Claims: storage.Claims{
+				UserID:   nameID,
+				Username: "testuser",
+				Email:    nameID,
+			},
+			Nonce: "nonce-1",
+		}
+		refreshToken2 := storage.RefreshToken{
+			ID:          "refresh-token-2",
+			Token:       "token-2",
+			CreatedAt:   time.Now(),
+			LastUsed:    time.Now(),
+			ClientID:    "test-client-2",
+			ConnectorID: connID,
+			Claims: storage.Claims{
+				UserID:   nameID,
+				Username: "testuser",
+				Email:    nameID,
+			},
+			Nonce: "nonce-2",
+		}
+		require.NoError(t, server.storage.CreateRefresh(ctx, refreshToken1))
+		require.NoError(t, server.storage.CreateRefresh(ctx, refreshToken2))
+
+		offlineSession := storage.OfflineSessions{
+			UserID: nameID,
+			ConnID: connID,
+			Refresh: map[string]*storage.RefreshTokenRef{
+				refreshToken1.ClientID: {
+					ID:        refreshToken1.ID,
+					ClientID:  refreshToken1.ClientID,
+					CreatedAt: refreshToken1.CreatedAt,
+					LastUsed:  refreshToken1.LastUsed,
+				},
+				refreshToken2.ClientID: {
+					ID:        refreshToken2.ID,
+					ClientID:  refreshToken2.ClientID,
+					CreatedAt: refreshToken2.CreatedAt,
+					LastUsed:  refreshToken2.LastUsed,
+				},
+			},
+		}
+		require.NoError(t, server.storage.CreateOfflineSessions(ctx, offlineSession))
+
+		// Send POST to /saml/slo/{connector}
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/saml/slo/"+connID, nil)
+		server.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusOK, rr.Code, "expected HTTP 200, got %d: %s", rr.Code, rr.Body.String())
+
+		// Verify refresh tokens are deleted
+		_, err := server.storage.GetRefresh(ctx, refreshToken1.ID)
+		require.ErrorIs(t, err, storage.ErrNotFound, "refresh token 1 should be deleted")
+
+		_, err = server.storage.GetRefresh(ctx, refreshToken2.ID)
+		require.ErrorIs(t, err, storage.ErrNotFound, "refresh token 2 should be deleted")
+
+		// Verify offline session is deleted
+		_, err = server.storage.GetOfflineSessions(ctx, nameID, connID)
+		require.ErrorIs(t, err, storage.ErrNotFound, "offline session should be deleted")
+	})
+
+	t.Run("NoExistingSessions", func(t *testing.T) {
+		httpServer, server := newTestServer(t, nil)
+		defer httpServer.Close()
+
+		connID := "saml-slo-nosession"
+		nameID := "nouser@example.com"
+
+		mockConn := &mockSAMLSLOConnector{
+			sloNameID: nameID,
+		}
+		registerTestConnector(t, server, connID, mockConn)
+
+		// No refresh tokens or offline sessions created — should handle gracefully
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/saml/slo/"+connID, nil)
+		server.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusOK, rr.Code, "expected HTTP 200 for no sessions, got %d: %s", rr.Code, rr.Body.String())
+	})
+
+	t.Run("ConnectorNotFound", func(t *testing.T) {
+		httpServer, server := newTestServer(t, nil)
+		defer httpServer.Close()
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/saml/slo/nonexistent-connector", nil)
+		server.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusNotFound, rr.Code, "expected HTTP 404 for missing connector")
+	})
+
+	t.Run("ConnectorDoesNotSupportSLO", func(t *testing.T) {
+		httpServer, server := newTestServer(t, nil)
+		defer httpServer.Close()
+
+		connID := "saml-no-slo"
+		mockConn := &mockNonSLOConnector{}
+		registerTestConnector(t, server, connID, mockConn)
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/saml/slo/"+connID, nil)
+		server.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusBadRequest, rr.Code, "expected HTTP 400 for connector without SLO support")
+	})
+
+	t.Run("HandleSLOError", func(t *testing.T) {
+		httpServer, server := newTestServer(t, nil)
+		defer httpServer.Close()
+
+		connID := "saml-slo-error"
+		mockConn := &mockSAMLSLOConnector{
+			sloNameID: "",
+			sloErr:    errors.New("invalid SAMLRequest"),
+		}
+		registerTestConnector(t, server, connID, mockConn)
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/saml/slo/"+connID, nil)
+		server.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusBadRequest, rr.Code, "expected HTTP 400 for invalid SAMLRequest")
+	})
+
+	t.Run("MultipleTokensPartialDeletion", func(t *testing.T) {
+		httpServer, server := newTestServer(t, nil)
+		defer httpServer.Close()
+
+		ctx := t.Context()
+		connID := "saml-slo-partial"
+		nameID := "partial@example.com"
+
+		mockConn := &mockSAMLSLOConnector{
+			sloNameID: nameID,
+		}
+		registerTestConnector(t, server, connID, mockConn)
+
+		// Create only one refresh token but reference two in offline session
+		// (simulating a token that was already deleted)
+		refreshToken := storage.RefreshToken{
+			ID:          "existing-token",
+			Token:       "token-existing",
+			CreatedAt:   time.Now(),
+			LastUsed:    time.Now(),
+			ClientID:    "client-existing",
+			ConnectorID: connID,
+			Claims: storage.Claims{
+				UserID:   nameID,
+				Username: "partialuser",
+				Email:    nameID,
+			},
+			Nonce: "nonce-existing",
+		}
+		require.NoError(t, server.storage.CreateRefresh(ctx, refreshToken))
+
+		offlineSession := storage.OfflineSessions{
+			UserID: nameID,
+			ConnID: connID,
+			Refresh: map[string]*storage.RefreshTokenRef{
+				"client-existing": {
+					ID:        "existing-token",
+					ClientID:  "client-existing",
+					CreatedAt: time.Now(),
+					LastUsed:  time.Now(),
+				},
+				"client-missing": {
+					ID:        "already-deleted-token",
+					ClientID:  "client-missing",
+					CreatedAt: time.Now(),
+					LastUsed:  time.Now(),
+				},
+			},
+		}
+		require.NoError(t, server.storage.CreateOfflineSessions(ctx, offlineSession))
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/saml/slo/"+connID, nil)
+		server.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusOK, rr.Code, "expected HTTP 200 even with partial deletion")
+
+		// Verify existing token is deleted
+		_, err := server.storage.GetRefresh(ctx, "existing-token")
+		require.ErrorIs(t, err, storage.ErrNotFound, "existing refresh token should be deleted")
+
+		// Verify offline session is deleted
+		_, err = server.storage.GetOfflineSessions(ctx, nameID, connID)
+		require.ErrorIs(t, err, storage.ErrNotFound, "offline session should be deleted")
+	})
+
+	t.Run("RefreshAfterSLO", func(t *testing.T) {
+		// Test that refresh token is rejected after SLO invalidation.
+		// This is the key integration test: SLO → refresh → error.
+		httpServer, server := newTestServer(t, func(c *Config) {
+			c.RefreshTokenPolicy = &RefreshTokenPolicy{rotateRefreshTokens: true}
+		})
+		defer httpServer.Close()
+
+		ctx := t.Context()
+		connID := "saml-slo-refresh"
+		nameID := "slo-refresh@example.com"
+
+		mockConn := &mockSAMLSLOConnector{
+			sloNameID: nameID,
+		}
+		registerTestConnector(t, server, connID, mockConn)
+
+		// Create client for refresh token request
+		client := storage.Client{
+			ID:           "slo-test-client",
+			Secret:       "slo-test-secret",
+			RedirectURIs: []string{"https://example.com/callback"},
+			Name:         "SLO Test Client",
+		}
+		require.NoError(t, server.storage.CreateClient(ctx, client))
+
+		// Create refresh token
+		refreshToken := storage.RefreshToken{
+			ID:          "slo-refresh-token",
+			Token:       "slo-token-value",
+			CreatedAt:   time.Now(),
+			LastUsed:    time.Now(),
+			ClientID:    client.ID,
+			ConnectorID: connID,
+			Scopes:      []string{"openid", "email", "offline_access"},
+			Claims: storage.Claims{
+				UserID:        nameID,
+				Username:      "slouser",
+				Email:         nameID,
+				EmailVerified: true,
+			},
+			ConnectorData: []byte(`{"userID":"` + nameID + `","username":"slouser","email":"` + nameID + `","emailVerified":true}`),
+			Nonce:         "slo-nonce",
+		}
+		require.NoError(t, server.storage.CreateRefresh(ctx, refreshToken))
+
+		offlineSession := storage.OfflineSessions{
+			UserID: nameID,
+			ConnID: connID,
+			Refresh: map[string]*storage.RefreshTokenRef{
+				client.ID: {
+					ID:        refreshToken.ID,
+					ClientID:  client.ID,
+					CreatedAt: refreshToken.CreatedAt,
+					LastUsed:  refreshToken.LastUsed,
+				},
+			},
+		}
+		require.NoError(t, server.storage.CreateOfflineSessions(ctx, offlineSession))
+
+		// Step 1: Verify refresh token exists before SLO
+		_, err := server.storage.GetRefresh(ctx, refreshToken.ID)
+		require.NoError(t, err, "refresh token should exist before SLO")
+
+		// Step 2: Send SLO request
+		sloRR := httptest.NewRecorder()
+		sloReq := httptest.NewRequest(http.MethodPost, "/saml/slo/"+connID, nil)
+		server.ServeHTTP(sloRR, sloReq)
+		require.Equal(t, http.StatusOK, sloRR.Code, "SLO should succeed")
+
+		// Step 3: Verify refresh token is deleted
+		_, err = server.storage.GetRefresh(ctx, refreshToken.ID)
+		require.ErrorIs(t, err, storage.ErrNotFound, "refresh token should be deleted after SLO")
+
+		// Step 4: Attempt to use the refresh token — should fail
+		tokenData, err := internal.Marshal(&internal.RefreshToken{RefreshId: refreshToken.ID, Token: refreshToken.Token})
+		require.NoError(t, err)
+
+		u, err := url.Parse(server.issuerURL.String())
+		require.NoError(t, err)
+		u.Path = path.Join(u.Path, "/token")
+
+		v := url.Values{}
+		v.Add("grant_type", "refresh_token")
+		v.Add("refresh_token", tokenData)
+
+		refreshReq, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(v.Encode()))
+		refreshReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		refreshReq.SetBasicAuth(client.ID, client.Secret)
+
+		refreshRR := httptest.NewRecorder()
+		server.ServeHTTP(refreshRR, refreshReq)
+
+		// Refresh should fail because the token was deleted by SLO
+		require.NotEqual(t, http.StatusOK, refreshRR.Code,
+			"refresh should fail after SLO, got status %d: %s", refreshRR.Code, refreshRR.Body.String())
+	})
+
+	t.Run("ConnectorDataPersistence", func(t *testing.T) {
+		// Test that ConnectorData is correctly stored in refresh token
+		// and can be used for subsequent refresh operations.
+		httpServer, server := newTestServer(t, func(c *Config) {
+			c.RefreshTokenPolicy = &RefreshTokenPolicy{rotateRefreshTokens: true}
+		})
+		defer httpServer.Close()
+
+		ctx := t.Context()
+		connID := "saml-conndata"
+
+		// Create a mock SAML connector that also implements RefreshConnector
+		mockConn := &mockSAMLRefreshConnector{
+			refreshIdentity: connector.Identity{
+				UserID:        "refreshed-user",
+				Username:      "refreshed-name",
+				Email:         "refreshed@example.com",
+				EmailVerified: true,
+				Groups:        []string{"refreshed-group"},
+			},
+		}
+		registerTestConnector(t, server, connID, mockConn)
+
+		// Create client
+		client := storage.Client{
+			ID:           "conndata-client",
+			Secret:       "conndata-secret",
+			RedirectURIs: []string{"https://example.com/callback"},
+			Name:         "ConnData Test Client",
+		}
+		require.NoError(t, server.storage.CreateClient(ctx, client))
+
+		// Create refresh token with ConnectorData (simulating what HandlePOST would store)
+		connectorData := []byte(`{"userID":"user-123","username":"testuser","email":"test@example.com","emailVerified":true,"groups":["admin","dev"]}`)
+		refreshToken := storage.RefreshToken{
+			ID:          "conndata-refresh",
+			Token:       "conndata-token",
+			CreatedAt:   time.Now(),
+			LastUsed:    time.Now(),
+			ClientID:    client.ID,
+			ConnectorID: connID,
+			Scopes:      []string{"openid", "email", "offline_access"},
+			Claims: storage.Claims{
+				UserID:        "user-123",
+				Username:      "testuser",
+				Email:         "test@example.com",
+				EmailVerified: true,
+				Groups:        []string{"admin", "dev"},
+			},
+			ConnectorData: connectorData,
+			Nonce:         "conndata-nonce",
+		}
+		require.NoError(t, server.storage.CreateRefresh(ctx, refreshToken))
+
+		offlineSession := storage.OfflineSessions{
+			UserID:        "user-123",
+			ConnID:        connID,
+			Refresh:       map[string]*storage.RefreshTokenRef{client.ID: {ID: refreshToken.ID, ClientID: client.ID}},
+			ConnectorData: connectorData,
+		}
+		require.NoError(t, server.storage.CreateOfflineSessions(ctx, offlineSession))
+
+		// Verify ConnectorData is stored correctly
+		storedToken, err := server.storage.GetRefresh(ctx, refreshToken.ID)
+		require.NoError(t, err)
+		require.Equal(t, connectorData, storedToken.ConnectorData,
+			"ConnectorData should be persisted in refresh token storage")
+
+		// Verify ConnectorData is stored in offline session
+		storedSession, err := server.storage.GetOfflineSessions(ctx, "user-123", connID)
+		require.NoError(t, err)
+		require.Equal(t, connectorData, storedSession.ConnectorData,
+			"ConnectorData should be persisted in offline session storage")
+	})
+}
+
+// mockSAMLRefreshConnector implements SAMLConnector + RefreshConnector for testing.
+type mockSAMLRefreshConnector struct {
+	refreshIdentity connector.Identity
+}
+
+func (m *mockSAMLRefreshConnector) POSTData(s connector.Scopes, requestID string) (ssoURL, samlRequest string, err error) {
+	return "", "", nil
+}
+
+func (m *mockSAMLRefreshConnector) HandlePOST(s connector.Scopes, samlResponse, inResponseTo string) (connector.Identity, error) {
+	return connector.Identity{}, nil
+}
+
+func (m *mockSAMLRefreshConnector) Refresh(ctx context.Context, s connector.Scopes, ident connector.Identity) (connector.Identity, error) {
+	return m.refreshIdentity, nil
 }
