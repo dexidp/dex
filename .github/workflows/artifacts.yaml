@@ -166,7 +166,14 @@ jobs:
         run: |
           mkdir -p image
           tar -xf image.tar -C image
-          skopeo copy oci:image docker-daemon:${{ steps.image-name.outputs.value }}:latest
+
+          jq -r '.manifests[] |
+            select(.annotations["io.containerd.image.name"] != null) |
+            "\(.annotations["io.containerd.image.name"])|\(.annotations["org.opencontainers.image.ref.name"])"
+          ' image/index.json | while IFS='|' read full_name tag; do
+            echo "Copying $tag -> $full_name"
+            skopeo copy "oci:image:$tag" "docker-daemon:$full_name"
+          done
 
       # - name: List tags
       #   run: skopeo --insecure-policy list-tags oci:image
