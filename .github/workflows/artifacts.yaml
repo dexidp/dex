@@ -166,6 +166,7 @@ jobs:
         run: |
           mkdir -p image
           tar -xf image.tar -C image
+          skopeo copy oci:image docker-daemon:${{ steps.image-name.outputs.value }}:latest
 
       # - name: List tags
       #   run: skopeo --insecure-policy list-tags oci:image
@@ -202,9 +203,7 @@ jobs:
 
       - name: Prepare image fs for scanning
         run: |
-          docker load --input image.tar
           docker export $(docker create --rm ${{ steps.image-name.outputs.value }}@${{ steps.build.outputs.digest }}) -o docker-image.tar
-
           mkdir -p docker-image
           tar -xf docker-image.tar -C docker-image
 
