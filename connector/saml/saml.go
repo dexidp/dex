@@ -197,7 +197,8 @@ func (c *Config) openConnector(logger *slog.Logger) (*provider, error) {
 		}
 	}
 
-	if !c.InsecureSkipSignatureValidation {
+	needValidator := !c.InsecureSkipSignatureValidation || !c.InsecureSkipSLOSignatureValidation
+	if needValidator {
 		if (c.CA == "") == (c.CAData == nil) {
 			return nil, errors.New("must provide either 'ca' or 'caData'")
 		}
@@ -725,6 +726,10 @@ func after(now, notOnOrAfter time.Time) bool {
 
 // validateSignature validates the XML digital signature of the given raw XML data.
 func (p *provider) validateSignature(rawXML []byte) ([]byte, error) {
+	if p.validator == nil {
+		return nil, fmt.Errorf("signature validation unavailable (no validator configured)")
+	}
+
 	doc := etree.NewDocument()
 	if err := doc.ReadFromBytes(rawXML); err != nil {
 		return nil, fmt.Errorf("failed to parse XML: %v", err)
@@ -763,6 +768,11 @@ func (p *provider) HandleSLO(w http.ResponseWriter, r *http.Request) (string, er
 	rawRequest, err := base64.StdEncoding.DecodeString(samlRequest)
 	if err != nil {
 		return "", fmt.Errorf("saml slo: failed to decode SAMLRequest: %v", err)
+	}
+
+	byteReader := bytes.NewReader(rawRequest)
+	if xrvErr := xrv.Validate(byteReader); xrvErr != nil {
+		return "", errors.Wrap(xrvErr, "validating XML logout request")
 	}
 
 	// Validate signature unless explicitly skipped
