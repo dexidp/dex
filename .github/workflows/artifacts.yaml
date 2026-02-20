@@ -210,7 +210,9 @@ jobs:
 
       - name: Prepare image fs for scanning
         run: |
-          docker export $(docker create --rm ${{ steps.image-name.outputs.value }}@${{ steps.build.outputs.digest }}) -o docker-image.tar
+          image_name=$(jq -r '.manifests[0].annotations["io.containerd.image.name"]' image/index.json)
+          docker export $(docker create --rm $image_name) -o docker-image.tar
+
           mkdir -p docker-image
           tar -xf docker-image.tar -C docker-image
 
