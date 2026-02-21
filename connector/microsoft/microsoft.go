@@ -36,7 +36,7 @@ const (
 	scopeUser = "user.read"
 	// Microsoft requires this scope to list groups the user is a member of
 	// and resolve their ids to groups names.
-	scopeGroups = "directory.read.all"
+	scopeGroups = "GroupMember.Read.All"
 	// Microsoft requires this scope to return a refresh token
 	// see https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-permissions-and-consent#offline_access
 	scopeOfflineAccess = "offline_access"
