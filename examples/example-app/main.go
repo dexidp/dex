@@ -17,7 +17,6 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -43,8 +42,9 @@ type app struct {
 	pkce         bool
 	redirectURI  string
 
-	verifier *oidc.IDTokenVerifier
-	provider *oidc.Provider
+	verifier        *oidc.IDTokenVerifier
+	provider        *oidc.Provider
+	scopesSupported []string
 
 	// Does the provider use "offline_access" scope to request a refresh token
 	// or does it use "access_type=offline" (e.g. Google)?
@@ -188,7 +188,9 @@ func cmd() *cobra.Command {
 
 			a.provider = provider
 			a.verifier = provider.Verifier(&oidc.Config{ClientID: a.clientID})
+			a.scopesSupported = s.ScopesSupported
 
+			http.Handle("/static/", http.StripPrefix("/static/", staticHandler))
 			http.HandleFunc("/", a.handleIndex)
 			http.HandleFunc("/login", a.handleLogin)
 			http.HandleFunc(u.Path, a.handleCallback)
@@ -226,7 +228,10 @@ func main() {
 }
 
 func (a *app) handleIndex(w http.ResponseWriter, r *http.Request) {
-	renderIndex(w)
+	renderIndex(w, indexPageData{
+		ScopesSupported: a.scopesSupported,
+		LogoURI:         dexLogoDataURI,
+	})
 }
 
 func (a *app) oauth2Config(scopes []string) *oauth2.Config {
@@ -240,15 +245,19 @@ func (a *app) oauth2Config(scopes []string) *oauth2.Config {
 }
 
 func (a *app) handleLogin(w http.ResponseWriter, r *http.Request) {
-	var scopes []string
-	if extraScopes := r.FormValue("extra_scopes"); extraScopes != "" {
-		scopes = strings.Split(extraScopes, " ")
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, fmt.Sprintf("failed to parse form: %v", err), http.StatusBadRequest)
+		return
 	}
-	var clients []string
-	if crossClients := r.FormValue("cross_client"); crossClients != "" {
-		clients = strings.Split(crossClients, " ")
-	}
+
+	// Only use scopes that are checked in the form
+	scopes := r.Form["extra_scopes"]
+
+	clients := r.Form["cross_client"]
 	for _, client := range clients {
+		if client == "" {
+			continue
+		}
 		scopes = append(scopes, "audience:server:client_id:"+client)
 	}
 	connectorID := ""
@@ -257,7 +266,7 @@ func (a *app) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	authCodeURL := ""
-	scopes = append(scopes, "openid", "profile", "email")
+	scopes = uniqueStrings(scopes)
 
 	var authCodeOptions []oauth2.AuthCodeOption
 
@@ -266,13 +275,28 @@ func (a *app) handleLogin(w http.ResponseWriter, r *http.Request) {
 		authCodeOptions = append(authCodeOptions, oauth2.SetAuthURLParam("code_challenge_method", "S256"))
 	}
 
-	a.oauth2Config(scopes)
-	if r.FormValue("offline_access") == "yes" {
+	// Check if offline_access scope is present to determine offline access mode
+	hasOfflineAccess := false
+	for _, scope := range scopes {
+		if scope == "offline_access" {
+			hasOfflineAccess = true
+			break
+		}
+	}
+
+	if hasOfflineAccess && !a.offlineAsScope {
+		// Provider uses access_type=offline instead of offline_access scope
 		authCodeOptions = append(authCodeOptions, oauth2.AccessTypeOffline)
+		// Remove offline_access from scopes as it's not supported
+		filteredScopes := make([]string, 0, len(scopes))
+		for _, scope := range scopes {
+			if scope != "offline_access" {
+				filteredScopes = append(filteredScopes, scope)
+			}
+		}
+		scopes = filteredScopes
 	}
-	if a.offlineAsScope {
-		scopes = append(scopes, "offline_access")
-	}
+
 	authCodeURL = a.oauth2Config(scopes).AuthCodeURL(exampleAppState, authCodeOptions...)
 
 	// Parse the auth code URL and safely add connector_id parameter if provided
@@ -374,7 +398,7 @@ func (a *app) handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	renderToken(w, a.redirectURI, rawIDToken, accessToken, token.RefreshToken, buff.String())
+	renderToken(w, a.provider, a.redirectURI, rawIDToken, accessToken, token.RefreshToken, buff.String())
 }
 
 func generateCodeVerifier() string {
@@ -388,4 +412,20 @@ func generateCodeVerifier() string {
 func generateCodeChallenge(verifier string) string {
 	hash := sha256.Sum256([]byte(verifier))
 	return base64.RawURLEncoding.EncodeToString(hash[:])
+}
+
+func uniqueStrings(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	out := values[:0]
+	for _, v := range values {
+		if v == "" {
+			continue
+		}
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = struct{}{}
+		out = append(out, v)
+	}
+	return out
 }

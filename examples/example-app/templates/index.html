@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Example App - Login</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <img class="logo" src="{{.LogoURI}}" alt="Dex">
+        <form id="login-form" action="/login" method="post">
+            <div class="app-description">
+                This is an example application for <b>Dex</b> OpenID Connect provider.<br>
+                Learn more in the <a href="https://dexidp.io/docs/" target="_blank">documentation</a>.
+            </div>
+            <div class="primary-action">
+                <input type="submit" value="Login">
+            </div>
+            <details class="advanced">
+                <summary>Advanced options</summary>
+                <div class="field">
+                    <label>Scopes:</label>
+                    <small class="hint">Select OpenID Connect scopes to request. Standard scopes are pre-selected.</small>
+                    <div class="scopes-list" id="scopes-list">
+                        {{range .ScopesSupported}}
+                        <div class="scope-item">
+                            <input type="checkbox" name="extra_scopes" value="{{.}}" id="scope_{{.}}">
+                            <label for="scope_{{.}}">{{.}}</label>
+                        </div>
+                        {{end}}
+                    </div>
+                    {{if eq (len .ScopesSupported) 0}}
+                    <div class="hint">No scopes from discovery - add custom scopes below.</div>
+                    {{end}}
+                    <div class="inline-input">
+                        <input type="text" id="custom_scope_input" placeholder="custom-scope">
+                        <button type="button" id="add-custom-scope">Add scope</button>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="cross_client_input">Cross-Client auth:</label>
+                    <small class="hint">Each client is sent as audience:server:client_id scope.</small>
+                    <div id="cross-client-list"></div>
+                    <div class="inline-input">
+                        <input type="text" id="cross_client_input" placeholder="client-id">
+                        <button type="button" id="add-cross-client">Add</button>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="connector_id">Connector:</label>
+                    <small class="hint">Specify a connector ID to bypass the connector selection screen.</small>
+                    <input type="text" id="connector_id" name="connector_id" placeholder="connector id">
+                </div>
+            </details>
+        </form>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
+
