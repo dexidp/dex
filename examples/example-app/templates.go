@@ -29,6 +29,7 @@ const dexLogoDataURI = "/static/dex-glyph-color.svg"
 var (
 	indexTmpl     *template.Template
 	tokenTmpl     *template.Template
+	deviceTmpl    *template.Template
 	staticHandler http.Handler
 )
 
@@ -44,6 +45,11 @@ func init() {
 		log.Fatalf("failed to parse token template: %v", err)
 	}
 
+	deviceTmpl, err = template.ParseFS(templatesFS, "templates/device.html")
+	if err != nil {
+		log.Fatalf("failed to parse device template: %v", err)
+	}
+
 	// Create handler for static files
 	staticSubFS, err := fs.Sub(staticFS, "static")
 	if err != nil {
@@ -56,8 +62,21 @@ func renderIndex(w http.ResponseWriter, data indexPageData) {
 	renderTemplate(w, indexTmpl, data)
 }
 
+func renderDevice(w http.ResponseWriter, data devicePageData) {
+	renderTemplate(w, deviceTmpl, data)
+}
+
 type indexPageData struct {
 	ScopesSupported []string
+	LogoURI         string
+}
+
+type devicePageData struct {
+	SessionID       string
+	DeviceCode      string
+	UserCode        string
+	VerificationURI string
+	PollInterval    int
 	LogoURI         string
 }
 
