@@ -29,8 +29,28 @@
 
     {{ if .Claims }}
     <div class="token-block">
-        <div class="token-title">Claims:</div>
+        <div class="token-title">ID Token Claims:</div>
         <pre><code id="claims">{{ .Claims }}</code></pre>
+    </div>
+    {{ end }}
+
+    {{ if .AccessToken }}
+    <div class="token-block">
+        <div class="token-title">UserInfo:</div>
+        <div id="userinfo-section">
+            <form id="userinfo-form">
+                <input type="hidden" name="access_token" value="{{ .AccessToken }}">
+                <button type="submit" class="fetch-userinfo-btn">
+                    Fetch UserInfo
+                </button>
+            </form>
+            <div id="userinfo-loading" class="userinfo-loading" style="display: none;">
+                <div class="spinner"></div>
+                <span>Loading...</span>
+            </div>
+            <div id="userinfo-error" class="error-message" style="display: none;"></div>
+            <pre id="userinfo-claims" style="display: none;"><code></code></pre>
+        </div>
     </div>
     {{ end }}
 

@@ -102,5 +102,53 @@
             customScopeInput.value = "";
         }
     });
+
+    // Device Grant Login Handler
+    const deviceGrantBtn = document.getElementById("device-grant-btn");
+    deviceGrantBtn?.addEventListener("click", async () => {
+        deviceGrantBtn.disabled = true;
+        deviceGrantBtn.textContent = "Loading...";
+
+        try {
+            // Collect form data similar to regular login
+            const form = document.getElementById("login-form");
+            const formData = new FormData(form);
+
+            // Get selected scopes
+            const scopes = formData.getAll("extra_scopes");
+
+            // Get cross-client values
+            const crossClients = formData.getAll("cross_client");
+
+            // Get connector_id if specified
+            const connectorId = formData.get("connector_id") || "";
+
+            // Initiate device flow with options
+            const response = await fetch('/device/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    scopes: scopes,
+                    cross_clients: crossClients,
+                    connector_id: connectorId
+                })
+            });
+
+            if (response.ok) {
+                // Redirect to device flow page
+                window.location.href = '/device';
+            } else {
+                const errorText = await response.text();
+                alert('Failed to start device flow: ' + errorText);
+            }
+        } catch (error) {
+            alert('Error starting device flow: ' + error.message);
+        } finally {
+            deviceGrantBtn.disabled = false;
+            deviceGrantBtn.textContent = "Device Code Flow";
+        }
+    });
 })();
 
