@@ -3,11 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +14,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -32,8 +30,8 @@ var (
 )
 
 func init() {
-	codeVerifier = generateCodeVerifier()
-	codeChallenge = generateCodeChallenge(codeVerifier)
+	codeVerifier = oauth2.GenerateVerifier()
+	codeChallenge = oauth2.S256ChallengeFromVerifier(codeVerifier)
 }
 
 type app struct {
@@ -393,7 +391,7 @@ func (a *app) handleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	buff := new(bytes.Buffer)
-	if err := json.Indent(buff, []byte(claims), "", "  "); err != nil {
+	if err := json.Indent(buff, claims, "", "  "); err != nil {
 		http.Error(w, fmt.Sprintf("error indenting ID token claims: %v", err), http.StatusInternalServerError)
 		return
 	}
@@ -401,31 +399,9 @@ func (a *app) handleCallback(w http.ResponseWriter, r *http.Request) {
 	renderToken(w, a.provider, a.redirectURI, rawIDToken, accessToken, token.RefreshToken, buff.String())
 }
 
-func generateCodeVerifier() string {
-	bytes := make([]byte, 64) // 86 symbols Base64URL
-	if _, err := rand.Read(bytes); err != nil {
-		log.Fatalf("rand.Read error: %v", err)
-	}
-	return base64.RawURLEncoding.EncodeToString(bytes)
-}
-
-func generateCodeChallenge(verifier string) string {
-	hash := sha256.Sum256([]byte(verifier))
-	return base64.RawURLEncoding.EncodeToString(hash[:])
-}
-
 func uniqueStrings(values []string) []string {
-	seen := make(map[string]struct{}, len(values))
-	out := values[:0]
-	for _, v := range values {
-		if v == "" {
-			continue
-		}
-		if _, ok := seen[v]; ok {
-			continue
-		}
-		seen[v] = struct{}{}
-		out = append(out, v)
-	}
-	return out
+	slices.Sort(values)
+	values = slices.Compact(values)
+
+	return values
 }
