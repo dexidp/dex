@@ -108,6 +108,11 @@ type Config struct {
 
 	GCFrequency time.Duration // Defaults to 5 minutes
 
+	// RegistrationToken is an optional bearer token required for dynamic client registration.
+	// If empty, the /register endpoint allows open registration (not recommended for production).
+	// Set this to restrict registration to authorized parties only.
+	RegistrationToken string
+
 	// If specified, the server will use this function for determining time.
 	Now func() time.Time
 
@@ -188,6 +193,9 @@ type Server struct {
 
 	// Used for password grant
 	passwordConnector string
+
+	// Optional bearer token for client registration endpoint
+	registrationToken string
 
 	supportedResponseTypes map[string]bool
 
@@ -309,6 +317,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		now:                    now,
 		templates:              tmpls,
 		passwordConnector:      c.PasswordConnector,
+		registrationToken:      c.RegistrationToken,
 		logger:                 c.Logger,
 		signer:                 c.Signer,
 	}
@@ -472,6 +481,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	handleWithCORS("/keys", s.handlePublicKeys)
 	handleWithCORS("/userinfo", s.handleUserInfo)
 	handleWithCORS("/token/introspect", s.handleIntrospect)
+	handleWithCORS("/register", s.handleClientRegistration)
 	handleFunc("/auth", s.handleAuthorization)
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
 	handleFunc("/auth/{connector}/login", s.handlePasswordLogin)
