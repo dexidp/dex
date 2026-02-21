@@ -141,8 +141,7 @@ func getPublicKeyPEM(provider *oidc.Provider) string {
 	return string(pubKeyPEM)
 }
 
-func renderToken(w http.ResponseWriter, provider *oidc.Provider, redirectURL, idToken, accessToken, refreshToken, claims string) {
-	ctx := context.Background()
+func renderToken(w http.ResponseWriter, ctx context.Context, provider *oidc.Provider, redirectURL, idToken, accessToken, refreshToken, claims string) {
 	data := tokenTmplData{
 		IDToken:            idToken,
 		IDTokenJWTLink:     generateJWTIOLink(idToken, provider, ctx),

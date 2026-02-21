@@ -396,7 +396,7 @@ func (a *app) handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	renderToken(w, a.provider, a.redirectURI, rawIDToken, accessToken, token.RefreshToken, buff.String())
+	renderToken(w, r.Context(), a.provider, a.redirectURI, rawIDToken, accessToken, token.RefreshToken, buff.String())
 }
 
 func uniqueStrings(values []string) []string {
