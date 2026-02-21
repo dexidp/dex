@@ -23,4 +23,8 @@ const (
 
 	// ErrMsgMethodNotAllowed is shown when an unsupported HTTP method is used.
 	ErrMsgMethodNotAllowed = "Method not allowed."
+
+	// ErrMsgNotInRequiredGroups is shown when a user authenticates successfully
+	// but is not a member of any of the groups required by the connector.
+	ErrMsgNotInRequiredGroups = "You are not a member of any of the required groups to authenticate."
 )
