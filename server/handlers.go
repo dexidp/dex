@@ -7,6 +7,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -499,7 +500,12 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to authenticate", "err", err)
-		s.renderError(r, w, http.StatusInternalServerError, ErrMsgAuthenticationFailed)
+		var groupsErr *connector.UserNotInRequiredGroupsError
+		if errors.As(err, &groupsErr) {
+			s.renderError(r, w, http.StatusForbidden, ErrMsgNotInRequiredGroups)
+		} else {
+			s.renderError(r, w, http.StatusInternalServerError, ErrMsgAuthenticationFailed)
+		}
 		return
 	}
 

@@ -3,8 +3,21 @@ package connector
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 )
+
+// UserNotInRequiredGroupsError is returned by a connector when a user
+// successfully authenticates but is not a member of any of the required groups.
+// The server will respond with HTTP 403 Forbidden instead of 500.
+type UserNotInRequiredGroupsError struct {
+	UserID string
+	Groups []string
+}
+
+func (e *UserNotInRequiredGroupsError) Error() string {
+	return fmt.Sprintf("user %q is not in any of the required groups %v", e.UserID, e.Groups)
+}
 
 // Connector is a mechanism for federating login to a remote identity service.
 //

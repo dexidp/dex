@@ -227,7 +227,7 @@ func (c *microsoftConnector) HandleCallback(s connector.Scopes, connData []byte,
 	if c.groupsRequired(s.Groups) {
 		groups, err := c.getGroups(ctx, client, user.ID)
 		if err != nil {
-			return identity, fmt.Errorf("microsoft: get groups: %v", err)
+			return identity, fmt.Errorf("microsoft: get groups: %w", err)
 		}
 		identity.Groups = groups
 	}
@@ -318,7 +318,7 @@ func (c *microsoftConnector) Refresh(ctx context.Context, s connector.Scopes, id
 	if c.groupsRequired(s.Groups) {
 		groups, err := c.getGroups(ctx, client, user.ID)
 		if err != nil {
-			return identity, fmt.Errorf("microsoft: get groups: %v", err)
+			return identity, fmt.Errorf("microsoft: get groups: %w", err)
 		}
 		identity.Groups = groups
 	}
@@ -404,7 +404,7 @@ func (c *microsoftConnector) getGroups(ctx context.Context, client *http.Client,
 	// ensure that the user is in at least one required group
 	filteredGroups := groups_pkg.Filter(userGroups, c.groups)
 	if len(c.groups) > 0 && len(filteredGroups) == 0 {
-		return nil, fmt.Errorf("microsoft: user %v not in any of the required groups", userID)
+		return nil, &connector.UserNotInRequiredGroupsError{UserID: userID, Groups: c.groups}
 	} else if c.useGroupsAsWhitelist {
 		return filteredGroups, nil
 	}
