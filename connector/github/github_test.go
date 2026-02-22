@@ -152,7 +152,7 @@ func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
 	expectNil(t, err)
 
 	c := githubConnector{apiURL: s.URL, hostName: hostURL.Host, httpClient: newClient()}
-	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, req)
+	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, nil, req)
 
 	expectNil(t, err)
 	expectEquals(t, identity.Username, "some-login")
@@ -160,7 +160,7 @@ func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
 	expectEquals(t, 0, len(identity.Groups))
 
 	c = githubConnector{apiURL: s.URL, hostName: hostURL.Host, httpClient: newClient(), loadAllGroups: true}
-	identity, err = c.HandleCallback(connector.Scopes{Groups: true}, req)
+	identity, err = c.HandleCallback(connector.Scopes{Groups: true}, nil, req)
 
 	expectNil(t, err)
 	expectEquals(t, identity.Username, "some-login")
@@ -193,7 +193,7 @@ func TestLoginUsedAsIDWhenConfigured(t *testing.T) {
 	expectNil(t, err)
 
 	c := githubConnector{apiURL: s.URL, hostName: hostURL.Host, httpClient: newClient(), useLoginAsID: true}
-	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, req)
+	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, nil, req)
 
 	expectNil(t, err)
 	expectEquals(t, identity.UserID, "some-login")
