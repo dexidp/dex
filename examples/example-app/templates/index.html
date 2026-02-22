@@ -14,8 +14,13 @@
                 This is an example application for <b>Dex</b> OpenID Connect provider.<br>
                 Learn more in the <a href="https://dexidp.io/docs/" target="_blank">documentation</a>.
             </div>
-            <div class="primary-action">
-                <input type="submit" value="Login">
+            <div class="login-buttons">
+                <button type="submit" class="login-button primary-button">
+                    Authorization Code Flow
+                </button>
+                <button type="button" id="device-grant-btn" class="login-button primary-button">
+                    Device Code Flow
+                </button>
             </div>
             <details class="advanced">
                 <summary>Advanced options</summary>
