@@ -127,7 +127,7 @@ func TestHandleCallbackCustomRootCADataEnablesTLSRequests(t *testing.T) {
 	req, err := http.NewRequest("GET", hostURL.String()+"?code=testcode", nil)
 	expectNil(t, err)
 
-	identity, err := conn.(connector.CallbackConnector).HandleCallback(connector.Scopes{Groups: false}, req)
+	identity, err := conn.(connector.CallbackConnector).HandleCallback(connector.Scopes{Groups: false}, nil, req)
 	if err != nil {
 		t.Fatalf("HandleCallback() error: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestHandleCallbackWithoutRootCADataFailsTLS(t *testing.T) {
 	req, err := http.NewRequest("GET", hostURL.String()+"?code=testcode", nil)
 	expectNil(t, err)
 
-	_, err = conn.(connector.CallbackConnector).HandleCallback(connector.Scopes{Groups: false}, req)
+	_, err = conn.(connector.CallbackConnector).HandleCallback(connector.Scopes{Groups: false}, nil, req)
 	if err == nil {
 		t.Fatalf("expected TLS error, got nil")
 	}
