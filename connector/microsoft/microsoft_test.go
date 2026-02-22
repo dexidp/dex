@@ -142,7 +142,7 @@ func TestUserNotInRequiredGroupFromGraphAPI(t *testing.T) {
 		tenant:   tenant,
 		groups:   []string{"a"},
 	}
-	_, err := c.HandleCallback(connector.Scopes{Groups: true}, req)
+	_, err := c.HandleCallback(connector.Scopes{Groups: true}, nil, req)
 	if err == nil {
 		t.Fatal("expected error when user is not in any required group, got nil")
 	}
