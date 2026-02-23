@@ -31,6 +31,9 @@ type Config struct {
 	Groups       []string `json:"groups"`
 	InsecureCA   bool     `json:"insecureCA"`
 	RootCA       string   `json:"rootCA"`
+	// If this is set, the email claim will have this domain appended.
+	// This should not include the @ character.
+	EmailSuffix string `json:"emailSuffix"`
 }
 
 var (
@@ -50,6 +53,7 @@ type openshiftConnector struct {
 	insecureCA   bool
 	rootCA       string
 	groups       []string
+	emailSuffix  string
 }
 
 type user struct {
@@ -101,6 +105,7 @@ func (c *Config) OpenWithHTTPClient(id string, logger *slog.Logger,
 		rootCA:       c.RootCA,
 		groups:       c.Groups,
 		httpClient:   httpClient,
+		emailSuffix:  c.EmailSuffix,
 	}
 
 	var metadata struct {
@@ -212,11 +217,16 @@ func (c *openshiftConnector) identity(ctx context.Context, s connector.Scopes,
 		}
 	}
 
+	email := user.Name
+	if c.emailSuffix != "" {
+		email = email + "@" + c.emailSuffix
+	}
+
 	identity = connector.Identity{
 		UserID:            user.UID,
 		Username:          user.Name,
 		PreferredUsername: user.Name,
-		Email:             user.Name,
+		Email:             email,
 		Groups:            user.Groups,
 	}
 
