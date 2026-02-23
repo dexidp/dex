@@ -16,6 +16,8 @@ import (
 	"github.com/dexidp/dex/pkg/httpclient"
 )
 
+var _ connector.CallbackConnector = (*oauthConnector)(nil)
+
 type oauthConnector struct {
 	clientID             string
 	clientSecret         string
@@ -116,9 +118,9 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 	return oauthConn, err
 }
 
-func (c *oauthConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (string, error) {
+func (c *oauthConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (string, []byte, error) {
 	if c.redirectURI != callbackURL {
-		return "", fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
+		return "", nil, fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
 	}
 
 	oauth2Config := &oauth2.Config{
@@ -129,10 +131,10 @@ func (c *oauthConnector) LoginURL(scopes connector.Scopes, callbackURL, state st
 		Scopes:       c.scopes,
 	}
 
-	return oauth2Config.AuthCodeURL(state), nil
+	return oauth2Config.AuthCodeURL(state), nil, nil
 }
 
-func (c *oauthConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
+func (c *oauthConnector) HandleCallback(s connector.Scopes, connData []byte, r *http.Request) (identity connector.Identity, err error) {
 	q := r.URL.Query()
 	if errType := q.Get("error"); errType != "" {
 		return identity, errors.New(q.Get("error_description"))
