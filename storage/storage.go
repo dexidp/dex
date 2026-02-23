@@ -171,6 +171,9 @@ type Client struct {
 	// Name and LogoURL used when displaying this client to the end user.
 	Name    string `json:"name" yaml:"name"`
 	LogoURL string `json:"logoURL" yaml:"logoURL"`
+
+	// The set of OAuth2 scopes requested by default.
+	DefaultScopes []string `json:"defaultScopes" yaml:"defaultScopes"`
 }
 
 // Claims represents the ID Token claims supported by the server.
