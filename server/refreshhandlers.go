@@ -303,7 +303,9 @@ func (s *Server) updateOfflineSession(ctx context.Context, refresh *storage.Refr
 	return nil
 }
 
-// updateRefreshToken updates refresh token and offline session in the storage
+// updateRefreshToken updates refresh token and offline session in the storage.
+// Connector refresh is guarded by a per-refresh-ID mutex so only one concurrent
+// caller hits the IdP.
 func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (*internal.RefreshToken, connector.Identity, *refreshError) {
 	var rerr *refreshError
 
@@ -311,7 +313,6 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 		Token:     rCtx.requestToken.Token,
 		RefreshId: rCtx.requestToken.RefreshId,
 	}
-
 	lastUsed := s.now()
 
 	ident := connector.Identity{
@@ -321,6 +322,31 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 		Email:             rCtx.storageToken.Claims.Email,
 		EmailVerified:     rCtx.storageToken.Claims.EmailVerified,
 		Groups:            rCtx.storageToken.Claims.Groups,
+		ConnectorData:     rCtx.connectorData,
+	}
+
+	rotationEnabled := s.refreshTokenPolicy.RotationEnabled()
+	reusingAllowed := s.refreshTokenPolicy.AllowedToReuse(rCtx.storageToken.LastUsed)
+	needConnectorRefresh := rotationEnabled && !reusingAllowed
+
+	if needConnectorRefresh {
+		// Serialize concurrent refreshes for the same refresh ID.
+		lock := s.getRefreshLock(rCtx.storageToken.ID)
+		lock.Lock()
+		s.logger.Debug("Acquired refresh lock", "refreshID", rCtx.storageToken.ID)
+		defer func() {
+			lock.Unlock()
+			s.logger.Debug("Released refresh lock", "refreshID", rCtx.storageToken.ID)
+		}()
+
+		// Double-check if another goroutine already refreshed while we waited:
+		if !s.refreshTokenPolicy.AllowedToReuse(rCtx.storageToken.LastUsed) {
+			var rerr *refreshError
+			ident, rerr = s.refreshWithConnector(ctx, rCtx, ident)
+			if rerr != nil {
+				return nil, ident, rerr
+			}
+		}
 	}
 
 	refreshTokenUpdater := func(old storage.RefreshToken) (storage.RefreshToken, error) {
@@ -363,14 +389,6 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 
 		// ConnectorData has been moved to OfflineSession
 		old.ConnectorData = nil
-
-		// Call  only once if there is a request which is not in the reuse interval.
-		// This is required to avoid multiple calls to the external IdP for concurrent requests.
-		// Dex will call the connector's Refresh method only once if request is not in reuse interval.
-		ident, rerr = s.refreshWithConnector(ctx, rCtx, ident)
-		if rerr != nil {
-			return old, rerr
-		}
 
 		// Update the claims of the refresh token.
 		//
