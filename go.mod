@@ -124,6 +124,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/dexidp/dex/api/v2 => ./api/v2
-
 tool entgo.io/ent/cmd/ent
