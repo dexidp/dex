@@ -412,7 +412,8 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		return nil, newDisplayedErr(http.StatusBadRequest, "Failed to parse request.")
 	}
 	q := r.Form
-	redirectURI, err := url.QueryUnescape(q.Get("redirect_uri"))
+	redirectURI := q.Get("redirect_uri")
+	_, err := url.QueryUnescape(redirectURI)
 	if err != nil {
 		return nil, newDisplayedErr(http.StatusBadRequest, "No redirect_uri provided.")
 	}
