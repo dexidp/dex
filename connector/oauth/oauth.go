@@ -17,21 +17,22 @@ import (
 )
 
 type oauthConnector struct {
-	clientID             string
-	clientSecret         string
-	redirectURI          string
-	tokenURL             string
-	authorizationURL     string
-	userInfoURL          string
-	scopes               []string
-	userIDKey            string
-	userNameKey          string
-	preferredUsernameKey string
-	emailKey             string
-	emailVerifiedKey     string
-	groupsKey            string
-	httpClient           *http.Client
-	logger               *slog.Logger
+	clientID                  string
+	clientSecret              string
+	redirectURI               string
+	tokenURL                  string
+	authorizationURL          string
+	userInfoURL               string
+	scopes                    []string
+	userIDKey                 string
+	userNameKey               string
+	preferredUsernameKey      string
+	emailKey                  string
+	emailVerifiedKey          string
+	groupsKey                 string
+	insecureSkipEmailVerified bool
+	httpClient                *http.Client
+	logger                    *slog.Logger
 }
 
 type connectorData struct {
@@ -39,17 +40,19 @@ type connectorData struct {
 }
 
 type Config struct {
-	ClientID           string   `json:"clientID"`
-	ClientSecret       string   `json:"clientSecret"`
-	RedirectURI        string   `json:"redirectURI"`
-	TokenURL           string   `json:"tokenURL"`
-	AuthorizationURL   string   `json:"authorizationURL"`
-	UserInfoURL        string   `json:"userInfoURL"`
-	Scopes             []string `json:"scopes"`
-	RootCAs            []string `json:"rootCAs"`
-	InsecureSkipVerify bool     `json:"insecureSkipVerify"`
-	UserIDKey          string   `json:"userIDKey"` // defaults to "id"
-	ClaimMapping       struct {
+	ClientID         string   `json:"clientID"`
+	ClientSecret     string   `json:"clientSecret"`
+	RedirectURI      string   `json:"redirectURI"`
+	TokenURL         string   `json:"tokenURL"`
+	AuthorizationURL string   `json:"authorizationURL"`
+	UserInfoURL      string   `json:"userInfoURL"`
+	Scopes           []string `json:"scopes"`
+	RootCAs          []string `json:"rootCAs"`
+	// Override the value of email_verified to true in the returned claims
+	InsecureSkipEmailVerified bool   `json:"insecureSkipEmailVerified"`
+	InsecureSkipVerify        bool   `json:"insecureSkipVerify"`
+	UserIDKey                 string `json:"userIDKey"` // defaults to "id"
+	ClaimMapping              struct {
 		UserNameKey          string `json:"userNameKey"`          // defaults to "user_name"
 		PreferredUsernameKey string `json:"preferredUsernameKey"` // defaults to "preferred_username"
 		GroupsKey            string `json:"groupsKey"`            // defaults to "groups"
@@ -92,20 +95,21 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 	}
 
 	oauthConn := &oauthConnector{
-		clientID:             c.ClientID,
-		clientSecret:         c.ClientSecret,
-		tokenURL:             c.TokenURL,
-		authorizationURL:     c.AuthorizationURL,
-		userInfoURL:          c.UserInfoURL,
-		scopes:               c.Scopes,
-		redirectURI:          c.RedirectURI,
-		logger:               logger.With(slog.Group("connector", "type", "oauth", "id", id)),
-		userIDKey:            userIDKey,
-		userNameKey:          userNameKey,
-		preferredUsernameKey: preferredUsernameKey,
-		groupsKey:            groupsKey,
-		emailKey:             emailKey,
-		emailVerifiedKey:     emailVerifiedKey,
+		clientID:                  c.ClientID,
+		clientSecret:              c.ClientSecret,
+		tokenURL:                  c.TokenURL,
+		authorizationURL:          c.AuthorizationURL,
+		userInfoURL:               c.UserInfoURL,
+		scopes:                    c.Scopes,
+		redirectURI:               c.RedirectURI,
+		logger:                    logger.With(slog.Group("connector", "type", "oauth", "id", id)),
+		userIDKey:                 userIDKey,
+		userNameKey:               userNameKey,
+		preferredUsernameKey:      preferredUsernameKey,
+		groupsKey:                 groupsKey,
+		emailKey:                  emailKey,
+		emailVerifiedKey:          emailVerifiedKey,
+		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
 	}
 
 	oauthConn.httpClient, err = httpclient.NewHTTPClient(c.RootCAs, c.InsecureSkipVerify)
@@ -186,7 +190,14 @@ func (c *oauthConnector) HandleCallback(s connector.Scopes, r *http.Request) (id
 	identity.Username, _ = userInfoResult[c.userNameKey].(string)
 	identity.PreferredUsername, _ = userInfoResult[c.preferredUsernameKey].(string)
 	identity.Email, _ = userInfoResult[c.emailKey].(string)
-	identity.EmailVerified, _ = userInfoResult[c.emailVerifiedKey].(bool)
+
+	identity.EmailVerified, found = userInfoResult[c.emailVerifiedKey].(bool)
+
+	if !found {
+		if c.insecureSkipEmailVerified {
+			identity.EmailVerified = true
+		}
+	}
 
 	if s.Groups {
 		groups := map[string]struct{}{}
