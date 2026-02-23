@@ -1,6 +1,7 @@
 package microsoft
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -93,6 +94,67 @@ func TestUserIdentityFromGraphAPI(t *testing.T) {
 
 	c := microsoftConnector{apiURL: s.URL, graphURL: s.URL, tenant: tenant}
 	identity, err := c.HandleCallback(connector.Scopes{Groups: false}, nil, req)
+	expectNil(t, err)
+	expectEquals(t, identity.Username, "Jane Doe")
+	expectEquals(t, identity.UserID, "S56767889")
+	expectEquals(t, identity.PreferredUsername, "")
+	expectEquals(t, identity.Email, "jane.doe@example.com")
+	expectEquals(t, identity.EmailVerified, true)
+	expectEquals(t, len(identity.Groups), 0)
+}
+
+func TestHandleCallbackWithEmailToLowercase(t *testing.T) {
+	s := newTestServer(map[string]testResponse{
+		"/v1.0/me?$select=id,displayName,userPrincipalName": {
+			data: user{ID: "S56767889", Name: "Jane Doe", Email: "Jane.Doe@example.com"},
+		},
+		"/" + tenant + "/oauth2/v2.0/token": dummyToken,
+	})
+	defer s.Close()
+
+	req, _ := http.NewRequest("GET", s.URL, nil)
+
+	c := microsoftConnector{apiURL: s.URL, graphURL: s.URL, tenant: tenant, emailToLowercase: true}
+	identity, err := c.HandleCallback(connector.Scopes{Groups: false}, req)
+	expectNil(t, err)
+	expectEquals(t, identity.Username, "Jane Doe")
+	expectEquals(t, identity.UserID, "S56767889")
+	expectEquals(t, identity.PreferredUsername, "")
+	expectEquals(t, identity.Email, "jane.doe@example.com")
+	expectEquals(t, identity.EmailVerified, true)
+	expectEquals(t, len(identity.Groups), 0)
+}
+
+func TestRefreshWithEmailToLowercase(t *testing.T) {
+	s := newTestServer(map[string]testResponse{
+		"/v1.0/me?$select=id,displayName,userPrincipalName": {
+			data: user{ID: "S56767889", Name: "Jane Doe", Email: "Jane.Doe@example.com"},
+		},
+		"/" + tenant + "/oauth2/v2.0/token": {data: map[string]interface{}{
+			"access_token":  "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
+			"refresh_token": "oRzxVjCnohYRHEYEhZshkmakKmoyVoTjfUGC",
+			"expires_in":    "30",
+		}},
+	})
+	defer s.Close()
+
+	req, err := http.NewRequest("GET", s.URL, nil)
+	expectNil(t, err)
+
+	c := microsoftConnector{apiURL: s.URL, graphURL: s.URL, tenant: tenant, emailToLowercase: true}
+
+	expectNil(t, err)
+
+	identity, err := c.HandleCallback(connector.Scopes{Groups: false, OfflineAccess: true}, req)
+	expectNil(t, err)
+	expectEquals(t, identity.Username, "Jane Doe")
+	expectEquals(t, identity.UserID, "S56767889")
+	expectEquals(t, identity.PreferredUsername, "")
+	expectEquals(t, identity.Email, "jane.doe@example.com")
+	expectEquals(t, identity.EmailVerified, true)
+	expectEquals(t, len(identity.Groups), 0)
+
+	identity, err = c.Refresh(context.Background(), connector.Scopes{Groups: false, OfflineAccess: true}, identity)
 	expectNil(t, err)
 	expectEquals(t, identity.Username, "Jane Doe")
 	expectEquals(t, identity.UserID, "S56767889")
