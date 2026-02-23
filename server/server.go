@@ -215,6 +215,8 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	issuerURL, err := url.Parse(c.Issuer)
 	if err != nil {
 		return nil, fmt.Errorf("server: can't parse issuer URL")
+	} else if issuerURL.Scheme == "" {
+		return nil, fmt.Errorf("server: configured issuer URL doesn't include http(s):// scheme")
 	}
 
 	if c.Storage == nil {
