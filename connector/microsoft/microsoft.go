@@ -16,6 +16,7 @@ import (
 
 	"golang.org/x/oauth2"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/dexidp/dex/connector"
 	groups_pkg "github.com/dexidp/dex/pkg/groups"
 )
@@ -32,8 +33,6 @@ const (
 )
 
 const (
-	// Microsoft requires this scope to access user's profile
-	scopeUser = "user.read"
 	// Microsoft requires this scope to list groups the user is a member of
 	// and resolve their ids to groups names.
 	scopeGroups = "directory.read.all"
@@ -62,7 +61,7 @@ type Config struct {
 	PromptType string `json:"promptType"`
 	DomainHint string `json:"domainHint"`
 
-	Scopes []string `json:"scopes"` // defaults to scopeUser (user.read)
+	Scopes []string `json:"scopes"` // defaults to openid,profile,email
 }
 
 // Open returns a strategy for logging in through Microsoft.
@@ -98,6 +97,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 	if m.tenant == "" {
 		m.tenant = "common"
 	}
+	m.issuer = m.apiURL + "/{tenantid}/v2.0"
 
 	// By default, use group names
 	switch m.groupNameFormat {
@@ -107,6 +107,24 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 	default:
 		return nil, fmt.Errorf("invalid groupNameFormat: %s", m.groupNameFormat)
 	}
+
+	issuer := strings.ReplaceAll(m.issuer, "{tenantid}", m.tenant)
+	ctx := oidc.InsecureIssuerURLContext(context.Background(), issuer)
+	provider, err := oidc.NewProvider(ctx, issuer)
+	if err != nil {
+		return nil, fmt.Errorf("provider error: %v", err)
+	}
+
+	var pclaims map[string]interface{}
+	if err := provider.Claims(&pclaims); err != nil {
+		return nil, fmt.Errorf("oidc: failed to decode provider claims: %v", err)
+	}
+
+	if pissuer, found := pclaims["issuer"]; !found || pissuer != m.issuer {
+		return nil, fmt.Errorf("oidc: incorrect prodiver issuer in well known configuration %q", pissuer)
+	}
+
+	m.provider = provider
 
 	return &m, nil
 }
@@ -125,6 +143,8 @@ var (
 type microsoftConnector struct {
 	apiURL               string
 	graphURL             string
+	issuer               string // issuer for discovery of well known configuration
+	provider             *oidc.Provider
 	redirectURI          string
 	clientID             string
 	clientSecret         string
@@ -153,7 +173,7 @@ func (c *microsoftConnector) oauth2Config(scopes connector.Scopes) *oauth2.Confi
 	if len(c.scopes) > 0 {
 		microsoftScopes = c.scopes
 	} else {
-		microsoftScopes = append(microsoftScopes, scopeUser)
+		microsoftScopes = append(microsoftScopes, oidc.ScopeOpenID, "profile", "email")
 	}
 	if c.groupsRequired(scopes.Groups) {
 		microsoftScopes = append(microsoftScopes, scopeGroups)
@@ -208,7 +228,7 @@ func (c *microsoftConnector) HandleCallback(s connector.Scopes, connData []byte,
 
 	client := oauth2Config.Client(ctx, token)
 
-	user, err := c.user(ctx, client)
+	user, err := c.userFromToken(ctx, token)
 	if err != nil {
 		return identity, fmt.Errorf("microsoft: get user: %v", err)
 	}
@@ -307,7 +327,7 @@ func (c *microsoftConnector) Refresh(ctx context.Context, s connector.Scopes, id
 			return nil
 		},
 	})
-	user, err := c.user(ctx, client)
+	user, err := c.userFromToken(ctx, tok)
 	if err != nil {
 		return identity, fmt.Errorf("microsoft: get user: %v", err)
 	}
@@ -326,57 +346,68 @@ func (c *microsoftConnector) Refresh(ctx context.Context, s connector.Scopes, id
 	return identity, nil
 }
 
-// https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/resources/user
-// id                - The unique identifier for the user. Inherited from
-//
-//	directoryObject. Key. Not nullable. Read-only.
-//
-// displayName       - The name displayed in the address book for the user.
-//
-//	This is usually the combination of the user's first name,
-//	middle initial and last name. This property is required
-//	when a user is created and it cannot be cleared during
-//	updates. Supports $filter and $orderby.
-//
-// userPrincipalName - The user principal name (UPN) of the user.
-//
-//	The UPN is an Internet-style login name for the user
-//	based on the Internet standard RFC 822. By convention,
-//	this should map to the user's email name. The general
-//	format is alias@domain, where domain must be present in
-//	the tenant’s collection of verified domains. This
-//	property is required when a user is created. The
-//	verified domains for the tenant can be accessed from the
-//	verifiedDomains property of organization. Supports
-//	$filter and $orderby.
 type user struct {
 	ID    string `json:"id"`
 	Name  string `json:"displayName"`
 	Email string `json:"userPrincipalName"`
 }
 
-func (c *microsoftConnector) user(ctx context.Context, client *http.Client) (u user, err error) {
-	// https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/api/user_get
-	req, err := http.NewRequest("GET", c.graphURL+"/v1.0/me?$select=id,displayName,userPrincipalName", nil)
+func (c *microsoftConnector) userFromToken(ctx context.Context, token *oauth2.Token) (u user, err error) {
+	rawIDToken, ok := token.Extra("id_token").(string)
+	if !ok {
+		return u, errors.New("oidc: no id_token in token response")
+	}
+
+	// NOTE: issuer is verified below manually
+	verifier := c.provider.Verifier(
+		&oidc.Config{ClientID: c.clientID, SkipIssuerCheck: true},
+	)
+
+	idToken, err := verifier.Verify(ctx, rawIDToken)
 	if err != nil {
-		return u, fmt.Errorf("new req: %v", err)
+		return u, fmt.Errorf("oidc: failed to verify ID Token: %v", err)
 	}
 
-	resp, err := client.Do(req.WithContext(ctx))
-	if err != nil {
-		return u, fmt.Errorf("get URL %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return u, newGraphError(resp.Body)
+	var claims map[string]interface{}
+	if err := idToken.Claims(&claims); err != nil {
+		return u, fmt.Errorf("oidc: failed to decode claims: %v", err)
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
-		return u, fmt.Errorf("JSON decode: %v", err)
+	// https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens
+	tid, found := claims["tid"].(string)
+	if !found {
+		return u, errors.New("missing 'tid' claim")
 	}
 
-	return u, err
+	iss, found := claims["iss"].(string)
+	if !found {
+		return u, errors.New("missing 'iss' claim")
+	}
+
+	objectID, found := claims["oid"].(string)
+	if !found {
+		return u, errors.New("missing 'oid' claim")
+	}
+
+	name, found := claims["name"].(string)
+	if !found {
+		return u, errors.New("missing 'name' claim")
+	}
+
+	email, found := claims["email"].(string)
+	if !found {
+		return u, errors.New("missing 'email' claim")
+	}
+
+	if iss != strings.ReplaceAll(c.issuer, "{tenantid}", tid) {
+		return u, fmt.Errorf("incorrect token issuer:", iss)
+	}
+
+	return user{
+		ID:    objectID,
+		Name:  name,
+		Email: email,
+	}, nil
 }
 
 // https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/resources/group
