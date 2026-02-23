@@ -82,11 +82,11 @@ sessions:
   absoluteLifetime: "24h"         # Maximum session lifetime, default: 24h
   validIfNotUsedFor: "1h"         # Session expires if not used, default: 1h
 
-  # Default SSO trust policy for clients without explicit trustedPeers config
+  # Default SSO sharing policy for clients without explicit ssoSharedWith config
   # Options:
-  #   "all" - clients without trustedPeers trust all other clients (Keycloak-like)
-  #   "none" - clients without trustedPeers don't trust anyone (default)
-  trustedPeersDefault: "none"
+  #   "all" - clients without ssoSharedWith share sessions with all other clients (Keycloak-like)
+  #   "none" - clients without ssoSharedWith don't share sessions (default)
+  ssoSharedWithDefault: "none"
 
   # Whether "Remember Me" checkbox is checked by default in login/approval forms
   # When true: checkbox is pre-checked, user can uncheck
@@ -94,52 +94,56 @@ sessions:
   rememberMeCheckedByDefault: false
 ```
 
-**trustedPeersDefault** controls the default SSO behavior:
-- `"none"` (default): Clients without explicit `trustedPeers` config don't participate in SSO
-- `"all"`: Clients without explicit `trustedPeers` config trust all other clients (realm-wide SSO like Keycloak)
+**ssoSharedWithDefault** controls the default SSO behavior:
+- `"none"` (default): Clients without explicit `ssoSharedWith` config don't participate in SSO
+- `"all"`: Clients without explicit `ssoSharedWith` config share sessions with all other clients (realm-wide SSO like Keycloak)
 
-Clients with explicit `trustedPeers` configuration always use their configured value.
+Clients with explicit `ssoSharedWith` configuration always use their configured value.
+
+**Note**: The `ssoSharedWith` option is separate from the existing `trustedPeers` option. `trustedPeers` controls which clients can issue tokens on behalf of this client (existing behavior), while `ssoSharedWith` controls which clients can reuse this client's authentication session (new behavior). These can be configured independently based on different security requirements.
 
 **rememberMeCheckedByDefault** controls the initial checkbox state in templates.
 This value is passed to templates as `.RememberMeChecked` boolean.
 
-**SSO via TrustedPeers**: SSO between clients is controlled by the existing `trustedPeers` configuration on clients. The `trustedPeers` setting defines **which clients can USE this client's session**, not which clients this client can use.
+**SSO via ssoSharedWith**: SSO between clients is controlled by the new `ssoSharedWith` configuration on clients. The `ssoSharedWith` setting defines **which clients can USE this client's session**, not which clients this client can use.
 
-If client B is listed in client A's `trustedPeers`:
-1. Client B can issue tokens on behalf of client A (existing behavior)
-2. If user logged in via client A, client B can reuse that session (new behavior)
+If client B is listed in client A's `ssoSharedWith`:
+1. If user logged in via client A, client B can reuse that session
 
-This reuses existing semantics: "if you trust a peer to issue tokens for you, you also trust sharing your authentication state with them."
+This is intentionally separate from `trustedPeers` (which controls token issuance on behalf of another client). Organizations may want different policies for session sharing vs token delegation:
+- **ssoSharedWith**: "Can this client's login be reused by another client?"
+- **trustedPeers**: "Can another client issue tokens claiming to be this client?"
 
-**Wildcard Support**: `trustedPeers: ["*"]` enables SSO with all clients. This is similar to Keycloak's default behavior where all clients in a realm share sessions.
+**Wildcard Support**: `ssoSharedWith: ["*"]` enables SSO with all clients. This is similar to Keycloak's default behavior where all clients in a realm share sessions.
 
-**SSO Direction**: SSO trust is **unidirectional**. Client A trusting client B does NOT mean client B trusts client A.
+**SSO Direction**: SSO sharing is **unidirectional**. Client A sharing with client B does NOT mean client B shares with client A.
 
 ```yaml
 staticClients:
   # Public app - allows any client to reuse its sessions
   - id: public-app
     name: Public App
-    trustedPeers: ["*"]
+    ssoSharedWith: ["*"]
+    # trustedPeers can be configured separately for token delegation
     # ...
 
   # Admin app - only specific apps can reuse its sessions
   - id: admin-app
     name: Admin App
-    trustedPeers: ["monitoring-app"]  # Only monitoring can SSO from admin sessions
+    ssoSharedWith: ["monitoring-app"]  # Only monitoring can SSO from admin sessions
     # ...
 
   # Secret internal service - NO other clients can reuse its sessions
   - id: secret-service
     name: Secret Service
-    trustedPeers: []  # Empty = no SSO allowed from this client's sessions
-    # But this client CAN use sessions from other clients that trust it!
+    ssoSharedWith: []  # Empty = no SSO allowed from this client's sessions
+    # But this client CAN use sessions from other clients that share with it!
     # ...
 
-  # Monitoring app - can SSO from admin-app (because admin-app trusts it)
+  # Monitoring app - can SSO from admin-app (because admin-app shares with it)
   - id: monitoring-app
     name: Monitoring App
-    trustedPeers: ["admin-app"]  # Bidirectional trust with admin-app
+    ssoSharedWith: ["admin-app"]  # Bidirectional sharing with admin-app
     # ...
 ```
 
@@ -147,15 +151,20 @@ staticClients:
 
 | User logged in via | Accessing | SSO works? | Why |
 |-------------------|-----------|------------|-----|
-| public-app | admin-app | ✅ Yes | public-app has `trustedPeers: ["*"]` |
-| admin-app | public-app | ❌ No | admin-app only trusts monitoring-app |
-| admin-app | monitoring-app | ✅ Yes | admin-app trusts monitoring-app |
-| secret-service | any client | ❌ No | secret-service has `trustedPeers: []` |
-| public-app | secret-service | ✅ Yes | public-app has `trustedPeers: ["*"]` |
+| public-app | admin-app | ✅ Yes | public-app has `ssoSharedWith: ["*"]` |
+| admin-app | public-app | ❌ No | admin-app only shares with monitoring-app |
+| admin-app | monitoring-app | ✅ Yes | admin-app shares with monitoring-app |
+| secret-service | any client | ❌ No | secret-service has `ssoSharedWith: []` |
+| public-app | secret-service | ✅ Yes | public-app has `ssoSharedWith: ["*"]` |
 
-**Key Insight**: A "secret" client that doesn't want others to SSO into it simply doesn't list them in `trustedPeers`. But it can still BENEFIT from SSO by being listed in OTHER clients' `trustedPeers`.
+**Key Insight**: A "secret" client that doesn't want others to SSO into it simply doesn't list them in `ssoSharedWith`. But it can still BENEFIT from SSO by being listed in OTHER clients' `ssoSharedWith`.
 
-**Comparison with Keycloak**: In Keycloak, SSO is realm-wide by default - all clients in a realm share sessions. Dex's approach is more granular: SSO is opt-in per client via `trustedPeers`. Use `["*"]` to achieve Keycloak-like behavior.
+**Comparison with Keycloak**: In Keycloak, SSO is realm-wide by default - all clients in a realm share sessions. Dex's approach is more granular: SSO is opt-in per client via `ssoSharedWith`. Use `["*"]` to achieve Keycloak-like behavior.
+
+**Comparison with trustedPeers**: The `trustedPeers` option continues to control cross-client token issuance (e.g., client B issuing tokens for client A). This is a separate security concern from session sharing. Organizations can configure these independently:
+- High SSO sharing, restricted token delegation
+- Restricted SSO sharing, high token delegation
+- Or any combination based on their security model
 
 **Cookie Security**: The session cookie is always set with secure defaults:
 - `HttpOnly: true` - Not accessible via JavaScript
@@ -468,7 +477,7 @@ When user accesses client-B with existing session:
 2. Check `ClientStates["client-B"]`:
    - If exists and active → user already authenticated for this client
 3. If not, check SSO:
-   - Find any `ClientStates[X]` where client-X has `trustedPeers` containing "client-B"
+   - Find any `ClientStates[X]` where client-X has `ssoSharedWith` containing "client-B"
    - If found → SSO! Copy auth state to `ClientStates["client-B"]`
    - If not found → require authentication
 
@@ -495,11 +504,11 @@ func (s *Server) findSSOSession(authSession *AuthSession, targetClientID string)
             continue
         }
 
-        // Check if source client trusts the target client
+        // Check if source client shares its session with the target client
         // SSO is allowed if:
-        // 1. Source client has trustedPeers: ["*"] (trusts everyone)
-        // 2. Source client has targetClientID in its trustedPeers list
-        if !s.clientTrusts(sourceClient, targetClientID) {
+        // 1. Source client has ssoSharedWith: ["*"] (shares with everyone)
+        // 2. Source client has targetClientID in its ssoSharedWith list
+        if !s.clientSharesSessionWith(sourceClient, targetClientID) {
             continue
         }
 
@@ -520,9 +529,9 @@ func (s *Server) findSSOSession(authSession *AuthSession, targetClientID string)
     return nil, nil
 }
 
-// clientTrusts checks if sourceClient trusts targetClientID for SSO
-func (s *Server) clientTrusts(sourceClient Client, targetClientID string) bool {
-    for _, peer := range sourceClient.TrustedPeers {
+// clientSharesSessionWith checks if sourceClient shares its session with targetClientID
+func (s *Server) clientSharesSessionWith(sourceClient Client, targetClientID string) bool {
+    for _, peer := range sourceClient.SSOSharedWith {
         if peer == "*" || peer == targetClientID {
             return true
         }
@@ -554,8 +563,8 @@ User accesses client-B with existing session
 │ Use existing │  │ For each ClientStates[X]:       │
 │ session      │  │   - Is state active?            │
 └──────────────┘  │   - Get client-X config         │
-                  │   - Does client-X trust B?      │
-                  │     (X.trustedPeers has B or *) │
+                  │   - Does client-X share with B? │
+                  │     (X.ssoSharedWith has B or *)│
                   └─────────────────────────────────┘
                           │               │
                     Found match       No match
@@ -574,7 +583,7 @@ User accesses client-B with existing session
    AuthSession.ClientStates["client-A"] = {UserID: "alice", Active: true}
 
 2. User accesses client-B
-   - client-A.trustedPeers includes "client-B" ✓
+   - client-A.ssoSharedWith includes "client-B" ✓
    - SSO! Copy: ClientStates["client-B"] = {UserID: "alice", Active: true}
    - Issue tokens for alice to client-B
 ```
@@ -585,7 +594,7 @@ User accesses client-B with existing session
 1. User logged into client-A as alice
    AuthSession.ClientStates["client-A"] = {UserID: "alice", Active: true}
 
-2. User accesses client-B (client-A does NOT trust client-B)
+2. User accesses client-B (client-A does NOT share with client-B)
    - No SSO available
    - Redirect to connector for authentication
 
@@ -661,12 +670,12 @@ With the two-entity design:
 
 **SSO and Different Users**
 
-With SSO enabled between clients, the same user is used for all trusted clients:
+With SSO enabled between clients, the same user is used for all sharing clients:
 - User logs in to client-A as "alice@example.com"
-- User accesses client-B (trusted by client-A) → automatically authenticated as "alice@example.com"
-- SSO reuses the identity from the trusting client
+- User accesses client-B (client-A shares with client-B) → automatically authenticated as "alice@example.com"
+- SSO reuses the identity from the sharing client
 
-If user needs to login as different identity to a trusted client:
+If user needs to login as different identity to a sharing client:
 - Use `prompt=login` to force re-authentication
 - This creates new ClientState for that client with potentially different user
 
@@ -840,7 +849,7 @@ func NewSessionID() string {
 
 #### Client Configuration Extension
 
-No new client configuration fields are required. SSO is controlled by the existing `trustedPeers` field:
+A new client configuration field is introduced for SSO control:
 
 ```go
 // storage/storage.go
@@ -849,9 +858,17 @@ type Client struct {
     // ...existing fields...
 
     // TrustedPeers are a list of peers which can issue tokens on this client's behalf.
-    // When sessions are enabled, sessions can also be shared between trusted peers.
-    // Special value "*" means trust all clients (Keycloak-like realm-wide SSO).
+    // This is used for cross-client token issuance (existing behavior).
     TrustedPeers []string `json:"trustedPeers" yaml:"trustedPeers"`
+
+    // SSOSharedWith defines which other clients can reuse this client's authentication session.
+    // When a user is authenticated for this client, clients listed here can skip authentication.
+    // This is separate from TrustedPeers - organizations may want different policies for
+    // session sharing vs token delegation.
+    // Special value "*" means share with all clients (Keycloak-like realm-wide SSO).
+    // nil means use ssoSharedWithDefault from sessions config.
+    // Empty slice [] means explicitly share with no one.
+    SSOSharedWith []string `json:"ssoSharedWith,omitempty" yaml:"ssoSharedWith,omitempty"`
 }
 ```
 
@@ -894,9 +911,9 @@ type Sessions struct {
     // ValidIfNotUsedFor is the inactivity timeout (default: "1h")
     ValidIfNotUsedFor string `json:"validIfNotUsedFor"`
 
-    // TrustedPeersDefault is the default SSO trust policy
-    // "all" = trust all clients, "none" = trust no one (default: "none")
-    TrustedPeersDefault string `json:"trustedPeersDefault"`
+    // SSOSharedWithDefault is the default SSO sharing policy
+    // "all" = share with all clients, "none" = share with no one (default: "none")
+    SSOSharedWithDefault string `json:"ssoSharedWithDefault"`
 
     // RememberMeCheckedByDefault controls the initial checkbox state in templates
     // true = pre-checked, false = unchecked (default: false)
@@ -904,30 +921,30 @@ type Sessions struct {
 }
 ```
 
-**Using trustedPeersDefault in SSO logic:**
+**Using ssoSharedWithDefault in SSO logic:**
 
 ```go
-func (s *Server) clientTrusts(sourceClient Client, targetClientID string) bool {
-    trustedPeers := sourceClient.TrustedPeers
+func (s *Server) clientSharesSessionWith(sourceClient Client, targetClientID string) bool {
+    ssoSharedWith := sourceClient.SSOSharedWith
 
-    // If client has no explicit trustedPeers, use default
-    if trustedPeers == nil {
-        switch s.sessionsConfig.TrustedPeersDefault {
+    // If client has no explicit ssoSharedWith, use default
+    if ssoSharedWith == nil {
+        switch s.sessionsConfig.SSOSharedWithDefault {
         case "all":
-            return true // Trust everyone by default
+            return true // Share with everyone by default
         default: // "none"
-            return false // Trust no one by default
+            return false // Share with no one by default
         }
     }
 
-    // Explicit configuration: empty slice means explicitly trust no one
+    // Explicit configuration: empty slice means explicitly share with no one
     // This is different from nil (not configured)
-    if len(trustedPeers) == 0 {
+    if len(ssoSharedWith) == 0 {
         return false
     }
 
-    // Check explicit trust list
-    for _, peer := range trustedPeers {
+    // Check explicit sharing list
+    for _, peer := range ssoSharedWith {
         if peer == "*" || peer == targetClientID {
             return true
         }
@@ -936,10 +953,10 @@ func (s *Server) clientTrusts(sourceClient Client, targetClientID string) bool {
 }
 ```
 
-**Three states for trustedPeers:**
-1. `nil` (not configured) → use `trustedPeersDefault`
-2. `[]` (empty slice) → explicitly trust no one
-3. `["client-a", ...]` or `["*"]` → explicit trust list
+**Three states for ssoSharedWith:**
+1. `nil` (not configured) → use `ssoSharedWithDefault`
+2. `[]` (empty slice) → explicitly share with no one
+3. `["client-a", ...]` or `["*"]` → explicit sharing list
 
 #### Prompt Parameter Handling
 
@@ -1040,7 +1057,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
     // ...continue with flow...
 }
 
-// findSSOSession looks for a valid SSO session from a trusted client
+// findSSOSession looks for a valid SSO session from a sharing client
 func (s *Server) findSSOSession(authSession *AuthSession, targetClientID string) (*ClientAuthState, *UserIdentity) {
     for sourceClientID, state := range authSession.ClientStates {
         if !state.Active {
@@ -1050,8 +1067,8 @@ func (s *Server) findSSOSession(authSession *AuthSession, targetClientID string)
         if sourceClient == nil {
             continue
         }
-        // Check if source client trusts target client
-        if s.clientTrusts(sourceClient, targetClientID) {
+        // Check if source client shares its session with target client
+        if s.clientSharesSessionWith(sourceClient, targetClientID) {
             identity, _ := s.storage.GetUserIdentity(ctx, state.UserID, state.ConnectorID)
             if identity != nil {
                 return state, identity
