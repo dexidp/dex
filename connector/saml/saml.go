@@ -25,6 +25,11 @@ import (
 )
 
 const (
+	RedirectBinding = "redirect"
+	PostBinding = "post"
+)
+
+const (
 	bindingRedirect = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
 	bindingPOST     = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
 
@@ -107,6 +112,11 @@ type Config struct {
 	//		urn:oasis:names:tc:SAML:2.0:nameid-format:persistent
 	//
 	NameIDPolicyFormat string `json:"nameIDPolicyFormat"`
+
+	// Specify the type of binding used to send SAML request, only supported values are
+	// "post" and "redirect"
+	// If no value is specified, this value defaults to: "post"
+	BindingType string `json:"bindingType"`
 }
 
 type certStore struct {
@@ -159,6 +169,7 @@ func (c *Config) openConnector(logger *slog.Logger) (*provider, error) {
 		allowedGroups: c.AllowedGroups,
 		filterGroups:  c.FilterGroups,
 		redirectURI:   c.RedirectURI,
+		bindingType:   c.BindingType,
 		logger:        logger,
 
 		nameIDPolicyFormat: c.NameIDPolicyFormat,
@@ -227,6 +238,13 @@ func (c *Config) openConnector(logger *slog.Logger) (*provider, error) {
 		}
 		p.validator = dsig.NewDefaultValidationContext(certStore{certs})
 	}
+
+	if p.bindingType == "" {
+		p.bindingType = PostBinding
+	}
+	if p.bindingType != PostBinding && p.bindingType != RedirectBinding {
+		return nil, fmt.Errorf("bindingType must be either 'redirect' or 'post', current: %s", p.bindingType)
+	}
 	return p, nil
 }
 
@@ -252,10 +270,12 @@ type provider struct {
 
 	nameIDPolicyFormat string
 
+	bindingType string
+
 	logger *slog.Logger
 }
 
-func (p *provider) POSTData(s connector.Scopes, id string) (action, value string, err error) {
+func (p *provider) POSTData(s connector.Scopes, id string) (action, value string, bindingType string, err error) {
 	r := &authnRequest{
 		ProtocolBinding: bindingPOST,
 		ID:              id,
@@ -275,12 +295,12 @@ func (p *provider) POSTData(s connector.Scopes, id string) (action, value string
 
 	data, err := xml.MarshalIndent(r, "", "  ")
 	if err != nil {
-		return "", "", fmt.Errorf("marshal authn request: %v", err)
+		return "", "", "",fmt.Errorf("marshal authn request: %v", err)
 	}
 
 	// See: https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf
 	// "3.5.4 Message Encoding"
-	return p.ssoURL, base64.StdEncoding.EncodeToString(data), nil
+	return p.ssoURL, base64.StdEncoding.EncodeToString(data), p.bindingType, nil
 }
 
 // HandlePOST interprets a request from a SAML provider attempting to verify a
