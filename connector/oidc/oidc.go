@@ -107,6 +107,11 @@ type Config struct {
 	// This setting allows you to override the default behavior of Dex and enforce the mappings defined in `claimMapping`.
 	OverrideClaimMapping bool `json:"overrideClaimMapping"` // defaults to false
 
+	// ForceQueryResponseModeSet ensures the `response_mode` query parameter to be explicitly set in the LoginURL.
+	// Although the OIDC specification defines query to be the default,
+	// some implementations require this parameter to be set in order to deliver the code as a query.
+	ForceQueryResponseMode bool `json:"forceQueryResponseMode"`
+
 	ClaimMapping struct {
 		// Configurable key which contains the preferred username claims
 		PreferredUsernameKey string `json:"preferred_username"` // defaults to "preferred_username"
@@ -367,6 +372,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		userIDKey:                 c.UserIDKey,
 		userNameKey:               c.UserNameKey,
 		overrideClaimMapping:      c.OverrideClaimMapping,
+		forceQueryResponseMode:    c.ForceQueryResponseMode,
 		preferredUsernameKey:      c.ClaimMapping.PreferredUsernameKey,
 		emailKey:                  c.ClaimMapping.EmailKey,
 		groupsKey:                 c.ClaimMapping.GroupsKey,
@@ -400,6 +406,7 @@ type oidcConnector struct {
 	userIDKey                 string
 	userNameKey               string
 	overrideClaimMapping      bool
+	forceQueryResponseMode    bool
 	preferredUsernameKey      string
 	emailKey                  string
 	groupsKey                 string
@@ -426,6 +433,10 @@ func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) 
 	if len(c.acrValues) > 0 {
 		acrValues := strings.Join(c.acrValues, " ")
 		opts = append(opts, oauth2.SetAuthURLParam("acr_values", acrValues))
+	}
+
+	if c.forceQueryResponseMode {
+		opts = append(opts, oauth2.SetAuthURLParam("response_mode", "query"))
 	}
 
 	if s.OfflineAccess {
