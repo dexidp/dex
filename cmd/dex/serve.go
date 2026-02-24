@@ -10,10 +10,12 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -87,6 +89,32 @@ func commandServe() *cobra.Command {
 	flags.StringVar(&options.grpcAddr, "grpc-addr", "", "gRPC API address")
 
 	return cmd
+}
+
+// try detect the intended socket type from address string
+func getSocketType(address string) string {
+	if h, p, serr := net.SplitHostPort(address); serr == nil {
+		// if port string is a number, assume tcp
+		if _, cerr := strconv.Atoi(p); cerr == nil {
+			return "tcp"
+		}
+		// otherwise results in unix socket path
+		return h
+	}
+
+	if u, perr := url.Parse(address); perr == nil {
+		if len(u.Scheme) > 0 {
+			// if scheme is recognized use that
+			return u.Scheme
+		} else {
+			// when parser gets a file path Scheme is
+			// empty. so default to unix socket.
+			return "unix"
+		}
+	}
+
+	// assume unix file path
+	return "unix"
 }
 
 func runServe(options serveOptions) error {
@@ -443,7 +471,7 @@ func runServe(options serveOptions) error {
 
 		logger.Info("listening on", "server", name, "address", c.Telemetry.HTTP)
 
-		l, err := net.Listen("tcp", c.Telemetry.HTTP)
+		l, err := net.Listen(getSocketType(c.Telemetry.HTTP), c.Telemetry.HTTP)
 		if err != nil {
 			return fmt.Errorf("listening (%s) on %s: %v", name, c.Telemetry.HTTP, err)
 		}
@@ -476,7 +504,7 @@ func runServe(options serveOptions) error {
 
 		logger.Info("listening on", "server", name, "address", c.Web.HTTP)
 
-		l, err := net.Listen("tcp", c.Web.HTTP)
+		l, err := net.Listen(getSocketType(c.Web.HTTP), c.Web.HTTP)
 		if err != nil {
 			return fmt.Errorf("listening (%s) on %s: %v", name, c.Web.HTTP, err)
 		}

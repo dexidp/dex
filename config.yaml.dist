@@ -50,6 +50,8 @@ storage:
 # HTTP service configuration
 web:
   http: 127.0.0.1:5556
+  # Uncomment to use a UNIX socket endpoint.
+  # http: /run/dex/dex.sock
 
   # Uncomment to enable HTTPS endpoint.
   # https: 127.0.0.1:5554
@@ -68,6 +70,9 @@ web:
 # Telemetry configuration
 # telemetry:
 #   http: 127.0.0.1:5558
+
+#   Uncomment to use UNIX socket for telemetry endpoint.
+#   http: /run/dex/dex-telemetry.sock
 
 # logger:
 #   level: "debug"
