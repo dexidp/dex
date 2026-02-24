@@ -92,16 +92,6 @@ type SAMLConnector interface {
 	HandlePOST(s Scopes, samlResponse, inResponseTo string) (identity Identity, err error)
 }
 
-// SAMLSLOConnector represents a SAML connector that supports Single Logout (SLO).
-// When an IdP sends a LogoutRequest, the connector parses it and returns the
-// NameID of the user being logged out.
-type SAMLSLOConnector interface {
-	// HandleSLO processes a SAML LogoutRequest from the IdP.
-	// It validates the request signature and returns the NameID (user identifier)
-	// that should be used to invalidate the user's sessions.
-	HandleSLO(w http.ResponseWriter, r *http.Request) (nameID string, err error)
-}
-
 // RefreshConnector is a connector that can update the client claims.
 type RefreshConnector interface {
 	// Refresh is called when a client attempts to claim a refresh token. The

@@ -275,21 +275,3 @@ func (a attribute) String() string {
 	// "groups" = ["engineering", "docs"]
 	return fmt.Sprintf("%q = %q", a.Name, values)
 }
-
-// logoutRequest represents a SAML 2.0 LogoutRequest message sent by the IdP
-// to initiate Single Logout.
-type logoutRequest struct {
-	XMLName      xml.Name       `xml:"urn:oasis:names:tc:SAML:2.0:protocol LogoutRequest"`
-	ID           string         `xml:"ID,attr"`
-	Version      string         `xml:"Version,attr"`
-	IssueInstant xmlTime        `xml:"IssueInstant,attr"`
-	Destination  string         `xml:"Destination,attr,omitempty"`
-	Issuer       string         `xml:"urn:oasis:names:tc:SAML:2.0:assertion Issuer"`
-	NameID       nameID         `xml:"urn:oasis:names:tc:SAML:2.0:assertion NameID"`
-	SessionIndex []sessionIndex `xml:"SessionIndex,omitempty"`
-}
-
-// sessionIndex represents a SAML SessionIndex element in a LogoutRequest.
-type sessionIndex struct {
-	Value string `xml:",chardata"`
-}

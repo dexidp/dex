@@ -11,7 +11,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -84,11 +83,6 @@ type Config struct {
 	CAData []byte `json:"caData"`
 
 	InsecureSkipSignatureValidation bool `json:"insecureSkipSignatureValidation"`
-
-	// InsecureSkipSLOSignatureValidation skips signature validation on SLO requests.
-	// This is insecure and should only be used for testing or when the IdP
-	// does not sign LogoutRequests.
-	InsecureSkipSLOSignatureValidation bool `json:"insecureSkipSLOSignatureValidation"`
 
 	// Assertion attribute names to lookup various claims with.
 	UsernameAttr string `json:"usernameAttr"`
@@ -170,8 +164,6 @@ func (c *Config) openConnector(logger *slog.Logger) (*provider, error) {
 		logger:        logger,
 
 		nameIDPolicyFormat: c.NameIDPolicyFormat,
-
-		insecureSkipSLOSignatureValidation: c.InsecureSkipSLOSignatureValidation,
 	}
 
 	if p.nameIDPolicyFormat == "" {
@@ -197,8 +189,7 @@ func (c *Config) openConnector(logger *slog.Logger) (*provider, error) {
 		}
 	}
 
-	needValidator := !c.InsecureSkipSignatureValidation || !c.InsecureSkipSLOSignatureValidation
-	if needValidator {
+	if !c.InsecureSkipSignatureValidation {
 		if (c.CA == "") == (c.CAData == nil) {
 			return nil, errors.New("must provide either 'ca' or 'caData'")
 		}
@@ -263,16 +254,11 @@ type provider struct {
 
 	nameIDPolicyFormat string
 
-	insecureSkipSLOSignatureValidation bool
-
 	logger *slog.Logger
 }
 
 // Compile-time check that provider implements RefreshConnector
 var _ connector.RefreshConnector = (*provider)(nil)
-
-// Compile-time check that provider implements SAMLSLOConnector
-var _ connector.SAMLSLOConnector = (*provider)(nil)
 
 // cachedIdentity stores the identity from SAML assertion for refresh token support.
 // Since SAML has no native refresh mechanism, we cache the identity obtained during
@@ -722,74 +708,4 @@ func before(now, notBefore time.Time) bool {
 // allowed clock drift.
 func after(now, notOnOrAfter time.Time) bool {
 	return now.After(notOnOrAfter.Add(allowedClockDrift))
-}
-
-// validateSignature validates the XML digital signature of the given raw XML data.
-func (p *provider) validateSignature(rawXML []byte) ([]byte, error) {
-	if p.validator == nil {
-		return nil, fmt.Errorf("signature validation unavailable (no validator configured)")
-	}
-
-	doc := etree.NewDocument()
-	if err := doc.ReadFromBytes(rawXML); err != nil {
-		return nil, fmt.Errorf("failed to parse XML: %v", err)
-	}
-
-	// Find the Signature element
-	root := doc.Root()
-	if root == nil {
-		return nil, fmt.Errorf("empty XML document")
-	}
-
-	_, err := p.validator.Validate(root)
-	if err != nil {
-		return nil, fmt.Errorf("signature validation failed: %v", err)
-	}
-
-	return rawXML, nil
-}
-
-// HandleSLO processes a SAML LogoutRequest from the IdP.
-// It validates the request, extracts the NameID, and returns it for session invalidation.
-func (p *provider) HandleSLO(w http.ResponseWriter, r *http.Request) (string, error) {
-	if r.Method != http.MethodPost {
-		return "", fmt.Errorf("saml slo: expected POST method, got %s", r.Method)
-	}
-
-	if err := r.ParseForm(); err != nil {
-		return "", fmt.Errorf("saml slo: failed to parse form: %v", err)
-	}
-
-	samlRequest := r.FormValue("SAMLRequest")
-	if samlRequest == "" {
-		return "", fmt.Errorf("saml slo: missing SAMLRequest parameter")
-	}
-
-	rawRequest, err := base64.StdEncoding.DecodeString(samlRequest)
-	if err != nil {
-		return "", fmt.Errorf("saml slo: failed to decode SAMLRequest: %v", err)
-	}
-
-	byteReader := bytes.NewReader(rawRequest)
-	if xrvErr := xrv.Validate(byteReader); xrvErr != nil {
-		return "", errors.Wrap(xrvErr, "validating XML logout request")
-	}
-
-	// Validate signature unless explicitly skipped
-	if !p.insecureSkipSLOSignatureValidation {
-		if _, err := p.validateSignature(rawRequest); err != nil {
-			return "", fmt.Errorf("saml slo: signature validation failed: %v", err)
-		}
-	}
-
-	var req logoutRequest
-	if err := xml.Unmarshal(rawRequest, &req); err != nil {
-		return "", fmt.Errorf("saml slo: failed to unmarshal LogoutRequest: %v", err)
-	}
-
-	if req.NameID.Value == "" {
-		return "", fmt.Errorf("saml slo: LogoutRequest missing NameID")
-	}
-
-	return req.NameID.Value, nil
 }

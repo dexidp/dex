@@ -7,14 +7,9 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"log/slog"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"os"
 	"sort"
-	"strings"
 	"testing"
 	"time"
 
@@ -918,154 +913,6 @@ func TestSAMLRefresh(t *testing.T) {
 
 		if len(refreshedWithGroups.Groups) == 0 {
 			t.Error("expected groups when groups scope is requested")
-		}
-	})
-}
-
-func TestSAMLHandleSLO(t *testing.T) {
-	c := Config{
-		CA:                                 "testdata/ca.crt",
-		UsernameAttr:                       "Name",
-		EmailAttr:                          "email",
-		RedirectURI:                        "http://127.0.0.1:5556/dex/callback",
-		SSOURL:                             "http://foo.bar/",
-		InsecureSkipSLOSignatureValidation: true,
-	}
-
-	conn, err := c.openConnector(slog.New(slog.DiscardHandler))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Helper to create a LogoutRequest XML
-	makeLogoutRequest := func(nameID string) string {
-		return fmt.Sprintf(`<samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_test123" Version="2.0" IssueInstant="2024-01-01T00:00:00Z">
-	<saml:Issuer>https://idp.example.com</saml:Issuer>
-	<saml:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">%s</saml:NameID>
-</samlp:LogoutRequest>`, nameID)
-	}
-
-	t.Run("ValidLogoutRequest", func(t *testing.T) {
-		logoutXML := makeLogoutRequest("user@example.com")
-		encoded := base64.StdEncoding.EncodeToString([]byte(logoutXML))
-
-		form := url.Values{}
-		form.Set("SAMLRequest", encoded)
-
-		req := httptest.NewRequest(http.MethodPost, "/saml/slo/test", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		w := httptest.NewRecorder()
-
-		nameID, err := conn.HandleSLO(w, req)
-		if err != nil {
-			t.Fatalf("HandleSLO failed: %v", err)
-		}
-		if nameID != "user@example.com" {
-			t.Errorf("expected nameID %q, got %q", "user@example.com", nameID)
-		}
-	})
-
-	t.Run("MissingSAMLRequest", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/saml/slo/test", strings.NewReader(""))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		w := httptest.NewRecorder()
-
-		_, err := conn.HandleSLO(w, req)
-		if err == nil {
-			t.Error("expected error for missing SAMLRequest")
-		}
-	})
-
-	t.Run("InvalidBase64", func(t *testing.T) {
-		form := url.Values{}
-		form.Set("SAMLRequest", "not-valid-base64!!!")
-
-		req := httptest.NewRequest(http.MethodPost, "/saml/slo/test", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		w := httptest.NewRecorder()
-
-		_, err := conn.HandleSLO(w, req)
-		if err == nil {
-			t.Error("expected error for invalid base64")
-		}
-	})
-
-	t.Run("InvalidXML", func(t *testing.T) {
-		encoded := base64.StdEncoding.EncodeToString([]byte("not xml at all"))
-		form := url.Values{}
-		form.Set("SAMLRequest", encoded)
-
-		req := httptest.NewRequest(http.MethodPost, "/saml/slo/test", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		w := httptest.NewRecorder()
-
-		_, err := conn.HandleSLO(w, req)
-		if err == nil {
-			t.Error("expected error for invalid XML")
-		}
-	})
-
-	t.Run("MissingNameID", func(t *testing.T) {
-		logoutXML := `<samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_test123" Version="2.0" IssueInstant="2024-01-01T00:00:00Z">
-	<saml:Issuer>https://idp.example.com</saml:Issuer>
-	<saml:NameID></saml:NameID>
-</samlp:LogoutRequest>`
-		encoded := base64.StdEncoding.EncodeToString([]byte(logoutXML))
-
-		form := url.Values{}
-		form.Set("SAMLRequest", encoded)
-
-		req := httptest.NewRequest(http.MethodPost, "/saml/slo/test", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		w := httptest.NewRecorder()
-
-		_, err := conn.HandleSLO(w, req)
-		if err == nil {
-			t.Error("expected error for missing NameID")
-		}
-	})
-
-	t.Run("WrongHTTPMethod", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/saml/slo/test", nil)
-		w := httptest.NewRecorder()
-
-		_, err := conn.HandleSLO(w, req)
-		if err == nil {
-			t.Error("expected error for GET method")
-		}
-	})
-
-	t.Run("DifferentNameIDValues", func(t *testing.T) {
-		testCases := []struct {
-			name       string
-			nameIDVal  string
-			wantNameID string
-		}{
-			{"email format", "admin@corp.example.com", "admin@corp.example.com"},
-			{"persistent ID", "AQIC5w...", "AQIC5w..."},
-			{"transient ID", "_ce3d2948b4cf20146dee0a0b3dd6f69b6cf86f62d7", "_ce3d2948b4cf20146dee0a0b3dd6f69b6cf86f62d7"},
-		}
-
-		for _, tc := range testCases {
-			t.Run(tc.name, func(t *testing.T) {
-				logoutXML := makeLogoutRequest(tc.nameIDVal)
-				encoded := base64.StdEncoding.EncodeToString([]byte(logoutXML))
-
-				form := url.Values{}
-				form.Set("SAMLRequest", encoded)
-
-				req := httptest.NewRequest(http.MethodPost, "/saml/slo/test", strings.NewReader(form.Encode()))
-				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-				w := httptest.NewRecorder()
-
-				nameID, err := conn.HandleSLO(w, req)
-				if err != nil {
-					t.Fatalf("HandleSLO failed: %v", err)
-				}
-				if nameID != tc.wantNameID {
-					t.Errorf("expected nameID %q, got %q", tc.wantNameID, nameID)
-				}
-			})
 		}
 	})
 }
