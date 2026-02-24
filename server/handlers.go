@@ -1370,6 +1370,9 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 			}
 		}
 	}
+	
+	s.logger.Infof("password login successful: connector %q, username=%q, preferred_username=%q, email=%q, groups=%q",
+		connID, claims.Username, claims.PreferredUsername, email, claims.Groups)
 
 	resp := s.toAccessTokenResponse(idToken, accessToken, refreshToken, expiry)
 	s.writeAccessToken(w, resp)
