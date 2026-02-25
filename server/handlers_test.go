@@ -791,7 +791,7 @@ func TestHandleClientCredentials(t *testing.T) {
 					// Decode the subject to verify the connector ID.
 					var sub internal.IDTokenSubject
 					require.NoError(t, internal.Unmarshal(idToken.Subject, &sub))
-					require.Equal(t, "__client_credentials", sub.ConnId)
+					require.Equal(t, "", sub.ConnId)
 					require.Equal(t, tc.clientID, sub.UserId)
 
 					var claims struct {

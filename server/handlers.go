@@ -1538,9 +1538,11 @@ func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	connID := "__client_credentials"
+	nonce := r.Form.Get("nonce")
 
-	accessToken, expiry, err := s.newAccessToken(ctx, client.ID, claims, scopes, "", connID)
+	connID := ""
+
+	accessToken, expiry, err := s.newAccessToken(ctx, client.ID, claims, scopes, nonce, connID)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "client_credentials grant failed to create new access token", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -1549,7 +1551,7 @@ func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Req
 
 	var idToken string
 	if hasOpenIDScope {
-		idToken, expiry, err = s.newIDToken(ctx, client.ID, claims, scopes, "", accessToken, "", connID)
+		idToken, expiry, err = s.newIDToken(ctx, client.ID, claims, scopes, nonce, accessToken, "", connID)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "client_credentials grant failed to create new ID token", "err", err)
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
