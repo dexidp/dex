@@ -1773,9 +1773,11 @@ func TestServerSupportedGrants(t *testing.T) {
 		resGrants []string
 	}{
 		{
-			name:      "Simple",
-			config:    func(c *Config) {},
-			resGrants: []string{grantTypeAuthorizationCode, grantTypeClientCredentials, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
+			name: "Simple",
+			config: func(c *Config) {
+				c.AllowedGrantTypes = nil
+			},
+			resGrants: []string{grantTypeAuthorizationCode, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
 		},
 		{
 			name:      "Minimal",
@@ -1785,37 +1787,46 @@ func TestServerSupportedGrants(t *testing.T) {
 		{
 			name: "With password connector",
 			config: func(c *Config) {
+				c.AllowedGrantTypes = nil
 				c.PasswordConnector = "local"
 			},
-			resGrants: []string{grantTypeAuthorizationCode, grantTypeClientCredentials, grantTypePassword, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
-		},
-		{
-			name: "Without client credentials",
-			config: func(c *Config) {
-				// Explicitly exclude client_credentials from allowed grants
-				c.AllowedGrantTypes = []string{
-					grantTypeAuthorizationCode,
-					grantTypeRefreshToken,
-					grantTypeDeviceCode,
-					grantTypeTokenExchange,
-				}
-			},
-			resGrants: []string{grantTypeAuthorizationCode, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
+			resGrants: []string{grantTypeAuthorizationCode, grantTypePassword, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
 		},
 		{
 			name: "With token response",
 			config: func(c *Config) {
+				c.AllowedGrantTypes = nil
 				c.SupportedResponseTypes = append(c.SupportedResponseTypes, responseTypeToken)
 			},
-			resGrants: []string{grantTypeAuthorizationCode, grantTypeClientCredentials, grantTypeImplicit, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
+			resGrants: []string{grantTypeAuthorizationCode, grantTypeImplicit, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
 		},
 		{
-			name: "All",
+			name: "All without feature flag",
 			config: func(c *Config) {
+				c.AllowedGrantTypes = nil
 				c.PasswordConnector = "local"
 				c.SupportedResponseTypes = append(c.SupportedResponseTypes, responseTypeToken)
 			},
-			resGrants: []string{grantTypeAuthorizationCode, grantTypeClientCredentials, grantTypeImplicit, grantTypePassword, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
+			resGrants: []string{grantTypeAuthorizationCode, grantTypeImplicit, grantTypePassword, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
+		},
+		{
+			name: "With client credentials feature flag",
+			config: func(c *Config) {
+				c.AllowedGrantTypes = nil
+				t.Setenv("DEX_CLIENT_CREDENTIAL_GRANT_ENABLED_BY_DEFAULT", "true")
+			},
+			resGrants: []string{grantTypeAuthorizationCode, grantTypeClientCredentials, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
+		},
+		{
+			name: "Explicit client credentials in AllowedGrantTypes",
+			config: func(c *Config) {
+				c.AllowedGrantTypes = []string{
+					grantTypeAuthorizationCode,
+					grantTypeClientCredentials,
+					grantTypeRefreshToken,
+				}
+			},
+			resGrants: []string{grantTypeAuthorizationCode, grantTypeClientCredentials, grantTypeRefreshToken},
 		},
 	}
 

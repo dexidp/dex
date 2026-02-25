@@ -14,4 +14,8 @@ var (
 
 	// ContinueOnConnectorFailure allows the server to start even if some connectors fail to initialize.
 	ContinueOnConnectorFailure = newFlag("continue_on_connector_failure", true)
+
+	// ClientCredentialGrantEnabledByDefault enables the client_credentials grant type by default
+	// without requiring explicit configuration in oauth2.grantTypes.
+	ClientCredentialGrantEnabledByDefault = newFlag("client_credential_grant_enabled_by_default", false)
 )
