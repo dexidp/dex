@@ -100,15 +100,14 @@ func newTestServer(t *testing.T, updateConfig func(c *Config)) (*httptest.Server
 		PrometheusRegistry: prometheus.NewRegistry(),
 		HealthChecker:      gosundheit.New(),
 		SkipApprovalScreen: true, // Don't prompt for approval, just immediately redirect with code.
-		ClientCredentialsEnabled: true,
 		AllowedGrantTypes: []string{ // all implemented types
 			grantTypeDeviceCode,
 			grantTypeAuthorizationCode,
+			grantTypeClientCredentials,
 			grantTypeRefreshToken,
 			grantTypeTokenExchange,
 			grantTypeImplicit,
 			grantTypePassword,
-			grantTypeClientCredentials,
 		},
 		Signer: sig,
 	}
@@ -1775,8 +1774,8 @@ func TestServerSupportedGrants(t *testing.T) {
 	}{
 		{
 			name:      "Simple",
-			config:    func(c *Config) { c.ClientCredentialsEnabled = false },
-			resGrants: []string{grantTypeAuthorizationCode, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
+			config:    func(c *Config) {},
+			resGrants: []string{grantTypeAuthorizationCode, grantTypeClientCredentials, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
 		},
 		{
 			name:      "Minimal",
@@ -1786,23 +1785,29 @@ func TestServerSupportedGrants(t *testing.T) {
 		{
 			name: "With password connector",
 			config: func(c *Config) {
-				c.ClientCredentialsEnabled = false
 				c.PasswordConnector = "local"
 			},
-			resGrants: []string{grantTypeAuthorizationCode, grantTypePassword, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
+			resGrants: []string{grantTypeAuthorizationCode, grantTypeClientCredentials, grantTypePassword, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
 		},
 		{
-			name:      "With client credentials",
-			config:    func(c *Config) {},
-			resGrants: []string{grantTypeAuthorizationCode, grantTypeClientCredentials, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
+			name: "Without client credentials",
+			config: func(c *Config) {
+				// Explicitly exclude client_credentials from allowed grants
+				c.AllowedGrantTypes = []string{
+					grantTypeAuthorizationCode,
+					grantTypeRefreshToken,
+					grantTypeDeviceCode,
+					grantTypeTokenExchange,
+				}
+			},
+			resGrants: []string{grantTypeAuthorizationCode, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
 		},
 		{
 			name: "With token response",
 			config: func(c *Config) {
-				c.ClientCredentialsEnabled = false
 				c.SupportedResponseTypes = append(c.SupportedResponseTypes, responseTypeToken)
 			},
-			resGrants: []string{grantTypeAuthorizationCode, grantTypeImplicit, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
+			resGrants: []string{grantTypeAuthorizationCode, grantTypeClientCredentials, grantTypeImplicit, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
 		},
 		{
 			name: "All",

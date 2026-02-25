@@ -279,9 +279,6 @@ func runServe(options serveOptions) error {
 	if c.OAuth2.PasswordConnector != "" {
 		logger.Info("config using password grant connector", "password_connector", c.OAuth2.PasswordConnector)
 	}
-	if c.OAuth2.ClientCredentialsEnabled {
-		logger.Info("config client credentials grant enabled")
-	}
 	if len(c.Web.AllowedOrigins) > 0 {
 		logger.Info("config allowed origins", "origins", c.Web.AllowedOrigins)
 	}
@@ -359,7 +356,6 @@ func runServe(options serveOptions) error {
 		SkipApprovalScreen:         c.OAuth2.SkipApprovalScreen,
 		AlwaysShowLoginScreen:      c.OAuth2.AlwaysShowLoginScreen,
 		PasswordConnector:          c.OAuth2.PasswordConnector,
-		ClientCredentialsEnabled:   c.OAuth2.ClientCredentialsEnabled,
 		Headers:                    c.Web.Headers.ToHTTPHeader(),
 		AllowedOrigins:             c.Web.AllowedOrigins,
 		AllowedHeaders:             c.Web.AllowedHeaders,
@@ -614,7 +610,6 @@ func applyConfigOverrides(options serveOptions, config *Config) {
 	if len(config.OAuth2.GrantTypes) == 0 {
 		config.OAuth2.GrantTypes = []string{
 			"authorization_code",
-			"client_credentials",
 			"implicit",
 			"password",
 			"refresh_token",
