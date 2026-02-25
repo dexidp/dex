@@ -99,7 +99,8 @@ func newTestServer(t *testing.T, updateConfig func(c *Config)) (*httptest.Server
 		Logger:             logger,
 		PrometheusRegistry: prometheus.NewRegistry(),
 		HealthChecker:      gosundheit.New(),
-		SkipApprovalScreen: true, // Don't prompt for approval, just immediately redirect with code.
+		SkipApprovalScreen:       true, // Don't prompt for approval, just immediately redirect with code.
+		ClientCredentialsEnabled: true,
 		AllowedGrantTypes: []string{ // all implemented types
 			grantTypeDeviceCode,
 			grantTypeAuthorizationCode,
@@ -107,6 +108,7 @@ func newTestServer(t *testing.T, updateConfig func(c *Config)) (*httptest.Server
 			grantTypeTokenExchange,
 			grantTypeImplicit,
 			grantTypePassword,
+			grantTypeClientCredentials,
 		},
 		Signer: sig,
 	}
@@ -1773,7 +1775,7 @@ func TestServerSupportedGrants(t *testing.T) {
 	}{
 		{
 			name:      "Simple",
-			config:    func(c *Config) {},
+			config:    func(c *Config) { c.ClientCredentialsEnabled = false },
 			resGrants: []string{grantTypeAuthorizationCode, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
 		},
 		{
@@ -1782,13 +1784,24 @@ func TestServerSupportedGrants(t *testing.T) {
 			resGrants: []string{grantTypeTokenExchange},
 		},
 		{
-			name:      "With password connector",
-			config:    func(c *Config) { c.PasswordConnector = "local" },
+			name: "With password connector",
+			config: func(c *Config) {
+				c.ClientCredentialsEnabled = false
+				c.PasswordConnector = "local"
+			},
 			resGrants: []string{grantTypeAuthorizationCode, grantTypePassword, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
 		},
 		{
-			name:      "With token response",
-			config:    func(c *Config) { c.SupportedResponseTypes = append(c.SupportedResponseTypes, responseTypeToken) },
+			name:      "With client credentials",
+			config:    func(c *Config) {},
+			resGrants: []string{grantTypeAuthorizationCode, grantTypeClientCredentials, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
+		},
+		{
+			name: "With token response",
+			config: func(c *Config) {
+				c.ClientCredentialsEnabled = false
+				c.SupportedResponseTypes = append(c.SupportedResponseTypes, responseTypeToken)
+			},
 			resGrants: []string{grantTypeAuthorizationCode, grantTypeImplicit, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
 		},
 		{
@@ -1797,7 +1810,7 @@ func TestServerSupportedGrants(t *testing.T) {
 				c.PasswordConnector = "local"
 				c.SupportedResponseTypes = append(c.SupportedResponseTypes, responseTypeToken)
 			},
-			resGrants: []string{grantTypeAuthorizationCode, grantTypeImplicit, grantTypePassword, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
+			resGrants: []string{grantTypeAuthorizationCode, grantTypeClientCredentials, grantTypeImplicit, grantTypePassword, grantTypeRefreshToken, grantTypeDeviceCode, grantTypeTokenExchange},
 		},
 	}
 

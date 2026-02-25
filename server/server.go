@@ -106,6 +106,9 @@ type Config struct {
 	// If set, the server will use this connector to handle password grants
 	PasswordConnector string
 
+	// If enabled, the server will support the client_credentials grant type
+	ClientCredentialsEnabled bool
+
 	GCFrequency time.Duration // Defaults to 5 minutes
 
 	// If specified, the server will use this function for determining time.
@@ -252,6 +255,10 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 
 	if c.PasswordConnector != "" {
 		allSupportedGrants[grantTypePassword] = true
+	}
+
+	if c.ClientCredentialsEnabled {
+		allSupportedGrants[grantTypeClientCredentials] = true
 	}
 
 	var supportedGrants []string

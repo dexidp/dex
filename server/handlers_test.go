@@ -62,6 +62,7 @@ func TestHandleDiscovery(t *testing.T) {
 		Introspect:     fmt.Sprintf("%s/token/introspect", httpServer.URL),
 		GrantTypes: []string{
 			"authorization_code",
+			"client_credentials",
 			"refresh_token",
 			"urn:ietf:params:oauth:grant-type:device_code",
 			"urn:ietf:params:oauth:grant-type:token-exchange",
@@ -640,6 +641,137 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 				require.NotEmpty(t, offlineSession)
 			} else {
 				require.Error(t, storage.ErrNotFound, err)
+			}
+		})
+	}
+}
+
+func TestHandleClientCredentials(t *testing.T) {
+	tests := []struct {
+		name           string
+		clientID       string
+		clientSecret   string
+		scopes         string
+		wantCode       int
+		wantAccessTok  bool
+		wantIDToken    bool
+	}{
+		{
+			name:          "Basic grant, no scopes",
+			clientID:      "test",
+			clientSecret:  "barfoo",
+			scopes:        "",
+			wantCode:      200,
+			wantAccessTok: true,
+			wantIDToken:   false,
+		},
+		{
+			name:          "With openid scope",
+			clientID:      "test",
+			clientSecret:  "barfoo",
+			scopes:        "openid",
+			wantCode:      200,
+			wantAccessTok: true,
+			wantIDToken:   true,
+		},
+		{
+			name:          "With openid email profile groups",
+			clientID:      "test",
+			clientSecret:  "barfoo",
+			scopes:        "openid email profile groups",
+			wantCode:      200,
+			wantAccessTok: true,
+			wantIDToken:   true,
+		},
+		{
+			name:         "Invalid client secret",
+			clientID:     "test",
+			clientSecret: "wrong",
+			scopes:       "",
+			wantCode:     401,
+		},
+		{
+			name:         "Unknown client",
+			clientID:     "nonexistent",
+			clientSecret: "secret",
+			scopes:       "",
+			wantCode:     401,
+		},
+		{
+			name:         "offline_access scope rejected",
+			clientID:     "test",
+			clientSecret: "barfoo",
+			scopes:       "openid offline_access",
+			wantCode:     400,
+		},
+		{
+			name:         "Unrecognized scope",
+			clientID:     "test",
+			clientSecret: "barfoo",
+			scopes:       "openid bogus",
+			wantCode:     400,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+
+			httpServer, s := newTestServer(t, func(c *Config) {
+				c.Now = time.Now
+			})
+			defer httpServer.Close()
+
+			// Create a confidential client for testing.
+			err := s.storage.CreateClient(ctx, storage.Client{
+				ID:           "test",
+				Secret:       "barfoo",
+				RedirectURIs: []string{"https://example.com/callback"},
+				Name:         "Test Client",
+			})
+			require.NoError(t, err)
+
+			u, err := url.Parse(s.issuerURL.String())
+			require.NoError(t, err)
+			u.Path = path.Join(u.Path, "/token")
+
+			v := url.Values{}
+			v.Add("grant_type", "client_credentials")
+			if tc.scopes != "" {
+				v.Add("scope", tc.scopes)
+			}
+
+			req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(v.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.SetBasicAuth(tc.clientID, tc.clientSecret)
+
+			rr := httptest.NewRecorder()
+			s.ServeHTTP(rr, req)
+
+			require.Equal(t, tc.wantCode, rr.Code)
+
+			if tc.wantCode == 200 {
+				var resp struct {
+					AccessToken  string `json:"access_token"`
+					TokenType    string `json:"token_type"`
+					ExpiresIn    int    `json:"expires_in"`
+					IDToken      string `json:"id_token"`
+					RefreshToken string `json:"refresh_token"`
+				}
+				err := json.Unmarshal(rr.Body.Bytes(), &resp)
+				require.NoError(t, err)
+
+				if tc.wantAccessTok {
+					require.NotEmpty(t, resp.AccessToken)
+					require.Equal(t, "bearer", resp.TokenType)
+					require.Greater(t, resp.ExpiresIn, 0)
+				}
+				if tc.wantIDToken {
+					require.NotEmpty(t, resp.IDToken)
+				} else {
+					require.Empty(t, resp.IDToken)
+				}
+				// client_credentials must never return a refresh token.
+				require.Empty(t, resp.RefreshToken)
 			}
 		})
 	}
