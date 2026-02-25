@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
+	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -437,6 +438,10 @@ func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq
 
 	if req.Connector.Id == "" {
 		return nil, errors.New("no id supplied")
+	}
+
+	if strings.HasPrefix(req.Connector.Id, "__") {
+		return nil, fmt.Errorf("connector ID %q is invalid: IDs starting with \"__\" are reserved for internal use", req.Connector.Id)
 	}
 
 	if req.Connector.Type == "" {

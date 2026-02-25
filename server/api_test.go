@@ -536,6 +536,21 @@ func TestCreateConnector(t *testing.T) {
 	} else if !strings.Contains(err.Error(), "invalid config supplied") {
 		t.Fatalf("Unexpected error: %v", err)
 	}
+
+	// Test reserved connector ID (__ prefix)
+	reservedReq := api.CreateConnectorReq{
+		Connector: &api.Connector{
+			Id:     "__client_credentials",
+			Name:   "Reserved",
+			Type:   "TestType",
+			Config: []byte(`{"key": "value"}`),
+		},
+	}
+	if _, err := client.CreateConnector(ctx, &reservedReq); err == nil {
+		t.Fatal("Expected an error for reserved connector ID, but none occurred")
+	} else if !strings.Contains(err.Error(), "reserved for internal use") {
+		t.Fatalf("Unexpected error: %v", err)
+	}
 }
 
 func TestUpdateConnector(t *testing.T) {
