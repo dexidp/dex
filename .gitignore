@@ -1,8 +1,12 @@
-/.devenv/
-/.direnv/
 /.idea/
 /bin/
 /config.yaml
 /docker-compose.override.yaml
 /var/
 /vendor/
+
+# Devenv
+/.devenv*
+/.direnv/
+devenv.local.nix
+.pre-commit-config.yaml
