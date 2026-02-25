@@ -1526,12 +1526,19 @@ func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Req
 
 	// Build claims from the client itself — no user involved.
 	claims := storage.Claims{
-		UserID:            client.ID,
-		Username:          client.Name,
-		PreferredUsername: client.Name,
+		UserID: client.ID,
 	}
 
-	connID := "client_credentials"
+	// Only populate Username/PreferredUsername when the profile scope is requested.
+	for _, scope := range scopes {
+		if scope == scopeProfile {
+			claims.Username = client.Name
+			claims.PreferredUsername = client.Name
+			break
+		}
+	}
+
+	connID := "__client_credentials"
 
 	accessToken, expiry, err := s.newAccessToken(ctx, client.ID, claims, scopes, "", connID)
 	if err != nil {

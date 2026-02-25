@@ -21,6 +21,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
 
+	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -648,13 +649,14 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 
 func TestHandleClientCredentials(t *testing.T) {
 	tests := []struct {
-		name           string
-		clientID       string
-		clientSecret   string
-		scopes         string
-		wantCode       int
-		wantAccessTok  bool
-		wantIDToken    bool
+		name              string
+		clientID          string
+		clientSecret      string
+		scopes            string
+		wantCode          int
+		wantAccessTok     bool
+		wantIDToken       bool
+		wantUsername      string
 	}{
 		{
 			name:          "Basic grant, no scopes",
@@ -675,6 +677,16 @@ func TestHandleClientCredentials(t *testing.T) {
 			wantIDToken:   true,
 		},
 		{
+			name:          "With openid and profile scope includes username",
+			clientID:      "test",
+			clientSecret:  "barfoo",
+			scopes:        "openid profile",
+			wantCode:      200,
+			wantAccessTok: true,
+			wantIDToken:   true,
+			wantUsername:  "Test Client",
+		},
+		{
 			name:          "With openid email profile groups",
 			clientID:      "test",
 			clientSecret:  "barfoo",
@@ -682,6 +694,7 @@ func TestHandleClientCredentials(t *testing.T) {
 			wantCode:      200,
 			wantAccessTok: true,
 			wantIDToken:   true,
+			wantUsername:  "Test Client",
 		},
 		{
 			name:         "Invalid client secret",
@@ -767,6 +780,33 @@ func TestHandleClientCredentials(t *testing.T) {
 				}
 				if tc.wantIDToken {
 					require.NotEmpty(t, resp.IDToken)
+
+					// Verify the ID token claims.
+					provider, err := oidc.NewProvider(ctx, httpServer.URL)
+					require.NoError(t, err)
+					verifier := provider.Verifier(&oidc.Config{ClientID: tc.clientID})
+					idToken, err := verifier.Verify(ctx, resp.IDToken)
+					require.NoError(t, err)
+
+					// Decode the subject to verify the connector ID.
+					var sub internal.IDTokenSubject
+					require.NoError(t, internal.Unmarshal(idToken.Subject, &sub))
+					require.Equal(t, "__client_credentials", sub.ConnId)
+					require.Equal(t, tc.clientID, sub.UserId)
+
+					var claims struct {
+						Name              string `json:"name"`
+						PreferredUsername string `json:"preferred_username"`
+					}
+					require.NoError(t, idToken.Claims(&claims))
+
+					if tc.wantUsername != "" {
+						require.Equal(t, tc.wantUsername, claims.Name)
+						require.Equal(t, tc.wantUsername, claims.PreferredUsername)
+					} else {
+						require.Empty(t, claims.Name)
+						require.Empty(t, claims.PreferredUsername)
+					}
 				} else {
 					require.Empty(t, resp.IDToken)
 				}
