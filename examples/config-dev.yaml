@@ -104,7 +104,7 @@ telemetry:
     # grantTypes determines the allowed set of authorization flows.
 #   grantTypes:
 #     - "authorization_code"
-#     - "client_credentials"   # M2M auth, not included in defaults
+#     - "client_credentials"
 #     - "refresh_token"
 #     - "implicit"
 #     - "password"
