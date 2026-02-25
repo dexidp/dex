@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"crypto/rsa"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -46,6 +45,7 @@ import (
 	"github.com/dexidp/dex/connector/openshift"
 	"github.com/dexidp/dex/connector/saml"
 	"github.com/dexidp/dex/connector/ssh"
+	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/web"
 )
@@ -97,7 +97,6 @@ type Config struct {
 	// If enabled, the connectors selection page will always be shown even if there's only one
 	AlwaysShowLoginScreen bool
 
-	RotateKeysAfter        time.Duration // Defaults to 6 hours.
 	IDTokensValidFor       time.Duration // Defaults to 24 hours
 	AuthRequestsValidFor   time.Duration // Defaults to 24 hours
 	DeviceRequestsValidFor time.Duration // Defaults to 5 minutes
@@ -116,6 +115,9 @@ type Config struct {
 	Web WebConfig
 
 	Logger *slog.Logger
+
+	// Signer is used to sign tokens.
+	Signer signer.Signer
 
 	PrometheusRegistry *prometheus.Registry
 
@@ -201,24 +203,16 @@ type Server struct {
 	refreshTokenPolicy *RefreshTokenPolicy
 
 	logger *slog.Logger
+
+	signer signer.Signer
 }
 
 // NewServer constructs a server from the provided config.
 func NewServer(ctx context.Context, c Config) (*Server, error) {
-	return newServer(ctx, c, defaultRotationStrategy(
-		value(c.RotateKeysAfter, 6*time.Hour),
-		value(c.IDTokensValidFor, 24*time.Hour),
-	))
+	return newServer(ctx, c)
 }
 
-// NewServerWithKey constructs a server from the provided config and a static signing key.
-func NewServerWithKey(ctx context.Context, c Config, privateKey *rsa.PrivateKey) (*Server, error) {
-	return newServer(ctx, c, staticRotationStrategy(
-		privateKey,
-	))
-}
-
-func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy) (*Server, error) {
+func newServer(ctx context.Context, c Config) (*Server, error) {
 	issuerURL, err := url.Parse(c.Issuer)
 	if err != nil {
 		return nil, fmt.Errorf("server: can't parse issuer URL")
@@ -317,6 +311,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		templates:              tmpls,
 		passwordConnector:      c.PasswordConnector,
 		logger:                 c.Logger,
+		signer:                 c.Signer,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
@@ -453,7 +448,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	}
 	r.NotFoundHandler = http.NotFoundHandler()
 
-	discoveryHandler, err := s.discoveryHandler()
+	discoveryHandler, err := s.discoveryHandler(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -515,7 +510,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 	s.mux = r
 
-	s.startKeyRotation(ctx, rotationStrategy, now)
+	s.signer.Start(ctx)
 	s.startGarbageCollection(ctx, value(c.GCFrequency, 5*time.Minute), now)
 
 	return s, nil
@@ -549,6 +544,20 @@ type passwordDB struct {
 	s storage.Storage
 }
 
+func resolvePasswordName(p storage.Password) string {
+	if p.Name != "" {
+		return p.Name
+	}
+	return p.Username
+}
+
+func resolvePasswordEmailVerified(p storage.Password) bool {
+	if p.EmailVerified != nil {
+		return *p.EmailVerified
+	}
+	return true
+}
+
 func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, password string) (connector.Identity, bool, error) {
 	p, err := db.s.GetPassword(ctx, email)
 	if err != nil {
@@ -566,10 +575,12 @@ func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, passw
 		return connector.Identity{}, false, nil
 	}
 	return connector.Identity{
-		UserID:        p.UserID,
-		Username:      p.Username,
-		Email:         p.Email,
-		EmailVerified: true,
+		UserID:            p.UserID,
+		Username:          resolvePasswordName(p),
+		PreferredUsername: p.PreferredUsername,
+		Email:             p.Email,
+		EmailVerified:     resolvePasswordEmailVerified(p),
+		Groups:            p.Groups,
 	}, true, nil
 }
 
@@ -592,8 +603,11 @@ func (db passwordDB) Refresh(ctx context.Context, s connector.Scopes, identity c
 	// refreshed token.
 	//
 	// No other fields are expected to be refreshable as email is effectively used
-	// as an ID and this implementation doesn't deal with groups.
-	identity.Username = p.Username
+	// as an ID.
+	identity.Username = resolvePasswordName(p)
+	identity.PreferredUsername = p.PreferredUsername
+	identity.EmailVerified = resolvePasswordEmailVerified(p)
+	identity.Groups = p.Groups
 
 	return identity, nil
 }

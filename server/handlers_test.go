@@ -18,10 +18,15 @@ import (
 	"github.com/AppsFlyer/go-sundheit/checks"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/storage"
 )
+
+func boolPtr(v bool) *bool {
+	return &v
+}
 
 func TestHandleHealth(t *testing.T) {
 	httpServer, server := newTestServer(t, nil)
@@ -400,6 +405,91 @@ func TestHandlePassword(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHandlePassword_LocalPasswordDBClaims(t *testing.T) {
+	ctx := t.Context()
+
+	// Setup a dex server.
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.PasswordConnector = "local"
+	})
+	defer httpServer.Close()
+
+	// Client credentials for password grant.
+	client := storage.Client{
+		ID:           "test",
+		Secret:       "barfoo",
+		RedirectURIs: []string{"foo://bar.com/", "https://auth.example.com"},
+	}
+	require.NoError(t, s.storage.CreateClient(ctx, client))
+
+	// Enable local connector.
+	localConn := storage.Connector{
+		ID:              "local",
+		Type:            LocalConnector,
+		Name:            "Email",
+		ResourceVersion: "1",
+	}
+	require.NoError(t, s.storage.CreateConnector(ctx, localConn))
+	_, err := s.OpenConnector(localConn)
+	require.NoError(t, err)
+
+	// Create a user in the password DB with groups and preferred_username.
+	pw := "secret"
+	hash, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
+	require.NoError(t, err)
+	require.NoError(t, s.storage.CreatePassword(ctx, storage.Password{
+		Email:             "user@example.com",
+		Username:          "user-login",
+		Name:              "User Full Name",
+		EmailVerified:     boolPtr(false),
+		PreferredUsername: "user-public",
+		UserID:            "user-id",
+		Groups:            []string{"team-a", "team-a/admins"},
+		Hash:              hash,
+	}))
+
+	u, err := url.Parse(s.issuerURL.String())
+	require.NoError(t, err)
+	u.Path = path.Join(u.Path, "/token")
+
+	v := url.Values{}
+	v.Add("scope", "openid profile email groups")
+	v.Add("grant_type", "password")
+	v.Add("username", "user@example.com")
+	v.Add("password", pw)
+
+	req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(v.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth("test", "barfoo")
+
+	rr := httptest.NewRecorder()
+	s.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var tokenResponse struct {
+		IDToken string `json:"id_token"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &tokenResponse))
+	require.NotEmpty(t, tokenResponse.IDToken)
+
+	p, err := oidc.NewProvider(ctx, httpServer.URL)
+	require.NoError(t, err)
+	idToken, err := p.Verifier(&oidc.Config{SkipClientIDCheck: true}).Verify(ctx, tokenResponse.IDToken)
+	require.NoError(t, err)
+
+	var claims struct {
+		Name              string   `json:"name"`
+		EmailVerified     bool     `json:"email_verified"`
+		PreferredUsername string   `json:"preferred_username"`
+		Groups            []string `json:"groups"`
+	}
+	require.NoError(t, idToken.Claims(&claims))
+	require.Equal(t, "User Full Name", claims.Name)
+	require.False(t, claims.EmailVerified)
+	require.Equal(t, "user-public", claims.PreferredUsername)
+	require.Equal(t, []string{"team-a", "team-a/admins"}, claims.Groups)
 }
 
 func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {

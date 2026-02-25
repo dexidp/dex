@@ -2,6 +2,7 @@ package microsoft
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -39,7 +40,7 @@ func TestLoginURL(t *testing.T) {
 		tenant:      tenant,
 	}
 
-	loginURL, _ := conn.LoginURL(connector.Scopes{}, conn.redirectURI, testState)
+	loginURL, _, _ := conn.LoginURL(connector.Scopes{}, conn.redirectURI, testState)
 
 	parsedLoginURL, _ := url.Parse(loginURL)
 	queryParams := parsedLoginURL.Query()
@@ -70,7 +71,7 @@ func TestLoginURLWithOptions(t *testing.T) {
 		domainHint: domainHint,
 	}
 
-	loginURL, _ := conn.LoginURL(connector.Scopes{}, conn.redirectURI, "some-state")
+	loginURL, _, _ := conn.LoginURL(connector.Scopes{}, conn.redirectURI, "some-state")
 
 	parsedLoginURL, _ := url.Parse(loginURL)
 	queryParams := parsedLoginURL.Query()
@@ -91,7 +92,7 @@ func TestUserIdentityFromGraphAPI(t *testing.T) {
 	req, _ := http.NewRequest("GET", s.URL, nil)
 
 	c := microsoftConnector{apiURL: s.URL, graphURL: s.URL, tenant: tenant}
-	identity, err := c.HandleCallback(connector.Scopes{Groups: false}, req)
+	identity, err := c.HandleCallback(connector.Scopes{Groups: false}, nil, req)
 	expectNil(t, err)
 	expectEquals(t, identity.Username, "Jane Doe")
 	expectEquals(t, identity.UserID, "S56767889")
@@ -114,9 +115,42 @@ func TestUserGroupsFromGraphAPI(t *testing.T) {
 	req, _ := http.NewRequest("GET", s.URL, nil)
 
 	c := microsoftConnector{apiURL: s.URL, graphURL: s.URL, tenant: tenant}
-	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, req)
+	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, nil, req)
 	expectNil(t, err)
 	expectEquals(t, identity.Groups, []string{"a", "b"})
+}
+
+func TestUserNotInRequiredGroupFromGraphAPI(t *testing.T) {
+	s := newTestServer(map[string]testResponse{
+		"/v1.0/me?$select=id,displayName,userPrincipalName": {
+			data: user{ID: "user-id-123", Name: "Jane Doe", Email: "jane.doe@example.com"},
+		},
+		// The user is a member of groups "c" and "d", but the connector only
+		// allows group "a" — so the user should be denied.
+		"/v1.0/me/getMemberGroups": {data: map[string]interface{}{
+			"value": []string{"c", "d"},
+		}},
+		"/" + tenant + "/oauth2/v2.0/token": dummyToken,
+	})
+	defer s.Close()
+
+	req, _ := http.NewRequest("GET", s.URL, nil)
+
+	c := microsoftConnector{
+		apiURL:   s.URL,
+		graphURL: s.URL,
+		tenant:   tenant,
+		groups:   []string{"a"},
+	}
+	_, err := c.HandleCallback(connector.Scopes{Groups: true}, nil, req)
+	if err == nil {
+		t.Fatal("expected error when user is not in any required group, got nil")
+	}
+
+	var groupsErr *connector.UserNotInRequiredGroupsError
+	if !errors.As(err, &groupsErr) {
+		t.Errorf("expected *connector.UserNotInRequiredGroupsError, got %T: %v", err, err)
+	}
 }
 
 func newTestServer(responses map[string]testResponse) *httptest.Server {

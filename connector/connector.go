@@ -3,8 +3,21 @@ package connector
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 )
+
+// UserNotInRequiredGroupsError is returned by a connector when a user
+// successfully authenticates but is not a member of any of the required groups.
+// The server will respond with HTTP 403 Forbidden instead of 500.
+type UserNotInRequiredGroupsError struct {
+	UserID string
+	Groups []string
+}
+
+func (e *UserNotInRequiredGroupsError) Error() string {
+	return fmt.Sprintf("user %q is not in any of the required groups %v", e.UserID, e.Groups)
+}
 
 // Connector is a mechanism for federating login to a remote identity service.
 //
@@ -63,10 +76,10 @@ type CallbackConnector interface {
 	// requested if one has already been issues. There's no good general answer
 	// for these kind of restrictions, and may require this package to become more
 	// aware of the global set of user/connector interactions.
-	LoginURL(s Scopes, callbackURL, state string) (string, error)
+	LoginURL(s Scopes, callbackURL, state string) (string, []byte, error)
 
 	// Handle the callback to the server and return an identity.
-	HandleCallback(s Scopes, r *http.Request) (identity Identity, err error)
+	HandleCallback(s Scopes, connData []byte, r *http.Request) (identity Identity, err error)
 }
 
 // SAMLConnector represents SAML connectors which implement the HTTP POST binding.

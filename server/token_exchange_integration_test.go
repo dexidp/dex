@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent"
 	"github.com/dexidp/dex/storage/memory"
@@ -161,6 +162,10 @@ func newTestServerWithStorage(
 	err := s.CreateConnector(ctx, sshConn)
 	require.NoError(t, err, "failed to create SSH connector in storage")
 
+	sig, err := signer.NewMockSigner(testKey)
+	require.NoError(t, err, "failed to create mock signer")
+	config.Signer = sig
+
 	// Create OAuth2 client for token exchange
 	err = s.CreateClient(ctx, storage.Client{
 		ID:      "ssh-test-client",
@@ -170,7 +175,7 @@ func newTestServerWithStorage(
 	})
 	require.NoError(t, err, "failed to create test client")
 
-	srv, err = newServer(ctx, config, staticRotationStrategy(testKey))
+	srv, err = newServer(ctx, config)
 	require.NoError(t, err, "failed to create server")
 
 	srv.refreshTokenPolicy, err = NewRefreshTokenPolicy(logger, false, "", "", "")
@@ -539,6 +544,10 @@ func TestTokenExchangeSSH_LDAPCoexistence(t *testing.T) {
 	})
 	require.NoError(t, err, "failed to create LDAP connector")
 
+	sig, sigErr := signer.NewMockSigner(testKey)
+	require.NoError(t, sigErr, "failed to create mock signer")
+	config.Signer = sig
+
 	// Create OAuth2 client
 	err = s.CreateClient(ctx, storage.Client{
 		ID:     "ssh-test-client",
@@ -547,7 +556,7 @@ func TestTokenExchangeSSH_LDAPCoexistence(t *testing.T) {
 	})
 	require.NoError(t, err, "failed to create test client")
 
-	srv, err = newServer(ctx, config, staticRotationStrategy(testKey))
+	srv, err = newServer(ctx, config)
 	require.NoError(t, err, "failed to create server")
 
 	srv.refreshTokenPolicy, err = NewRefreshTokenPolicy(logger, false, "", "", "")

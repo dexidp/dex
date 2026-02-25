@@ -198,7 +198,9 @@ func userMatchers(c *Config, logger *slog.Logger) []UserMatcher {
 		return c.GroupSearch.UserMatchers
 	}
 
-	logger.Warn(`use "groupSearch.userMatchers" option instead of "userAttr/groupAttr" fields`, "deprecated", true)
+	if c.GroupSearch.UserAttr != "" || c.GroupSearch.GroupAttr != "" {
+		logger.Warn(`use "groupSearch.userMatchers" option instead of "userAttr/groupAttr" fields`, "deprecated", true)
+	}
 	return []UserMatcher{
 		{
 			UserAttr:           c.GroupSearch.UserAttr,

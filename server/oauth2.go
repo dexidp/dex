@@ -3,9 +3,6 @@ package server
 import (
 	"context"
 	"crypto"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/base64"
@@ -25,6 +22,7 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -66,13 +64,25 @@ func (err *redirectedAuthErr) Handler() http.Handler {
 		if err.Description != "" {
 			v.Add("error_description", err.Description)
 		}
-		var redirectURI string
-		if strings.Contains(err.RedirectURI, "?") {
-			redirectURI = err.RedirectURI + "&" + v.Encode()
-		} else {
-			redirectURI = err.RedirectURI + "?" + v.Encode()
+
+		// Parse the redirect URI to ensure it's valid before redirecting
+		u, parseErr := url.Parse(err.RedirectURI)
+		if parseErr != nil {
+			// If URI parsing fails, respond with an error instead of redirecting
+			http.Error(w, "Invalid redirect URI", http.StatusBadRequest)
+			return
 		}
-		http.Redirect(w, r, redirectURI, http.StatusSeeOther)
+
+		// Add error parameters to the URL
+		query := u.Query()
+		for key, values := range v {
+			for _, value := range values {
+				query.Add(key, value)
+			}
+		}
+		u.RawQuery = query.Encode()
+
+		http.Redirect(w, r, u.String(), http.StatusSeeOther)
 	}
 	return http.HandlerFunc(hf)
 }
@@ -173,54 +183,6 @@ func parseScopes(scopes []string) connector.Scopes {
 		}
 	}
 	return s
-}
-
-// Determine the signature algorithm for a JWT.
-func signatureAlgorithm(jwk *jose.JSONWebKey) (alg jose.SignatureAlgorithm, err error) {
-	if jwk.Key == nil {
-		return alg, errors.New("no signing key")
-	}
-	switch key := jwk.Key.(type) {
-	case *rsa.PrivateKey:
-		// Because OIDC mandates that we support RS256, we always return that
-		// value. In the future, we might want to make this configurable on a
-		// per client basis. For example allowing PS256 or ECDSA variants.
-		//
-		// See https://github.com/dexidp/dex/issues/692
-		return jose.RS256, nil
-	case *ecdsa.PrivateKey:
-		// We don't actually support ECDSA keys yet, but they're tested for
-		// in case we want to in the future.
-		//
-		// These values are prescribed depending on the ECDSA key type. We
-		// can't return different values.
-		switch key.Params() {
-		case elliptic.P256().Params():
-			return jose.ES256, nil
-		case elliptic.P384().Params():
-			return jose.ES384, nil
-		case elliptic.P521().Params():
-			return jose.ES512, nil
-		default:
-			return alg, errors.New("unsupported ecdsa curve")
-		}
-	default:
-		return alg, fmt.Errorf("unsupported signing key type %T", key)
-	}
-}
-
-func signPayload(key *jose.JSONWebKey, alg jose.SignatureAlgorithm, payload []byte) (jws string, err error) {
-	signingKey := jose.SigningKey{Key: key, Algorithm: alg}
-
-	signer, err := jose.NewSigner(signingKey, &jose.SignerOptions{})
-	if err != nil {
-		return "", fmt.Errorf("new signer: %v", err)
-	}
-	signature, err := signer.Sign(payload)
-	if err != nil {
-		return "", fmt.Errorf("signing payload: %v", err)
-	}
-	return signature.CompactSerialize()
 }
 
 // The hash algorithm for the at_hash is determined by the signing
@@ -351,21 +313,6 @@ func genSubject(userID string, connID string) (string, error) {
 }
 
 func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string) (idToken string, expiry time.Time, err error) {
-	keys, err := s.storage.GetKeys(ctx)
-	if err != nil {
-		s.logger.ErrorContext(ctx, "failed to get keys", "err", err)
-		return "", expiry, err
-	}
-
-	signingKey := keys.SigningKey
-	if signingKey == nil {
-		return "", expiry, fmt.Errorf("no key to sign payload with")
-	}
-	signingAlg, err := signatureAlgorithm(signingKey)
-	if err != nil {
-		return "", expiry, err
-	}
-
 	issuedAt := s.now()
 	expiry = issuedAt.Add(s.idTokensValidFor)
 
@@ -381,6 +328,13 @@ func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage
 		Nonce:    nonce,
 		Expiry:   expiry.Unix(),
 		IssuedAt: issuedAt.Unix(),
+	}
+
+	// Determine signing algorithm from signer
+	signingAlg, err := s.signer.Algorithm(ctx)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to get signing algorithm", "err", err)
+		return "", expiry, fmt.Errorf("failed to get signing algorithm: %v", err)
 	}
 
 	if accessToken != "" {
@@ -445,7 +399,7 @@ func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage
 		return "", expiry, fmt.Errorf("could not serialize claims: %v", err)
 	}
 
-	if idToken, err = signPayload(signingKey, signingAlg, payload); err != nil {
+	if idToken, err = s.signer.Sign(ctx, payload); err != nil {
 		return "", expiry, fmt.Errorf("failed to sign payload: %v", err)
 	}
 	return idToken, expiry, nil
@@ -481,17 +435,19 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	client, err := s.storage.GetClient(ctx, clientID)
 	if err != nil {
 		if err == storage.ErrNotFound {
-			return nil, newDisplayedErr(http.StatusNotFound, "Invalid client_id (%q).", clientID)
+			s.logger.ErrorContext(r.Context(), "invalid client_id provided", "client_id", clientID)
+			return nil, newDisplayedErr(http.StatusNotFound, "Invalid client_id.")
 		}
 		s.logger.ErrorContext(r.Context(), "failed to get client", "err", err)
 		return nil, newDisplayedErr(http.StatusInternalServerError, "Database error.")
 	}
 
 	if !validateRedirectURI(client, redirectURI) {
-		return nil, newDisplayedErr(http.StatusBadRequest, "Unregistered redirect_uri (%q).", redirectURI)
+		s.logger.ErrorContext(r.Context(), "unregistered redirect_uri", "redirect_uri", redirectURI, "client_id", clientID)
+		return nil, newDisplayedErr(http.StatusBadRequest, "Unregistered redirect_uri.")
 	}
 	if redirectURI == deviceCallbackURI && client.Public {
-		redirectURI = s.issuerURL.Path + deviceCallbackURI
+		redirectURI = s.absPath(deviceCallbackURI)
 	}
 
 	// From here on out, we want to redirect back to the client with an error.
@@ -517,8 +473,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	}
 
 	if codeChallengeMethod != codeChallengeMethodS256 && codeChallengeMethod != codeChallengeMethodPlain {
-		description := fmt.Sprintf("Unsupported PKCE challenge method (%q).", codeChallengeMethod)
-		return nil, newRedirectedErr(errInvalidRequest, description)
+		return nil, newRedirectedErr(errInvalidRequest, "Unsupported PKCE challenge method (%q).", codeChallengeMethod)
 	}
 
 	var (
@@ -601,8 +556,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	}
 	if rt.token {
 		if redirectURI == redirectURIOOB {
-			err := fmt.Sprintf("Cannot use response type 'token' with redirect_uri '%s'.", redirectURIOOB)
-			return nil, newRedirectedErr(errInvalidRequest, err)
+			return nil, newRedirectedErr(errInvalidRequest, "Cannot use response type 'token' with redirect_uri '%s'.", redirectURIOOB)
 		}
 	}
 
@@ -703,12 +657,12 @@ func validateConnectorID(connectors []storage.Connector, connectorID string) boo
 	return false
 }
 
-// storageKeySet implements the oidc.KeySet interface backed by Dex storage
-type storageKeySet struct {
-	storage.Storage
+// signerKeySet implements the oidc.KeySet interface backed by the Dex signer
+type signerKeySet struct {
+	signer signer.Signer
 }
 
-func (s *storageKeySet) VerifySignature(ctx context.Context, jwt string) (payload []byte, err error) {
+func (s *signerKeySet) VerifySignature(ctx context.Context, jwt string) (payload []byte, err error) {
 	jws, err := jose.ParseSigned(jwt, []jose.SignatureAlgorithm{jose.RS256, jose.RS384, jose.RS512, jose.ES256, jose.ES384, jose.ES512})
 	if err != nil {
 		return nil, err
@@ -720,14 +674,9 @@ func (s *storageKeySet) VerifySignature(ctx context.Context, jwt string) (payloa
 		break
 	}
 
-	skeys, err := s.Storage.GetKeys(ctx)
+	keys, err := s.signer.ValidationKeys(ctx)
 	if err != nil {
 		return nil, err
-	}
-
-	keys := []*jose.JSONWebKey{skeys.SigningKeyPub}
-	for _, vk := range skeys.VerificationKeys {
-		keys = append(keys, vk.PublicKey)
 	}
 
 	for _, key := range keys {

@@ -129,8 +129,18 @@ staticClients:
 - id: example-app
   redirectURIs:
   - 'http://127.0.0.1:5555/callback'
+  - '/dex/device/callback'
   name: 'Example App'
   secret: ZXhhbXBsZS1hcHAtc2VjcmV0
+
+# Example using environment variables
+# Set DEX_CLIENT_ID and DEX_SECURE_CLIENT_SECRET before starting Dex
+# - idEnv: DEX_CLIENT_ID
+#   secretEnv: DEX_CLIENT_SECRET
+#   redirectURIs:
+#   - 'http://127.0.0.1:5556/callback'
+#   name: 'Secure Example App'
+
 #  - id: example-device-client
 #    redirectURIs:
 #      - /device/callback
@@ -164,4 +174,24 @@ staticPasswords:
   # bcrypt hash of the string "password": $(echo password | htpasswd -BinC 10 admin | cut -d: -f2)
   hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
   username: "admin"
+  name: "Admin User"
+  emailVerified: true
+  preferredUsername: "admin"
+  groups:
+  - "team-a"
+  - "team-a/admins"
   userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
+
+# Settings for signing JWT tokens. Available options:
+# - "local": use local keys (only RSA keys supported)
+# - "vault": use Vault Transit backend (RSA and EC keys supported)
+signer:
+  type: local
+  config:
+    keysRotationPeriod: "6h"
+# signer
+#   type: vault
+#   config:
+#     addr: http://127.0.0.1:8200
+#     token: root
+#     keyName: dex-key

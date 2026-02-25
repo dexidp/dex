@@ -1,366 +1,177 @@
 package main
 
 import (
+	"context"
+	"crypto/rsa"
+	"crypto/x509"
+	"embed"
+	"encoding/base64"
+	"encoding/json"
+	"encoding/pem"
 	"html/template"
+	"io/fs"
 	"log"
+	"math/big"
 	"net/http"
+	"net/url"
+
+	"github.com/coreos/go-oidc/v3/oidc"
 )
 
-const css = `
-	body {
-		font-family: Arial, sans-serif;
-		background-color: #f2f2f2;
-		margin: 0;
+//go:embed templates/*.html
+var templatesFS embed.FS
+
+//go:embed static/*
+var staticFS embed.FS
+
+const dexLogoDataURI = "/static/dex-glyph-color.svg"
+
+var (
+	indexTmpl     *template.Template
+	tokenTmpl     *template.Template
+	deviceTmpl    *template.Template
+	staticHandler http.Handler
+)
+
+func init() {
+	var err error
+	indexTmpl, err = template.ParseFS(templatesFS, "templates/index.html")
+	if err != nil {
+		log.Fatalf("failed to parse index template: %v", err)
 	}
 
-    .header {
-        text-align: center;
-        margin-bottom: 20px;
-    }
-
-	.dex {
-		font-size: 2em;
-		font-weight: bold;
-		color: #3F9FD8; /* Main color */
+	tokenTmpl, err = template.ParseFS(templatesFS, "templates/token.html")
+	if err != nil {
+		log.Fatalf("failed to parse token template: %v", err)
 	}
 
-	.example-app {
-		font-size: 1em;
-		color: #EF4B5C; /* Secondary color */
+	deviceTmpl, err = template.ParseFS(templatesFS, "templates/device.html")
+	if err != nil {
+		log.Fatalf("failed to parse device template: %v", err)
 	}
 
-	.form-instructions {
-		text-align: center;
-		margin-bottom: 15px;
-		font-size: 1em;
-		color: #555;
+	// Create handler for static files
+	staticSubFS, err := fs.Sub(staticFS, "static")
+	if err != nil {
+		log.Fatalf("failed to create static sub filesystem: %v", err)
 	}
+	staticHandler = http.FileServer(http.FS(staticSubFS))
+}
 
-	hr {
-		border: none;
-		border-top: 1px solid #ccc;
-		margin-top: 10px;
-		margin-bottom: 20px;
-	}
+func renderIndex(w http.ResponseWriter, data indexPageData) {
+	renderTemplate(w, indexTmpl, data)
+}
 
-	label {
-		flex: 1;
-		font-weight: bold;
-		color: #333;
-	}
+func renderDevice(w http.ResponseWriter, data devicePageData) {
+	renderTemplate(w, deviceTmpl, data)
+}
 
-	p {
-		margin-bottom: 15px;
-		display: flex;
-		align-items: center;
-	}
+type indexPageData struct {
+	ScopesSupported []string
+	LogoURI         string
+}
 
-	input[type="text"] {
-		flex: 2;
-		padding: 8px;
-		border: 1px solid #ccc;
-		border-radius: 4px;
-		outline: none;
-	}
-
-	input[type="checkbox"] {
-		margin-left: 10px;
-		transform: scale(1.2);
-	}
-
-	.back-button {
-		display: inline-block;
-		padding: 8px 16px;
-		background-color: #EF4B5C; /* Secondary color */
-		color: white;
-		border: none;
-		border-radius: 4px;
-		cursor: pointer;
-		font-size: 12px;
-		text-decoration: none;
-		transition: background-color 0.3s ease, transform 0.2s ease;
-		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-		position: fixed;
-		right: 20px;
-		bottom: 20px;
-	}
-
-	.back-button:hover {
-		background-color: #C43B4B; /* Darker shade of secondary color */
-	}
-
-	.token-block {
-		background-color: #fff;
-		padding: 10px 15px;
-		border-radius: 8px;
-		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-		margin-bottom: 15px;
-		word-wrap: break-word;
-		display: flex;
-		flex-direction: column;
-		gap: 5px;
-		position: relative;
-	}
-
-	.token-title {
-		font-weight: bold;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-	}
-
-	.token-title a {
-		font-size: 0.9em;
-		text-decoration: none;
-		color: #3F9FD8; /* Main color */
-	}
-
-	.token-title a:hover {
-		text-decoration: underline;
-	}
-
-    .token-code {
-		overflow-wrap: break-word;
-		word-break: break-all;
-		white-space: normal;
-    }
-
-	pre {
-		white-space: pre-wrap;
-		background-color: #f9f9f9;
-		padding: 8px;
-		border-radius: 4px;
-		border: 1px solid #ddd;
-		margin: 0;
-		font-family: 'Courier New', Courier, monospace;
-		overflow-x: auto;
-		font-size: 0.9em;
-		position: relative;
-		margin-top: 5px;
-	}
-
-	pre .key {
-		color: #c00;
-	}
-
-	pre .string {
-		color: #080;
-	}
-
-	pre .number {
-		color: #00f;
-	}
-`
-
-var indexTmpl = template.Must(template.New("index.html").Parse(`<html>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Example App - Login</title>
-    <style>
-` + css + `
-        body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            flex-direction: column;
-        }
-
-		form {
-			background-color: #fff;
-			padding: 20px;
-			border-radius: 8px;
-			box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-			width: 100%;
-			max-width: 400px;
-		}
-
-		input[type="submit"] {
-			width: 100%;
-			padding: 10px;
-			background-color: #3F9FD8; /* Main color */
-			color: white;
-			border: none;
-			border-radius: 4px;
-			cursor: pointer;
-			font-size: 16px;
-		}
-
-		input[type="submit"]:hover {
-			background-color: #357FAA; /* Darker shade of main color */
-		}
-    </style>
-</head>
-<body>
-    <div class="header">
-        <div class="dex">Dex</div>
-        <div class="example-app">Example App</div>
-    </div>
-    <form action="/login" method="post">
-        <div class="form-instructions">
-            If needed, customize your login settings below, then click <strong>Login</strong> to proceed.
-        </div>
-        <hr/>
-        <p>
-            <label for="cross_client">Authenticate for:</label>
-            <input type="text" id="cross_client" name="cross_client" placeholder="list of client-ids">
-        </p>
-        <p>
-            <label for="extra_scopes">Extra scopes:</label>
-            <input type="text" id="extra_scopes" name="extra_scopes" placeholder="list of scopes">
-        </p>
-        <p>
-            <label for="connector_id">Connector ID:</label>
-            <input type="text" id="connector_id" name="connector_id" placeholder="connector id">
-        </p>
-        <p>
-            <label for="offline_access">Request offline access:</label>
-            <input type="checkbox" id="offline_access" name="offline_access" value="yes" checked>
-        </p>
-        <p>
-            <input type="submit" value="Login">
-        </p>
-    </form>
-</body>
-</html>`))
-
-func renderIndex(w http.ResponseWriter) {
-	renderTemplate(w, indexTmpl, nil)
+type devicePageData struct {
+	SessionID       string
+	DeviceCode      string
+	UserCode        string
+	VerificationURI string
+	PollInterval    int
+	LogoURI         string
 }
 
 type tokenTmplData struct {
-	IDToken      string
-	AccessToken  string
-	RefreshToken string
-	RedirectURL  string
-	Claims       string
+	IDToken            string
+	IDTokenJWTLink     string
+	AccessToken        string
+	AccessTokenJWTLink string
+	RefreshToken       string
+	RedirectURL        string
+	Claims             string
+	PublicKeyPEM       string
 }
 
-var tokenTmpl = template.Must(template.New("token.html").Parse(`<html>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tokens</title>
-    <style>
-` + css + `
-        body {
-            color: #333;
-            margin: 0;
-            padding: 20px;
-            position: relative;
-        }
+func generateJWTIOLink(token string, provider *oidc.Provider, ctx context.Context) string {
+	// JWT.io doesn't support automatic public key via URL parameter
+	// The public key is displayed separately on the page for manual copy-paste
+	return "https://jwt.io/#debugger-io?token=" + url.QueryEscape(token)
+}
 
-        input[type="submit"] {
-            margin-top: 10px;
-            padding: 8px 16px;
-            background-color: #3F9FD8; /* Main color */
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: background-color 0.3s ease;
-        }
+func getPublicKeyPEM(provider *oidc.Provider) string {
+	if provider == nil {
+		return ""
+	}
 
-        input[type="submit"]:hover {
-            background-color: #357FAA; /* Darker shade of main color */
-        }
-    </style>
-</head>
-<body>
-    {{ if .IDToken }}
-    <div class="token-block">
-        <div class="token-title">
-            ID Token:
-            <a href="#" onclick="window.open('https://jwt.io/#debugger-io?token=' + encodeURIComponent('{{ .IDToken }}'), '_blank')">Decode on jwt.io</a>
-        </div>
-        <pre><code class="token-code">{{ .IDToken }}</code></pre>
-    </div>
-    {{ end }}
+	jwksURL := provider.Endpoint().AuthURL
+	if len(jwksURL) > 5 {
+		jwksURL = jwksURL[:len(jwksURL)-5] + "/keys"
+	} else {
+		return ""
+	}
 
-    {{ if .AccessToken }}
-    <div class="token-block">
-        <div class="token-title">
-            Access Token:
-            <a href="#" onclick="window.open('https://jwt.io/#debugger-io?token=' + encodeURIComponent('{{ .AccessToken }}'), '_blank')">Decode on jwt.io</a>
-        </div>
-        <pre><code class="token-code">{{ .AccessToken }}</code></pre>
-    </div>
-    {{ end }}
+	resp, err := http.Get(jwksURL)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
 
-    {{ if .Claims }}
-    <div class="token-block">
-        <div class="token-title">Claims:</div>
-        <pre><code id="claims">{{ .Claims }}</code></pre>
-    </div>
-    {{ end }}
+	var jwks struct {
+		Keys []json.RawMessage `json:"keys"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&jwks); err != nil || len(jwks.Keys) == 0 {
+		return ""
+	}
 
-    {{ if .RefreshToken }}
-    <div class="token-block">
-        <div class="token-title">Refresh Token:</div>
-        <pre><code class="token-code">{{ .RefreshToken }}</code></pre>
-        <form action="{{ .RedirectURL }}" method="post">
-            <input type="hidden" name="refresh_token" value="{{ .RefreshToken }}">
-            <input type="submit" value="Redeem refresh token">
-        </form>
-    </div>
-    {{ end }}
+	var key struct {
+		N   string `json:"n"`
+		E   string `json:"e"`
+		Kty string `json:"kty"`
+	}
+	if err := json.Unmarshal(jwks.Keys[0], &key); err != nil || key.Kty != "RSA" {
+		return ""
+	}
 
-    <a href="/" class="back-button">Back to Home</a>
+	nBytes, err1 := base64.RawURLEncoding.DecodeString(key.N)
+	eBytes, err2 := base64.RawURLEncoding.DecodeString(key.E)
+	if err1 != nil || err2 != nil {
+		return ""
+	}
 
-    <script>
-        // Simple JSON syntax highlighter
-        document.addEventListener("DOMContentLoaded", function() {
-            const claimsElement = document.getElementById("claims");
-            if (claimsElement) {
-                try {
-                    const json = JSON.parse(claimsElement.textContent);
-                    claimsElement.innerHTML = syntaxHighlight(json);
-                } catch (e) {
-                    console.error("Invalid JSON in claims:", e);
-                }
-            }
-        });
+	var eInt int
+	for _, b := range eBytes {
+		eInt = eInt<<8 | int(b)
+	}
 
-        function syntaxHighlight(json) {
-            if (typeof json != 'string') {
-                json = JSON.stringify(json, undefined, 2);
-            }
-            json = json.replace(/&/g, '&amp;').replace(/</g, '<').replace(/>/g, '>');
-            return json.replace(/("(\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|\b\d+\b)/g, function (match) {
-                let cls = 'number';
-                if (/^"/.test(match)) {
-                    if (/:$/.test(match)) {
-                        cls = 'key';
-                    } else {
-                        cls = 'string';
-                    }
-                } else if (/true|false/.test(match)) {
-                    cls = 'boolean';
-                } else if (/null/.test(match)) {
-                    cls = 'null';
-                }
-                return '<span class="' + cls + '">' + match + '</span>';
-            });
-        }
-    </script>
-</body>
-</html>
-`))
+	pubKey := &rsa.PublicKey{
+		N: new(big.Int).SetBytes(nBytes),
+		E: eInt,
+	}
 
-func renderToken(w http.ResponseWriter, redirectURL, idToken, accessToken, refreshToken, claims string) {
-	renderTemplate(w, tokenTmpl, tokenTmplData{
-		IDToken:      idToken,
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		RedirectURL:  redirectURL,
-		Claims:       claims,
+	pubKeyBytes, err := x509.MarshalPKIXPublicKey(pubKey)
+	if err != nil {
+		return ""
+	}
+
+	pubKeyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: pubKeyBytes,
 	})
+
+	return string(pubKeyPEM)
+}
+
+func renderToken(w http.ResponseWriter, ctx context.Context, provider *oidc.Provider, redirectURL, idToken, accessToken, refreshToken, claims string) {
+	data := tokenTmplData{
+		IDToken:            idToken,
+		IDTokenJWTLink:     generateJWTIOLink(idToken, provider, ctx),
+		AccessToken:        accessToken,
+		AccessTokenJWTLink: generateJWTIOLink(accessToken, provider, ctx),
+		RefreshToken:       refreshToken,
+		RedirectURL:        redirectURL,
+		Claims:             claims,
+		PublicKeyPEM:       getPublicKeyPEM(provider),
+	}
+	renderTemplate(w, tokenTmpl, data)
 }
 
 func renderTemplate(w http.ResponseWriter, tmpl *template.Template, data interface{}) {
@@ -371,13 +182,9 @@ func renderTemplate(w http.ResponseWriter, tmpl *template.Template, data interfa
 
 	switch err := err.(type) {
 	case *template.Error:
-		// An ExecError guarantees that Execute has not written to the underlying reader.
 		log.Printf("Error rendering template %s: %s", tmpl.Name(), err)
-
-		// TODO(ericchiang): replace with better internal server error.
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	default:
-		// An error with the underlying write, such as the connection being
-		// dropped. Ignore for now.
+		// An error with the underlying write, such as the connection being dropped. Ignore for now.
 	}
 }

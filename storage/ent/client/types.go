@@ -139,10 +139,14 @@ func toStorageRefreshToken(r *db.RefreshToken) storage.RefreshToken {
 
 func toStoragePassword(p *db.Password) storage.Password {
 	return storage.Password{
-		Email:    p.Email,
-		Hash:     p.Hash,
-		Username: p.Username,
-		UserID:   p.UserID,
+		Email:             p.Email,
+		Hash:              p.Hash,
+		Username:          p.Username,
+		Name:              p.Name,
+		PreferredUsername: p.PreferredUsername,
+		EmailVerified:     p.EmailVerified,
+		UserID:            p.UserID,
+		Groups:            p.Groups,
 	}
 }
 

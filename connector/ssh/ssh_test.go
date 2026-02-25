@@ -82,7 +82,7 @@ func TestSSHConnector_LoginURL(t *testing.T) {
 	sshConn := conn.(*SSHConnector)
 
 	// LoginURL should return a URL with SSH auth parameters
-	loginURL, err := sshConn.LoginURL(connector.Scopes{}, "redirectURI", "state")
+	loginURL, _, err := sshConn.LoginURL(connector.Scopes{}, "redirectURI", "state")
 	require.NoError(t, err)
 	require.Contains(t, loginURL, "ssh_auth=true")
 	require.Contains(t, loginURL, "state=state")
@@ -98,7 +98,7 @@ func TestSSHConnector_HandleCallback(t *testing.T) {
 	// Create a minimal HTTP request to avoid nil pointer
 	req := httptest.NewRequest("GET", "/callback", nil)
 
-	identity, err := sshConn.HandleCallback(connector.Scopes{}, req)
+	identity, err := sshConn.HandleCallback(connector.Scopes{}, nil, req)
 	require.Error(t, err)
 	require.Equal(t, connector.Identity{}, identity)
 	require.Contains(t, err.Error(), "no SSH JWT or authorization code provided")
@@ -598,7 +598,7 @@ func TestSSHConnector_LoginURL_ChallengeResponse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			loginURL, err := sshConn.LoginURL(connector.Scopes{}, tt.callbackURL, tt.state)
+			loginURL, _, err := sshConn.LoginURL(connector.Scopes{}, tt.callbackURL, tt.state)
 
 			if tt.expectError {
 				require.Error(t, err, "Expected error for test case: "+tt.name)
@@ -759,7 +759,7 @@ func TestSSHConnector_HandleCallback_ChallengeResponse(t *testing.T) {
 			// For POST data, we need to set form values
 			req.Form = values
 
-			identity, err := sshConn.HandleCallback(connector.Scopes{}, req)
+			identity, err := sshConn.HandleCallback(connector.Scopes{}, nil, req)
 
 			if tt.expectError {
 				require.Error(t, err, "Expected error for test case: "+tt.name)
@@ -869,7 +869,7 @@ func TestUserEnumerationPrevention(t *testing.T) {
 			state := "test-state"
 
 			// Both valid and invalid users should get challenge URLs (no error)
-			challengeURL, err := sshConn.LoginURL(connector.Scopes{}, callbackURL, state)
+			challengeURL, _, err := sshConn.LoginURL(connector.Scopes{}, callbackURL, state)
 			require.NoError(t, err, "Both valid and invalid users should get challenge URLs")
 			require.Contains(t, challengeURL, "ssh_challenge=", "Challenge should be embedded in URL")
 
@@ -904,7 +904,7 @@ func TestUserEnumerationPrevention(t *testing.T) {
 		measureTime := func(username string) (duration time.Duration) {
 			start := time.Now()
 			callbackURL := fmt.Sprintf("https://dex.example.com/callback?ssh_challenge=true&username=%s", username)
-			_, err := sshConn.LoginURL(connector.Scopes{}, callbackURL, "test-state")
+			_, _, err := sshConn.LoginURL(connector.Scopes{}, callbackURL, "test-state")
 			require.NoError(t, err)
 			duration = time.Since(start)
 			return
@@ -977,7 +977,7 @@ func TestSSHConnector_ChallengeResponse_Integration(t *testing.T) {
 	callbackURL := "https://dex.example.com/callback?ssh_challenge=true&username=integrationuser"
 	state := "integration-test-state"
 
-	loginURL, err := sshConn.LoginURL(connector.Scopes{Groups: true}, callbackURL, state)
+	loginURL, _, err := sshConn.LoginURL(connector.Scopes{Groups: true}, callbackURL, state)
 	require.NoError(t, err, "LoginURL should succeed")
 	require.Contains(t, loginURL, "ssh_challenge=", "Login URL should contain challenge")
 
@@ -1011,7 +1011,7 @@ func TestSSHConnector_ChallengeResponse_Integration(t *testing.T) {
 	values.Set("state", stateWithChallenge)
 	req.Form = values
 
-	identity, err := sshConn.HandleCallback(connector.Scopes{Groups: true}, req)
+	identity, err := sshConn.HandleCallback(connector.Scopes{Groups: true}, nil, req)
 	require.NoError(t, err, "HandleCallback should succeed")
 
 	// Step 5: Verify identity

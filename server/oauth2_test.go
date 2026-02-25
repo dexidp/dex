@@ -12,6 +12,7 @@ import (
 	"github.com/go-jose/go-jose/v4"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
 )
@@ -593,7 +594,7 @@ func TestValidRedirectURI(t *testing.T) {
 	}
 }
 
-func TestStorageKeySet(t *testing.T) {
+func TestSignerKeySet(t *testing.T) {
 	logger := newLogger(t)
 	s := memory.New(logger)
 	if err := s.UpdateKeys(t.Context(), func(keys storage.Keys) (storage.Keys, error) {
@@ -668,11 +669,126 @@ func TestStorageKeySet(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			keySet := &storageKeySet{s}
+			// Create a mock signer for testing
+			sig, err := signer.NewMockSigner(testKey)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			keySet := &signerKeySet{
+				signer: sig,
+			}
 
 			_, err = keySet.VerifySignature(t.Context(), jwt)
 			if (err != nil && !tc.wantErr) || (err == nil && tc.wantErr) {
 				t.Fatalf("wantErr = %v, but got err = %v", tc.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestRedirectedAuthErrHandler(t *testing.T) {
+	tests := []struct {
+		name        string
+		redirectURI string
+		state       string
+		errType     string
+		description string
+		wantStatus  int
+		wantErr     bool
+	}{
+		{
+			name:        "valid redirect uri with error parameters",
+			redirectURI: "https://example.com/callback",
+			state:       "state123",
+			errType:     errInvalidRequest,
+			description: "Invalid request parameter",
+			wantStatus:  http.StatusSeeOther,
+			wantErr:     false,
+		},
+		{
+			name:        "valid redirect uri with query params",
+			redirectURI: "https://example.com/callback?existing=param&another=value",
+			state:       "state456",
+			errType:     errAccessDenied,
+			description: "User denied access",
+			wantStatus:  http.StatusSeeOther,
+			wantErr:     false,
+		},
+		{
+			name:        "valid redirect uri without description",
+			redirectURI: "https://example.com/callback",
+			state:       "state789",
+			errType:     errServerError,
+			description: "",
+			wantStatus:  http.StatusSeeOther,
+			wantErr:     false,
+		},
+		{
+			name:        "invalid redirect uri",
+			redirectURI: "not a valid url ://",
+			state:       "state",
+			errType:     errInvalidRequest,
+			description: "Test error",
+			wantStatus:  http.StatusBadRequest,
+			wantErr:     true,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			err := &redirectedAuthErr{
+				State:       tc.state,
+				RedirectURI: tc.redirectURI,
+				Type:        tc.errType,
+				Description: tc.description,
+			}
+
+			handler := err.Handler()
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest("GET", "/", nil)
+
+			handler.ServeHTTP(w, r)
+
+			if w.Code != tc.wantStatus {
+				t.Errorf("expected status %d, got %d", tc.wantStatus, w.Code)
+			}
+
+			if tc.wantStatus == http.StatusSeeOther {
+				// Verify the redirect location is a valid URL
+				location := w.Header().Get("Location")
+				if location == "" {
+					t.Fatalf("expected Location header, got empty string")
+				}
+
+				// Parse the redirect URL to verify it's valid
+				redirectURL, parseErr := url.Parse(location)
+				if parseErr != nil {
+					t.Fatalf("invalid redirect URL: %v", parseErr)
+				}
+
+				// Verify error parameters are present in the query string
+				query := redirectURL.Query()
+				if query.Get("state") != tc.state {
+					t.Errorf("expected state %q, got %q", tc.state, query.Get("state"))
+				}
+				if query.Get("error") != tc.errType {
+					t.Errorf("expected error type %q, got %q", tc.errType, query.Get("error"))
+				}
+				if tc.description != "" && query.Get("error_description") != tc.description {
+					t.Errorf("expected error_description %q, got %q", tc.description, query.Get("error_description"))
+				}
+
+				// Verify that existing query parameters are preserved
+				if tc.name == "valid redirect uri with query params" {
+					if query.Get("existing") != "param" {
+						t.Errorf("expected existing parameter 'param', got %q", query.Get("existing"))
+					}
+					if query.Get("another") != "value" {
+						t.Errorf("expected another parameter 'value', got %q", query.Get("another"))
+					}
+				}
 			}
 		})
 	}

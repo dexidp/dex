@@ -10,12 +10,14 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/groups"
+	"github.com/dexidp/dex/pkg/httpclient"
 )
 
 const (
@@ -35,6 +37,7 @@ type Config struct {
 	Groups              []string `json:"groups"`
 	UseLoginAsID        bool     `json:"useLoginAsID"`
 	GetGroupsPermission bool     `json:"getGroupsPermission"`
+	RootCAData          []byte   `json:"rootCAData,omitempty"`
 }
 
 type gitlabUser struct {
@@ -51,6 +54,19 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 	if c.BaseURL == "" {
 		c.BaseURL = "https://gitlab.com"
 	}
+	var httpClient *http.Client
+	if len(c.RootCAData) > 0 {
+		var err error
+		httpClient, err = httpclient.NewHTTPClient([]string{string(c.RootCAData)}, false)
+		if err != nil {
+			// Keep backward-compatible error semantics for invalid PEM input.
+			if strings.Contains(err.Error(), "not in PEM format") {
+				return nil, fmt.Errorf("gitlab: invalid rootCAData")
+			}
+			return nil, fmt.Errorf("gitlab: failed to create HTTP client: %v", err)
+		}
+		httpClient.Timeout = 30 * time.Second
+	}
 	return &gitlabConnector{
 		baseURL:             c.BaseURL,
 		redirectURI:         c.RedirectURI,
@@ -60,6 +76,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 		groups:              c.Groups,
 		useLoginAsID:        c.UseLoginAsID,
 		getGroupsPermission: c.GetGroupsPermission,
+		httpClient:          httpClient,
 	}, nil
 }
 
@@ -105,11 +122,11 @@ func (c *gitlabConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
 	}
 }
 
-func (c *gitlabConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (string, error) {
+func (c *gitlabConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (string, []byte, error) {
 	if c.redirectURI != callbackURL {
-		return "", fmt.Errorf("expected callback URL %q did not match the URL in the config %q", c.redirectURI, callbackURL)
+		return "", nil, fmt.Errorf("expected callback URL %q did not match the URL in the config %q", c.redirectURI, callbackURL)
 	}
-	return c.oauth2Config(scopes).AuthCodeURL(state), nil
+	return c.oauth2Config(scopes).AuthCodeURL(state), nil, nil
 }
 
 type oauth2Error struct {
@@ -124,7 +141,7 @@ func (e *oauth2Error) Error() string {
 	return e.error + ": " + e.errorDescription
 }
 
-func (c *gitlabConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
+func (c *gitlabConnector) HandleCallback(s connector.Scopes, connData []byte, r *http.Request) (identity connector.Identity, err error) {
 	q := r.URL.Query()
 	if errType := q.Get("error"); errType != "" {
 		return identity, &oauth2Error{errType, q.Get("error_description")}

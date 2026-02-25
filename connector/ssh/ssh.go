@@ -258,14 +258,14 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 // The URL format follows standard OAuth2 authorization code flow patterns.
 // Clients determine the authentication mode via query parameters.
 
-func (c *SSHConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (loginURL string, err error) {
+func (c *SSHConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (loginURL string, connData []byte, err error) {
 	// This method exists for interface compatibility but lacks request context
 	// Rate limiting is not possible without HTTP request - log this limitation
 	var parsedCallback *url.URL
 	parsedCallback, err = url.Parse(callbackURL)
 	if err != nil {
 		err = fmt.Errorf("invalid callback URL: %w", err)
-		return loginURL, err
+		return loginURL, connData, err
 	}
 
 	// If this is a challenge request without request context, we can't rate limit
@@ -274,13 +274,13 @@ func (c *SSHConnector) LoginURL(scopes connector.Scopes, callbackURL, state stri
 		c.logAuditEvent("auth_attempt", username, "unknown", "challenge", "warning", "challenge request without rate limiting context")
 		// Proceed without rate limiting (not ideal but maintains compatibility)
 		loginURL, err = c.generateChallengeURL(callbackURL, state, username, "unknown")
-		return loginURL, err
+		return loginURL, connData, err
 	}
 
 	// Default: JWT-based authentication (backward compatibility)
 	// For JWT clients, return callback URL with SSH auth flag
 	loginURL = fmt.Sprintf("%s?state=%s&ssh_auth=true", callbackURL, state)
-	return loginURL, err
+	return loginURL, connData, err
 }
 
 // generateChallengeURL creates a callback URL with an embedded SSH challenge.
@@ -382,7 +382,7 @@ func (c *SSHConnector) generateChallengeURL(callbackURL, state, username, client
 //
 // Both flows result in connector.Identity objects containing user attributes
 // configured administratively, preventing client-controlled privilege escalation.
-func (c *SSHConnector) HandleCallback(scopes connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
+func (c *SSHConnector) HandleCallback(scopes connector.Scopes, connData []byte, r *http.Request) (identity connector.Identity, err error) {
 	// Check if this is a challenge/response flow
 	if challengeB64 := r.FormValue("ssh_challenge"); challengeB64 != "" {
 		identity, err = c.handleChallengeResponse(r)

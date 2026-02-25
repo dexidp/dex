@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"log/slog"
 	"os"
 	"testing"
@@ -11,11 +12,16 @@ import (
 	"github.com/dexidp/dex/connector/mock"
 	"github.com/dexidp/dex/connector/oidc"
 	"github.com/dexidp/dex/server"
+	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/sql"
 )
 
 var _ = yaml.YAMLToJSON
+
+func boolPtr(v bool) *bool {
+	return &v
+}
 
 func TestValidConfiguration(t *testing.T) {
 	configuration := Config{
@@ -116,6 +122,12 @@ staticPasswords:
   # bcrypt hash of the string "password"
   hash: "$2a$10$33EMT0cVYVlPy6WAMCLsceLYjWhuHpbz5yuZxu/GAFj03J9Lytjuy"
   username: "admin"
+  name: "Admin User"
+  emailVerified: false
+  preferredUsername: "admin-public"
+  groups:
+  - "team-a"
+  - "team-a/admins"
   userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
 - email: "foo@example.com"
   # base64'd value of the same bcrypt hash above. We want to be able to parse both of these
@@ -206,10 +218,17 @@ additionalFeatures: [
 		EnablePasswordDB: true,
 		StaticPasswords: []password{
 			{
-				Email:    "admin@example.com",
-				Hash:     []byte("$2a$10$33EMT0cVYVlPy6WAMCLsceLYjWhuHpbz5yuZxu/GAFj03J9Lytjuy"),
-				Username: "admin",
-				UserID:   "08a8684b-db88-4b73-90a9-3cd1661f5466",
+				Email:             "admin@example.com",
+				Hash:              []byte("$2a$10$33EMT0cVYVlPy6WAMCLsceLYjWhuHpbz5yuZxu/GAFj03J9Lytjuy"),
+				Username:          "admin",
+				Name:              "Admin User",
+				EmailVerified:     boolPtr(false),
+				PreferredUsername: "admin-public",
+				UserID:            "08a8684b-db88-4b73-90a9-3cd1661f5466",
+				Groups: []string{
+					"team-a",
+					"team-a/admins",
+				},
 			},
 			{
 				Email:    "foo@example.com",
@@ -450,5 +469,119 @@ logger:
 
 	if diff := pretty.Compare(c, want); diff != "" {
 		t.Errorf("got!=want: %s", diff)
+	}
+}
+
+func TestSignerConfigUnmarshal(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  string
+		wantErr bool
+		check   func(*Config) error
+	}{
+		{
+			name: "local signer with rotation period",
+			config: `
+issuer: http://127.0.0.1:5556/dex
+storage:
+  type: memory
+web:
+  http: 0.0.0.0:5556
+signer:
+  type: local
+  config:
+    keysRotationPeriod: 6h
+enablePasswordDB: true
+`,
+			wantErr: false,
+			check: func(c *Config) error {
+				if c.Signer.Type != "local" {
+					t.Errorf("expected signer type 'local', got %q", c.Signer.Type)
+				}
+				if localConfig, ok := c.Signer.Config.(*signer.LocalConfig); !ok {
+					t.Error("expected LocalConfig")
+				} else if localConfig.KeysRotationPeriod != "6h" {
+					t.Errorf("expected keys rotation period '6h', got %q", localConfig.KeysRotationPeriod)
+				}
+				return nil
+			},
+		},
+		{
+			name: "vault signer",
+			config: `
+issuer: http://127.0.0.1:5556/dex
+storage:
+  type: memory
+web:
+  http: 0.0.0.0:5556
+signer:
+  type: vault
+  config:
+    addr: http://localhost:8200
+    token: test-token
+    keyName: test-key
+enablePasswordDB: true
+`,
+			wantErr: false,
+			check: func(c *Config) error {
+				if c.Signer.Type != "vault" {
+					t.Errorf("expected signer type 'vault', got %q", c.Signer.Type)
+				}
+				if vaultConfig, ok := c.Signer.Config.(*signer.VaultConfig); !ok {
+					t.Error("expected VaultConfig")
+				} else {
+					if vaultConfig.Addr != "http://localhost:8200" {
+						t.Errorf("expected addr 'http://localhost:8200', got %q", vaultConfig.Addr)
+					}
+					if vaultConfig.Token != "test-token" {
+						t.Errorf("expected token 'test-token', got %q", vaultConfig.Token)
+					}
+					if vaultConfig.KeyName != "test-key" {
+						t.Errorf("expected keyName 'test-key', got %q", vaultConfig.KeyName)
+					}
+				}
+				return nil
+			},
+		},
+		{
+			name: "default to local when no signer specified",
+			config: `
+issuer: http://127.0.0.1:5556/dex
+storage:
+  type: memory
+web:
+  http: 0.0.0.0:5556
+enablePasswordDB: true
+`,
+			wantErr: false,
+			check: func(c *Config) error {
+				if c.Signer.Type != "" {
+					t.Errorf("expected signer type '', got %q", c.Signer.Type)
+				}
+				return nil
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var c Config
+			data, err := yaml.YAMLToJSON([]byte(tt.config))
+			if err != nil {
+				t.Fatalf("failed to convert yaml to json: %v", err)
+			}
+
+			err = json.Unmarshal(data, &c)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Unmarshal() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if err == nil && tt.check != nil {
+				if err := tt.check(&c); err != nil {
+					t.Errorf("check failed: %v", err)
+				}
+			}
+		})
 	}
 }

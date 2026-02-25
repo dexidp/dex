@@ -4,14 +4,177 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/dexidp/dex/connector"
 )
+
+func readValidRootCAData(t *testing.T) []byte {
+	t.Helper()
+	b, err := os.ReadFile("testdata/rootCA.pem")
+	if err != nil {
+		t.Fatalf("failed to read rootCA.pem testdata: %v", err)
+	}
+	return b
+}
+
+func newLocalHTTPSTestServer(t *testing.T, handler http.Handler) *httptest.Server {
+	t.Helper()
+
+	ts := httptest.NewUnstartedServer(handler)
+	cert, err := tls.LoadX509KeyPair("testdata/server.crt", "testdata/server.key")
+	if err != nil {
+		t.Fatalf("failed to load TLS test cert/key: %v", err)
+	}
+	ts.TLS = &tls.Config{Certificates: []tls.Certificate{cert}}
+	ts.StartTLS()
+	return ts
+}
+
+func TestOpenWithRootCADataCreatesHTTPClient(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	cfg := &Config{
+		RootCAData: readValidRootCAData(t),
+	}
+
+	conn, err := cfg.Open("test", logger)
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+
+	gc, ok := conn.(*gitlabConnector)
+	if !ok {
+		t.Fatalf("expected *gitlabConnector, got %T", conn)
+	}
+	if gc.httpClient == nil {
+		t.Fatalf("expected httpClient to be non-nil")
+	}
+	if gc.httpClient.Timeout != 30*time.Second {
+		t.Fatalf("expected httpClient timeout %v, got %v", 30*time.Second, gc.httpClient.Timeout)
+	}
+	tr, ok := gc.httpClient.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("expected transport to be *http.Transport, got %T", gc.httpClient.Transport)
+	}
+	// ProxyFromEnvironment is expected to be enabled (non-nil proxy func).
+	if tr.Proxy == nil {
+		t.Fatalf("expected transport.Proxy to be set (ProxyFromEnvironment)")
+	}
+	if tr.TLSClientConfig == nil || tr.TLSClientConfig.RootCAs == nil {
+		t.Fatalf("expected transport TLS root CAs to be configured")
+	}
+}
+
+func TestOpenWithInvalidRootCADataReturnsError(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	cfg := &Config{
+		RootCAData: []byte("not a pem"),
+	}
+
+	_, err := cfg.Open("test", logger)
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid rootCAData") {
+		t.Fatalf("expected error to contain %q, got %q", "invalid rootCAData", err.Error())
+	}
+}
+
+func TestHandleCallbackCustomRootCADataEnablesTLSRequests(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	ts := newLocalHTTPSTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/oauth/token":
+			// oauth2.Exchange expects an access token in response.
+			fmt.Fprint(w, `{"access_token":"abc","token_type":"bearer","expires_in":30}`)
+		case "/api/v4/user":
+			json.NewEncoder(w).Encode(gitlabUser{Email: "some@email.com", ID: 12345678})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer ts.Close()
+
+	cfg := &Config{
+		BaseURL:      ts.URL,
+		ClientID:     "client-id",
+		ClientSecret: "client-secret",
+		RedirectURI:  "https://example.invalid/callback",
+		RootCAData:   readValidRootCAData(t),
+	}
+
+	conn, err := cfg.Open("test", logger)
+	if err != nil {
+		t.Fatalf("Open() error: %v", err)
+	}
+
+	hostURL, err := url.Parse(ts.URL)
+	expectNil(t, err)
+	req, err := http.NewRequest("GET", hostURL.String()+"?code=testcode", nil)
+	expectNil(t, err)
+
+	identity, err := conn.(connector.CallbackConnector).HandleCallback(connector.Scopes{Groups: false}, nil, req)
+	if err != nil {
+		t.Fatalf("HandleCallback() error: %v", err)
+	}
+	if identity.Email != "some@email.com" || identity.UserID != "12345678" {
+		t.Fatalf("unexpected identity: %#v", identity)
+	}
+}
+
+func TestHandleCallbackWithoutRootCADataFailsTLS(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	ts := newLocalHTTPSTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/oauth/token":
+			fmt.Fprint(w, `{"access_token":"abc","token_type":"bearer","expires_in":30}`)
+		case "/api/v4/user":
+			json.NewEncoder(w).Encode(gitlabUser{Email: "some@email.com", ID: 12345678})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer ts.Close()
+
+	cfg := &Config{
+		BaseURL:      ts.URL,
+		ClientID:     "client-id",
+		ClientSecret: "client-secret",
+		RedirectURI:  "https://example.invalid/callback",
+		// RootCAData intentionally omitted: should fail TLS verification against our custom server cert.
+	}
+
+	conn, err := cfg.Open("test", logger)
+	if err != nil {
+		t.Fatalf("Open() error: %v", err)
+	}
+
+	hostURL, err := url.Parse(ts.URL)
+	expectNil(t, err)
+	req, err := http.NewRequest("GET", hostURL.String()+"?code=testcode", nil)
+	expectNil(t, err)
+
+	_, err = conn.(connector.CallbackConnector).HandleCallback(connector.Scopes{Groups: false}, nil, req)
+	if err == nil {
+		t.Fatalf("expected TLS error, got nil")
+	}
+}
 
 func TestUserGroups(t *testing.T) {
 	s := newTestServer(map[string]interface{}{
@@ -84,7 +247,7 @@ func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
 	expectNil(t, err)
 
 	c := gitlabConnector{baseURL: s.URL, httpClient: newClient()}
-	identity, err := c.HandleCallback(connector.Scopes{Groups: false}, req)
+	identity, err := c.HandleCallback(connector.Scopes{Groups: false}, nil, req)
 
 	expectNil(t, err)
 	expectEquals(t, identity.Username, "some@email.com")
@@ -92,7 +255,7 @@ func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
 	expectEquals(t, 0, len(identity.Groups))
 
 	c = gitlabConnector{baseURL: s.URL, httpClient: newClient()}
-	identity, err = c.HandleCallback(connector.Scopes{Groups: true}, req)
+	identity, err = c.HandleCallback(connector.Scopes{Groups: true}, nil, req)
 
 	expectNil(t, err)
 	expectEquals(t, identity.Username, "some@email.com")
@@ -120,7 +283,7 @@ func TestLoginUsedAsIDWhenConfigured(t *testing.T) {
 	expectNil(t, err)
 
 	c := gitlabConnector{baseURL: s.URL, httpClient: newClient(), useLoginAsID: true}
-	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, req)
+	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, nil, req)
 
 	expectNil(t, err)
 	expectEquals(t, identity.UserID, "joebloggs")
@@ -147,7 +310,7 @@ func TestLoginWithTeamWhitelisted(t *testing.T) {
 	expectNil(t, err)
 
 	c := gitlabConnector{baseURL: s.URL, httpClient: newClient(), groups: []string{"team-1"}}
-	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, req)
+	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, nil, req)
 
 	expectNil(t, err)
 	expectEquals(t, identity.UserID, "12345678")
@@ -174,7 +337,7 @@ func TestLoginWithTeamNonWhitelisted(t *testing.T) {
 	expectNil(t, err)
 
 	c := gitlabConnector{baseURL: s.URL, httpClient: newClient(), groups: []string{"team-2"}}
-	_, err = c.HandleCallback(connector.Scopes{Groups: true}, req)
+	_, err = c.HandleCallback(connector.Scopes{Groups: true}, nil, req)
 
 	expectNotNil(t, err, "HandleCallback error")
 	expectEquals(t, err.Error(), "gitlab: get groups: gitlab: user \"joebloggs\" is not in any of the required groups")
@@ -208,7 +371,7 @@ func TestRefresh(t *testing.T) {
 	})
 	expectNil(t, err)
 
-	identity, err := c.HandleCallback(connector.Scopes{OfflineAccess: true}, req)
+	identity, err := c.HandleCallback(connector.Scopes{OfflineAccess: true}, nil, req)
 	expectNil(t, err)
 	expectEquals(t, identity.Username, "some@email.com")
 	expectEquals(t, identity.UserID, "12345678")
@@ -272,7 +435,7 @@ func TestGroupsWithPermission(t *testing.T) {
 	expectNil(t, err)
 
 	c := gitlabConnector{baseURL: s.URL, httpClient: newClient(), getGroupsPermission: true}
-	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, req)
+	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, nil, req)
 	expectNil(t, err)
 
 	expectEquals(t, identity.Groups, []string{

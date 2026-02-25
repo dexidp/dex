@@ -447,6 +447,10 @@ func (n byEmail) Len() int           { return len(n) }
 func (n byEmail) Less(i, j int) bool { return n[i].Email < n[j].Email }
 func (n byEmail) Swap(i, j int)      { n[i], n[j] = n[j], n[i] }
 
+func boolPtr(v bool) *bool {
+	return &v
+}
+
 func testPasswordCRUD(t *testing.T, s storage.Storage) {
 	ctx := t.Context()
 	// Use bcrypt.MinCost to keep the tests short.
@@ -456,10 +460,14 @@ func testPasswordCRUD(t *testing.T, s storage.Storage) {
 	}
 
 	password1 := storage.Password{
-		Email:    "jane@example.com",
-		Hash:     passwordHash1,
-		Username: "jane",
-		UserID:   "foobar",
+		Email:             "jane@example.com",
+		Hash:              passwordHash1,
+		Username:          "jane",
+		Name:              "Jane Doe",
+		PreferredUsername: "jane-public",
+		EmailVerified:     boolPtr(true),
+		UserID:            "foobar",
+		Groups:            []string{"team-a", "team-a/admins"},
 	}
 	if err := s.CreatePassword(ctx, password1); err != nil {
 		t.Fatalf("create password token: %v", err)
@@ -475,10 +483,14 @@ func testPasswordCRUD(t *testing.T, s storage.Storage) {
 	}
 
 	password2 := storage.Password{
-		Email:    "john@example.com",
-		Hash:     passwordHash2,
-		Username: "john",
-		UserID:   "barfoo",
+		Email:             "john@example.com",
+		Hash:              passwordHash2,
+		Username:          "john",
+		Name:              "John Smith",
+		PreferredUsername: "john-public",
+		EmailVerified:     boolPtr(false),
+		UserID:            "barfoo",
+		Groups:            []string{"team-b"},
 	}
 	if err := s.CreatePassword(ctx, password2); err != nil {
 		t.Fatalf("create password token: %v", err)

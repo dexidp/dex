@@ -14,6 +14,7 @@ import (
 
 	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server"
+	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent"
 	"github.com/dexidp/dex/storage/etcd"
@@ -34,6 +35,9 @@ type Config struct {
 	Logger    Logger    `json:"logger"`
 
 	Frontend server.WebConfig `json:"frontend"`
+
+	// Signer configuration controls signing of JWT tokens issued by Dex.
+	Signer Signer `json:"signer"`
 
 	// StaticConnectors are user defined connectors specified in the ConfigMap
 	// Write operations, like updating a connector, will fail.
@@ -95,19 +99,27 @@ type password storage.Password
 
 func (p *password) UnmarshalJSON(b []byte) error {
 	var data struct {
-		Email       string `json:"email"`
-		Username    string `json:"username"`
-		UserID      string `json:"userID"`
-		Hash        string `json:"hash"`
-		HashFromEnv string `json:"hashFromEnv"`
+		Email             string   `json:"email"`
+		Username          string   `json:"username"`
+		Name              string   `json:"name"`
+		PreferredUsername string   `json:"preferredUsername"`
+		EmailVerified     *bool    `json:"emailVerified"`
+		UserID            string   `json:"userID"`
+		Hash              string   `json:"hash"`
+		HashFromEnv       string   `json:"hashFromEnv"`
+		Groups            []string `json:"groups"`
 	}
 	if err := json.Unmarshal(b, &data); err != nil {
 		return err
 	}
 	*p = password(storage.Password{
-		Email:    data.Email,
-		Username: data.Username,
-		UserID:   data.UserID,
+		Email:             data.Email,
+		Username:          data.Username,
+		Name:              data.Name,
+		PreferredUsername: data.PreferredUsername,
+		EmailVerified:     data.EmailVerified,
+		UserID:            data.UserID,
+		Groups:            data.Groups,
 	})
 	if len(data.Hash) == 0 && len(data.HashFromEnv) > 0 {
 		data.Hash = os.Getenv(data.HashFromEnv)
@@ -275,12 +287,12 @@ var (
 	_ StorageConfig = (*ent.MySQL)(nil)
 )
 
-func getORMBasedSQLStorage(normal, entBased StorageConfig) func() StorageConfig {
+func getORMBasedSQLStorage(normal, entBased func() StorageConfig) func() StorageConfig {
 	return func() StorageConfig {
 		if featureflags.EntEnabled.Enabled() {
-			return entBased
+			return entBased()
 		}
-		return normal
+		return normal()
 	}
 }
 
@@ -309,9 +321,9 @@ var storages = map[string]func() StorageConfig{
 	"etcd":       func() StorageConfig { return new(etcd.Etcd) },
 	"kubernetes": func() StorageConfig { return new(kubernetes.Config) },
 	"memory":     func() StorageConfig { return new(memory.Config) },
-	"sqlite3":    getORMBasedSQLStorage(&sql.SQLite3{}, &ent.SQLite3{}),
-	"postgres":   getORMBasedSQLStorage(&sql.Postgres{}, &ent.Postgres{}),
-	"mysql":      getORMBasedSQLStorage(&sql.MySQL{}, &ent.MySQL{}),
+	"sqlite3":    getORMBasedSQLStorage(func() StorageConfig { return new(sql.SQLite3) }, func() StorageConfig { return new(ent.SQLite3) }),
+	"postgres":   getORMBasedSQLStorage(func() StorageConfig { return new(sql.Postgres) }, func() StorageConfig { return new(ent.Postgres) }),
+	"mysql":      getORMBasedSQLStorage(func() StorageConfig { return new(sql.MySQL) }, func() StorageConfig { return new(ent.MySQL) }),
 }
 
 // UnmarshalJSON allows Storage to implement the unmarshaler interface to
@@ -358,6 +370,74 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 	*s = Storage{
 		Type:   store.Type,
 		Config: storageConfig,
+	}
+	return nil
+}
+
+// Signer holds app's signer configuration.
+type Signer struct {
+	Type   string       `json:"type"`
+	Config SignerConfig `json:"config"`
+}
+
+// SignerConfig is a configuration that can create a signer.
+type SignerConfig interface{}
+
+var (
+	_ SignerConfig = (*signer.LocalConfig)(nil)
+	_ SignerConfig = (*signer.VaultConfig)(nil)
+)
+
+var signerConfigs = map[string]func() SignerConfig{
+	"local": func() SignerConfig { return new(signer.LocalConfig) },
+	"vault": func() SignerConfig { return new(signer.VaultConfig) },
+}
+
+// UnmarshalJSON allows Signer to implement the unmarshaler interface to
+// dynamically determine the type of the signer config.
+func (s *Signer) UnmarshalJSON(b []byte) error {
+	var signerData struct {
+		Type   string          `json:"type"`
+		Config json.RawMessage `json:"config"`
+	}
+	if err := json.Unmarshal(b, &signerData); err != nil {
+		return fmt.Errorf("parse signer: %v", err)
+	}
+
+	f, ok := signerConfigs[signerData.Type]
+	if !ok {
+		return fmt.Errorf("unknown signer type %q", signerData.Type)
+	}
+
+	signerConfig := f()
+	if len(signerData.Config) != 0 {
+		data := []byte(signerData.Config)
+		if featureflags.ExpandEnv.Enabled() {
+			var rawMap map[string]interface{}
+			if err := json.Unmarshal(signerData.Config, &rawMap); err != nil {
+				return fmt.Errorf("unmarshal config for env expansion: %v", err)
+			}
+
+			// Recursively expand environment variables in the map
+			expandEnvInMap(rawMap)
+
+			// Marshal the expanded map back to JSON
+			expandedData, err := json.Marshal(rawMap)
+			if err != nil {
+				return fmt.Errorf("marshal expanded config: %v", err)
+			}
+
+			data = expandedData
+		}
+
+		if err := json.Unmarshal(data, signerConfig); err != nil {
+			return fmt.Errorf("parse signer config: %v", err)
+		}
+	}
+
+	*s = Signer{
+		Type:   signerData.Type,
+		Config: signerConfig,
 	}
 	return nil
 }

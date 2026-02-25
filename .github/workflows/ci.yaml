@@ -64,12 +64,30 @@ jobs:
           - 35357
         options: --health-cmd "curl --fail http://localhost:5000/v3" --health-interval 10s --health-timeout 5s --health-retries 5
 
+      vault:
+        image: hashicorp/vault:1.21
+        ports:
+          - 8200
+        env:
+          VAULT_DEV_ROOT_TOKEN_ID: root-token
+          VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+        options: --health-cmd "vault status -address=http://localhost:8200 || exit 1" --health-interval 10s --health-timeout 5s --health-retries 5
+
+      openbao:
+        image: quay.io/openbao/openbao:2.5
+        ports:
+          - 8210
+        env:
+          BAO_DEV_ROOT_TOKEN_ID: root-token
+          BAO_DEV_LISTEN_ADDRESS: "0.0.0.0:8210"
+        options: --health-cmd "bao status -address=http://localhost:8210 || exit 1" --health-interval 10s --health-timeout 5s --health-retries 5
+
     steps:
       - name: Checkout repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Go
-        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
           go-version: "1.25"
 
@@ -86,7 +104,7 @@ jobs:
         run: docker compose -f docker-compose.test.yaml up -d
 
       - name: Create kind cluster
-        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
           version: "v0.17.0"
           node_image: "kindest/node:v1.25.3@sha256:cd248d1438192f7814fbca8fede13cfe5b9918746dfa12583976158a834fd5c5"
@@ -129,6 +147,11 @@ jobs:
           DEX_KEYSTONE_ADMIN_USER: demo
           DEX_KEYSTONE_ADMIN_PASS: DEMO_PASS
 
+          DEX_VAULT_ADDR: http://localhost:${{ job.services.vault.ports[8200] }}
+          DEX_VAULT_TOKEN: root-token
+          DEX_OPENBAO_ADDR: http://localhost:${{ job.services.openbao.ports[8210] }}
+          DEX_OPENBAO_TOKEN: root-token
+
           DEX_KUBERNETES_CONFIG_PATH: ~/.kube/config
 
   lint:
@@ -137,10 +160,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Go
-        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
           go-version: "1.25"
 
@@ -172,7 +195,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Dependency Review
-        uses: actions/dependency-review-action@595b5aeba73380359d98a5e087f648dbb0edce1b # v4.7.3
+        uses: actions/dependency-review-action@05fe4576374b728f0c523d6a13d64c25081e0803 # v4.8.3

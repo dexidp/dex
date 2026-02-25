@@ -136,6 +136,7 @@ func getIntrospectionValue(issuerURL url.URL, issuedAt time.Time, expiry time.Ti
 
 func TestGetTokenFromRequestSuccess(t *testing.T) {
 	t0 := time.Now()
+	ctx := t.Context()
 
 	now := func() time.Time { return t0 }
 	// Setup a dex server.
@@ -145,6 +146,15 @@ func TestGetTokenFromRequestSuccess(t *testing.T) {
 	})
 	defer httpServer.Close()
 
+	mockTestStorage(t, s.storage)
+
+	// Generate a valid RS256-signed access token
+	accessToken, _, err := s.newIDToken(ctx, "test", storage.Claims{
+		UserID:   "1",
+		Username: "jane",
+	}, []string{"openid"}, "nonce", "", "", "test")
+	require.NoError(t, err)
+
 	tests := []struct {
 		testName          string
 		expectedToken     string
@@ -153,7 +163,7 @@ func TestGetTokenFromRequestSuccess(t *testing.T) {
 		// Access Token
 		{
 			testName:          "Access Token",
-			expectedToken:     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+			expectedToken:     accessToken,
 			expectedTokenType: AccessToken,
 		},
 		// Refresh Token
