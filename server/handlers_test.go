@@ -649,14 +649,14 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 
 func TestHandleClientCredentials(t *testing.T) {
 	tests := []struct {
-		name              string
-		clientID          string
-		clientSecret      string
-		scopes            string
-		wantCode          int
-		wantAccessTok     bool
-		wantIDToken       bool
-		wantUsername      string
+		name          string
+		clientID      string
+		clientSecret  string
+		scopes        string
+		wantCode      int
+		wantAccessTok bool
+		wantIDToken   bool
+		wantUsername  string
 	}{
 		{
 			name:          "Basic grant, no scopes",

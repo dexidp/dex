@@ -1481,7 +1481,7 @@ func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Req
 
 	// Validate scopes.
 	var (
-		unrecognized []string
+		unrecognized  []string
 		invalidScopes []string
 	)
 	hasOpenIDScope := false
