@@ -141,9 +141,9 @@ const (
 	grantTypeRefreshToken      = "refresh_token"
 	grantTypeImplicit          = "implicit"
 	grantTypePassword          = "password"
-	grantTypeDeviceCode          = "urn:ietf:params:oauth:grant-type:device_code"
-	grantTypeTokenExchange       = "urn:ietf:params:oauth:grant-type:token-exchange"
-	grantTypeClientCredentials   = "client_credentials"
+	grantTypeDeviceCode        = "urn:ietf:params:oauth:grant-type:device_code"
+	grantTypeTokenExchange     = "urn:ietf:params:oauth:grant-type:token-exchange"
+	grantTypeClientCredentials = "client_credentials"
 )
 
 const (

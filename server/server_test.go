@@ -99,7 +99,7 @@ func newTestServer(t *testing.T, updateConfig func(c *Config)) (*httptest.Server
 		Logger:             logger,
 		PrometheusRegistry: prometheus.NewRegistry(),
 		HealthChecker:      gosundheit.New(),
-		SkipApprovalScreen:       true, // Don't prompt for approval, just immediately redirect with code.
+		SkipApprovalScreen: true, // Don't prompt for approval, just immediately redirect with code.
 		ClientCredentialsEnabled: true,
 		AllowedGrantTypes: []string{ // all implemented types
 			grantTypeDeviceCode,
