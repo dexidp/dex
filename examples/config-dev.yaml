@@ -100,11 +100,11 @@ telemetry:
 #   format: "text" # can also be "json"
 
 # Default values shown below
-oauth2:
+#oauth2:
     # grantTypes determines the allowed set of authorization flows.
 #   grantTypes:
 #     - "authorization_code"
-     - "client_credentials"   # M2M auth, not included in defaults
+#     - "client_credentials"   # M2M auth, not included in defaults
 #     - "refresh_token"
 #     - "implicit"
 #     - "password"
