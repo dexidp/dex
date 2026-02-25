@@ -44,7 +44,6 @@ import (
 	"github.com/dexidp/dex/connector/oidc"
 	"github.com/dexidp/dex/connector/openshift"
 	"github.com/dexidp/dex/connector/saml"
-	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/web"
@@ -266,9 +265,6 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		}
 	} else {
 		for grant := range allSupportedGrants {
-			if grant == grantTypeClientCredentials && !featureflags.ClientCredentialGrantEnabledByDefault.Enabled() {
-				continue
-			}
 			supportedGrants = append(supportedGrants, grant)
 		}
 	}
