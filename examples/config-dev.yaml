@@ -121,6 +121,8 @@ telemetry:
 #   alwaysShowLoginScreen: false
     # Uncomment the passwordConnector to use a specific connector for password grants
 #   passwordConnector: local
+    # Uncomment to enable the client_credentials grant for machine-to-machine authentication
+#   clientCredentialsEnabled: true
 
 # Instead of reading from an external storage, use this list of clients.
 #
