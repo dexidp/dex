@@ -91,7 +91,7 @@ func TestConnectorCacheInvalidation(t *testing.T) {
 	}
 
 	pc2 := c2.Connector.(connector.PasswordConnector)
-	
+
 	// If the fix works, it should now use the second password.
 	_, valid2, err := pc2.Login(ctx, connector.Scopes{}, "user", "second-password")
 	if err != nil || !valid2 {
@@ -125,7 +125,7 @@ func TestConnectorCacheInvalidation(t *testing.T) {
 	}
 
 	pc3 := c3.Connector.(connector.PasswordConnector)
-	
+
 	_, valid3, err := pc3.Login(ctx, connector.Scopes{}, "user", "third-password")
 	if err != nil || !valid3 {
 		t.Errorf("failed to login with third password, UpdateConnector might be missing cache invalidation")
