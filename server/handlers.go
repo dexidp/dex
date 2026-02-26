@@ -1072,9 +1072,10 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 				return nil, err
 			}
 			offlineSessions := storage.OfflineSessions{
-				UserID:  refresh.Claims.UserID,
-				ConnID:  refresh.ConnectorID,
-				Refresh: make(map[string]*storage.RefreshTokenRef),
+				UserID:        refresh.Claims.UserID,
+				ConnID:        refresh.ConnectorID,
+				Refresh:       make(map[string]*storage.RefreshTokenRef),
+				ConnectorData: refresh.ConnectorData,
 			}
 			offlineSessions.Refresh[tokenRef.ClientID] = &tokenRef
 
@@ -1100,6 +1101,9 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 			// Update existing OfflineSession obj with new RefreshTokenRef.
 			if err := s.storage.UpdateOfflineSessions(ctx, session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
 				old.Refresh[tokenRef.ClientID] = &tokenRef
+				if len(refresh.ConnectorData) > 0 {
+					old.ConnectorData = refresh.ConnectorData
+				}
 				return old, nil
 			}); err != nil {
 				s.logger.ErrorContext(ctx, "failed to update offline session", "err", err)

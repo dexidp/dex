@@ -21,6 +21,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
 
+	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -891,4 +892,119 @@ func setNonEmpty(vals url.Values, key, value string) {
 	if value != "" {
 		vals.Set(key, value)
 	}
+}
+
+// registerTestConnector creates a connector in storage and registers it in the server's connectors map.
+func registerTestConnector(t *testing.T, s *Server, connID string, c connector.Connector) {
+	t.Helper()
+	ctx := t.Context()
+
+	storageConn := storage.Connector{
+		ID:              connID,
+		Type:            "saml",
+		Name:            "Test SAML",
+		ResourceVersion: "1",
+	}
+	if err := s.storage.CreateConnector(ctx, storageConn); err != nil {
+		t.Fatalf("failed to create connector in storage: %v", err)
+	}
+
+	s.mu.Lock()
+	s.connectors[connID] = Connector{
+		ResourceVersion: "1",
+		Connector:       c,
+	}
+	s.mu.Unlock()
+}
+
+func TestConnectorDataPersistence(t *testing.T) {
+	// Test that ConnectorData is correctly stored in refresh token
+	// and can be used for subsequent refresh operations.
+	httpServer, server := newTestServer(t, func(c *Config) {
+		c.RefreshTokenPolicy = &RefreshTokenPolicy{rotateRefreshTokens: true}
+	})
+	defer httpServer.Close()
+
+	ctx := t.Context()
+	connID := "saml-conndata"
+
+	// Create a mock SAML connector that also implements RefreshConnector
+	mockConn := &mockSAMLRefreshConnector{
+		refreshIdentity: connector.Identity{
+			UserID:        "refreshed-user",
+			Username:      "refreshed-name",
+			Email:         "refreshed@example.com",
+			EmailVerified: true,
+			Groups:        []string{"refreshed-group"},
+		},
+	}
+	registerTestConnector(t, server, connID, mockConn)
+
+	// Create client
+	client := storage.Client{
+		ID:           "conndata-client",
+		Secret:       "conndata-secret",
+		RedirectURIs: []string{"https://example.com/callback"},
+		Name:         "ConnData Test Client",
+	}
+	require.NoError(t, server.storage.CreateClient(ctx, client))
+
+	// Create refresh token with ConnectorData (simulating what HandlePOST would store)
+	connectorData := []byte(`{"userID":"user-123","username":"testuser","email":"test@example.com","emailVerified":true,"groups":["admin","dev"]}`)
+	refreshToken := storage.RefreshToken{
+		ID:          "conndata-refresh",
+		Token:       "conndata-token",
+		CreatedAt:   time.Now(),
+		LastUsed:    time.Now(),
+		ClientID:    client.ID,
+		ConnectorID: connID,
+		Scopes:      []string{"openid", "email", "offline_access"},
+		Claims: storage.Claims{
+			UserID:        "user-123",
+			Username:      "testuser",
+			Email:         "test@example.com",
+			EmailVerified: true,
+			Groups:        []string{"admin", "dev"},
+		},
+		ConnectorData: connectorData,
+		Nonce:         "conndata-nonce",
+	}
+	require.NoError(t, server.storage.CreateRefresh(ctx, refreshToken))
+
+	offlineSession := storage.OfflineSessions{
+		UserID:        "user-123",
+		ConnID:        connID,
+		Refresh:       map[string]*storage.RefreshTokenRef{client.ID: {ID: refreshToken.ID, ClientID: client.ID}},
+		ConnectorData: connectorData,
+	}
+	require.NoError(t, server.storage.CreateOfflineSessions(ctx, offlineSession))
+
+	// Verify ConnectorData is stored correctly
+	storedToken, err := server.storage.GetRefresh(ctx, refreshToken.ID)
+	require.NoError(t, err)
+	require.Equal(t, connectorData, storedToken.ConnectorData,
+		"ConnectorData should be persisted in refresh token storage")
+
+	// Verify ConnectorData is stored in offline session
+	storedSession, err := server.storage.GetOfflineSessions(ctx, "user-123", connID)
+	require.NoError(t, err)
+	require.Equal(t, connectorData, storedSession.ConnectorData,
+		"ConnectorData should be persisted in offline session storage")
+}
+
+// mockSAMLRefreshConnector implements SAMLConnector + RefreshConnector for testing.
+type mockSAMLRefreshConnector struct {
+	refreshIdentity connector.Identity
+}
+
+func (m *mockSAMLRefreshConnector) POSTData(s connector.Scopes, requestID string) (ssoURL, samlRequest string, err error) {
+	return "", "", nil
+}
+
+func (m *mockSAMLRefreshConnector) HandlePOST(s connector.Scopes, samlResponse, inResponseTo string) (connector.Identity, error) {
+	return connector.Identity{}, nil
+}
+
+func (m *mockSAMLRefreshConnector) Refresh(ctx context.Context, s connector.Scopes, ident connector.Identity) (connector.Identity, error) {
+	return m.refreshIdentity, nil
 }
