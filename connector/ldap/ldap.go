@@ -301,6 +301,11 @@ func (c *Config) openConnector(logger *slog.Logger) (*ldapConnector, error) {
 	return &ldapConnector{*c, userSearchScope, groupSearchScope, tlsConfig, logger}, nil
 }
 
+var (
+	_ connector.PasswordConnector = (*ldapConnector)(nil)
+	_ connector.RefreshConnector  = (*ldapConnector)(nil)
+)
+
 type ldapConnector struct {
 	Config
 
@@ -311,11 +316,6 @@ type ldapConnector struct {
 
 	logger *slog.Logger
 }
-
-var (
-	_ connector.PasswordConnector = (*ldapConnector)(nil)
-	_ connector.RefreshConnector  = (*ldapConnector)(nil)
-)
 
 // do initializes a connection to the LDAP directory and passes it to the
 // provided function. It then performs appropriate teardown or reuse before

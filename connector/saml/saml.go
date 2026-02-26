@@ -232,6 +232,11 @@ func (c *Config) openConnector(logger *slog.Logger) (*provider, error) {
 	return p, nil
 }
 
+var (
+	_ connector.SAMLConnector    = (*provider)(nil)
+	_ connector.RefreshConnector = (*provider)(nil)
+)
+
 type provider struct {
 	entityIssuer string
 	ssoIssuer    string
@@ -256,9 +261,6 @@ type provider struct {
 
 	logger *slog.Logger
 }
-
-// Compile-time check that provider implements RefreshConnector
-var _ connector.RefreshConnector = (*provider)(nil)
 
 // cachedIdentity stores the identity from SAML assertion for refresh token support.
 // Since SAML has no native refresh mechanism, we cache the identity obtained during

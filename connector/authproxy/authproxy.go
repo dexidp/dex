@@ -68,6 +68,8 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 	}, nil
 }
 
+var _ connector.CallbackConnector = (*callback)(nil)
+
 // Callback is a connector which returns an identity with the HTTP header
 // X-Remote-User as verified email.
 type callback struct {
