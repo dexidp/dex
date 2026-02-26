@@ -36,7 +36,7 @@ func TestUser(t *testing.T) {
 		"X-Remote-User": {testUsername},
 	}
 
-	ident, err := callback.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, req)
+	ident, err := callback.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, nil, req)
 	expectNil(t, err)
 
 	// If not specified, the userID and email should fall back to the remote user
@@ -62,7 +62,7 @@ func TestExtraHeaders(t *testing.T) {
 		"X-Remote-User-Email": {testEmail},
 	}
 
-	ident, err := callback.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, req)
+	ident, err := callback.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, nil, req)
 	expectNil(t, err)
 
 	expectEquals(t, ident.UserID, testUserID)
@@ -85,7 +85,7 @@ func TestSingleGroup(t *testing.T) {
 		"X-Remote-Group": {testGroup1},
 	}
 
-	ident, err := callback.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, req)
+	ident, err := callback.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, nil, req)
 	expectNil(t, err)
 
 	expectEquals(t, ident.UserID, testEmail)
@@ -106,7 +106,7 @@ func TestMultipleGroup(t *testing.T) {
 		"X-Remote-Group": {testGroup1 + ", " + testGroup2 + ", " + testGroup3 + ", " + testGroup4},
 	}
 
-	ident, err := callback.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, req)
+	ident, err := callback.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, nil, req)
 	expectNil(t, err)
 
 	expectEquals(t, ident.UserID, testEmail)
@@ -132,7 +132,7 @@ func TestMultipleGroupWithCustomSeparator(t *testing.T) {
 		"X-Remote-Group": {testGroup1 + ";" + testGroup2 + ";" + testGroup3 + ";" + testGroup4},
 	}
 
-	ident, err := callback.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, req)
+	ident, err := callback.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, nil, req)
 	expectNil(t, err)
 
 	expectEquals(t, ident.UserID, testEmail)
@@ -158,7 +158,7 @@ func TestStaticGroup(t *testing.T) {
 		"X-Remote-Group": {testGroup1 + ", " + testGroup2 + ", " + testGroup3 + ", " + testGroup4},
 	}
 
-	ident, err := callback.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, req)
+	ident, err := callback.HandleCallback(connector.Scopes{OfflineAccess: true, Groups: true}, nil, req)
 	expectNil(t, err)
 
 	expectEquals(t, ident.UserID, testEmail)
