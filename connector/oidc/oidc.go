@@ -379,8 +379,9 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 }
 
 var (
-	_ connector.CallbackConnector = (*oidcConnector)(nil)
-	_ connector.RefreshConnector  = (*oidcConnector)(nil)
+	_ connector.CallbackConnector      = (*oidcConnector)(nil)
+	_ connector.RefreshConnector       = (*oidcConnector)(nil)
+	_ connector.TokenIdentityConnector = (*oidcConnector)(nil)
 )
 
 type oidcConnector struct {
