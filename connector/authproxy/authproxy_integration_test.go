@@ -35,7 +35,7 @@ func startTestBackend(t *testing.T, conn *callback) (cleanup func()) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		ident, err := conn.HandleCallback(connector.Scopes{Groups: true}, r)
+		ident, err := conn.HandleCallback(connector.Scopes{Groups: true}, nil, r)
 		result := identityResult{Identity: ident}
 		if err != nil {
 			result.Error = err.Error()
