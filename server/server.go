@@ -747,6 +747,13 @@ func (s *Server) OpenConnector(conn storage.Connector) (Connector, error) {
 	return connector, nil
 }
 
+// CloseConnector removes the connector from the server's in-memory map.
+func (s *Server) CloseConnector(id string) {
+	s.mu.Lock()
+	delete(s.connectors, id)
+	s.mu.Unlock()
+}
+
 // getConnector retrieves the connector object with the given id from the storage
 // and updates the connector list for server if necessary.
 func (s *Server) getConnector(ctx context.Context, id string) (Connector, error) {
