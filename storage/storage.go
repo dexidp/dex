@@ -171,6 +171,10 @@ type Client struct {
 	// Name and LogoURL used when displaying this client to the end user.
 	Name    string `json:"name"`
 	LogoURL string `json:"logoURL"`
+
+	// AllowedGroups restricts SSO to users that belong to at least one of these
+	// IdP groups. Empty means no restriction. Applied per client (one connector, many clients).
+	AllowedGroups []string `json:"allowedGroups,omitempty"`
 }
 
 // Claims represents the ID Token claims supported by the server.

@@ -374,4 +374,12 @@ var migrations = []migration{
 		},
 		flavor: &flavorMySQL,
 	},
+	// Migration for adding allowed_groups to client table (per-client group restriction).
+	{
+		stmts: []string{
+			`
+			alter table client
+				add column allowed_groups bytea;`,
+		},
+	},
 }
