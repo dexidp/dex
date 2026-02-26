@@ -3,8 +3,10 @@ package saml
 
 import (
 	"bytes"
+	"context"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"encoding/xml"
 	"fmt"
@@ -255,6 +257,39 @@ type provider struct {
 	logger *slog.Logger
 }
 
+// Compile-time check that provider implements RefreshConnector
+var _ connector.RefreshConnector = (*provider)(nil)
+
+// cachedIdentity stores the identity from SAML assertion for refresh token support.
+// Since SAML has no native refresh mechanism, we cache the identity obtained during
+// the initial authentication and return it on subsequent refresh requests.
+type cachedIdentity struct {
+	UserID            string   `json:"userId"`
+	Username          string   `json:"username"`
+	PreferredUsername string   `json:"preferredUsername"`
+	Email             string   `json:"email"`
+	EmailVerified     bool     `json:"emailVerified"`
+	Groups            []string `json:"groups,omitempty"`
+}
+
+// marshalCachedIdentity serializes the identity into ConnectorData for refresh token support.
+func marshalCachedIdentity(ident connector.Identity) (connector.Identity, error) {
+	ci := cachedIdentity{
+		UserID:            ident.UserID,
+		Username:          ident.Username,
+		PreferredUsername: ident.PreferredUsername,
+		Email:             ident.Email,
+		EmailVerified:     ident.EmailVerified,
+		Groups:            ident.Groups,
+	}
+	connectorData, err := json.Marshal(ci)
+	if err != nil {
+		return ident, fmt.Errorf("saml: failed to marshal cached identity: %v", err)
+	}
+	ident.ConnectorData = connectorData
+	return ident, nil
+}
+
 func (p *provider) POSTData(s connector.Scopes, id string) (action, value string, err error) {
 	r := &authnRequest{
 		ProtocolBinding: bindingPOST,
@@ -405,7 +440,7 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 
 	if len(p.allowedGroups) == 0 && (!s.Groups || p.groupsAttr == "") {
 		// Groups not requested or not configured. We're done.
-		return ident, nil
+		return marshalCachedIdentity(ident)
 	}
 
 	if len(p.allowedGroups) > 0 && (!s.Groups || p.groupsAttr == "") {
@@ -431,7 +466,7 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 
 	if len(p.allowedGroups) == 0 {
 		// No allowed groups set, just return the ident
-		return ident, nil
+		return marshalCachedIdentity(ident)
 	}
 
 	// Look for membership in one of the allowed groups
@@ -447,6 +482,35 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 	}
 
 	// Otherwise, we're good
+	return marshalCachedIdentity(ident)
+}
+
+// Refresh implements connector.RefreshConnector.
+// Since SAML has no native refresh mechanism, this method returns the cached
+// identity from the initial SAML assertion stored in ConnectorData.
+func (p *provider) Refresh(ctx context.Context, s connector.Scopes, ident connector.Identity) (connector.Identity, error) {
+	if len(ident.ConnectorData) == 0 {
+		return ident, fmt.Errorf("saml: no connector data available for refresh")
+	}
+
+	var ci cachedIdentity
+	if err := json.Unmarshal(ident.ConnectorData, &ci); err != nil {
+		return ident, fmt.Errorf("saml: failed to unmarshal cached identity: %v", err)
+	}
+
+	ident.UserID = ci.UserID
+	ident.Username = ci.Username
+	ident.PreferredUsername = ci.PreferredUsername
+	ident.Email = ci.Email
+	ident.EmailVerified = ci.EmailVerified
+
+	// Only populate groups if the client requested the groups scope.
+	if s.Groups {
+		ident.Groups = ci.Groups
+	} else {
+		ident.Groups = nil
+	}
+
 	return ident, nil
 }
 
