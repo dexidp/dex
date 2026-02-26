@@ -1540,6 +1540,8 @@ func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Req
 
 	nonce := r.Form.Get("nonce")
 
+	// Empty connector ID is unique for cluster credentials grant
+	// Creating connectors with an empty ID with the config and API is prohibited
 	connID := ""
 
 	accessToken, expiry, err := s.newAccessToken(ctx, client.ID, claims, scopes, nonce, connID)
