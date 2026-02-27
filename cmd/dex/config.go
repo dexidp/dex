@@ -25,7 +25,7 @@ import (
 )
 
 func configUnmarshaller(b []byte, v interface{}) error {
-	if featureflags.ConfigDisallowUnknownFields.Enabled() {
+	if !featureflags.ConfigDisallowUnknownFields.Enabled() {
 		return json.Unmarshal(b, v)
 	}
 	dec := json.NewDecoder(bytes.NewReader(b))
