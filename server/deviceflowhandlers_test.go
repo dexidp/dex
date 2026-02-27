@@ -364,7 +364,7 @@ func TestDeviceCallback(t *testing.T) {
 
 			// Setup a dex server.
 			httpServer, s := newTestServer(t, func(c *Config) {
-				// c.Issuer = c.Issuer + "/non-root-path"
+				c.Issuer = c.Issuer + "/non-root-path"
 				c.Now = now
 			})
 			defer httpServer.Close()
@@ -752,7 +752,8 @@ func TestVerifyCodeResponse(t *testing.T) {
 		testDeviceRequest    storage.DeviceRequest
 		userCode             string
 		expectedResponseCode int
-		expectedRedirectPath string
+		expectedAuthPath     string
+		shouldRedirectToAuth bool
 	}{
 		{
 			testName: "Unknown user code",
@@ -765,7 +766,6 @@ func TestVerifyCodeResponse(t *testing.T) {
 			},
 			userCode:             "CODE-TEST",
 			expectedResponseCode: http.StatusBadRequest,
-			expectedRedirectPath: "",
 		},
 		{
 			testName: "Expired user code",
@@ -778,7 +778,6 @@ func TestVerifyCodeResponse(t *testing.T) {
 			},
 			userCode:             "ABCD-WXYZ",
 			expectedResponseCode: http.StatusBadRequest,
-			expectedRedirectPath: "",
 		},
 		{
 			testName: "No user code",
@@ -791,10 +790,9 @@ func TestVerifyCodeResponse(t *testing.T) {
 			},
 			userCode:             "",
 			expectedResponseCode: http.StatusBadRequest,
-			expectedRedirectPath: "",
 		},
 		{
-			testName: "Valid user code, expect redirect to auth endpoint",
+			testName: "Valid user code, expect redirect to auth endpoint with device callback",
 			testDeviceRequest: storage.DeviceRequest{
 				UserCode:   "ABCD-WXYZ",
 				DeviceCode: "f00bar",
@@ -804,7 +802,8 @@ func TestVerifyCodeResponse(t *testing.T) {
 			},
 			userCode:             "ABCD-WXYZ",
 			expectedResponseCode: http.StatusFound,
-			expectedRedirectPath: "/auth",
+			expectedAuthPath:     "/auth",
+			shouldRedirectToAuth: true,
 		},
 	}
 	for _, tc := range tests {
@@ -839,15 +838,24 @@ func TestVerifyCodeResponse(t *testing.T) {
 				t.Errorf("Unexpected Response Type.  Expected %v got %v", tc.expectedResponseCode, rr.Code)
 			}
 
-			u, err = url.Parse(s.issuerURL.String())
-			if err != nil {
-				t.Errorf("Could not parse issuer URL %v", err)
-			}
-			u.Path = path.Join(u.Path, tc.expectedRedirectPath)
-
 			location := rr.Header().Get("Location")
-			if rr.Code == http.StatusFound && !strings.HasPrefix(location, u.Path) {
-				t.Errorf("Invalid Redirect.  Expected %v got %v", u.Path, location)
+			if rr.Code == http.StatusFound && tc.shouldRedirectToAuth {
+				// Parse the redirect location
+				redirectURL, err := url.Parse(location)
+				if err != nil {
+					t.Errorf("Could not parse redirect URL: %v", err)
+					return
+				}
+
+				// Check that the redirect path contains /auth
+				if !strings.Contains(redirectURL.Path, tc.expectedAuthPath) {
+					t.Errorf("Invalid Redirect Path. Expected to contain %q got %q", tc.expectedAuthPath, redirectURL.Path)
+				}
+
+				// Check that redirect_uri parameter contains /device/callback
+				if !strings.Contains(location, "redirect_uri=%2Fnon-root-path%2Fdevice%2Fcallback") {
+					t.Errorf("Invalid redirect_uri parameter. Expected to contain /device/callback (URL encoded), got %v", location)
+				}
 			}
 		})
 	}
