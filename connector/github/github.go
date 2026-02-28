@@ -433,7 +433,7 @@ func (c *githubConnector) userOrgTeams(ctx context.Context, client *http.Client)
 	for {
 		// https://developer.github.com/v3/orgs/teams/#list-user-teams
 		var (
-			teams []team
+			teams []teamWithParent
 			err   error
 		)
 		if apiURL, err = get(ctx, client, apiURL, &teams); err != nil {
@@ -442,6 +442,20 @@ func (c *githubConnector) userOrgTeams(ctx context.Context, client *http.Client)
 
 		for _, t := range teams {
 			groups[t.Org.Login] = append(groups[t.Org.Login], c.teamGroupClaims(t)...)
+		}
+
+		for _, t := range teams {
+			keys := make(map[string]bool)
+			uniqueGroups := []string{}
+
+			for _, group := range groups[t.Org.Login] {
+				if _, exists := keys[group]; !exists {
+					keys[group] = true
+					uniqueGroups = append(uniqueGroups, group)
+				}
+
+				groups[t.Org.Login] = uniqueGroups
+			}
 		}
 
 		if apiURL == "" {
@@ -685,6 +699,11 @@ type team struct {
 	Slug string `json:"slug"`
 }
 
+type teamWithParent struct {
+	team
+	Parent *team `json:"parent"`
+}
+
 type org struct {
 	Login string `json:"login"`
 }
@@ -698,7 +717,7 @@ func (c *githubConnector) teamsForOrg(ctx context.Context, client *http.Client, 
 	for {
 		// https://developer.github.com/v3/orgs/teams/#list-user-teams
 		var (
-			teams []team
+			teams []teamWithParent
 			err   error
 		)
 		if apiURL, err = get(ctx, client, apiURL, &teams); err != nil {
@@ -711,6 +730,18 @@ func (c *githubConnector) teamsForOrg(ctx context.Context, client *http.Client, 
 			}
 		}
 
+		keys := make(map[string]bool)
+		uniqueGroups := []string{}
+
+		for _, group := range groups {
+			if _, exists := keys[group]; !exists {
+				keys[group] = true
+				uniqueGroups = append(uniqueGroups, group)
+			}
+		}
+
+		groups = uniqueGroups
+
 		if apiURL == "" {
 			break
 		}
@@ -722,13 +753,26 @@ func (c *githubConnector) teamsForOrg(ctx context.Context, client *http.Client, 
 // teamGroupClaims returns team slug if 'teamNameField' option is set to
 // 'slug', returns the slug *and* name if set to 'both', otherwise returns team
 // name.
-func (c *githubConnector) teamGroupClaims(t team) []string {
+func (c *githubConnector) teamGroupClaims(t teamWithParent) []string {
+	var groups []string
+
 	switch c.teamNameField {
 	case "both":
-		return []string{t.Name, t.Slug}
+		if t.Parent != nil {
+			groups = append(groups, t.Parent.Name, t.Parent.Slug)
+		}
+		groups = append(groups, t.Name, t.Slug)
 	case "slug":
-		return []string{t.Slug}
+		if t.Parent != nil {
+			groups = append(groups, t.Parent.Slug)
+		}
+		groups = append(groups, t.Slug)
 	default:
-		return []string{t.Name}
+		if t.Parent != nil {
+			groups = append(groups, t.Parent.Name)
+		}
+		groups = append(groups, t.Name)
 	}
+
+	return groups
 }
