@@ -63,6 +63,7 @@ func TestHandleDiscovery(t *testing.T) {
 		Introspect:     fmt.Sprintf("%s/token/introspect", httpServer.URL),
 		GrantTypes: []string{
 			"authorization_code",
+			"client_credentials",
 			"refresh_token",
 			"urn:ietf:params:oauth:grant-type:device_code",
 			"urn:ietf:params:oauth:grant-type:token-exchange",
