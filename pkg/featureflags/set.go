@@ -17,4 +17,8 @@ var (
 
 	// ConfigDisallowUnknownFields enables to forbid unknown fields in the config while unmarshaling.
 	ConfigDisallowUnknownFields = newFlag("config_disallow_unknown_fields", false)
+
+	// ClientCredentialGrantEnabledByDefault enables the client_credentials grant type by default
+	// without requiring explicit configuration in oauth2.grantTypes.
+	ClientCredentialGrantEnabledByDefault = newFlag("client_credential_grant_enabled_by_default", false)
 )

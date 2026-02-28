@@ -22,6 +22,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -63,6 +64,7 @@ func TestHandleDiscovery(t *testing.T) {
 		Introspect:     fmt.Sprintf("%s/token/introspect", httpServer.URL),
 		GrantTypes: []string{
 			"authorization_code",
+			"client_credentials",
 			"refresh_token",
 			"urn:ietf:params:oauth:grant-type:device_code",
 			"urn:ietf:params:oauth:grant-type:token-exchange",
@@ -641,6 +643,176 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 				require.NotEmpty(t, offlineSession)
 			} else {
 				require.Error(t, storage.ErrNotFound, err)
+			}
+		})
+	}
+}
+
+func TestHandleClientCredentials(t *testing.T) {
+	tests := []struct {
+		name          string
+		clientID      string
+		clientSecret  string
+		scopes        string
+		wantCode      int
+		wantAccessTok bool
+		wantIDToken   bool
+		wantUsername  string
+	}{
+		{
+			name:          "Basic grant, no scopes",
+			clientID:      "test",
+			clientSecret:  "barfoo",
+			scopes:        "",
+			wantCode:      200,
+			wantAccessTok: true,
+			wantIDToken:   false,
+		},
+		{
+			name:          "With openid scope",
+			clientID:      "test",
+			clientSecret:  "barfoo",
+			scopes:        "openid",
+			wantCode:      200,
+			wantAccessTok: true,
+			wantIDToken:   true,
+		},
+		{
+			name:          "With openid and profile scope includes username",
+			clientID:      "test",
+			clientSecret:  "barfoo",
+			scopes:        "openid profile",
+			wantCode:      200,
+			wantAccessTok: true,
+			wantIDToken:   true,
+			wantUsername:  "Test Client",
+		},
+		{
+			name:          "With openid email profile groups",
+			clientID:      "test",
+			clientSecret:  "barfoo",
+			scopes:        "openid email profile groups",
+			wantCode:      200,
+			wantAccessTok: true,
+			wantIDToken:   true,
+			wantUsername:  "Test Client",
+		},
+		{
+			name:         "Invalid client secret",
+			clientID:     "test",
+			clientSecret: "wrong",
+			scopes:       "",
+			wantCode:     401,
+		},
+		{
+			name:         "Unknown client",
+			clientID:     "nonexistent",
+			clientSecret: "secret",
+			scopes:       "",
+			wantCode:     401,
+		},
+		{
+			name:         "offline_access scope rejected",
+			clientID:     "test",
+			clientSecret: "barfoo",
+			scopes:       "openid offline_access",
+			wantCode:     400,
+		},
+		{
+			name:         "Unrecognized scope",
+			clientID:     "test",
+			clientSecret: "barfoo",
+			scopes:       "openid bogus",
+			wantCode:     400,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+
+			httpServer, s := newTestServer(t, func(c *Config) {
+				c.Now = time.Now
+			})
+			defer httpServer.Close()
+
+			// Create a confidential client for testing.
+			err := s.storage.CreateClient(ctx, storage.Client{
+				ID:           "test",
+				Secret:       "barfoo",
+				RedirectURIs: []string{"https://example.com/callback"},
+				Name:         "Test Client",
+			})
+			require.NoError(t, err)
+
+			u, err := url.Parse(s.issuerURL.String())
+			require.NoError(t, err)
+			u.Path = path.Join(u.Path, "/token")
+
+			v := url.Values{}
+			v.Add("grant_type", "client_credentials")
+			if tc.scopes != "" {
+				v.Add("scope", tc.scopes)
+			}
+
+			req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(v.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.SetBasicAuth(tc.clientID, tc.clientSecret)
+
+			rr := httptest.NewRecorder()
+			s.ServeHTTP(rr, req)
+
+			require.Equal(t, tc.wantCode, rr.Code)
+
+			if tc.wantCode == 200 {
+				var resp struct {
+					AccessToken  string `json:"access_token"`
+					TokenType    string `json:"token_type"`
+					ExpiresIn    int    `json:"expires_in"`
+					IDToken      string `json:"id_token"`
+					RefreshToken string `json:"refresh_token"`
+				}
+				err := json.Unmarshal(rr.Body.Bytes(), &resp)
+				require.NoError(t, err)
+
+				if tc.wantAccessTok {
+					require.NotEmpty(t, resp.AccessToken)
+					require.Equal(t, "bearer", resp.TokenType)
+					require.Greater(t, resp.ExpiresIn, 0)
+				}
+				if tc.wantIDToken {
+					require.NotEmpty(t, resp.IDToken)
+
+					// Verify the ID token claims.
+					provider, err := oidc.NewProvider(ctx, httpServer.URL)
+					require.NoError(t, err)
+					verifier := provider.Verifier(&oidc.Config{ClientID: tc.clientID})
+					idToken, err := verifier.Verify(ctx, resp.IDToken)
+					require.NoError(t, err)
+
+					// Decode the subject to verify the connector ID.
+					var sub internal.IDTokenSubject
+					require.NoError(t, internal.Unmarshal(idToken.Subject, &sub))
+					require.Equal(t, "", sub.ConnId)
+					require.Equal(t, tc.clientID, sub.UserId)
+
+					var claims struct {
+						Name              string `json:"name"`
+						PreferredUsername string `json:"preferred_username"`
+					}
+					require.NoError(t, idToken.Claims(&claims))
+
+					if tc.wantUsername != "" {
+						require.Equal(t, tc.wantUsername, claims.Name)
+						require.Equal(t, tc.wantUsername, claims.PreferredUsername)
+					} else {
+						require.Empty(t, claims.Name)
+						require.Empty(t, claims.PreferredUsername)
+					}
+				} else {
+					require.Empty(t, resp.IDToken)
+				}
+				// client_credentials must never return a refresh token.
+				require.Empty(t, resp.RefreshToken)
 			}
 		})
 	}
