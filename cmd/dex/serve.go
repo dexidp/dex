@@ -562,7 +562,7 @@ func runServe(options serveOptions) error {
 
 		grpcListener, err := net.Listen("tcp", c.GRPC.Addr)
 		if err != nil {
-			return fmt.Errorf("listening (grcp) on %s: %w", c.GRPC.Addr, err)
+			return fmt.Errorf("listening (grpc) on %s: %w", c.GRPC.Addr, err)
 		}
 
 		grpcSrv := grpc.NewServer(grpcOptions...)
