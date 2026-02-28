@@ -431,7 +431,7 @@ func (s *Server) verifyUserCode(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Redirect to Dex Auth Endpoint
-		authURL := path.Join(s.issuerURL.Path, "/auth")
+		authURL := s.absURL("/auth")
 		u, err := url.Parse(authURL)
 		if err != nil {
 			s.renderError(r, w, http.StatusInternalServerError, "Invalid auth URI.")
@@ -442,7 +442,7 @@ func (s *Server) verifyUserCode(w http.ResponseWriter, r *http.Request) {
 		q.Set("client_secret", deviceRequest.ClientSecret)
 		q.Set("state", deviceRequest.UserCode)
 		q.Set("response_type", "code")
-		q.Set("redirect_uri", "/device/callback")
+		q.Set("redirect_uri", s.absPath(deviceCallbackURI))
 		q.Set("scope", strings.Join(deviceRequest.Scopes, " "))
 		u.RawQuery = q.Encode()
 

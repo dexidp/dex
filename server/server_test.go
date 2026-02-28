@@ -1640,7 +1640,7 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 				// Add the Clients to the test server
 				client := storage.Client{
 					ID:           clientID,
-					RedirectURIs: []string{deviceCallbackURI},
+					RedirectURIs: []string{s.absPath(deviceCallbackURI)},
 					Public:       true,
 				}
 				if err := s.storage.CreateClient(ctx, client); err != nil {
@@ -1751,7 +1751,7 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 					ClientSecret: client.Secret,
 					Endpoint:     p.Endpoint(),
 					Scopes:       requestedScopes,
-					RedirectURL:  deviceCallbackURI,
+					RedirectURL:  s.absURL(deviceCallbackURI),
 				}
 				if len(tc.scopes) != 0 {
 					oauth2Config.Scopes = tc.scopes
