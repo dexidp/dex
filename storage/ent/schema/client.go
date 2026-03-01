@@ -45,6 +45,8 @@ func (OAuth2Client) Fields() []ent.Field {
 		field.Text("logo_url").
 			SchemaType(textSchema).
 			NotEmpty(),
+		field.JSON("allowed_groups", []string{}).
+			Optional(),
 	}
 }
 

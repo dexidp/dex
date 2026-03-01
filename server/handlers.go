@@ -23,6 +23,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/groups"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
@@ -31,6 +32,32 @@ const (
 	codeChallengeMethodPlain = "plain"
 	codeChallengeMethodS256  = "S256"
 )
+
+// scopesForConnector returns scopes to pass to the connector. When the client has
+// allowedGroups we include "groups" so the connector returns identity.Groups for
+// the server-side check; we do not add it to authReq.Scopes, so the token will not
+// contain groups unless the client requested that scope.
+func (s *Server) scopesForConnector(ctx context.Context, authReq storage.AuthRequest) connector.Scopes {
+	client, err := s.storage.GetClient(ctx, authReq.ClientID)
+	if err != nil {
+		return parseScopes(authReq.Scopes)
+	}
+	effectiveScopes := make([]string, len(authReq.Scopes))
+	copy(effectiveScopes, authReq.Scopes)
+	if len(client.AllowedGroups) > 0 {
+		hasGroups := false
+		for _, sc := range effectiveScopes {
+			if sc == scopeGroups {
+				hasGroups = true
+				break
+			}
+		}
+		if !hasGroups {
+			effectiveScopes = append(effectiveScopes, scopeGroups)
+		}
+	}
+	return parseScopes(effectiveScopes)
+}
 
 func (s *Server) handlePublicKeys(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -253,7 +280,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	scopes := parseScopes(authReq.Scopes)
+	scopes := s.scopesForConnector(ctx, *authReq)
 
 	// Work out where the "Select another login method" link should go.
 	backLink := ""
@@ -389,7 +416,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		username := r.FormValue("login")
 		password := r.FormValue("password")
-		scopes := parseScopes(authReq.Scopes)
+		scopes := s.scopesForConnector(ctx, authReq)
 
 		identity, ok, err := pwConn.Login(r.Context(), scopes, username, password)
 		if err != nil {
@@ -407,7 +434,12 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		redirectURL, canSkipApproval, err := s.finalizeLogin(r.Context(), identity, authReq, conn.Connector)
 		if err != nil {
 			s.logger.ErrorContext(r.Context(), "failed to finalize login", "err", err)
-			s.renderError(r, w, http.StatusInternalServerError, "Login error.")
+			var groupsErr *connector.UserNotInRequiredGroupsError
+			if errors.As(err, &groupsErr) {
+				s.renderError(r, w, http.StatusForbidden, ErrMsgNotInRequiredGroups)
+			} else {
+				s.renderError(r, w, http.StatusInternalServerError, "Login error.")
+			}
 			return
 		}
 
@@ -485,14 +517,14 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 			s.renderError(r, w, http.StatusBadRequest, "Invalid request")
 			return
 		}
-		identity, err = conn.HandleCallback(parseScopes(authReq.Scopes), authReq.ConnectorData, r)
+		identity, err = conn.HandleCallback(s.scopesForConnector(ctx, authReq), authReq.ConnectorData, r)
 	case connector.SAMLConnector:
 		if r.Method != http.MethodPost {
 			s.logger.ErrorContext(r.Context(), "OAuth2 request mapped to SAML connector")
 			s.renderError(r, w, http.StatusBadRequest, "Invalid request")
 			return
 		}
-		identity, err = conn.HandlePOST(parseScopes(authReq.Scopes), r.PostFormValue("SAMLResponse"), authReq.ID)
+		identity, err = conn.HandlePOST(s.scopesForConnector(ctx, authReq), r.PostFormValue("SAMLResponse"), authReq.ID)
 	default:
 		s.renderError(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
 		return
@@ -512,7 +544,12 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 	redirectURL, canSkipApproval, err := s.finalizeLogin(ctx, identity, authReq, conn.Connector)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to finalize login", "err", err)
-		s.renderError(r, w, http.StatusInternalServerError, "Login error.")
+		var groupsErr *connector.UserNotInRequiredGroupsError
+		if errors.As(err, &groupsErr) {
+			s.renderError(r, w, http.StatusForbidden, ErrMsgNotInRequiredGroups)
+		} else {
+			s.renderError(r, w, http.StatusInternalServerError, "Login error.")
+		}
 		return
 	}
 
@@ -533,6 +570,20 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 // finalizeLogin associates the user's identity with the current AuthRequest, then returns
 // the approval page's path.
 func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity, authReq storage.AuthRequest, conn connector.Connector) (string, bool, error) {
+	// Per-client group restriction: only users in client's AllowedGroups may complete SSO.
+	client, err := s.storage.GetClient(ctx, authReq.ClientID)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to get client: %w", err)
+	}
+	if len(client.AllowedGroups) > 0 {
+		matched := groups.Filter(identity.Groups, client.AllowedGroups)
+		if len(matched) == 0 {
+			return "", false, &connector.UserNotInRequiredGroupsError{UserID: identity.UserID, Groups: client.AllowedGroups}
+		}
+		// Optionally restrict identity.Groups to only matched (so token contains only allowed groups).
+		identity.Groups = matched
+	}
+
 	claims := storage.Claims{
 		UserID:            identity.UserID,
 		Username:          identity.Username,

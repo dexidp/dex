@@ -232,6 +232,48 @@ func TestGroupQuery(t *testing.T) {
 	runTests(t, connectLDAP, c, tests)
 }
 
+// TestAllowedGroups verifies connector-level allowedGroups: only users in at least one
+// of the allowed groups can log in; others get UserNotInRequiredGroupsError.
+func TestAllowedGroups(t *testing.T) {
+	c := &Config{}
+	c.UserSearch.BaseDN = "ou=People,ou=TestGroupQuery,dc=example,dc=org"
+	c.UserSearch.NameAttr = "cn"
+	c.UserSearch.EmailAttr = "mail"
+	c.UserSearch.IDAttr = "DN"
+	c.UserSearch.Username = "cn"
+	c.GroupSearch.BaseDN = "ou=Groups,ou=TestGroupQuery,dc=example,dc=org"
+	c.GroupSearch.UserMatchers = []UserMatcher{
+		{UserAttr: "DN", GroupAttr: "member"},
+	}
+	c.GroupSearch.NameAttr = "cn"
+	c.AllowedGroups = []string{"developers"} // jane has developers, john has only admins
+
+	tests := []subtest{
+		{
+			name:     "user in allowed group",
+			username: "jane",
+			password: "foo",
+			groups:   true,
+			want: connector.Identity{
+				UserID:        "cn=jane,ou=People,ou=TestGroupQuery,dc=example,dc=org",
+				Username:      "jane",
+				Email:         "janedoe@example.com",
+				EmailVerified: true,
+				Groups:        []string{"developers"}, // filtered to allowed only
+			},
+		},
+		{
+			name:     "user not in allowed group",
+			username: "john",
+			password: "bar",
+			groups:   true,
+			wantErr:  true, // john has admins only, not developers
+		},
+	}
+
+	runTests(t, connectLDAP, c, tests)
+}
+
 func TestGroupsOnUserEntity(t *testing.T) {
 	c := &Config{}
 	c.UserSearch.BaseDN = "ou=People,ou=TestGroupsOnUserEntity,dc=example,dc=org"

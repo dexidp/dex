@@ -596,6 +596,7 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 		},
 	}
 
+	const testClientID = "test-client"
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			httpServer, s := newTestServer(t, func(c *Config) {
@@ -604,6 +605,13 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 			})
 			defer httpServer.Close()
 
+			require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+				ID:           testClientID,
+				Secret:       "secret",
+				RedirectURIs: []string{"cb"},
+				Name:         "Test",
+				LogoURL:      "http://example.com",
+			}))
 			sc := storage.Connector{
 				ID:              connID,
 				Type:            "mockPassword",
@@ -617,6 +625,7 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 			if _, err := s.OpenConnector(sc); err != nil {
 				t.Fatalf("open connector: %v", err)
 			}
+			tc.authReq.ClientID = testClientID
 			if err := s.storage.CreateAuthRequest(ctx, tc.authReq); err != nil {
 				t.Fatalf("failed to create AuthRequest: %v", err)
 			}
@@ -749,6 +758,7 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 		},
 	}
 
+	const testClientID = "test-client"
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			httpServer, s := newTestServer(t, func(c *Config) {
@@ -757,6 +767,14 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 			})
 			defer httpServer.Close()
 
+			require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+				ID:           testClientID,
+				Secret:       "secret",
+				RedirectURIs: []string{"cb"},
+				Name:         "Test",
+				LogoURL:      "http://example.com",
+			}))
+			tc.authReq.ClientID = testClientID
 			if err := s.storage.CreateAuthRequest(ctx, tc.authReq); err != nil {
 				t.Fatalf("failed to create AuthRequest: %v", err)
 			}
@@ -782,6 +800,222 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestClientAllowedGroups verifies per-client allowedGroups: user in allowed group can complete
+// SSO, user not in any allowed group gets 403.
+func TestClientAllowedGroups(t *testing.T) {
+	ctx := t.Context()
+	connID := "mock"
+	authReqID := "test"
+	expiry := time.Now().Add(100 * time.Second)
+	resTypes := []string{responseTypeCode}
+
+	t.Run("allows when user in allowed group", func(t *testing.T) {
+		httpServer, s := newTestServer(t, func(c *Config) { c.SkipApprovalScreen = true; c.Now = time.Now })
+		defer httpServer.Close()
+		// Mock connector returns identity with Groups: ["authors"]
+		require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+			ID:            "client-allow",
+			Secret:        "secret",
+			RedirectURIs:  []string{"http://cb"},
+			Name:          "Allow",
+			LogoURL:       "http://example.com",
+			AllowedGroups: []string{"authors"},
+		}))
+		require.NoError(t, s.storage.CreateAuthRequest(ctx, storage.AuthRequest{
+			ID:            authReqID,
+			ClientID:      "client-allow",
+			ConnectorID:   connID,
+			RedirectURI:   "http://cb",
+			Expiry:        expiry,
+			ResponseTypes: resTypes,
+		}))
+		rr := httptest.NewRecorder()
+		s.handleConnectorCallback(rr, httptest.NewRequest("GET", "/callback/"+connID+"?state="+authReqID, nil))
+		require.Equal(t, 303, rr.Code, "user in allowed group should complete SSO")
+	})
+
+	t.Run("rejects when user not in allowed group", func(t *testing.T) {
+		httpServer, s := newTestServer(t, func(c *Config) { c.SkipApprovalScreen = true; c.Now = time.Now })
+		defer httpServer.Close()
+		require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+			ID:            "client-deny",
+			Secret:        "secret",
+			RedirectURIs:  []string{"http://cb"},
+			Name:          "Deny",
+			LogoURL:       "http://example.com",
+			AllowedGroups: []string{"not-authors"},
+		}))
+		require.NoError(t, s.storage.CreateAuthRequest(ctx, storage.AuthRequest{
+			ID:            authReqID,
+			ClientID:      "client-deny",
+			ConnectorID:   connID,
+			RedirectURI:   "http://cb",
+			Expiry:        expiry,
+			ResponseTypes: resTypes,
+		}))
+		rr := httptest.NewRecorder()
+		s.handleConnectorCallback(rr, httptest.NewRequest("GET", "/callback/"+connID+"?state="+authReqID, nil))
+		require.Equal(t, 403, rr.Code)
+	})
+}
+
+// TestPasswordLoginClientAllowedGroups verifies that password login returns 403 when the client
+// has allowedGroups and the connector returns an identity with no matching groups (e.g. mock
+// password returns no groups).
+func TestPasswordLoginClientAllowedGroups(t *testing.T) {
+	ctx := t.Context()
+	connID := "mockPw" // use distinct ID so we don't conflict with newTestServer's "mock" connector
+	authReqID := "test"
+	expiry := time.Now().Add(100 * time.Second)
+
+	httpServer, s := newTestServer(t, func(c *Config) { c.SkipApprovalScreen = true; c.Now = time.Now })
+	defer httpServer.Close()
+
+	require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+		ID:            "client-allowed",
+		Secret:        "secret",
+		RedirectURIs:  []string{"http://cb"},
+		Name:          "Allowed",
+		LogoURL:       "http://example.com",
+		AllowedGroups: []string{"some-group"}, // mock password returns identity with no groups
+	}))
+	sc := storage.Connector{
+		ID:              connID,
+		Type:            "mockPassword",
+		Name:            "MockPassword",
+		ResourceVersion: "1",
+		Config:          []byte(`{"username": "foo", "password": "password"}`),
+	}
+	require.NoError(t, s.storage.CreateConnector(ctx, sc))
+	_, err := s.OpenConnector(sc)
+	require.NoError(t, err)
+	require.NoError(t, s.storage.CreateAuthRequest(ctx, storage.AuthRequest{
+		ID:            authReqID,
+		ClientID:      "client-allowed",
+		ConnectorID:   connID,
+		RedirectURI:   "http://cb",
+		Expiry:        expiry,
+		ResponseTypes: []string{responseTypeCode},
+	}))
+
+	path := fmt.Sprintf("/auth/%s/login?state=%s&back=&login=foo&password=password", connID, authReqID)
+	rr := httptest.NewRecorder()
+	s.handlePasswordLogin(rr, httptest.NewRequest("POST", path, nil))
+
+	require.Equal(t, 403, rr.Code, "password login should return 403 when user has no groups and client has allowedGroups")
+}
+
+// TestClientWithNoAllowedGroupsAllowsLogin verifies that when the client has no allowedGroups
+// (nil or empty), any user from the connector can complete SSO.
+func TestClientWithNoAllowedGroupsAllowsLogin(t *testing.T) {
+	ctx := t.Context()
+	connID := "mock"
+	authReqID := "test"
+	expiry := time.Now().Add(100 * time.Second)
+	resTypes := []string{responseTypeCode}
+
+	httpServer, s := newTestServer(t, func(c *Config) { c.SkipApprovalScreen = true; c.Now = time.Now })
+	defer httpServer.Close()
+
+	require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+		ID:           "client-no-restriction",
+		Secret:       "secret",
+		RedirectURIs: []string{"http://cb"},
+		Name:         "No restriction",
+		LogoURL:      "http://example.com",
+		// AllowedGroups not set -> any user can complete SSO
+	}))
+	require.NoError(t, s.storage.CreateAuthRequest(ctx, storage.AuthRequest{
+		ID:            authReqID,
+		ClientID:      "client-no-restriction",
+		ConnectorID:   connID,
+		RedirectURI:   "http://cb",
+		Expiry:        expiry,
+		ResponseTypes: resTypes,
+	}))
+
+	rr := httptest.NewRecorder()
+	s.handleConnectorCallback(rr, httptest.NewRequest("GET", "/callback/"+connID+"?state="+authReqID, nil))
+	require.Equal(t, 303, rr.Code, "user should complete SSO when client has no allowedGroups")
+}
+
+// TestTokenHasNoGroupsWhenScopeNotRequested verifies that when the client has allowedGroups
+// but the auth request did not include the "groups" scope, the issued id_token does not
+// contain a "groups" claim (Dex adds "groups" to connector scopes only for server-side check).
+func TestTokenHasNoGroupsWhenScopeNotRequested(t *testing.T) {
+	ctx := t.Context()
+	connID := "mock"
+	authReqID := "test"
+	expiry := time.Now().Add(100 * time.Second)
+	redirectURI := "http://localhost/callback"
+
+	httpServer, s := newTestServer(t, func(c *Config) { c.SkipApprovalScreen = true; c.Now = time.Now })
+	defer httpServer.Close()
+
+	require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+		ID:            "client-with-allowed",
+		Secret:        "secret",
+		RedirectURIs:  []string{redirectURI},
+		Name:         "Test",
+		LogoURL:       "http://example.com",
+		AllowedGroups: []string{"authors"}, // mock returns identity with groups ["authors"]
+	}))
+	// Auth request with only "openid" — no "groups" scope
+	require.NoError(t, s.storage.CreateAuthRequest(ctx, storage.AuthRequest{
+		ID:            authReqID,
+		ClientID:      "client-with-allowed",
+		ConnectorID:   connID,
+		RedirectURI:   redirectURI,
+		Expiry:        expiry,
+		ResponseTypes: []string{responseTypeCode},
+		Scopes:        []string{"openid"},
+	}))
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/callback/"+connID+"?state="+authReqID, nil)
+	req.URL.Host = "localhost"
+	req.Host = "localhost"
+	s.handleConnectorCallback(rr, req)
+	require.Equal(t, 303, rr.Code, "callback should succeed")
+	loc := rr.Result().Header.Get("Location")
+	require.NotEmpty(t, loc)
+	parsed, err := url.Parse(loc)
+	require.NoError(t, err)
+	code := parsed.Query().Get("code")
+	require.NotEmpty(t, code, "redirect should contain code")
+
+	// Exchange code for token
+	vals := url.Values{}
+	vals.Set("grant_type", "authorization_code")
+	vals.Set("code", code)
+	vals.Set("redirect_uri", redirectURI)
+	vals.Set("client_id", "client-with-allowed")
+	vals.Set("client_secret", "secret")
+	trr := httptest.NewRecorder()
+	treq := httptest.NewRequest("POST", httpServer.URL+"/token", strings.NewReader(vals.Encode()))
+	treq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	s.ServeHTTP(trr, treq)
+	require.Equal(t, http.StatusOK, trr.Code, "token exchange: %s", trr.Body.String())
+
+	var tokenResp struct {
+		IDToken string `json:"id_token"`
+	}
+	require.NoError(t, json.Unmarshal(trr.Body.Bytes(), &tokenResp))
+	require.NotEmpty(t, tokenResp.IDToken)
+
+	p, err := oidc.NewProvider(ctx, httpServer.URL)
+	require.NoError(t, err)
+	idToken, err := p.Verifier(&oidc.Config{SkipClientIDCheck: true}).Verify(ctx, tokenResp.IDToken)
+	require.NoError(t, err)
+
+	var claims struct {
+		Groups []string `json:"groups"`
+	}
+	require.NoError(t, idToken.Claims(&claims))
+	// Client did not request "groups" scope, so token must not contain groups claim
+	require.Nil(t, claims.Groups, "id_token should not contain groups when scope was not requested")
 }
 
 func TestHandleTokenExchange(t *testing.T) {

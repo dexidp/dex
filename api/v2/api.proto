@@ -14,6 +14,7 @@ message Client {
   bool public = 5;
   string name = 6;
   string logo_url = 7;
+  repeated string allowed_groups = 8;
 }
 
 // ClientInfo represents an OAuth2 client without sensitive information.
@@ -24,6 +25,7 @@ message ClientInfo {
   bool public = 4;
   string name = 5;
   string logo_url = 6;
+  repeated string allowed_groups = 7;
 }
 
 // GetClientReq is a request to retrieve client details.
