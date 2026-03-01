@@ -14,6 +14,7 @@ func (d *Database) CreateConnector(ctx context.Context, connector storage.Connec
 		SetType(connector.Type).
 		SetResourceVersion(connector.ResourceVersion).
 		SetConfig(connector.Config).
+		SetHidden(connector.Hidden).
 		Save(ctx)
 	if err != nil {
 		return convertDBError("create connector: %w", err)

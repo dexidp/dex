@@ -2727,6 +2727,7 @@ type ConnectorMutation struct {
 	name             *string
 	resource_version *string
 	_config          *[]byte
+	hidden           *bool
 	clearedFields    map[string]struct{}
 	done             bool
 	oldValue         func(context.Context) (*Connector, error)
@@ -2981,6 +2982,42 @@ func (m *ConnectorMutation) ResetConfig() {
 	m._config = nil
 }
 
+// SetHidden sets the "hidden" field.
+func (m *ConnectorMutation) SetHidden(b bool) {
+	m.hidden = &b
+}
+
+// Hidden returns the value of the "hidden" field in the mutation.
+func (m *ConnectorMutation) Hidden() (r bool, exists bool) {
+	v := m.hidden
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldHidden returns the old "hidden" field's value of the Connector entity.
+// If the Connector object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ConnectorMutation) OldHidden(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldHidden is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldHidden requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldHidden: %w", err)
+	}
+	return oldValue.Hidden, nil
+}
+
+// ResetHidden resets all changes to the "hidden" field.
+func (m *ConnectorMutation) ResetHidden() {
+	m.hidden = nil
+}
+
 // Where appends a list predicates to the ConnectorMutation builder.
 func (m *ConnectorMutation) Where(ps ...predicate.Connector) {
 	m.predicates = append(m.predicates, ps...)
@@ -3015,7 +3052,7 @@ func (m *ConnectorMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ConnectorMutation) Fields() []string {
-	fields := make([]string, 0, 4)
+	fields := make([]string, 0, 5)
 	if m._type != nil {
 		fields = append(fields, connector.FieldType)
 	}
@@ -3027,6 +3064,9 @@ func (m *ConnectorMutation) Fields() []string {
 	}
 	if m._config != nil {
 		fields = append(fields, connector.FieldConfig)
+	}
+	if m.hidden != nil {
+		fields = append(fields, connector.FieldHidden)
 	}
 	return fields
 }
@@ -3044,6 +3084,8 @@ func (m *ConnectorMutation) Field(name string) (ent.Value, bool) {
 		return m.ResourceVersion()
 	case connector.FieldConfig:
 		return m.Config()
+	case connector.FieldHidden:
+		return m.Hidden()
 	}
 	return nil, false
 }
@@ -3061,6 +3103,8 @@ func (m *ConnectorMutation) OldField(ctx context.Context, name string) (ent.Valu
 		return m.OldResourceVersion(ctx)
 	case connector.FieldConfig:
 		return m.OldConfig(ctx)
+	case connector.FieldHidden:
+		return m.OldHidden(ctx)
 	}
 	return nil, fmt.Errorf("unknown Connector field %s", name)
 }
@@ -3097,6 +3141,13 @@ func (m *ConnectorMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetConfig(v)
+		return nil
+	case connector.FieldHidden:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetHidden(v)
 		return nil
 	}
 	return fmt.Errorf("unknown Connector field %s", name)
@@ -3158,6 +3209,9 @@ func (m *ConnectorMutation) ResetField(name string) error {
 		return nil
 	case connector.FieldConfig:
 		m.ResetConfig()
+		return nil
+	case connector.FieldHidden:
+		m.ResetHidden()
 		return nil
 	}
 	return fmt.Errorf("unknown Connector field %s", name)

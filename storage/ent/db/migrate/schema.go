@@ -70,6 +70,7 @@ var (
 		{Name: "name", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "resource_version", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "config", Type: field.TypeBytes},
+		{Name: "hidden", Type: field.TypeBool, Default: false},
 	}
 	// ConnectorsTable holds the schema information for the "connectors" table.
 	ConnectorsTable = &schema.Table{

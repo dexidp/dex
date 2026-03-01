@@ -82,6 +82,11 @@ func Config(v []byte) predicate.Connector {
 	return predicate.Connector(sql.FieldEQ(FieldConfig, v))
 }
 
+// Hidden applies equality check predicate on the "hidden" field. It's identical to HiddenEQ.
+func Hidden(v bool) predicate.Connector {
+	return predicate.Connector(sql.FieldEQ(FieldHidden, v))
+}
+
 // TypeEQ applies the EQ predicate on the "type" field.
 func TypeEQ(v string) predicate.Connector {
 	return predicate.Connector(sql.FieldEQ(FieldType, v))
@@ -315,6 +320,16 @@ func ConfigLT(v []byte) predicate.Connector {
 // ConfigLTE applies the LTE predicate on the "config" field.
 func ConfigLTE(v []byte) predicate.Connector {
 	return predicate.Connector(sql.FieldLTE(FieldConfig, v))
+}
+
+// HiddenEQ applies the EQ predicate on the "hidden" field.
+func HiddenEQ(v bool) predicate.Connector {
+	return predicate.Connector(sql.FieldEQ(FieldHidden, v))
+}
+
+// HiddenNEQ applies the NEQ predicate on the "hidden" field.
+func HiddenNEQ(v bool) predicate.Connector {
+	return predicate.Connector(sql.FieldNEQ(FieldHidden, v))
 }
 
 // And groups predicates with the AND operator between them.

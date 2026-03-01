@@ -23,7 +23,9 @@ type Connector struct {
 	// ResourceVersion holds the value of the "resource_version" field.
 	ResourceVersion string `json:"resource_version,omitempty"`
 	// Config holds the value of the "config" field.
-	Config       []byte `json:"config,omitempty"`
+	Config []byte `json:"config,omitempty"`
+	// Hidden holds the value of the "hidden" field.
+	Hidden       bool `json:"hidden,omitempty"`
 	selectValues sql.SelectValues
 }
 
@@ -34,6 +36,8 @@ func (*Connector) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case connector.FieldConfig:
 			values[i] = new([]byte)
+		case connector.FieldHidden:
+			values[i] = new(sql.NullBool)
 		case connector.FieldID, connector.FieldType, connector.FieldName, connector.FieldResourceVersion:
 			values[i] = new(sql.NullString)
 		default:
@@ -80,6 +84,12 @@ func (_m *Connector) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field config", values[i])
 			} else if value != nil {
 				_m.Config = *value
+			}
+		case connector.FieldHidden:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field hidden", values[i])
+			} else if value.Valid {
+				_m.Hidden = value.Bool
 			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
@@ -128,6 +138,9 @@ func (_m *Connector) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("config=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Config))
+	builder.WriteString(", ")
+	builder.WriteString("hidden=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Hidden))
 	builder.WriteByte(')')
 	return builder.String()
 }

@@ -191,10 +191,11 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	for index, conn := range connectors {
 		connURL.Path = s.absPath("/auth", url.PathEscape(conn.ID))
 		connectorInfos[index] = connectorInfo{
-			ID:   conn.ID,
-			Name: conn.Name,
-			Type: conn.Type,
-			URL:  template.URL(connURL.String()),
+			ID:     conn.ID,
+			Name:   conn.Name,
+			Type:   conn.Type,
+			URL:    template.URL(connURL.String()),
+			Hidden: conn.Hidden,
 		}
 	}
 

@@ -455,9 +455,10 @@ func (s *Signer) UnmarshalJSON(b []byte) error {
 // Connector is a magical type that can unmarshal YAML dynamically. The
 // Type field determines the connector type, which is then customized for Config.
 type Connector struct {
-	Type string `json:"type"`
-	Name string `json:"name"`
-	ID   string `json:"id"`
+	Type   string `json:"type"`
+	Name   string `json:"name"`
+	ID     string `json:"id"`
+	Hidden bool   `json:"hidden"`
 
 	Config server.ConnectorConfig `json:"config"`
 }
@@ -466,9 +467,10 @@ type Connector struct {
 // dynamically determine the type of the connector config.
 func (c *Connector) UnmarshalJSON(b []byte) error {
 	var conn struct {
-		Type string `json:"type"`
-		Name string `json:"name"`
-		ID   string `json:"id"`
+		Type   string `json:"type"`
+		Name   string `json:"name"`
+		ID     string `json:"id"`
+		Hidden bool   `json:"hidden"`
 
 		Config json.RawMessage `json:"config"`
 	}
@@ -512,6 +514,7 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 		Name:   conn.Name,
 		ID:     conn.ID,
 		Config: connConfig,
+		Hidden: conn.Hidden,
 	}
 	return nil
 }
@@ -528,6 +531,7 @@ func ToStorageConnector(c Connector) (storage.Connector, error) {
 		Type:   c.Type,
 		Name:   c.Name,
 		Config: data,
+		Hidden: c.Hidden,
 	}, nil
 }
 
