@@ -388,7 +388,7 @@ func runServe(options serveOptions) error {
 	if c.Expiry.DeviceRequests != "" {
 		deviceRequests, err := time.ParseDuration(c.Expiry.DeviceRequests)
 		if err != nil {
-			return fmt.Errorf("invalid config value %q for device request expiry: %v", c.Expiry.AuthRequests, err)
+			return fmt.Errorf("invalid config value %q for device request expiry: %v", c.Expiry.DeviceRequests, err)
 		}
 		logger.Info("config device requests", "valid_for", deviceRequests)
 		serverConfig.DeviceRequestsValidFor = deviceRequests
