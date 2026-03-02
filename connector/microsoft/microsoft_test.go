@@ -49,7 +49,7 @@ func TestLoginURL(t *testing.T) {
 	expectEquals(t, queryParams.Get("client_id"), clientID)
 	expectEquals(t, queryParams.Get("redirect_uri"), testURL)
 	expectEquals(t, queryParams.Get("response_type"), "code")
-	expectEquals(t, queryParams.Get("scope"), "user.read")
+	expectEquals(t, queryParams.Get("scope"), "openid https://graph.microsoft.com/.default")
 	expectEquals(t, queryParams.Get("state"), testState)
 	expectEquals(t, queryParams.Get("prompt"), "")
 	expectEquals(t, queryParams.Get("domain_hint"), "")
