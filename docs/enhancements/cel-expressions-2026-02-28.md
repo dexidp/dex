@@ -14,6 +14,7 @@
         - [Phase 2: Authentication Policies](#phase-2-authentication-policies)
         - [Phase 3: Token Policies](#phase-3-token-policies)
         - [Phase 4: OIDC Connector Claim Mapping](#phase-4-oidc-connector-claim-mapping)
+    - [Policy Application Flow](#policy-application-flow)
     - [Risks and Mitigations](#risks-and-mitigations)
     - [Alternatives](#alternatives)
 - [Future Improvements](#future-improvements)
@@ -137,33 +138,25 @@ and external policy engines.
 Operators can define global and per-client authentication policies in the Dex config:
 
 ```yaml
-# Global authentication policy
+# Global authentication policy — each expression evaluates to bool.
+# If true — the request is denied. Evaluated in order; first match wins.
 authPolicy:
-  rules:
-    - deny:
-        # Deny login if user email is not from allowed domain
-        expression: "!identity.email.endsWith('@example.com')"
-        message: "'Login restricted to example.com domain'"
-    - deny:
-        expression: "!identity.email_verified"
-        message: "'Email must be verified'"
+  - expression: "!identity.email.endsWith('@example.com')"
+    message: "'Login restricted to example.com domain'"
+  - expression: "!identity.email_verified"
+    message: "'Email must be verified'"
 
 staticClients:
   - id: admin-app
     name: Admin Application
     secret: ...
     redirectURIs: [...]
-    # Per-client policy
+    # Per-client policy — same structure as global
     authPolicy:
-      rules:
-        # Only allow specific connectors for this client
-        - deny:
-            expression: "!(request.connector_id in ['okta', 'ldap'])"
-            message: "'This application requires Okta or LDAP login'"
-        # Require admin group
-        - deny:
-            expression: "!('admin' in identity.groups)"
-            message: "'Admin group membership required'"
+      - expression: "!(request.connector_id in ['okta', 'ldap'])"
+        message: "'This application requires Okta or LDAP login'"
+      - expression: "!('admin' in identity.groups)"
+        message: "'Admin group membership required'"
 ```
 
 #### Token Policy (Phase 3)
@@ -180,9 +173,10 @@ tokenPolicy:
     # Include connector ID as a claim
     - key: "'idp'"
       value: "request.connector_id"
-    # Add department from upstream claims
+    # Add department from upstream claims (only if present)
     - key: "'department'"
-      value: "identity.extra['department'].orValue('unknown')"
+      value: "identity.extra['department']"
+      condition: "'department' in identity.extra"
 
 staticClients:
   - id: internal-api
@@ -193,6 +187,10 @@ staticClients:
       claims:
         - key: "'custom-claim.company.com/team'"
           value: "identity.extra['team'].orValue('engineering')"
+        # Only add on-call claim for ops group members
+        - key: "'on_call'"
+          value: "true"
+          condition: "identity.groups.exists(g, g == 'ops')"
       # Restrict scopes
       filter:
         expression: "request.scopes.all(s, s in ['openid', 'email', 'profile'])"
@@ -728,16 +726,10 @@ func main() {
 **Config Model:**
 
 ```go
-// AuthPolicy defines authentication policies evaluated after a user
-// successfully authenticates with a connector.
-type AuthPolicy struct {
-    Rules []AuthPolicyRule `json:"rules"`
-}
-
-type AuthPolicyRule struct {
-    // Deny defines a condition that, when true, denies the authentication.
-    Deny *PolicyExpression `json:"deny,omitempty"`
-}
+// AuthPolicy is a list of deny expressions evaluated after a user
+// authenticates with a connector. Each expression evaluates to bool.
+// If true — the request is denied. Evaluated in order; first match wins.
+type AuthPolicy []PolicyExpression
 
 // PolicyExpression is a CEL expression with an optional human-readable message.
 type PolicyExpression struct {
@@ -766,20 +758,19 @@ scopes, redirect_uri).
 
 ```
 User authenticates via connector
-         |
+         │
          v
 connector.HandleCallback() returns Identity
-         |
+         │
          v
-Evaluate global authPolicy rules (in order)
-  - For each rule with deny: evaluate expression
-  - If expression returns true → deny with message, HTTP 403
-         |
+Evaluate global authPolicy (in order)
+  - For each expression: evaluate → bool
+  - If true → deny with message, HTTP 403
+         │
          v
-Look up per-client authPolicy for request.client_id
-Evaluate per-client authPolicy rules (in order)
-  - Same deny logic as global
-         |
+Evaluate per-client authPolicy (in order)
+  - Same logic as global
+         │
          v
 Continue normal flow (approval screen or redirect)
 ```
@@ -803,6 +794,10 @@ type ClaimExpression struct {
     Key string `json:"key"`
     // Value is a CEL expression evaluating to dyn — the claim value.
     Value string `json:"value"`
+    // Condition is an optional CEL expression evaluating to bool.
+    // When set, the claim is only included in the token if the condition
+    // evaluates to true. If omitted, the claim is always included.
+    Condition string `json:"condition,omitempty"`
 }
 ```
 
@@ -891,6 +886,46 @@ This replaces the need for `ClaimMapping`, `NewGroupFromClaims`, `FilterGroupCla
 **Backward compatibility:** When `claimMappingExpressions` is nil, the existing `ClaimMapping` and
 `ClaimMutations` logic is used unchanged. When `claimMappingExpressions` is set, a startup warning is
 logged if legacy mapping fields are also configured.
+
+### Policy Application Flow
+
+The following diagram shows the order in which CEL policies are applied.
+Each step is optional — if not configured, it is skipped.
+
+```
+Connector Authentication
+  │
+  │ upstream claims → connector.Identity
+  │
+  v
+Authentication Policies
+  │
+  │  Global authPolicy
+  │  Per-client authPolicy
+  │
+  v
+Token Issuance
+  │
+  │  Global tokenPolicy.filter
+  │  Per-client tokenPolicy.filter
+  │
+  │  Global tokenPolicy.claims
+  │  Per-client tokenPolicy.claims
+  │
+  │  Sign JWT
+  │
+  v
+Token Response
+```
+
+| Step | Policy | Scope | Action on match |
+|------|--------|-------|-----------------|
+| 2 | `authPolicy` (global) | Global | Expression → `true` = DENY login |
+| 3 | `authPolicy` (per-client) | Per-client | Expression → `true` = DENY login |
+| 4 | `tokenPolicy.filter` (global) | Global | Expression → `false` = DENY token |
+| 5 | `tokenPolicy.filter` (per-client) | Per-client | Expression → `false` = DENY token |
+| 6 | `tokenPolicy.claims` (global) | Global | Adds/overrides claims (with optional condition) |
+| 7 | `tokenPolicy.claims` (per-client) | Per-client | Adds/overrides claims (overrides global) |
 
 ### Risks and Mitigations
 
