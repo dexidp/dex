@@ -254,6 +254,8 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		allSupportedGrants[grantTypePassword] = true
 	}
 
+	allSupportedGrants[grantTypeClientCredentials] = true
+
 	var supportedGrants []string
 	if len(c.AllowedGrantTypes) > 0 {
 		for _, grant := range c.AllowedGrantTypes {
