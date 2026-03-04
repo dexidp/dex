@@ -1,4 +1,3 @@
-// Package groups contains helper functions related to groups
 package groups
 
 // Filter filters out any groups of given that are not in required. Thus it may
