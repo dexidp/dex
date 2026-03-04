@@ -65,3 +65,13 @@ services:
             - IPC_LOCK
         ports:
             - 8210:8200
+
+    authproxy-nginx:
+        image: nginx:1.27-alpine
+        volumes:
+            - ./connector/authproxy/testdata/nginx.conf:/etc/nginx/nginx.conf:ro
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        ports:
+            - 18081:80
+

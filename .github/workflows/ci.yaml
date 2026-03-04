@@ -154,6 +154,8 @@ jobs:
 
           DEX_KUBERNETES_CONFIG_PATH: ~/.kube/config
 
+          DEX_AUTHPROXY_URL: http://localhost:18081
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
