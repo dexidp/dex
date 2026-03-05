@@ -381,4 +381,12 @@ var migrations = []migration{
 				add column grant_types bytea;`,
 		},
 	},
+	// Migration for adding allowed_connectors to client table
+	{
+		stmts: []string{
+			`
+			alter table client
+				add column allowed_connectors bytea;`,
+		},
+	},
 }

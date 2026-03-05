@@ -307,6 +307,16 @@ func LogoURLContainsFold(v string) predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.FieldContainsFold(FieldLogoURL, v))
 }
 
+// AllowedConnectorsIsNil applies the IsNil predicate on the "allowed_connectors" field.
+func AllowedConnectorsIsNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldIsNull(FieldAllowedConnectors))
+}
+
+// AllowedConnectorsNotNil applies the NotNil predicate on the "allowed_connectors" field.
+func AllowedConnectorsNotNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNotNull(FieldAllowedConnectors))
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.OAuth2Client) predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.AndPredicates(predicates...))
