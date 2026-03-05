@@ -161,6 +161,20 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Filter connectors based on the client's allowed connectors list.
+	clientID := r.Form.Get("client_id")
+	if clientID != "" {
+		client, err := s.storage.GetClient(ctx, clientID)
+		if err == nil {
+			connectors = filterConnectors(connectors, client.AllowedConnectors)
+		}
+	}
+
+	if len(connectors) == 0 {
+		s.renderError(r, w, http.StatusBadRequest, "No connectors available for this client.")
+		return
+	}
+
 	// We don't need connector_id any more
 	r.Form.Del("connector_id")
 
@@ -203,6 +217,41 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// filterConnectors filters the list of connectors by the allowed connector IDs.
+// If allowedConnectors is empty, all connectors are returned (no filtering).
+func filterConnectors(connectors []storage.Connector, allowedConnectors []string) []storage.Connector {
+	if len(allowedConnectors) == 0 {
+		return connectors
+	}
+
+	allowed := make(map[string]bool, len(allowedConnectors))
+	for _, id := range allowedConnectors {
+		allowed[id] = true
+	}
+
+	filtered := make([]storage.Connector, 0, len(connectors))
+	for _, c := range connectors {
+		if allowed[c.ID] {
+			filtered = append(filtered, c)
+		}
+	}
+	return filtered
+}
+
+// isConnectorAllowed checks if a connector ID is in the client's allowed connectors list.
+// If allowedConnectors is empty, all connectors are allowed.
+func isConnectorAllowed(allowedConnectors []string, connectorID string) bool {
+	if len(allowedConnectors) == 0 {
+		return true
+	}
+	for _, id := range allowedConnectors {
+		if id == connectorID {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	authReq, err := s.parseAuthorizationRequest(r)
@@ -225,6 +274,20 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to parse connector", "err", err)
 		s.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist")
+		return
+	}
+
+	// Validate that the connector is allowed for this client.
+	client, err := s.storage.GetClient(ctx, authReq.ClientID)
+	if err != nil {
+		s.logger.ErrorContext(r.Context(), "failed to get client", "err", err)
+		s.renderError(r, w, http.StatusInternalServerError, "Failed to retrieve client.")
+		return
+	}
+	if !isConnectorAllowed(client.AllowedConnectors, connID) {
+		s.logger.ErrorContext(r.Context(), "connector not allowed for client",
+			"connector_id", connID, "client_id", authReq.ClientID)
+		s.renderError(r, w, http.StatusForbidden, "Connector not allowed for this client.")
 		return
 	}
 

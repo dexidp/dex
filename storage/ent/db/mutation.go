@@ -5121,21 +5121,23 @@ func (m *KeysMutation) ResetEdge(name string) error {
 // OAuth2ClientMutation represents an operation that mutates the OAuth2Client nodes in the graph.
 type OAuth2ClientMutation struct {
 	config
-	op                  Op
-	typ                 string
-	id                  *string
-	secret              *string
-	redirect_uris       *[]string
-	appendredirect_uris []string
-	trusted_peers       *[]string
-	appendtrusted_peers []string
-	public              *bool
-	name                *string
-	logo_url            *string
-	clearedFields       map[string]struct{}
-	done                bool
-	oldValue            func(context.Context) (*OAuth2Client, error)
-	predicates          []predicate.OAuth2Client
+	op                       Op
+	typ                      string
+	id                       *string
+	secret                   *string
+	redirect_uris            *[]string
+	appendredirect_uris      []string
+	trusted_peers            *[]string
+	appendtrusted_peers      []string
+	public                   *bool
+	name                     *string
+	logo_url                 *string
+	allowed_connectors       *[]string
+	appendallowed_connectors []string
+	clearedFields            map[string]struct{}
+	done                     bool
+	oldValue                 func(context.Context) (*OAuth2Client, error)
+	predicates               []predicate.OAuth2Client
 }
 
 var _ ent.Mutation = (*OAuth2ClientMutation)(nil)
@@ -5516,6 +5518,71 @@ func (m *OAuth2ClientMutation) ResetLogoURL() {
 	m.logo_url = nil
 }
 
+// SetAllowedConnectors sets the "allowed_connectors" field.
+func (m *OAuth2ClientMutation) SetAllowedConnectors(s []string) {
+	m.allowed_connectors = &s
+	m.appendallowed_connectors = nil
+}
+
+// AllowedConnectors returns the value of the "allowed_connectors" field in the mutation.
+func (m *OAuth2ClientMutation) AllowedConnectors() (r []string, exists bool) {
+	v := m.allowed_connectors
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAllowedConnectors returns the old "allowed_connectors" field's value of the OAuth2Client entity.
+// If the OAuth2Client object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuth2ClientMutation) OldAllowedConnectors(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAllowedConnectors is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAllowedConnectors requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAllowedConnectors: %w", err)
+	}
+	return oldValue.AllowedConnectors, nil
+}
+
+// AppendAllowedConnectors adds s to the "allowed_connectors" field.
+func (m *OAuth2ClientMutation) AppendAllowedConnectors(s []string) {
+	m.appendallowed_connectors = append(m.appendallowed_connectors, s...)
+}
+
+// AppendedAllowedConnectors returns the list of values that were appended to the "allowed_connectors" field in this mutation.
+func (m *OAuth2ClientMutation) AppendedAllowedConnectors() ([]string, bool) {
+	if len(m.appendallowed_connectors) == 0 {
+		return nil, false
+	}
+	return m.appendallowed_connectors, true
+}
+
+// ClearAllowedConnectors clears the value of the "allowed_connectors" field.
+func (m *OAuth2ClientMutation) ClearAllowedConnectors() {
+	m.allowed_connectors = nil
+	m.appendallowed_connectors = nil
+	m.clearedFields[oauth2client.FieldAllowedConnectors] = struct{}{}
+}
+
+// AllowedConnectorsCleared returns if the "allowed_connectors" field was cleared in this mutation.
+func (m *OAuth2ClientMutation) AllowedConnectorsCleared() bool {
+	_, ok := m.clearedFields[oauth2client.FieldAllowedConnectors]
+	return ok
+}
+
+// ResetAllowedConnectors resets all changes to the "allowed_connectors" field.
+func (m *OAuth2ClientMutation) ResetAllowedConnectors() {
+	m.allowed_connectors = nil
+	m.appendallowed_connectors = nil
+	delete(m.clearedFields, oauth2client.FieldAllowedConnectors)
+}
+
 // Where appends a list predicates to the OAuth2ClientMutation builder.
 func (m *OAuth2ClientMutation) Where(ps ...predicate.OAuth2Client) {
 	m.predicates = append(m.predicates, ps...)
@@ -5550,7 +5617,7 @@ func (m *OAuth2ClientMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *OAuth2ClientMutation) Fields() []string {
-	fields := make([]string, 0, 6)
+	fields := make([]string, 0, 7)
 	if m.secret != nil {
 		fields = append(fields, oauth2client.FieldSecret)
 	}
@@ -5568,6 +5635,9 @@ func (m *OAuth2ClientMutation) Fields() []string {
 	}
 	if m.logo_url != nil {
 		fields = append(fields, oauth2client.FieldLogoURL)
+	}
+	if m.allowed_connectors != nil {
+		fields = append(fields, oauth2client.FieldAllowedConnectors)
 	}
 	return fields
 }
@@ -5589,6 +5659,8 @@ func (m *OAuth2ClientMutation) Field(name string) (ent.Value, bool) {
 		return m.Name()
 	case oauth2client.FieldLogoURL:
 		return m.LogoURL()
+	case oauth2client.FieldAllowedConnectors:
+		return m.AllowedConnectors()
 	}
 	return nil, false
 }
@@ -5610,6 +5682,8 @@ func (m *OAuth2ClientMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldName(ctx)
 	case oauth2client.FieldLogoURL:
 		return m.OldLogoURL(ctx)
+	case oauth2client.FieldAllowedConnectors:
+		return m.OldAllowedConnectors(ctx)
 	}
 	return nil, fmt.Errorf("unknown OAuth2Client field %s", name)
 }
@@ -5661,6 +5735,13 @@ func (m *OAuth2ClientMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetLogoURL(v)
 		return nil
+	case oauth2client.FieldAllowedConnectors:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAllowedConnectors(v)
+		return nil
 	}
 	return fmt.Errorf("unknown OAuth2Client field %s", name)
 }
@@ -5697,6 +5778,9 @@ func (m *OAuth2ClientMutation) ClearedFields() []string {
 	if m.FieldCleared(oauth2client.FieldTrustedPeers) {
 		fields = append(fields, oauth2client.FieldTrustedPeers)
 	}
+	if m.FieldCleared(oauth2client.FieldAllowedConnectors) {
+		fields = append(fields, oauth2client.FieldAllowedConnectors)
+	}
 	return fields
 }
 
@@ -5716,6 +5800,9 @@ func (m *OAuth2ClientMutation) ClearField(name string) error {
 		return nil
 	case oauth2client.FieldTrustedPeers:
 		m.ClearTrustedPeers()
+		return nil
+	case oauth2client.FieldAllowedConnectors:
+		m.ClearAllowedConnectors()
 		return nil
 	}
 	return fmt.Errorf("unknown OAuth2Client nullable field %s", name)
@@ -5742,6 +5829,9 @@ func (m *OAuth2ClientMutation) ResetField(name string) error {
 		return nil
 	case oauth2client.FieldLogoURL:
 		m.ResetLogoURL()
+		return nil
+	case oauth2client.FieldAllowedConnectors:
+		m.ResetAllowedConnectors()
 		return nil
 	}
 	return fmt.Errorf("unknown OAuth2Client field %s", name)
