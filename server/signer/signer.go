@@ -10,6 +10,9 @@ import (
 type Signer interface {
 	// Sign signs the provided payload.
 	Sign(ctx context.Context, payload []byte) (string, error)
+	// SignWithType signs the provided payload with a custom JWT "typ" header.
+	// This is used for token types like ID-JAG that require a specific typ value.
+	SignWithType(ctx context.Context, payload []byte, tokenType string) (string, error)
 	// ValidationKeys returns the current public keys used for signature validation.
 	ValidationKeys(ctx context.Context) ([]*jose.JSONWebKey, error)
 	// Algorithm returns the signing algorithm used by this signer.

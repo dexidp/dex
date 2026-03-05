@@ -375,6 +375,7 @@ func runServe(options serveOptions) error {
 		ContinueOnConnectorFailure: featureflags.ContinueOnConnectorFailure.Enabled(),
 		Signer:                     signerInstance,
 		IDTokensValidFor:           idTokensValidFor,
+		TokenExchange:              c.TokenExchange,
 	}
 
 	if c.Expiry.AuthRequests != "" {

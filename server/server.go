@@ -125,6 +125,33 @@ type Config struct {
 	// If enabled, the server will continue starting even if some connectors fail to initialize.
 	// This allows the server to operate with a subset of connectors if some are misconfigured.
 	ContinueOnConnectorFailure bool
+
+	// TokenExchange configures Token Exchange and ID-JAG support.
+	TokenExchange TokenExchangeConfig
+}
+
+// TokenExchangeConfig holds configuration for Token Exchange ID-JAG support.
+// This maps to the YAML structure:
+//
+//	tokenExchange:
+//	  enableIDJAG: true
+//	  idJAGTokensValidFor: "5m"
+//	  idJAGPolicies:
+//	    - clientID: "wiki-app"
+//	      allowedAudiences: ["https://chat.example/"]
+type TokenExchangeConfig struct {
+	// EnableIDJAG gates ID-JAG support. When false (default), requests with
+	// requested_token_type=urn:ietf:params:oauth:token-type:id-jag are rejected.
+	EnableIDJAG bool `json:"enableIDJAG"`
+
+	// IDJAGTokensValidFor controls the ID-JAG token lifetime.
+	// Defaults to 5 minutes. Independent of IDTokensValidFor.
+	IDJAGTokensValidFor string `json:"idJAGTokensValidFor"`
+
+	// IDJAGPolicies defines access control rules for ID-JAG requests.
+	// When configured, requests are denied unless a matching policy allows them.
+	// When empty and EnableIDJAG is true, all clients are allowed (backward compatible).
+	IDJAGPolicies []TokenExchangePolicy `json:"idJAGPolicies"`
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
@@ -204,6 +231,11 @@ type Server struct {
 	logger *slog.Logger
 
 	signer signer.Signer
+
+	// ID-JAG feature flag and configuration
+	enableIDJAG        bool
+	idJAGTokensValidFor time.Duration
+	tokenExchangePolicies []TokenExchangePolicy
 }
 
 // NewServer constructs a server from the provided config.
@@ -294,6 +326,15 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		now = time.Now
 	}
 
+	idJAGTokensValidFor := 5 * time.Minute
+	if c.TokenExchange.IDJAGTokensValidFor != "" {
+		parsed, err := time.ParseDuration(c.TokenExchange.IDJAGTokensValidFor)
+		if err != nil {
+			return nil, fmt.Errorf("invalid IDJAGTokensValidFor: %v", err)
+		}
+		idJAGTokensValidFor = parsed
+	}
+
 	s := &Server{
 		issuerURL:              *issuerURL,
 		connectors:             make(map[string]Connector),
@@ -311,6 +352,9 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		passwordConnector:      c.PasswordConnector,
 		logger:                 c.Logger,
 		signer:                 c.Signer,
+		enableIDJAG:            c.TokenExchange.EnableIDJAG,
+		idJAGTokensValidFor:    idJAGTokensValidFor,
+		tokenExchangePolicies:  c.TokenExchange.IDJAGPolicies,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors

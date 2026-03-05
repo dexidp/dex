@@ -59,6 +59,10 @@ func (m *mockSigner) Sign(_ context.Context, payload []byte) (string, error) {
 	return signPayload(m.key, jose.RS256, payload)
 }
 
+func (m *mockSigner) SignWithType(_ context.Context, payload []byte, tokenType string) (string, error) {
+	return signPayloadWithType(m.key, jose.RS256, payload, tokenType)
+}
+
 func (m *mockSigner) ValidationKeys(_ context.Context) ([]*jose.JSONWebKey, error) {
 	return []*jose.JSONWebKey{m.pubKey}, nil
 }

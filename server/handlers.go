@@ -88,6 +88,9 @@ type discovery struct {
 	Scopes            []string `json:"scopes_supported"`
 	AuthMethods       []string `json:"token_endpoint_auth_methods_supported"`
 	Claims            []string `json:"claims_supported"`
+	// IDJAGSigningAlgs lists the signing algorithms supported for ID-JAG tokens.
+	// See: https://datatracker.ietf.org/doc/draft-ietf-oauth-identity-assertion-authz-grant/
+	IDJAGSigningAlgs []string `json:"id_jag_signing_alg_values_supported,omitempty"`
 }
 
 func (s *Server) discoveryHandler(ctx context.Context) (http.HandlerFunc, error) {
@@ -116,6 +119,8 @@ func (s *Server) constructDiscovery(ctx context.Context) discovery {
 		Introspect:        s.absURL("/token/introspect"),
 		Subjects:          []string{"public"},
 		IDTokenAlgs:       []string{string(jose.RS256)},
+		// ID-JAG uses the same signing keys as ID tokens; default to RS256.
+		IDJAGSigningAlgs:  []string{string(jose.RS256)},
 		CodeChallengeAlgs: []string{codeChallengeMethodS256, codeChallengeMethodPlain},
 		Scopes:            []string{"openid", "email", "groups", "profile", "offline_access"},
 		AuthMethods:       []string{"client_secret_basic", "client_secret_post"},
@@ -131,6 +136,8 @@ func (s *Server) constructDiscovery(ctx context.Context) discovery {
 		s.logger.Error("failed to get signing algorithm", "err", err)
 	} else {
 		d.IDTokenAlgs = []string{string(signingAlg)}
+		// ID-JAG tokens use the same signing keys as ID tokens.
+		d.IDJAGSigningAlgs = []string{string(signingAlg)}
 	}
 
 	for responseType := range s.supportedResponseTypes {
@@ -141,6 +148,7 @@ func (s *Server) constructDiscovery(ctx context.Context) discovery {
 	d.GrantTypes = s.supportedGrantTypes
 	return d
 }
+
 
 // handleAuthorization handles the OAuth2 auth endpoint.
 func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
@@ -1410,6 +1418,19 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 		return
 	}
 
+	// --- ID-JAG path ---
+	// When requested_token_type is ID-JAG, we issue an identity assertion JWT instead
+	// of a regular access/id token. The sub claim is taken directly from the
+	// subject_token JWT to preserve the upstream identity.
+	if requestedTokenType == tokenTypeIDJAG {
+		if !s.enableIDJAG {
+			s.tokenErrHelper(w, errRequestNotSupported, "ID-JAG token exchange is not enabled on this server.", http.StatusBadRequest)
+			return
+		}
+		s.handleIDJAGExchange(w, r, client, subjectToken, subjectTokenType, scopes)
+		return
+	}
+
 	conn, err := s.getConnector(ctx, connID)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to get connector", "err", err)
@@ -1463,6 +1484,133 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+// handleIDJAGExchange handles a Token Exchange request with requested_token_type=ID-JAG.
+//
+// Per draft-ietf-oauth-identity-assertion-authz-grant:
+//   - The "audience" parameter (REQUIRED) must be the issuer URL of the target Resource AS.
+//   - The "sub" claim is copied from the subject_token without re-mapping.
+//   - The response token_type is "N_A" as per RFC 8693 §2.2.1.
+func (s *Server) handleIDJAGExchange(w http.ResponseWriter, r *http.Request, client storage.Client, subjectToken, subjectTokenType string, scopes []string) {
+	ctx := r.Context()
+	q := r.Form
+
+	audience := q.Get("audience") // REQUIRED for ID-JAG: Resource AS issuer URL
+	resource := q.Get("resource") // OPTIONAL: specific Resource Server URI
+
+	// audience is required for ID-JAG.
+	if audience == "" {
+		s.tokenErrHelper(w, errInvalidRequest, "Missing required parameter audience for ID-JAG token exchange.", http.StatusBadRequest)
+		return
+	}
+
+	// Only id_token is supported as subject_token_type for ID-JAG.
+	if subjectTokenType != tokenTypeID {
+		s.tokenErrHelper(w, errRequestNotSupported, "ID-JAG token exchange requires subject_token_type=urn:ietf:params:oauth:token-type:id_token.", http.StatusBadRequest)
+		return
+	}
+
+	// Extract the sub and aud claims from the subject_token JWT.
+	// The sub is passed through unchanged to preserve the upstream identity.
+	sub, tokenAud, err := extractJWTSubAndAud(subjectToken)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to extract claims from subject_token", "err", err)
+		s.tokenErrHelper(w, errInvalidRequest, "Invalid subject_token: could not parse JWT claims.", http.StatusBadRequest)
+		return
+	}
+	if sub == "" {
+		s.tokenErrHelper(w, errInvalidRequest, "subject_token missing required sub claim.", http.StatusBadRequest)
+		return
+	}
+
+	// Per the spec (Section 4.3): validate that the subject_token audience matches
+	// the requesting client. This ensures a client can only use tokens issued to it.
+	if !audContains(tokenAud, client.ID) {
+		s.logger.InfoContext(ctx, "subject_token audience does not match client_id",
+			"token_aud", tokenAud, "client_id", client.ID)
+		s.tokenErrHelper(w, errInvalidRequest, "subject_token audience does not match client_id.", http.StatusBadRequest)
+		return
+	}
+
+	// Evaluate access policy: ensure this client may obtain an ID-JAG for the given audience.
+	if err := evaluateIDJAGPolicy(s.tokenExchangePolicies, client.ID, audience, scopes); err != nil {
+		s.logger.InfoContext(ctx, "ID-JAG policy denied", "client_id", client.ID, "audience", audience, "err", err)
+		s.tokenErrHelper(w, errAccessDenied, "", http.StatusForbidden)
+		return
+	}
+
+	// Issue the ID-JAG token.
+	idJAGToken, expiry, err := s.newIDJAG(ctx, client.ID, sub, audience, resource, scopes)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to create ID-JAG token", "err", err)
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
+
+	// Per RFC 8693 §2.2.1, when the issued token is not an OAuth 2.0 access token,
+	// the token_type MUST be set to "N_A".
+	resp := accessTokenResponse{
+		AccessToken:     idJAGToken,
+		IssuedTokenType: tokenTypeIDJAG,
+		TokenType:       "N_A",
+		ExpiresIn:       int(time.Until(expiry).Seconds()),
+	}
+
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+// extractJWTSubAndAud extracts the "sub" and "aud" claims from a JWT without verifying
+// the signature. The caller MUST have already validated the token via a prior
+// authentication step (e.g., the token was issued by Dex itself or verified by a connector).
+//
+// The aud claim may be a single string or an array of strings per RFC 7519.
+func extractJWTSubAndAud(token string) (sub string, aud []string, err error) {
+	parts := strings.SplitN(token, ".", 3)
+	if len(parts) != 3 {
+		return "", nil, fmt.Errorf("malformed JWT: expected 3 parts, got %d", len(parts))
+	}
+	payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to decode JWT payload: %v", err)
+	}
+
+	// aud can be string or []string; use json.RawMessage to handle both.
+	var claims struct {
+		Sub string          `json:"sub"`
+		Aud json.RawMessage `json:"aud"`
+	}
+	if err := json.Unmarshal(payloadBytes, &claims); err != nil {
+		return "", nil, fmt.Errorf("failed to unmarshal JWT payload: %v", err)
+	}
+
+	// Parse aud: try string first, then []string.
+	if len(claims.Aud) > 0 {
+		var single string
+		if err := json.Unmarshal(claims.Aud, &single); err == nil {
+			aud = []string{single}
+		} else {
+			var multi []string
+			if err := json.Unmarshal(claims.Aud, &multi); err == nil {
+				aud = multi
+			}
+		}
+	}
+
+	return claims.Sub, aud, nil
+}
+
+// audContains checks if the target audience value is in the list.
+func audContains(aud []string, target string) bool {
+	for _, a := range aud {
+		if a == target {
+			return true
+		}
+	}
+	return false
 }
 
 type accessTokenResponse struct {
