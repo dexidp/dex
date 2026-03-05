@@ -70,6 +70,23 @@ func TestGroupMatches(t *testing.T) {
 	}
 }
 
+func TestGroupMatchesInvalidPattern(t *testing.T) {
+	vars := dexcel.IdentityVariables()
+	compiler, err := dexcel.NewCompiler(vars)
+	require.NoError(t, err)
+
+	prog, err := compiler.CompileStringList(`dex.groupMatches(identity.groups, "[invalid")`)
+	require.NoError(t, err)
+
+	_, err = dexcel.Eval(context.Background(), prog, map[string]any{
+		"identity": map[string]any{
+			"groups": []string{"admin"},
+		},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid pattern")
+}
+
 func TestGroupFilter(t *testing.T) {
 	vars := dexcel.IdentityVariables()
 	compiler, err := dexcel.NewCompiler(vars)
