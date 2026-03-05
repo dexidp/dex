@@ -33,7 +33,8 @@ func TestEstimateCost(t *testing.T) {
 			prog, err := compiler.Compile(tc.expr)
 			require.NoError(t, err)
 
-			est := compiler.EstimateCost(prog)
+			est, err := compiler.EstimateCost(prog)
+			require.NoError(t, err)
 			assert.True(t, est.Max >= est.Min, "max cost should be >= min cost")
 			assert.True(t, est.Max <= dexcel.DefaultCostBudget,
 				"estimated max cost %d should be within default budget %d", est.Max, dexcel.DefaultCostBudget)

@@ -1,6 +1,8 @@
 package cel
 
 import (
+	"fmt"
+
 	"github.com/google/cel-go/checker"
 )
 
@@ -28,13 +30,13 @@ type CostEstimate struct {
 
 // EstimateCost returns the estimated cost range for a compiled expression.
 // This is computed statically at compile time without evaluating the expression.
-func (c *Compiler) EstimateCost(result *CompilationResult) CostEstimate {
+func (c *Compiler) EstimateCost(result *CompilationResult) (CostEstimate, error) {
 	costEst, err := c.env.EstimateCost(result.ast, &defaultCostEstimator{})
 	if err != nil {
-		return CostEstimate{}
+		return CostEstimate{}, fmt.Errorf("CEL cost estimation failed: %w", err)
 	}
 
-	return CostEstimate{Min: costEst.Min, Max: costEst.Max}
+	return CostEstimate{Min: costEst.Min, Max: costEst.Max}, nil
 }
 
 // defaultCostEstimator provides size hints for compile-time cost estimation.

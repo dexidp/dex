@@ -1,7 +1,7 @@
 package library
 
 import (
-	"path/filepath"
+	"path"
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types"
@@ -67,7 +67,11 @@ func groupMatchesImpl(lhs, rhs ref.Val) ref.Val {
 			continue
 		}
 
-		if ok, _ := filepath.Match(pattern, group); ok {
+		ok, err := path.Match(pattern, group)
+		if err != nil {
+			return types.NewErr("dex.groupMatches: invalid pattern %q: %v", pattern, err)
+		}
+		if ok {
 			matched = append(matched, types.String(group))
 		}
 	}
