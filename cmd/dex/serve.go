@@ -213,7 +213,9 @@ func runServe(options serveOptions) error {
 	logger.Info("config storage", "storage_type", c.Storage.Type)
 
 	if len(c.StaticClients) > 0 {
-		for i, client := range c.StaticClients {
+		storageClients := make([]storage.Client, len(c.StaticClients))
+		for i, sc := range c.StaticClients {
+			client := sc.Client
 			if client.Name == "" {
 				return fmt.Errorf("invalid config: Name field is required for a client")
 			}
@@ -224,7 +226,7 @@ func runServe(options serveOptions) error {
 				if client.ID != "" {
 					return fmt.Errorf("invalid config: ID and IDEnv fields are exclusive for client %q", client.ID)
 				}
-				c.StaticClients[i].ID = os.Getenv(client.IDEnv)
+				client.ID = os.Getenv(client.IDEnv)
 			}
 			if client.Secret == "" && client.SecretEnv == "" && !client.Public {
 				return fmt.Errorf("invalid config: Secret or SecretEnv field is required for client %q", client.ID)
@@ -233,11 +235,12 @@ func runServe(options serveOptions) error {
 				if client.Secret != "" {
 					return fmt.Errorf("invalid config: Secret and SecretEnv fields are exclusive for client %q", client.ID)
 				}
-				c.StaticClients[i].Secret = os.Getenv(client.SecretEnv)
+				client.Secret = os.Getenv(client.SecretEnv)
 			}
 			logger.Info("config static client", "client_name", client.Name)
+			storageClients[i] = client
 		}
-		s = storage.WithStaticClients(s, c.StaticClients)
+		s = storage.WithStaticClients(s, storageClients)
 	}
 	if len(c.StaticPasswords) > 0 {
 		passwords := make([]storage.Password, len(c.StaticPasswords))
@@ -384,6 +387,7 @@ func runServe(options serveOptions) error {
 		ContinueOnConnectorFailure: featureflags.ContinueOnConnectorFailure.Enabled(),
 		Signer:                     signerInstance,
 		IDTokensValidFor:           idTokensValidFor,
+		TokenExchange:              c.OAuth2.TokenExchange,
 	}
 
 	if c.Expiry.AuthRequests != "" {
@@ -402,6 +406,30 @@ func runServe(options serveOptions) error {
 		logger.Info("config device requests", "valid_for", deviceRequests)
 		serverConfig.DeviceRequestsValidFor = deviceRequests
 	}
+	if c.Expiry.IDJAGTokens != "" {
+		idJAGTokens, err := time.ParseDuration(c.Expiry.IDJAGTokens)
+		if err != nil {
+			return fmt.Errorf("invalid config value %q for ID-JAG token expiry: %v", c.Expiry.IDJAGTokens, err)
+		}
+		logger.Info("config ID-JAG tokens", "valid_for", idJAGTokens)
+		serverConfig.IDJAGTokensValidFor = idJAGTokens
+	}
+
+	// Build per-client ID-JAG policies from static client config.
+	for _, sc := range c.StaticClients {
+		if sc.IDJAGPolicies != nil {
+			clientID := sc.Client.ID
+			if clientID == "" && sc.Client.IDEnv != "" {
+				clientID = os.Getenv(sc.Client.IDEnv)
+			}
+			serverConfig.IDJAGPolicies = append(serverConfig.IDJAGPolicies, server.TokenExchangePolicy{
+				ClientID:         clientID,
+				AllowedAudiences: sc.IDJAGPolicies.AllowedAudiences,
+				AllowedScopes:    sc.IDJAGPolicies.AllowedScopes,
+			})
+		}
+	}
+
 	refreshTokenPolicy, err := server.NewRefreshTokenPolicy(
 		logger,
 		c.Expiry.RefreshTokens.DisableRotation,

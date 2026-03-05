@@ -105,6 +105,7 @@ type Config struct {
 	AlwaysShowLoginScreen bool
 
 	IDTokensValidFor       time.Duration // Defaults to 24 hours
+	IDJAGTokensValidFor    time.Duration // Defaults to 5 minutes
 	AuthRequestsValidFor   time.Duration // Defaults to 24 hours
 	DeviceRequestsValidFor time.Duration // Defaults to 5 minutes
 
@@ -136,6 +137,26 @@ type Config struct {
 	// If enabled, the server will continue starting even if some connectors fail to initialize.
 	// This allows the server to operate with a subset of connectors if some are misconfigured.
 	ContinueOnConnectorFailure bool
+
+	// TokenExchange configures Token Exchange support.
+	TokenExchange TokenExchangeConfig
+
+	IDJAGPolicies []TokenExchangePolicy
+}
+
+// TokenExchangeConfig holds configuration for Token Exchange support.
+type TokenExchangeConfig struct {
+	TokenTypes []string `json:"tokenTypes"`
+}
+
+// IDJAGEnabled reports whether the ID-JAG token type is enabled.
+func (c TokenExchangeConfig) IDJAGEnabled() bool {
+	for _, t := range c.TokenTypes {
+		if t == "urn:ietf:params:oauth:token-type:id-jag" {
+			return true
+		}
+	}
+	return false
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
@@ -225,6 +246,10 @@ type Server struct {
 	logger *slog.Logger
 
 	signer signer.Signer
+
+	enableIDJAG           bool
+	idJAGTokensValidFor   time.Duration
+	tokenExchangePolicies []TokenExchangePolicy
 }
 
 // NewServer constructs a server from the provided config.
@@ -330,6 +355,8 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		now = time.Now
 	}
 
+	idJAGTokensValidFor := value(c.IDJAGTokensValidFor, 5*time.Minute)
+
 	s := &Server{
 		issuerURL:              *issuerURL,
 		connectors:             make(map[string]Connector),
@@ -348,6 +375,9 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		passwordConnector:      c.PasswordConnector,
 		logger:                 c.Logger,
 		signer:                 c.Signer,
+		enableIDJAG:            c.TokenExchange.IDJAGEnabled(),
+		idJAGTokensValidFor:    idJAGTokensValidFor,
+		tokenExchangePolicies:  c.IDJAGPolicies,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors

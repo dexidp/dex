@@ -182,15 +182,15 @@ additionalFeatures: [
 				"foo": "bar",
 			},
 		},
-		StaticClients: []storage.Client{
-			{
+		StaticClients: []staticClient{
+			{Client: storage.Client{
 				ID:     "example-app",
 				Secret: "ZXhhbXBsZS1hcHAtc2VjcmV0",
 				Name:   "Example App",
 				RedirectURIs: []string{
 					"http://127.0.0.1:5555/callback",
 				},
-			},
+			}},
 		},
 		OAuth2: OAuth2{
 			AlwaysShowLoginScreen: true,
@@ -411,15 +411,15 @@ logger:
 				"foo": "bar",
 			},
 		},
-		StaticClients: []storage.Client{
-			{
+		StaticClients: []staticClient{
+			{Client: storage.Client{
 				ID:     "example-app",
 				Secret: "ZXhhbXBsZS1hcHAtc2VjcmV0",
 				Name:   "Example App",
 				RedirectURIs: []string{
 					"http://127.0.0.1:5555/callback",
 				},
-			},
+			}},
 		},
 		OAuth2: OAuth2{
 			AlwaysShowLoginScreen: true,
