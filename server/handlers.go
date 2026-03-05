@@ -845,7 +845,7 @@ func (s *Server) withClientFromStorage(w http.ResponseWriter, r *http.Request, h
 		return
 	}
 
-	if subtle.ConstantTimeCompare([]byte(client.Secret), []byte(clientSecret)) != 1 {
+	if !client.Public && subtle.ConstantTimeCompare([]byte(client.Secret), []byte(clientSecret)) != 1 {
 		if clientSecret == "" {
 			s.logger.InfoContext(r.Context(), "missing client_secret on token request", "client_id", client.ID)
 		} else {
