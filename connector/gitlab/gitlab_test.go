@@ -542,11 +542,7 @@ func TestTokenIdentity(t *testing.T) {
 					Name:     "Joe Bloggs",
 					Username: "joebloggs",
 				},
-			}
-
-			// Only add /oauth/userinfo if we expect groups to be fetched
-			if tc.groups != nil || tc.getGroupsPermission {
-				responses["/oauth/userinfo"] = tc.userInfo
+				"/oauth/userinfo": tc.userInfo,
 			}
 
 			s := newTestServer(responses)
