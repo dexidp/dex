@@ -255,6 +255,11 @@ func runServe(options serveOptions) error {
 		if c.Config == nil {
 			return fmt.Errorf("invalid config: no config field for connector %q", c.ID)
 		}
+		for _, gt := range c.GrantTypes {
+			if !server.ConnectorGrantTypes[gt] {
+				return fmt.Errorf("invalid config: unknown grant type %q for connector %q", gt, c.ID)
+			}
+		}
 		logger.Info("config connector", "connector_id", c.ID)
 
 		// convert to a storage connector object

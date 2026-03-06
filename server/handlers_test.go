@@ -1060,6 +1060,46 @@ func TestHandleTokenExchange(t *testing.T) {
 	}
 }
 
+func TestHandleTokenExchangeConnectorGrantTypeRestriction(t *testing.T) {
+	ctx := t.Context()
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.Storage.CreateClient(ctx, storage.Client{
+			ID:     "client_1",
+			Secret: "secret_1",
+		})
+	})
+	defer httpServer.Close()
+
+	// Restrict mock connector to authorization_code only
+	err := s.storage.UpdateConnector(ctx, "mock", func(c storage.Connector) (storage.Connector, error) {
+		c.GrantTypes = []string{grantTypeAuthorizationCode}
+		return c, nil
+	})
+	require.NoError(t, err)
+	// Clear cached connector to pick up new grant types
+	s.mu.Lock()
+	delete(s.connectors, "mock")
+	s.mu.Unlock()
+
+	vals := make(url.Values)
+	vals.Set("grant_type", grantTypeTokenExchange)
+	vals.Set("connector_id", "mock")
+	vals.Set("scope", "openid")
+	vals.Set("requested_token_type", tokenTypeAccess)
+	vals.Set("subject_token_type", tokenTypeID)
+	vals.Set("subject_token", "foobar")
+	vals.Set("client_id", "client_1")
+	vals.Set("client_secret", "secret_1")
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
+	req.Header.Set("content-type", "application/x-www-form-urlencoded")
+
+	s.handleToken(rr, req)
+
+	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+}
+
 func setNonEmpty(vals url.Values, key, value string) {
 	if value != "" {
 		vals.Set(key, value)

@@ -14,6 +14,7 @@ func (d *Database) CreateConnector(ctx context.Context, connector storage.Connec
 		SetType(connector.Type).
 		SetResourceVersion(connector.ResourceVersion).
 		SetConfig(connector.Config).
+		SetGrantTypes(connector.GrantTypes).
 		Save(ctx)
 	if err != nil {
 		return convertDBError("create connector: %w", err)
@@ -75,6 +76,7 @@ func (d *Database) UpdateConnector(ctx context.Context, id string, updater func(
 		SetType(newConnector.Type).
 		SetResourceVersion(newConnector.ResourceVersion).
 		SetConfig(newConnector.Config).
+		SetGrantTypes(newConnector.GrantTypes).
 		Save(ctx)
 	if err != nil {
 		return rollback(tx, "update connector uploading: %w", err)

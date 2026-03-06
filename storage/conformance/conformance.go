@@ -630,10 +630,11 @@ func testConnectorCRUD(t *testing.T, s storage.Storage) {
 	id1 := storage.NewID()
 	config1 := []byte(`{"issuer": "https://accounts.google.com"}`)
 	c1 := storage.Connector{
-		ID:     id1,
-		Type:   "Default",
-		Name:   "Default",
-		Config: config1,
+		ID:         id1,
+		Type:       "Default",
+		Name:       "Default",
+		Config:     config1,
+		GrantTypes: []string{"authorization_code", "refresh_token"},
 	}
 
 	if err := s.CreateConnector(ctx, c1); err != nil {
@@ -674,12 +675,14 @@ func testConnectorCRUD(t *testing.T, s storage.Storage) {
 
 	if err := s.UpdateConnector(ctx, c1.ID, func(old storage.Connector) (storage.Connector, error) {
 		old.Type = "oidc"
+		old.GrantTypes = []string{"urn:ietf:params:oauth:grant-type:token-exchange"}
 		return old, nil
 	}); err != nil {
 		t.Fatalf("failed to update Connector: %v", err)
 	}
 
 	c1.Type = "oidc"
+	c1.GrantTypes = []string{"urn:ietf:params:oauth:grant-type:token-exchange"}
 	getAndCompare(id1, c1)
 
 	connectorList := []storage.Connector{c1, c2}

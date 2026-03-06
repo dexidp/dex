@@ -374,4 +374,11 @@ var migrations = []migration{
 		},
 		flavor: &flavorMySQL,
 	},
+	{
+		stmts: []string{
+			`
+			alter table connector
+				add column grant_types bytea;`,
+		},
+	},
 }

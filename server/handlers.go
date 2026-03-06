@@ -142,6 +142,21 @@ func (s *Server) constructDiscovery(ctx context.Context) discovery {
 	return d
 }
 
+// grantTypeFromAuthRequest determines the grant type from the authorization request parameters.
+func (s *Server) grantTypeFromAuthRequest(r *http.Request) string {
+	redirectURI := r.Form.Get("redirect_uri")
+	if redirectURI == deviceCallbackURI || strings.HasSuffix(redirectURI, deviceCallbackURI) {
+		return grantTypeDeviceCode
+	}
+	responseType := r.Form.Get("response_type")
+	for _, rt := range strings.Fields(responseType) {
+		if rt == "token" || rt == "id_token" {
+			return grantTypeImplicit
+		}
+	}
+	return grantTypeAuthorizationCode
+}
+
 // handleAuthorization handles the OAuth2 auth endpoint.
 func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -154,10 +169,24 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	}
 
 	connectorID := r.Form.Get("connector_id")
-	connectors, err := s.storage.ListConnectors(ctx)
+	allConnectors, err := s.storage.ListConnectors(ctx)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to get list of connectors", "err", err)
 		s.renderError(r, w, http.StatusInternalServerError, "Failed to retrieve connector list.")
+		return
+	}
+
+	// Determine the grant type from the authorization request to filter connectors.
+	grantType := s.grantTypeFromAuthRequest(r)
+	connectors := make([]storage.Connector, 0, len(allConnectors))
+	for _, c := range allConnectors {
+		if c.GrantTypeAllowed(grantType) {
+			connectors = append(connectors, c)
+		}
+	}
+
+	if len(connectors) == 0 {
+		s.renderError(r, w, http.StatusBadRequest, "No connectors available for the requested grant type.")
 		return
 	}
 
@@ -187,15 +216,15 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, connURL.String(), http.StatusFound)
 	}
 
-	connectorInfos := make([]connectorInfo, len(connectors))
-	for index, conn := range connectors {
+	connectorInfos := make([]connectorInfo, 0, len(connectors))
+	for _, conn := range connectors {
 		connURL.Path = s.absPath("/auth", url.PathEscape(conn.ID))
-		connectorInfos[index] = connectorInfo{
+		connectorInfos = append(connectorInfos, connectorInfo{
 			ID:   conn.ID,
 			Name: conn.Name,
 			Type: conn.Type,
 			URL:  template.URL(connURL.String()),
-		}
+		})
 	}
 
 	if err := s.templates.login(r, w, connectorInfos); err != nil {
@@ -232,6 +261,15 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "Failed to get connector", "err", err)
 		s.renderError(r, w, http.StatusBadRequest, "Connector failed to initialize")
+		return
+	}
+
+	// Check if the connector allows the requested grant type.
+	grantType := s.grantTypeFromAuthRequest(r)
+	if !conn.GrantTypeAllowed(grantType) {
+		s.logger.ErrorContext(r.Context(), "connector does not allow requested grant type",
+			"connector_id", connID, "grant_type", grantType)
+		s.renderError(r, w, http.StatusBadRequest, "Requested connector does not support this grant type.")
 		return
 	}
 
@@ -1211,6 +1249,11 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
 		return
 	}
+	if !conn.GrantTypeAllowed(grantTypePassword) {
+		s.logger.ErrorContext(r.Context(), "connector does not allow password grant", "connector_id", connID)
+		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not support password grant.", http.StatusBadRequest)
+		return
+	}
 
 	passwordConnector, ok := conn.Connector.(connector.PasswordConnector)
 	if !ok {
@@ -1416,6 +1459,11 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to get connector", "err", err)
 		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
+		return
+	}
+	if !conn.GrantTypeAllowed(grantTypeTokenExchange) {
+		s.logger.ErrorContext(r.Context(), "connector does not allow token exchange", "connector_id", connID)
+		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not support token exchange.", http.StatusBadRequest)
 		return
 	}
 	teConn, ok := conn.Connector.(connector.TokenIdentityConnector)

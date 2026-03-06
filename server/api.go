@@ -461,6 +461,7 @@ func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq
 		Type:            req.Connector.Type,
 		ResourceVersion: "1",
 		Config:          req.Connector.Config,
+		GrantTypes:      req.Connector.GrantTypes,
 	}
 	if err := d.s.CreateConnector(ctx, c); err != nil {
 		if err == storage.ErrAlreadyExists {
@@ -487,7 +488,7 @@ func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq
 		return nil, errors.New("no email supplied")
 	}
 
-	if len(req.NewConfig) == 0 && req.NewName == "" && req.NewType == "" {
+	if len(req.NewConfig) == 0 && req.NewName == "" && req.NewType == "" && len(req.NewGrantTypes) == 0 {
 		return nil, errors.New("nothing to update")
 	}
 
@@ -506,6 +507,10 @@ func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq
 
 		if len(req.NewConfig) != 0 {
 			old.Config = req.NewConfig
+		}
+
+		if len(req.NewGrantTypes) != 0 {
+			old.GrantTypes = req.NewGrantTypes
 		}
 
 		if rev, err := strconv.Atoi(defaultTo(old.ResourceVersion, "0")); err == nil {
@@ -561,10 +566,11 @@ func (d dexAPI) ListConnectors(ctx context.Context, req *api.ListConnectorReq) (
 	connectors := make([]*api.Connector, 0, len(connectorList))
 	for _, connector := range connectorList {
 		c := api.Connector{
-			Id:     connector.ID,
-			Name:   connector.Name,
-			Type:   connector.Type,
-			Config: connector.Config,
+			Id:         connector.ID,
+			Name:       connector.Name,
+			Type:       connector.Type,
+			Config:     connector.Config,
+			GrantTypes: connector.GrantTypes,
 		}
 		connectors = append(connectors, &c)
 	}

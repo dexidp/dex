@@ -721,6 +721,8 @@ type Connector struct {
 	Name string `json:"name,omitempty"`
 	// Config holds connector specific configuration information
 	Config []byte `json:"config,omitempty"`
+	// GrantTypes is a list of grant types that this connector is allowed to be used with.
+	GrantTypes []string `json:"grantTypes,omitempty"`
 }
 
 func (cli *client) fromStorageConnector(c storage.Connector) Connector {
@@ -733,10 +735,11 @@ func (cli *client) fromStorageConnector(c storage.Connector) Connector {
 			Name:      c.ID,
 			Namespace: cli.namespace,
 		},
-		ID:     c.ID,
-		Type:   c.Type,
-		Name:   c.Name,
-		Config: c.Config,
+		ID:         c.ID,
+		Type:       c.Type,
+		Name:       c.Name,
+		Config:     c.Config,
+		GrantTypes: c.GrantTypes,
 	}
 }
 
@@ -747,6 +750,7 @@ func toStorageConnector(c Connector) storage.Connector {
 		Name:            c.Name,
 		ResourceVersion: c.ObjectMeta.ResourceVersion,
 		Config:          c.Config,
+		GrantTypes:      c.GrantTypes,
 	}
 }
 
