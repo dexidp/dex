@@ -120,6 +120,24 @@ func (_u *OAuth2ClientUpdate) SetNillableLogoURL(v *string) *OAuth2ClientUpdate 
 	return _u
 }
 
+// SetAllowedGroups sets the "allowed_groups" field.
+func (_u *OAuth2ClientUpdate) SetAllowedGroups(v []string) *OAuth2ClientUpdate {
+	_u.mutation.SetAllowedGroups(v)
+	return _u
+}
+
+// AppendAllowedGroups appends value to the "allowed_groups" field.
+func (_u *OAuth2ClientUpdate) AppendAllowedGroups(v []string) *OAuth2ClientUpdate {
+	_u.mutation.AppendAllowedGroups(v)
+	return _u
+}
+
+// ClearAllowedGroups clears the value of the "allowed_groups" field.
+func (_u *OAuth2ClientUpdate) ClearAllowedGroups() *OAuth2ClientUpdate {
+	_u.mutation.ClearAllowedGroups()
+	return _u
+}
+
 // Mutation returns the OAuth2ClientMutation object of the builder.
 func (_u *OAuth2ClientUpdate) Mutation() *OAuth2ClientMutation {
 	return _u.mutation
@@ -217,6 +235,17 @@ func (_u *OAuth2ClientUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if value, ok := _u.mutation.LogoURL(); ok {
 		_spec.SetField(oauth2client.FieldLogoURL, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.AllowedGroups(); ok {
+		_spec.SetField(oauth2client.FieldAllowedGroups, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedAllowedGroups(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, oauth2client.FieldAllowedGroups, value)
+		})
+	}
+	if _u.mutation.AllowedGroupsCleared() {
+		_spec.ClearField(oauth2client.FieldAllowedGroups, field.TypeJSON)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -327,6 +356,24 @@ func (_u *OAuth2ClientUpdateOne) SetNillableLogoURL(v *string) *OAuth2ClientUpda
 	if v != nil {
 		_u.SetLogoURL(*v)
 	}
+	return _u
+}
+
+// SetAllowedGroups sets the "allowed_groups" field.
+func (_u *OAuth2ClientUpdateOne) SetAllowedGroups(v []string) *OAuth2ClientUpdateOne {
+	_u.mutation.SetAllowedGroups(v)
+	return _u
+}
+
+// AppendAllowedGroups appends value to the "allowed_groups" field.
+func (_u *OAuth2ClientUpdateOne) AppendAllowedGroups(v []string) *OAuth2ClientUpdateOne {
+	_u.mutation.AppendAllowedGroups(v)
+	return _u
+}
+
+// ClearAllowedGroups clears the value of the "allowed_groups" field.
+func (_u *OAuth2ClientUpdateOne) ClearAllowedGroups() *OAuth2ClientUpdateOne {
+	_u.mutation.ClearAllowedGroups()
 	return _u
 }
 
@@ -457,6 +504,17 @@ func (_u *OAuth2ClientUpdateOne) sqlSave(ctx context.Context) (_node *OAuth2Clie
 	}
 	if value, ok := _u.mutation.LogoURL(); ok {
 		_spec.SetField(oauth2client.FieldLogoURL, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.AllowedGroups(); ok {
+		_spec.SetField(oauth2client.FieldAllowedGroups, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedAllowedGroups(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, oauth2client.FieldAllowedGroups, value)
+		})
+	}
+	if _u.mutation.AllowedGroupsCleared() {
+		_spec.ClearField(oauth2client.FieldAllowedGroups, field.TypeJSON)
 	}
 	_node = &OAuth2Client{config: _u.config}
 	_spec.Assign = _node.assignValues

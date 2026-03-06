@@ -1,0 +1,67 @@
+# Config for manual testing of allowedGroups (per-client and connector).
+# Run: dex serve config.allowed-groups-test.yaml
+# Then use example-app with client "example-app" (allowed) or "restricted-app" (deny).
+issuer: http://127.0.0.1:5556/dex
+
+storage:
+  type: sqlite3
+  config:
+    file: var/sqlite/dex.db
+
+web:
+  http: 127.0.0.1:5556
+
+telemetry:
+  http: 127.0.0.1:5558
+
+staticClients:
+  # No allowedGroups: any user who passes the connector can complete SSO.
+  - id: example-app
+    redirectURIs:
+      - 'http://127.0.0.1:5555/callback'
+    name: 'Example App (no restriction)'
+    secret: ZXhhbXBsZS1hcHAtc2VjcmV0
+
+  # allowedGroups: only users in team-a or team-a/admins can complete SSO for this client.
+  - id: example-app-allowed
+    redirectURIs:
+      - 'http://127.0.0.1:5555/callback'
+    name: 'Example App (allowed groups)'
+    secret: ZXhhbXBsZS1hcHAtc2VjcmV0
+    allowedGroups:
+      - "team-a"
+      - "team-a/admins"
+
+  # allowedGroups: user admin has team-a; user "other" does not -> login for this client will 403.
+  - id: restricted-app
+    redirectURIs:
+      - 'http://127.0.0.1:5555/callback'
+    name: 'Restricted App'
+    secret: restricted-secret
+    allowedGroups:
+      - "other-group"
+
+connectors:
+  - type: mockCallback
+    id: mock
+    name: Example
+
+enablePasswordDB: true
+
+staticPasswords:
+  # User in team-a, team-a/admins -> can use example-app and example-app-allowed; cannot use restricted-app.
+  - email: "admin@example.com"
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+    username: "admin"
+    name: "Admin User"
+    emailVerified: true
+    preferredUsername: "admin"
+    groups:
+      - "team-a"
+      - "team-a/admins"
+    userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
+
+signer:
+  type: local
+  config:
+    keysRotationPeriod: "6h"

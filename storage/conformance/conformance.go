@@ -262,11 +262,12 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 	ctx := t.Context()
 	id1 := storage.NewID()
 	c1 := storage.Client{
-		ID:           id1,
-		Secret:       "foobar",
-		RedirectURIs: []string{"foo://bar.com/", "https://auth.example.com"},
-		Name:         "dex client",
-		LogoURL:      "https://goo.gl/JIyzIC",
+		ID:            id1,
+		Secret:        "foobar",
+		RedirectURIs:  []string{"foo://bar.com/", "https://auth.example.com"},
+		Name:          "dex client",
+		LogoURL:       "https://goo.gl/JIyzIC",
+		AllowedGroups: []string{"team-a", "team-b"},
 	}
 	err := s.DeleteClient(ctx, id1)
 	mustBeErrNotFound(t, "client", err)
@@ -306,14 +307,17 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 	getAndCompare(id1, c1)
 
 	newSecret := "barfoo"
+	newAllowedGroups := []string{"team-c"}
 	err = s.UpdateClient(ctx, id1, func(old storage.Client) (storage.Client, error) {
 		old.Secret = newSecret
+		old.AllowedGroups = newAllowedGroups
 		return old, nil
 	})
 	if err != nil {
 		t.Errorf("update client: %v", err)
 	}
 	c1.Secret = newSecret
+	c1.AllowedGroups = newAllowedGroups
 	getAndCompare(id1, c1)
 
 	if err := s.DeleteClient(ctx, id1); err != nil {

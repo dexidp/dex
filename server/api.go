@@ -58,13 +58,14 @@ func (d dexAPI) GetClient(ctx context.Context, req *api.GetClientReq) (*api.GetC
 
 	return &api.GetClientResp{
 		Client: &api.Client{
-			Id:           c.ID,
-			Name:         c.Name,
-			Secret:       c.Secret,
-			RedirectUris: c.RedirectURIs,
-			TrustedPeers: c.TrustedPeers,
-			Public:       c.Public,
-			LogoUrl:      c.LogoURL,
+			Id:            c.ID,
+			Name:          c.Name,
+			Secret:        c.Secret,
+			RedirectUris:  c.RedirectURIs,
+			TrustedPeers:  c.TrustedPeers,
+			Public:        c.Public,
+			LogoUrl:       c.LogoURL,
+			AllowedGroups: c.AllowedGroups,
 		},
 	}, nil
 }
@@ -82,13 +83,14 @@ func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*ap
 	}
 
 	c := storage.Client{
-		ID:           req.Client.Id,
-		Secret:       req.Client.Secret,
-		RedirectURIs: req.Client.RedirectUris,
-		TrustedPeers: req.Client.TrustedPeers,
-		Public:       req.Client.Public,
-		Name:         req.Client.Name,
-		LogoURL:      req.Client.LogoUrl,
+		ID:            req.Client.Id,
+		Secret:        req.Client.Secret,
+		RedirectURIs:  req.Client.RedirectUris,
+		TrustedPeers:  req.Client.TrustedPeers,
+		Public:        req.Client.Public,
+		Name:          req.Client.Name,
+		LogoURL:       req.Client.LogoUrl,
+		AllowedGroups: req.Client.AllowedGroups,
 	}
 	if err := d.s.CreateClient(ctx, c); err != nil {
 		if err == storage.ErrAlreadyExists {
@@ -155,12 +157,13 @@ func (d dexAPI) ListClients(ctx context.Context, req *api.ListClientReq) (*api.L
 	clients := make([]*api.ClientInfo, 0, len(clientList))
 	for _, client := range clientList {
 		c := api.ClientInfo{
-			Id:           client.ID,
-			Name:         client.Name,
-			RedirectUris: client.RedirectURIs,
-			TrustedPeers: client.TrustedPeers,
-			Public:       client.Public,
-			LogoUrl:      client.LogoURL,
+			Id:            client.ID,
+			Name:          client.Name,
+			RedirectUris:  client.RedirectURIs,
+			TrustedPeers:  client.TrustedPeers,
+			Public:        client.Public,
+			LogoUrl:       client.LogoURL,
+			AllowedGroups: client.AllowedGroups,
 		}
 		clients = append(clients, &c)
 	}

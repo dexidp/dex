@@ -8,15 +8,18 @@ import (
 
 // CreateClient saves provided oauth2 client settings into the database.
 func (d *Database) CreateClient(ctx context.Context, client storage.Client) error {
-	_, err := d.client.OAuth2Client.Create().
+	builder := d.client.OAuth2Client.Create().
 		SetID(client.ID).
 		SetName(client.Name).
 		SetSecret(client.Secret).
 		SetPublic(client.Public).
 		SetLogoURL(client.LogoURL).
 		SetRedirectUris(client.RedirectURIs).
-		SetTrustedPeers(client.TrustedPeers).
-		Save(ctx)
+		SetTrustedPeers(client.TrustedPeers)
+	if len(client.AllowedGroups) > 0 {
+		builder = builder.SetAllowedGroups(client.AllowedGroups)
+	}
+	_, err := builder.Save(ctx)
 	if err != nil {
 		return convertDBError("create oauth2 client: %w", err)
 	}
@@ -79,6 +82,7 @@ func (d *Database) UpdateClient(ctx context.Context, id string, updater func(old
 		SetLogoURL(newClient.LogoURL).
 		SetRedirectUris(newClient.RedirectURIs).
 		SetTrustedPeers(newClient.TrustedPeers).
+		SetAllowedGroups(newClient.AllowedGroups).
 		Save(ctx)
 	if err != nil {
 		return rollback(tx, "update client uploading: %w", err)
