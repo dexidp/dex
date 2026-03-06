@@ -275,3 +275,40 @@ func TestMySQL(t *testing.T) {
 	}
 	testDB(t, s, true)
 }
+
+const testMySQL8Env = "DEX_MYSQL8_HOST"
+
+func TestMySQL8(t *testing.T) {
+	host := os.Getenv(testMySQL8Env)
+	if host == "" {
+		t.Skipf("test environment variable %q not set, skipping", testMySQL8Env)
+	}
+
+	port := uint64(3306)
+	if rawPort := os.Getenv("DEX_MYSQL8_PORT"); rawPort != "" {
+		var err error
+
+		port, err = strconv.ParseUint(rawPort, 10, 32)
+		if err != nil {
+			t.Fatalf("invalid mysql port %q: %s", rawPort, err)
+		}
+	}
+
+	s := &MySQL{
+		NetworkDB: NetworkDB{
+			Database:          getenv("DEX_MYSQL8_DATABASE", "mysql"),
+			User:              getenv("DEX_MYSQL8_USER", "mysql"),
+			Password:          getenv("DEX_MYSQL8_PASSWORD", "mysql"),
+			Host:              host,
+			Port:              uint16(port),
+			ConnectionTimeout: 5,
+		},
+		SSL: SSL{
+			Mode: mysqlSSLFalse,
+		},
+		params: map[string]string{
+			"innodb_lock_wait_timeout": "3",
+		},
+	}
+	testDB(t, s, true)
+}
