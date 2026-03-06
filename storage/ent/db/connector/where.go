@@ -317,6 +317,16 @@ func ConfigLTE(v []byte) predicate.Connector {
 	return predicate.Connector(sql.FieldLTE(FieldConfig, v))
 }
 
+// GrantTypesIsNil applies the IsNil predicate on the "grant_types" field.
+func GrantTypesIsNil() predicate.Connector {
+	return predicate.Connector(sql.FieldIsNull(FieldGrantTypes))
+}
+
+// GrantTypesNotNil applies the NotNil predicate on the "grant_types" field.
+func GrantTypesNotNil() predicate.Connector {
+	return predicate.Connector(sql.FieldNotNull(FieldGrantTypes))
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.Connector) predicate.Connector {
 	return predicate.Connector(sql.AndPredicates(predicates...))

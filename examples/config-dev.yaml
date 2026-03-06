@@ -100,7 +100,7 @@ telemetry:
 #   format: "text" # can also be "json"
 
 # Default values shown below
-#oauth2:
+# oauth2:
     # grantTypes determines the allowed set of authorization flows.
 #   grantTypes:
 #     - "authorization_code"
@@ -151,6 +151,18 @@ connectors:
 - type: mockCallback
   id: mock
   name: Example
+  # grantTypes restricts which grant types can use this connector.
+  # If not specified, all grant types are allowed.
+  # Supported values:
+  #   - "authorization_code"
+  #   - "implicit"
+  #   - "refresh_token"
+  #   - "password"
+  #   - "urn:ietf:params:oauth:grant-type:device_code"
+  #   - "urn:ietf:params:oauth:grant-type:token-exchange"
+#  grantTypes:
+#  - "authorization_code"
+#  - "refresh_token"
 # - type: google
 #   id: google
 #   name: Google

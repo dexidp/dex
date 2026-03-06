@@ -88,10 +88,11 @@ func toStorageClient(c *db.OAuth2Client) storage.Client {
 
 func toStorageConnector(c *db.Connector) storage.Connector {
 	return storage.Connector{
-		ID:     c.ID,
-		Type:   c.Type,
-		Name:   c.Name,
-		Config: c.Config,
+		ID:         c.ID,
+		Type:       c.Type,
+		Name:       c.Name,
+		Config:     c.Config,
+		GrantTypes: c.GrantTypes,
 	}
 }
 

@@ -57,6 +57,20 @@ const LocalConnector = "local"
 type Connector struct {
 	ResourceVersion string
 	Connector       connector.Connector
+	GrantTypes      []string
+}
+
+// GrantTypeAllowed checks if the given grant type is allowed for this connector.
+func (c Connector) GrantTypeAllowed(grantType string) bool {
+	if len(c.GrantTypes) == 0 {
+		return true
+	}
+	for _, gt := range c.GrantTypes {
+		if gt == grantType {
+			return true
+		}
+	}
+	return false
 }
 
 // Config holds the server's configuration options.
@@ -739,6 +753,7 @@ func (s *Server) OpenConnector(conn storage.Connector) (Connector, error) {
 	connector := Connector{
 		ResourceVersion: conn.ResourceVersion,
 		Connector:       c,
+		GrantTypes:      conn.GrantTypes,
 	}
 	s.mu.Lock()
 	s.connectors[conn.ID] = connector

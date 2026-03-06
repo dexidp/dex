@@ -2720,17 +2720,19 @@ func (m *AuthRequestMutation) ResetEdge(name string) error {
 // ConnectorMutation represents an operation that mutates the Connector nodes in the graph.
 type ConnectorMutation struct {
 	config
-	op               Op
-	typ              string
-	id               *string
-	_type            *string
-	name             *string
-	resource_version *string
-	_config          *[]byte
-	clearedFields    map[string]struct{}
-	done             bool
-	oldValue         func(context.Context) (*Connector, error)
-	predicates       []predicate.Connector
+	op                Op
+	typ               string
+	id                *string
+	_type             *string
+	name              *string
+	resource_version  *string
+	_config           *[]byte
+	grant_types       *[]string
+	appendgrant_types []string
+	clearedFields     map[string]struct{}
+	done              bool
+	oldValue          func(context.Context) (*Connector, error)
+	predicates        []predicate.Connector
 }
 
 var _ ent.Mutation = (*ConnectorMutation)(nil)
@@ -2981,6 +2983,71 @@ func (m *ConnectorMutation) ResetConfig() {
 	m._config = nil
 }
 
+// SetGrantTypes sets the "grant_types" field.
+func (m *ConnectorMutation) SetGrantTypes(s []string) {
+	m.grant_types = &s
+	m.appendgrant_types = nil
+}
+
+// GrantTypes returns the value of the "grant_types" field in the mutation.
+func (m *ConnectorMutation) GrantTypes() (r []string, exists bool) {
+	v := m.grant_types
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGrantTypes returns the old "grant_types" field's value of the Connector entity.
+// If the Connector object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ConnectorMutation) OldGrantTypes(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGrantTypes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGrantTypes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGrantTypes: %w", err)
+	}
+	return oldValue.GrantTypes, nil
+}
+
+// AppendGrantTypes adds s to the "grant_types" field.
+func (m *ConnectorMutation) AppendGrantTypes(s []string) {
+	m.appendgrant_types = append(m.appendgrant_types, s...)
+}
+
+// AppendedGrantTypes returns the list of values that were appended to the "grant_types" field in this mutation.
+func (m *ConnectorMutation) AppendedGrantTypes() ([]string, bool) {
+	if len(m.appendgrant_types) == 0 {
+		return nil, false
+	}
+	return m.appendgrant_types, true
+}
+
+// ClearGrantTypes clears the value of the "grant_types" field.
+func (m *ConnectorMutation) ClearGrantTypes() {
+	m.grant_types = nil
+	m.appendgrant_types = nil
+	m.clearedFields[connector.FieldGrantTypes] = struct{}{}
+}
+
+// GrantTypesCleared returns if the "grant_types" field was cleared in this mutation.
+func (m *ConnectorMutation) GrantTypesCleared() bool {
+	_, ok := m.clearedFields[connector.FieldGrantTypes]
+	return ok
+}
+
+// ResetGrantTypes resets all changes to the "grant_types" field.
+func (m *ConnectorMutation) ResetGrantTypes() {
+	m.grant_types = nil
+	m.appendgrant_types = nil
+	delete(m.clearedFields, connector.FieldGrantTypes)
+}
+
 // Where appends a list predicates to the ConnectorMutation builder.
 func (m *ConnectorMutation) Where(ps ...predicate.Connector) {
 	m.predicates = append(m.predicates, ps...)
@@ -3015,7 +3082,7 @@ func (m *ConnectorMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ConnectorMutation) Fields() []string {
-	fields := make([]string, 0, 4)
+	fields := make([]string, 0, 5)
 	if m._type != nil {
 		fields = append(fields, connector.FieldType)
 	}
@@ -3027,6 +3094,9 @@ func (m *ConnectorMutation) Fields() []string {
 	}
 	if m._config != nil {
 		fields = append(fields, connector.FieldConfig)
+	}
+	if m.grant_types != nil {
+		fields = append(fields, connector.FieldGrantTypes)
 	}
 	return fields
 }
@@ -3044,6 +3114,8 @@ func (m *ConnectorMutation) Field(name string) (ent.Value, bool) {
 		return m.ResourceVersion()
 	case connector.FieldConfig:
 		return m.Config()
+	case connector.FieldGrantTypes:
+		return m.GrantTypes()
 	}
 	return nil, false
 }
@@ -3061,6 +3133,8 @@ func (m *ConnectorMutation) OldField(ctx context.Context, name string) (ent.Valu
 		return m.OldResourceVersion(ctx)
 	case connector.FieldConfig:
 		return m.OldConfig(ctx)
+	case connector.FieldGrantTypes:
+		return m.OldGrantTypes(ctx)
 	}
 	return nil, fmt.Errorf("unknown Connector field %s", name)
 }
@@ -3098,6 +3172,13 @@ func (m *ConnectorMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetConfig(v)
 		return nil
+	case connector.FieldGrantTypes:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGrantTypes(v)
+		return nil
 	}
 	return fmt.Errorf("unknown Connector field %s", name)
 }
@@ -3127,7 +3208,11 @@ func (m *ConnectorMutation) AddField(name string, value ent.Value) error {
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *ConnectorMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(connector.FieldGrantTypes) {
+		fields = append(fields, connector.FieldGrantTypes)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -3140,6 +3225,11 @@ func (m *ConnectorMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *ConnectorMutation) ClearField(name string) error {
+	switch name {
+	case connector.FieldGrantTypes:
+		m.ClearGrantTypes()
+		return nil
+	}
 	return fmt.Errorf("unknown Connector nullable field %s", name)
 }
 
@@ -3158,6 +3248,9 @@ func (m *ConnectorMutation) ResetField(name string) error {
 		return nil
 	case connector.FieldConfig:
 		m.ResetConfig()
+		return nil
+	case connector.FieldGrantTypes:
+		m.ResetGrantTypes()
 		return nil
 	}
 	return fmt.Errorf("unknown Connector field %s", name)
