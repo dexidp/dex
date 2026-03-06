@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -105,6 +106,9 @@ func TestHandleDiscovery(t *testing.T) {
 			"name",
 			"preferred_username",
 			"at_hash",
+		},
+		IDJAGSigningAlgs: []string{
+			"RS256",
 		},
 	}, res)
 }
@@ -1179,4 +1183,171 @@ func (m *mockSAMLRefreshConnector) HandlePOST(s connector.Scopes, samlResponse, 
 
 func (m *mockSAMLRefreshConnector) Refresh(ctx context.Context, s connector.Scopes, ident connector.Identity) (connector.Identity, error) {
 	return m.refreshIdentity, nil
+}
+
+// makeTestJWT builds a minimal unsigned JWT with the given sub for testing.
+// Signature is a placeholder; extractJWTSub does not verify signatures.
+func makeTestJWT(sub string) string {
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`))
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"sub":"` + sub + `","iss":"https://issuer.example","aud":"client_1","exp":9999999999}`))
+	return header + "." + payload + ".fakesig"
+}
+
+// TestExtractJWTSubAndAud verifies that extractJWTSubAndAud correctly parses
+// the sub and aud claims from a JWT payload without signature verification.
+func TestExtractJWTSubAndAud(t *testing.T) {
+	tests := []struct {
+		name    string
+		token   string
+		wantSub string
+		wantAud []string
+		wantErr bool
+	}{
+		{
+			name:    "valid JWT returns sub and aud",
+			token:   makeTestJWT("user-abc-123"),
+			wantSub: "user-abc-123",
+			wantAud: []string{"client_1"},
+		},
+		{
+			name:    "not a JWT (no dots)",
+			token:   "notajwt",
+			wantErr: true,
+		},
+		{
+			name:    "invalid base64 payload",
+			token:   "aGVhZGVy.!!!.c2ln",
+			wantErr: true,
+		},
+		{
+			name: "valid JWT without sub returns empty string",
+			token: func() string {
+				h := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256"}`))
+				p := base64.RawURLEncoding.EncodeToString([]byte(`{"iss":"https://issuer.example"}`))
+				return h + "." + p + ".sig"
+			}(),
+			wantSub: "",
+			wantAud: nil,
+			wantErr: false,
+		},
+		{
+			name: "aud as array",
+			token: func() string {
+				h := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256"}`))
+				p := base64.RawURLEncoding.EncodeToString([]byte(`{"sub":"u1","aud":["a","b"]}`))
+				return h + "." + p + ".sig"
+			}(),
+			wantSub: "u1",
+			wantAud: []string{"a", "b"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			sub, aud, err := extractJWTSubAndAud(tc.token)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.wantSub, sub)
+			require.Equal(t, tc.wantAud, aud)
+		})
+	}
+}
+
+// TestHandleIDJAGExchange verifies the ID-JAG token exchange HTTP handler.
+// It covers the main validation paths and the happy path response format.
+func TestHandleIDJAGExchange(t *testing.T) {
+	subjectToken := makeTestJWT("user-123")
+
+	tests := []struct {
+		name             string
+		audience         string
+		subjectTokenType string
+		subjectToken     string
+		policies         []TokenExchangePolicy
+		wantCode         int
+		wantTokenTypeNA  bool
+	}{
+		{
+			name:             "happy path: valid ID-JAG issued",
+			audience:         "https://resource-as.example.com",
+			subjectTokenType: tokenTypeID,
+			subjectToken:     subjectToken,
+			wantCode:         http.StatusOK,
+			wantTokenTypeNA:  true,
+		},
+		{
+			name:             "missing audience returns 400",
+			audience:         "",
+			subjectTokenType: tokenTypeID,
+			subjectToken:     subjectToken,
+			wantCode:         http.StatusBadRequest,
+		},
+		{
+			name:             "wrong subject_token_type returns 400",
+			audience:         "https://resource-as.example.com",
+			subjectTokenType: tokenTypeAccess, // must be id_token for ID-JAG
+			subjectToken:     subjectToken,
+			wantCode:         http.StatusBadRequest,
+		},
+		{
+			name:             "policy denies the audience: 403",
+			audience:         "https://resource-as.example.com",
+			subjectTokenType: tokenTypeID,
+			subjectToken:     subjectToken,
+			policies: []TokenExchangePolicy{
+				// client_1 may only reach other.example.com, not resource-as.example.com
+				{ClientID: "client_1", AllowedAudiences: []string{"https://other.example.com"}},
+			},
+			wantCode: http.StatusForbidden,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			httpServer, s := newTestServer(t, func(c *Config) {
+				require.NoError(t, c.Storage.CreateClient(ctx, storage.Client{
+					ID:     "client_1",
+					Secret: "secret_1",
+				}))
+				c.TokenExchange = TokenExchangeConfig{
+					EnableIDJAG:   true,
+					IDJAGPolicies: tc.policies,
+				}
+			})
+			defer httpServer.Close()
+
+			vals := url.Values{}
+			vals.Set("grant_type", grantTypeTokenExchange)
+			vals.Set("requested_token_type", tokenTypeIDJAG)
+			vals.Set("subject_token_type", tc.subjectTokenType)
+			vals.Set("subject_token", tc.subjectToken)
+			if tc.audience != "" {
+				vals.Set("audience", tc.audience)
+			}
+			vals.Set("client_id", "client_1")
+			vals.Set("client_secret", "secret_1")
+
+			rr := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
+			req.Header.Set("content-type", "application/x-www-form-urlencoded")
+			s.handleToken(rr, req)
+
+			require.Equal(t, tc.wantCode, rr.Code, "body: %s", rr.Body.String())
+
+			if tc.wantTokenTypeNA {
+				var res accessTokenResponse
+				require.NoError(t, json.NewDecoder(rr.Result().Body).Decode(&res))
+				// RFC 8693 §2.2.1: token_type MUST be "N_A" for non-access tokens.
+				require.Equal(t, "N_A", res.TokenType)
+				require.Equal(t, tokenTypeIDJAG, res.IssuedTokenType)
+				// The JWT must be a 3-part dot-separated token.
+				require.NotEmpty(t, res.AccessToken)
+				require.Equal(t, 3, len(strings.Split(res.AccessToken, ".")), "expected compact JWT")
+				require.Greater(t, res.ExpiresIn, 0)
+			}
+		})
+	}
 }

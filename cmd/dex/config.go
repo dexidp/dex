@@ -65,6 +65,9 @@ type Config struct {
 	// querying the storage. Cannot be specified without enabling a passwords
 	// database.
 	StaticPasswords []password `json:"staticPasswords"`
+
+	// TokenExchange configures Token Exchange and ID-JAG support.
+	TokenExchange server.TokenExchangeConfig `json:"tokenExchange"`
 }
 
 // Validate the configuration
