@@ -55,6 +55,12 @@ func (_c *OAuth2ClientCreate) SetLogoURL(v string) *OAuth2ClientCreate {
 	return _c
 }
 
+// SetAllowedConnectors sets the "allowed_connectors" field.
+func (_c *OAuth2ClientCreate) SetAllowedConnectors(v []string) *OAuth2ClientCreate {
+	_c.mutation.SetAllowedConnectors(v)
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *OAuth2ClientCreate) SetID(v string) *OAuth2ClientCreate {
 	_c.mutation.SetID(v)
@@ -185,6 +191,10 @@ func (_c *OAuth2ClientCreate) createSpec() (*OAuth2Client, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.LogoURL(); ok {
 		_spec.SetField(oauth2client.FieldLogoURL, field.TypeString, value)
 		_node.LogoURL = value
+	}
+	if value, ok := _c.mutation.AllowedConnectors(); ok {
+		_spec.SetField(oauth2client.FieldAllowedConnectors, field.TypeJSON, value)
+		_node.AllowedConnectors = value
 	}
 	return _node, _spec
 }

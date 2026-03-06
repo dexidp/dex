@@ -1180,3 +1180,180 @@ func (m *mockSAMLRefreshConnector) HandlePOST(s connector.Scopes, samlResponse, 
 func (m *mockSAMLRefreshConnector) Refresh(ctx context.Context, s connector.Scopes, ident connector.Identity) (connector.Identity, error) {
 	return m.refreshIdentity, nil
 }
+
+func TestFilterConnectors(t *testing.T) {
+	connectors := []storage.Connector{
+		{ID: "github", Type: "github", Name: "GitHub"},
+		{ID: "google", Type: "oidc", Name: "Google"},
+		{ID: "ldap", Type: "ldap", Name: "LDAP"},
+	}
+
+	tests := []struct {
+		name              string
+		allowedConnectors []string
+		wantIDs           []string
+	}{
+		{
+			name:              "No filter - all connectors returned",
+			allowedConnectors: nil,
+			wantIDs:           []string{"github", "google", "ldap"},
+		},
+		{
+			name:              "Empty filter - all connectors returned",
+			allowedConnectors: []string{},
+			wantIDs:           []string{"github", "google", "ldap"},
+		},
+		{
+			name:              "Filter to one connector",
+			allowedConnectors: []string{"github"},
+			wantIDs:           []string{"github"},
+		},
+		{
+			name:              "Filter to two connectors",
+			allowedConnectors: []string{"github", "ldap"},
+			wantIDs:           []string{"github", "ldap"},
+		},
+		{
+			name:              "Filter with non-existent connector ID",
+			allowedConnectors: []string{"nonexistent"},
+			wantIDs:           []string{},
+		},
+		{
+			name:              "Filter with mix of valid and invalid IDs",
+			allowedConnectors: []string{"google", "nonexistent"},
+			wantIDs:           []string{"google"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := filterConnectors(connectors, tc.allowedConnectors)
+			gotIDs := make([]string, len(result))
+			for i, c := range result {
+				gotIDs[i] = c.ID
+			}
+			require.Equal(t, tc.wantIDs, gotIDs)
+		})
+	}
+}
+
+func TestIsConnectorAllowed(t *testing.T) {
+	tests := []struct {
+		name              string
+		allowedConnectors []string
+		connectorID       string
+		want              bool
+	}{
+		{
+			name:              "No restrictions - all allowed",
+			allowedConnectors: nil,
+			connectorID:       "any",
+			want:              true,
+		},
+		{
+			name:              "Empty list - all allowed",
+			allowedConnectors: []string{},
+			connectorID:       "any",
+			want:              true,
+		},
+		{
+			name:              "Connector in allowed list",
+			allowedConnectors: []string{"github", "google"},
+			connectorID:       "github",
+			want:              true,
+		},
+		{
+			name:              "Connector not in allowed list",
+			allowedConnectors: []string{"github", "google"},
+			connectorID:       "ldap",
+			want:              false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isConnectorAllowed(tc.allowedConnectors, tc.connectorID)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestHandleAuthorizationWithAllowedConnectors(t *testing.T) {
+	ctx := t.Context()
+
+	httpServer, s := newTestServerMultipleConnectors(t, nil)
+	defer httpServer.Close()
+
+	// Create a client that only allows "mock" connector (not "mock2")
+	client := storage.Client{
+		ID:                "filtered-client",
+		Secret:            "secret",
+		RedirectURIs:      []string{"https://example.com/callback"},
+		Name:              "Filtered Client",
+		AllowedConnectors: []string{"mock"},
+	}
+	require.NoError(t, s.storage.CreateClient(ctx, client))
+
+	// Request the auth page with this client - should only show "mock" connector
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", fmt.Sprintf("/auth?client_id=%s&redirect_uri=%s&response_type=code&scope=openid",
+		client.ID, url.QueryEscape("https://example.com/callback")), nil)
+	s.ServeHTTP(rr, req)
+
+	// With only one allowed connector and alwaysShowLogin=false (default),
+	// the server should redirect directly to the connector
+	require.Equal(t, http.StatusFound, rr.Code)
+	location := rr.Header().Get("Location")
+	require.Contains(t, location, "/auth/mock")
+	require.NotContains(t, location, "mock2")
+}
+
+func TestHandleAuthorizationWithNoMatchingConnectors(t *testing.T) {
+	ctx := t.Context()
+
+	httpServer, s := newTestServerMultipleConnectors(t, nil)
+	defer httpServer.Close()
+
+	// Create a client that only allows a non-existent connector
+	client := storage.Client{
+		ID:                "no-connectors-client",
+		Secret:            "secret",
+		RedirectURIs:      []string{"https://example.com/callback"},
+		Name:              "No Connectors Client",
+		AllowedConnectors: []string{"nonexistent"},
+	}
+	require.NoError(t, s.storage.CreateClient(ctx, client))
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", fmt.Sprintf("/auth?client_id=%s&redirect_uri=%s&response_type=code&scope=openid",
+		client.ID, url.QueryEscape("https://example.com/callback")), nil)
+	s.ServeHTTP(rr, req)
+
+	// Should return an error, not an empty login page
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestHandleAuthorizationWithoutAllowedConnectors(t *testing.T) {
+	ctx := t.Context()
+
+	httpServer, s := newTestServerMultipleConnectors(t, nil)
+	defer httpServer.Close()
+
+	// Create a client with no connector restrictions
+	client := storage.Client{
+		ID:           "unfiltered-client",
+		Secret:       "secret",
+		RedirectURIs: []string{"https://example.com/callback"},
+		Name:         "Unfiltered Client",
+	}
+	require.NoError(t, s.storage.CreateClient(ctx, client))
+
+	// Request the auth page - should show all connectors (rendered as HTML)
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", fmt.Sprintf("/auth?client_id=%s&redirect_uri=%s&response_type=code&scope=openid",
+		client.ID, url.QueryEscape("https://example.com/callback")), nil)
+	s.ServeHTTP(rr, req)
+
+	// With multiple connectors and no filter, the login page should be rendered (200 OK)
+	require.Equal(t, http.StatusOK, rr.Code)
+}

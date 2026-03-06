@@ -374,4 +374,12 @@ var migrations = []migration{
 		},
 		flavor: &flavorMySQL,
 	},
+	// Migration for adding allowed_connectors to client table
+	{
+		stmts: []string{
+			`
+			alter table client
+				add column allowed_connectors bytea;`,
+		},
+	},
 }
