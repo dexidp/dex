@@ -556,6 +556,10 @@ type Logger struct {
 
 	// Format specifies the format to be used for logging.
 	Format string `json:"format"`
+
+	// LogLoginSuccessUserInfo controls whether PII (email, username, groups) is included
+	// in the "login successful" log line. Defaults to true for backward compatibility.
+	LogLoginSuccessUserInfo *bool `json:"logLoginSuccessUserInfo"`
 }
 
 type RefreshToken struct {

@@ -530,6 +530,25 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 }
 
+func loginSuccessfulLogArgs(connectorID string, claims storage.Claims, logLoginSuccessUserInfo bool) []any {
+	if !logLoginSuccessUserInfo {
+		return []any{"connector_id", connectorID, "user_id", claims.UserID}
+	}
+
+	email := claims.Email
+	if !claims.EmailVerified {
+		email += " (unverified)"
+	}
+
+	return []any{
+		"connector_id", connectorID,
+		"username", claims.Username,
+		"preferred_username", claims.PreferredUsername,
+		"email", email,
+		"groups", claims.Groups,
+	}
+}
+
 // finalizeLogin associates the user's identity with the current AuthRequest, then returns
 // the approval page's path.
 func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity, authReq storage.AuthRequest, conn connector.Connector) (string, bool, error) {
@@ -552,14 +571,7 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 		return "", false, fmt.Errorf("failed to update auth request: %v", err)
 	}
 
-	email := claims.Email
-	if !claims.EmailVerified {
-		email += " (unverified)"
-	}
-
-	s.logger.InfoContext(ctx, "login successful",
-		"connector_id", authReq.ConnectorID, "username", claims.Username,
-		"preferred_username", claims.PreferredUsername, "email", email, "groups", claims.Groups)
+	s.logger.InfoContext(ctx, "login successful", loginSuccessfulLogArgs(authReq.ConnectorID, claims, s.logLoginSuccessUserInfo)...)
 
 	offlineAccessRequested := false
 	for _, scope := range authReq.Scopes {
