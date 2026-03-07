@@ -369,6 +369,7 @@ func runServe(options serveOptions) error {
 		Storage:                    s,
 		Web:                        c.Frontend,
 		Logger:                     logger,
+		LogLoginSuccessUserInfo:    c.Logger.LogLoginSuccessUserInfo,
 		Now:                        now,
 		PrometheusRegistry:         prometheusRegistry,
 		HealthChecker:              healthChecker,

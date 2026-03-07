@@ -72,6 +72,8 @@ web:
 # logger:
 #   level: "debug"
 #   format: "text" # can also be "json"
+#   # true logs username/preferred_username/email/groups on "login successful"; false logs only connector_id and user_id.
+#   logLoginSuccessUserInfo: true
 
 # gRPC API configuration
 # Uncomment this block to enable the gRPC API.

@@ -115,6 +115,8 @@ type Config struct {
 
 	Logger *slog.Logger
 
+	LogLoginSuccessUserInfo *bool
+
 	// Signer is used to sign tokens.
 	Signer signer.Signer
 
@@ -202,6 +204,8 @@ type Server struct {
 	refreshTokenPolicy *RefreshTokenPolicy
 
 	logger *slog.Logger
+
+	logLoginSuccessUserInfo bool
 
 	signer signer.Signer
 }
@@ -296,23 +300,29 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		now = time.Now
 	}
 
+	logLoginSuccessUserInfo := true
+	if c.LogLoginSuccessUserInfo != nil {
+		logLoginSuccessUserInfo = *c.LogLoginSuccessUserInfo
+	}
+
 	s := &Server{
-		issuerURL:              *issuerURL,
-		connectors:             make(map[string]Connector),
-		storage:                newKeyCacher(c.Storage, now),
-		supportedResponseTypes: supportedRes,
-		supportedGrantTypes:    supportedGrants,
-		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
-		authRequestsValidFor:   value(c.AuthRequestsValidFor, 24*time.Hour),
-		deviceRequestsValidFor: value(c.DeviceRequestsValidFor, 5*time.Minute),
-		refreshTokenPolicy:     c.RefreshTokenPolicy,
-		skipApproval:           c.SkipApprovalScreen,
-		alwaysShowLogin:        c.AlwaysShowLoginScreen,
-		now:                    now,
-		templates:              tmpls,
-		passwordConnector:      c.PasswordConnector,
-		logger:                 c.Logger,
-		signer:                 c.Signer,
+		issuerURL:               *issuerURL,
+		connectors:              make(map[string]Connector),
+		storage:                 newKeyCacher(c.Storage, now),
+		supportedResponseTypes:  supportedRes,
+		supportedGrantTypes:     supportedGrants,
+		idTokensValidFor:        value(c.IDTokensValidFor, 24*time.Hour),
+		authRequestsValidFor:    value(c.AuthRequestsValidFor, 24*time.Hour),
+		deviceRequestsValidFor:  value(c.DeviceRequestsValidFor, 5*time.Minute),
+		refreshTokenPolicy:      c.RefreshTokenPolicy,
+		skipApproval:            c.SkipApprovalScreen,
+		alwaysShowLogin:         c.AlwaysShowLoginScreen,
+		now:                     now,
+		templates:               tmpls,
+		passwordConnector:       c.PasswordConnector,
+		logger:                  c.Logger,
+		logLoginSuccessUserInfo: logLoginSuccessUserInfo,
+		signer:                  c.Signer,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
