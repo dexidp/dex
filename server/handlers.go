@@ -635,6 +635,10 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 
 	authReq, err := s.storage.GetAuthRequest(ctx, r.FormValue("req"))
 	if err != nil {
+		if err == storage.ErrNotFound {
+			s.renderError(r, w, http.StatusBadRequest, "User session error.")
+			return
+		}
 		s.logger.ErrorContext(r.Context(), "failed to get auth request", "err", err)
 		s.renderError(r, w, http.StatusInternalServerError, "Database error.")
 		return
