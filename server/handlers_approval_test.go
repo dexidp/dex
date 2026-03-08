@@ -13,8 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dexidp/dex/storage"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexidp/dex/storage"
 )
 
 type getAuthRequestErrorStorage struct {
