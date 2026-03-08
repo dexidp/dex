@@ -606,6 +606,105 @@ func TestUpdateConnector(t *testing.T) {
 	}
 }
 
+func TestUpdateConnectorGrantTypes(t *testing.T) {
+	t.Setenv("DEX_API_CONNECTORS_CRUD", "true")
+
+	logger := newLogger(t)
+	s := memory.New(logger)
+
+	client := newAPI(t, s, logger)
+	defer client.Close()
+
+	ctx := t.Context()
+
+	connectorID := "connector-gt"
+
+	// Create a connector without grant types
+	createReq := api.CreateConnectorReq{
+		Connector: &api.Connector{
+			Id:     connectorID,
+			Name:   "TestConnector",
+			Type:   "TestType",
+			Config: []byte(`{"key": "value"}`),
+		},
+	}
+	_, err := client.CreateConnector(ctx, &createReq)
+	if err != nil {
+		t.Fatalf("failed to create connector: %v", err)
+	}
+
+	// Set grant types
+	_, err = client.UpdateConnector(ctx, &api.UpdateConnectorReq{
+		Id:            connectorID,
+		NewGrantTypes: &api.GrantTypes{GrantTypes: []string{"authorization_code", "refresh_token"}},
+	})
+	if err != nil {
+		t.Fatalf("failed to update connector grant types: %v", err)
+	}
+
+	resp, err := client.ListConnectors(ctx, &api.ListConnectorReq{})
+	if err != nil {
+		t.Fatalf("failed to list connectors: %v", err)
+	}
+	for _, c := range resp.Connectors {
+		if c.Id == connectorID {
+			if !slices.Equal(c.GrantTypes, []string{"authorization_code", "refresh_token"}) {
+				t.Fatalf("expected grant types [authorization_code refresh_token], got %v", c.GrantTypes)
+			}
+		}
+	}
+
+	// Clear grant types by passing empty GrantTypes message
+	_, err = client.UpdateConnector(ctx, &api.UpdateConnectorReq{
+		Id:            connectorID,
+		NewGrantTypes: &api.GrantTypes{},
+	})
+	if err != nil {
+		t.Fatalf("failed to clear connector grant types: %v", err)
+	}
+
+	resp, err = client.ListConnectors(ctx, &api.ListConnectorReq{})
+	if err != nil {
+		t.Fatalf("failed to list connectors: %v", err)
+	}
+	for _, c := range resp.Connectors {
+		if c.Id == connectorID {
+			if len(c.GrantTypes) != 0 {
+				t.Fatalf("expected empty grant types after clear, got %v", c.GrantTypes)
+			}
+		}
+	}
+
+	// Reject invalid grant type on update
+	_, err = client.UpdateConnector(ctx, &api.UpdateConnectorReq{
+		Id:            connectorID,
+		NewGrantTypes: &api.GrantTypes{GrantTypes: []string{"bogus"}},
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid grant type, got nil")
+	}
+	if !strings.Contains(err.Error(), `unknown grant type "bogus"`) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Reject invalid grant type on create
+	_, err = client.CreateConnector(ctx, &api.CreateConnectorReq{
+		Connector: &api.Connector{
+			Id:         "bad-gt",
+			Name:       "Bad",
+			Type:       "TestType",
+			Config:     []byte(`{}`),
+			GrantTypes: []string{"invalid_type"},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid grant type on create, got nil")
+	}
+	if !strings.Contains(err.Error(), `unknown grant type "invalid_type"`) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestDeleteConnector(t *testing.T) {
 	t.Setenv("DEX_API_CONNECTORS_CRUD", "true")
 

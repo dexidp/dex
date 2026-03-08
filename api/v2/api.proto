@@ -153,6 +153,12 @@ message CreateConnectorResp {
   bool already_exists = 1;
 }
 
+// GrantTypes wraps a list of grant types to distinguish between
+// "not specified" (no update) and "empty list" (unrestricted).
+message GrantTypes {
+  repeated string grant_types = 1;
+}
+
 // UpdateConnectorReq is a request to modify an existing connector.
 message UpdateConnectorReq {
   // The id used to lookup the connector. This field cannot be modified
@@ -160,7 +166,10 @@ message UpdateConnectorReq {
   string new_type = 2;
   string new_name = 3;
   bytes new_config = 4;
-  repeated string new_grant_types = 5;
+  // If set, updates the connector's allowed grant types.
+  // An empty grant_types list means unrestricted (all grant types allowed).
+  // If not set (null), grant types are not modified.
+  GrantTypes new_grant_types = 5;
 }
 
 // UpdateConnectorResp returns the response from modifying an existing connector.

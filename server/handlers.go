@@ -180,7 +180,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	grantType := s.grantTypeFromAuthRequest(r)
 	connectors := make([]storage.Connector, 0, len(allConnectors))
 	for _, c := range allConnectors {
-		if c.GrantTypeAllowed(grantType) {
+		if GrantTypeAllowed(c.GrantTypes, grantType) {
 			connectors = append(connectors, c)
 		}
 	}
@@ -266,7 +266,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Check if the connector allows the requested grant type.
 	grantType := s.grantTypeFromAuthRequest(r)
-	if !conn.GrantTypeAllowed(grantType) {
+	if !GrantTypeAllowed(conn.GrantTypes, grantType) {
 		s.logger.ErrorContext(r.Context(), "connector does not allow requested grant type",
 			"connector_id", connID, "grant_type", grantType)
 		s.renderError(r, w, http.StatusBadRequest, "Requested connector does not support this grant type.")
@@ -1029,9 +1029,16 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 	}
 
 	reqRefresh := func() bool {
-		// Ensure the connector supports refresh tokens.
+		// Determine whether to issue a refresh token. A refresh token is only
+		// issued when all of the following are true:
+		//   1. The connector implements RefreshConnector.
+		//   2. The connector's grantTypes config allows refresh_token.
+		//   3. The client requested the offline_access scope.
 		//
-		// Connectors like `saml` do not implement RefreshConnector.
+		// When any condition is not met, the refresh token is silently omitted
+		// rather than returning an error. This matches the OAuth2 spec: the
+		// server is never required to issue a refresh token (RFC 6749 §1.5).
+		// https://datatracker.ietf.org/doc/html/rfc6749#section-1.5
 		conn, err := s.getConnector(ctx, authCode.ConnectorID)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "connector not found", "connector_id", authCode.ConnectorID, "err", err)
@@ -1041,6 +1048,10 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 
 		_, ok := conn.Connector.(connector.RefreshConnector)
 		if !ok {
+			return false
+		}
+
+		if !GrantTypeAllowed(conn.GrantTypes, grantTypeRefreshToken) {
 			return false
 		}
 
@@ -1249,7 +1260,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
 		return
 	}
-	if !conn.GrantTypeAllowed(grantTypePassword) {
+	if !GrantTypeAllowed(conn.GrantTypes, grantTypePassword) {
 		s.logger.ErrorContext(r.Context(), "connector does not allow password grant", "connector_id", connID)
 		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not support password grant.", http.StatusBadRequest)
 		return
@@ -1300,11 +1311,15 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 	}
 
 	reqRefresh := func() bool {
-		// Ensure the connector supports refresh tokens.
-		//
-		// Connectors like `saml` do not implement RefreshConnector.
-		_, ok := conn.Connector.(connector.RefreshConnector)
-		if !ok {
+		// Same logic as in exchangeAuthCode: silently omit refresh token
+		// when the connector doesn't support it or grantTypes forbids it.
+		// See RFC 6749 §1.5 — refresh tokens are never mandatory.
+		// https://datatracker.ietf.org/doc/html/rfc6749#section-1.5
+		if _, ok := conn.Connector.(connector.RefreshConnector); !ok {
+			return false
+		}
+
+		if !GrantTypeAllowed(conn.GrantTypes, grantTypeRefreshToken) {
 			return false
 		}
 
@@ -1461,7 +1476,7 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
 		return
 	}
-	if !conn.GrantTypeAllowed(grantTypeTokenExchange) {
+	if !GrantTypeAllowed(conn.GrantTypes, grantTypeTokenExchange) {
 		s.logger.ErrorContext(r.Context(), "connector does not allow token exchange", "connector_id", connID)
 		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not support token exchange.", http.StatusBadRequest)
 		return

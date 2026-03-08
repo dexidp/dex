@@ -394,20 +394,6 @@ type Connector struct {
 	GrantTypes []string `json:"grantTypes,omitempty"`
 }
 
-// GrantTypeAllowed checks if the given grant type is allowed for this connector.
-// If no grant types are configured, all are allowed.
-func (c Connector) GrantTypeAllowed(grantType string) bool {
-	if len(c.GrantTypes) == 0 {
-		return true
-	}
-	for _, gt := range c.GrantTypes {
-		if gt == grantType {
-			return true
-		}
-	}
-	return false
-}
-
 // VerificationKey is a rotated signing key which can still be used to verify
 // signatures.
 type VerificationKey struct {

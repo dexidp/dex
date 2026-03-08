@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -61,16 +62,9 @@ type Connector struct {
 }
 
 // GrantTypeAllowed checks if the given grant type is allowed for this connector.
-func (c Connector) GrantTypeAllowed(grantType string) bool {
-	if len(c.GrantTypes) == 0 {
-		return true
-	}
-	for _, gt := range c.GrantTypes {
-		if gt == grantType {
-			return true
-		}
-	}
-	return false
+// If no grant types are configured, all are allowed.
+func GrantTypeAllowed(configuredTypes []string, grantType string) bool {
+	return len(configuredTypes) == 0 || slices.Contains(configuredTypes, grantType)
 }
 
 // Config holds the server's configuration options.

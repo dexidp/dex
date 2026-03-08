@@ -202,7 +202,7 @@ func (s *Server) getRefreshTokenFromStorage(ctx context.Context, clientID *strin
 		s.logger.ErrorContext(ctx, "connector not found", "connector_id", refresh.ConnectorID, "err", err)
 		return nil, newInternalServerError()
 	}
-	if !refreshCtx.connector.GrantTypeAllowed(grantTypeRefreshToken) {
+	if !GrantTypeAllowed(refreshCtx.connector.GrantTypes, grantTypeRefreshToken) {
 		s.logger.ErrorContext(ctx, "connector does not allow refresh token grant", "connector_id", refresh.ConnectorID)
 		return nil, &refreshError{msg: errInvalidRequest, desc: "Connector does not support refresh tokens.", code: http.StatusBadRequest}
 	}

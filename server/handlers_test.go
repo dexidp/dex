@@ -1100,6 +1100,123 @@ func TestHandleTokenExchangeConnectorGrantTypeRestriction(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
 }
 
+func TestHandleAuthorizationConnectorGrantTypeFiltering(t *testing.T) {
+	tests := []struct {
+		name string
+		// grantTypes per connector ID; nil means unrestricted
+		connectorGrantTypes map[string][]string
+		responseType        string
+		wantCode            int
+		// wantRedirectContains is checked when wantCode == 302
+		wantRedirectContains string
+		// wantBodyContains is checked when wantCode != 302
+		wantBodyContains string
+	}{
+		{
+			name: "one connector filtered, redirect to remaining",
+			connectorGrantTypes: map[string][]string{
+				"mock":  {grantTypeDeviceCode},
+				"mock2": nil,
+			},
+			responseType:         "code",
+			wantCode:             http.StatusFound,
+			wantRedirectContains: "/auth/mock2",
+		},
+		{
+			name: "all connectors filtered",
+			connectorGrantTypes: map[string][]string{
+				"mock":  {grantTypeDeviceCode},
+				"mock2": {grantTypeDeviceCode},
+			},
+			responseType:     "code",
+			wantCode:         http.StatusBadRequest,
+			wantBodyContains: "No connectors available",
+		},
+		{
+			name: "no restrictions, both available",
+			connectorGrantTypes: map[string][]string{
+				"mock":  nil,
+				"mock2": nil,
+			},
+			responseType: "code",
+			wantCode:     http.StatusOK,
+		},
+		{
+			name: "implicit flow filters auth_code-only connector",
+			connectorGrantTypes: map[string][]string{
+				"mock":  {grantTypeAuthorizationCode},
+				"mock2": nil,
+			},
+			responseType:         "token",
+			wantCode:             http.StatusFound,
+			wantRedirectContains: "/auth/mock2",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			httpServer, s := newTestServerMultipleConnectors(t, nil)
+			defer httpServer.Close()
+
+			for id, gts := range tc.connectorGrantTypes {
+				err := s.storage.UpdateConnector(ctx, id, func(c storage.Connector) (storage.Connector, error) {
+					c.GrantTypes = gts
+					return c, nil
+				})
+				require.NoError(t, err)
+				s.mu.Lock()
+				delete(s.connectors, id)
+				s.mu.Unlock()
+			}
+
+			rr := httptest.NewRecorder()
+			reqURL := fmt.Sprintf("%s/auth?response_type=%s&client_id=test&redirect_uri=http://example.com/callback&scope=openid", httpServer.URL, tc.responseType)
+			req := httptest.NewRequest(http.MethodGet, reqURL, nil)
+			s.handleAuthorization(rr, req)
+
+			require.Equal(t, tc.wantCode, rr.Code)
+			if tc.wantRedirectContains != "" {
+				require.Contains(t, rr.Header().Get("Location"), tc.wantRedirectContains)
+			}
+			if tc.wantBodyContains != "" {
+				require.Contains(t, rr.Body.String(), tc.wantBodyContains)
+			}
+		})
+	}
+}
+
+func TestHandleConnectorLoginGrantTypeRejection(t *testing.T) {
+	ctx := t.Context()
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.Storage.CreateClient(ctx, storage.Client{
+			ID:           "test-client",
+			Secret:       "secret",
+			RedirectURIs: []string{"http://example.com/callback"},
+		})
+	})
+	defer httpServer.Close()
+
+	// Restrict mock connector to device_code only
+	err := s.storage.UpdateConnector(ctx, "mock", func(c storage.Connector) (storage.Connector, error) {
+		c.GrantTypes = []string{grantTypeDeviceCode}
+		return c, nil
+	})
+	require.NoError(t, err)
+	s.mu.Lock()
+	delete(s.connectors, "mock")
+	s.mu.Unlock()
+
+	// Try to use mock connector for auth code flow via the full server router
+	rr := httptest.NewRecorder()
+	reqURL := httpServer.URL + "/auth/mock?response_type=code&client_id=test-client&redirect_uri=http://example.com/callback&scope=openid"
+	req := httptest.NewRequest(http.MethodGet, reqURL, nil)
+	s.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+	require.Contains(t, rr.Body.String(), "does not support this grant type")
+}
+
 func setNonEmpty(vals url.Values, key, value string) {
 	if value != "" {
 		vals.Set(key, value)
