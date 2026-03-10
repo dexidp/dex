@@ -388,6 +388,8 @@ type Connector struct {
 	// However, fixing this requires migrating Kubernetes objects for all previously created connectors,
 	// or making Dex reading both tags and act accordingly.
 	Config []byte `json:"email"`
+	// It specifies if the connector should be hidden in the login web page.
+	Hidden bool `json:"hidden"`
 }
 
 // VerificationKey is a rotated signing key which can still be used to verify
