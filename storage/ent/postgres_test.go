@@ -64,6 +64,7 @@ func TestPostgres(t *testing.T) {
 		return newPostgresStorage(t, host, port)
 	}
 	conformance.RunTests(t, newStorage)
+	conformance.RunConcurrencyTests(t, newStorage)
 	conformance.RunTransactionTests(t, newStorage)
 }
 

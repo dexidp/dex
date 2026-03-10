@@ -104,6 +104,7 @@ func TestMySQL(t *testing.T) {
 		return newMySQLStorage(t, host, port)
 	}
 	conformance.RunTests(t, newStorage)
+	conformance.RunConcurrencyTests(t, newStorage)
 	conformance.RunTransactionTests(t, newStorage)
 }
 
@@ -125,6 +126,7 @@ func TestMySQL8(t *testing.T) {
 		return newMySQL8Storage(t, host, port)
 	}
 	conformance.RunTests(t, newStorage)
+	conformance.RunConcurrencyTests(t, newStorage)
 	conformance.RunTransactionTests(t, newStorage)
 }
 
