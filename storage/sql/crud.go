@@ -513,9 +513,10 @@ func (c *conn) UpdateClient(ctx context.Context, id string, updater func(old sto
 				trusted_peers = $3,
 				public = $4,
 				name = $5,
-				logo_url = $6
-			where id = $7;
-		`, nc.Secret, encoder(nc.RedirectURIs), encoder(nc.TrustedPeers), nc.Public, nc.Name, nc.LogoURL, id,
+				logo_url = $6,
+				allowed_groups = $7
+			where id = $8;
+		`, nc.Secret, encoder(nc.RedirectURIs), encoder(nc.TrustedPeers), nc.Public, nc.Name, nc.LogoURL, encoder(nc.AllowedGroups), id,
 		)
 		if err != nil {
 			return fmt.Errorf("update client: %v", err)
@@ -527,12 +528,12 @@ func (c *conn) UpdateClient(ctx context.Context, id string, updater func(old sto
 func (c *conn) CreateClient(ctx context.Context, cli storage.Client) error {
 	_, err := c.Exec(`
 		insert into client (
-			id, secret, redirect_uris, trusted_peers, public, name, logo_url
+			id, secret, redirect_uris, trusted_peers, public, name, logo_url, allowed_groups
 		)
-		values ($1, $2, $3, $4, $5, $6, $7);
+		values ($1, $2, $3, $4, $5, $6, $7, $8);
 	`,
 		cli.ID, cli.Secret, encoder(cli.RedirectURIs), encoder(cli.TrustedPeers),
-		cli.Public, cli.Name, cli.LogoURL,
+		cli.Public, cli.Name, cli.LogoURL, encoder(cli.AllowedGroups),
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -546,7 +547,8 @@ func (c *conn) CreateClient(ctx context.Context, cli storage.Client) error {
 func getClient(ctx context.Context, q querier, id string) (storage.Client, error) {
 	return scanClient(q.QueryRow(`
 		select
-			id, secret, redirect_uris, trusted_peers, public, name, logo_url
+			id, secret, redirect_uris, trusted_peers, public, name, logo_url,
+			coalesce(allowed_groups, '[]')
 	    from client where id = $1;
 	`, id))
 }
@@ -558,7 +560,8 @@ func (c *conn) GetClient(ctx context.Context, id string) (storage.Client, error)
 func (c *conn) ListClients(ctx context.Context) ([]storage.Client, error) {
 	rows, err := c.Query(`
 		select
-			id, secret, redirect_uris, trusted_peers, public, name, logo_url
+			id, secret, redirect_uris, trusted_peers, public, name, logo_url,
+			coalesce(allowed_groups, '[]')
 		from client;
 	`)
 	if err != nil {
@@ -583,7 +586,7 @@ func (c *conn) ListClients(ctx context.Context) ([]storage.Client, error) {
 func scanClient(s scanner) (cli storage.Client, err error) {
 	err = s.Scan(
 		&cli.ID, &cli.Secret, decoder(&cli.RedirectURIs), decoder(&cli.TrustedPeers),
-		&cli.Public, &cli.Name, &cli.LogoURL,
+		&cli.Public, &cli.Name, &cli.LogoURL, decoder(&cli.AllowedGroups),
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {

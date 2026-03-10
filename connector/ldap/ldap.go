@@ -16,6 +16,7 @@ import (
 	"github.com/go-ldap/ldap/v3"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/groups"
 )
 
 // Config holds the configuration parameters for the LDAP connector. The LDAP
@@ -162,6 +163,10 @@ type Config struct {
 		// The attribute of the group that represents its name.
 		NameAttr string `json:"nameAttr"`
 	} `json:"groupSearch"`
+
+	// AllowedGroups restricts login to users that belong to at least one of these
+	// groups. Empty means no restriction (connector-level; for per-client restriction use client.allowedGroups).
+	AllowedGroups []string `json:"allowedGroups,omitempty"`
 }
 
 func scopeString(i int) string {
@@ -528,12 +533,22 @@ func (c *ldapConnector) Login(ctx context.Context, s connector.Scopes, username,
 		return connector.Identity{}, false, err
 	}
 
+	if len(c.AllowedGroups) > 0 && !s.Groups {
+		return connector.Identity{}, false, &connector.UserNotInRequiredGroupsError{UserID: ident.UserID, Groups: c.AllowedGroups}
+	}
 	if s.Groups {
-		groups, err := c.groups(ctx, user)
+		groupList, err := c.groups(ctx, user)
 		if err != nil {
 			return connector.Identity{}, false, fmt.Errorf("ldap: failed to query groups: %v", err)
 		}
-		ident.Groups = groups
+		ident.Groups = groupList
+		if len(c.AllowedGroups) > 0 {
+			matched := groups.Filter(ident.Groups, c.AllowedGroups)
+			if len(matched) == 0 {
+				return connector.Identity{}, false, &connector.UserNotInRequiredGroupsError{UserID: ident.UserID, Groups: c.AllowedGroups}
+			}
+			ident.Groups = matched
+		}
 	}
 
 	if s.OfflineAccess {
@@ -583,11 +598,18 @@ func (c *ldapConnector) Refresh(ctx context.Context, s connector.Scopes, ident c
 	newIdent.ConnectorData = ident.ConnectorData
 
 	if s.Groups {
-		groups, err := c.groups(ctx, user)
+		groupList, err := c.groups(ctx, user)
 		if err != nil {
 			return connector.Identity{}, fmt.Errorf("ldap: failed to query groups: %v", err)
 		}
-		newIdent.Groups = groups
+		newIdent.Groups = groupList
+		if len(c.AllowedGroups) > 0 {
+			matched := groups.Filter(newIdent.Groups, c.AllowedGroups)
+			if len(matched) == 0 {
+				return connector.Identity{}, &connector.UserNotInRequiredGroupsError{UserID: newIdent.UserID, Groups: c.AllowedGroups}
+			}
+			newIdent.Groups = matched
+		}
 	}
 	return newIdent, nil
 }

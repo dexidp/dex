@@ -55,6 +55,12 @@ func (_c *OAuth2ClientCreate) SetLogoURL(v string) *OAuth2ClientCreate {
 	return _c
 }
 
+// SetAllowedGroups sets the "allowed_groups" field.
+func (_c *OAuth2ClientCreate) SetAllowedGroups(v []string) *OAuth2ClientCreate {
+	_c.mutation.SetAllowedGroups(v)
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *OAuth2ClientCreate) SetID(v string) *OAuth2ClientCreate {
 	_c.mutation.SetID(v)
@@ -185,6 +191,10 @@ func (_c *OAuth2ClientCreate) createSpec() (*OAuth2Client, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.LogoURL(); ok {
 		_spec.SetField(oauth2client.FieldLogoURL, field.TypeString, value)
 		_node.LogoURL = value
+	}
+	if value, ok := _c.mutation.AllowedGroups(); ok {
+		_spec.SetField(oauth2client.FieldAllowedGroups, field.TypeJSON, value)
+		_node.AllowedGroups = value
 	}
 	return _node, _spec
 }

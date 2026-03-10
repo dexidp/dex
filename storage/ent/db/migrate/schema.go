@@ -134,6 +134,7 @@ var (
 		{Name: "public", Type: field.TypeBool},
 		{Name: "name", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "logo_url", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
+		{Name: "allowed_groups", Type: field.TypeJSON, Nullable: true},
 	}
 	// Oauth2clientsTable holds the schema information for the "oauth2clients" table.
 	Oauth2clientsTable = &schema.Table{

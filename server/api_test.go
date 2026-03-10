@@ -488,6 +488,56 @@ func TestUpdateClient(t *testing.T) {
 	}
 }
 
+// TestCreateClientWithAllowedGroups verifies that a client created with AllowedGroups
+// persists and is returned correctly via GetClient.
+func TestCreateClientWithAllowedGroups(t *testing.T) {
+	logger := newLogger(t)
+	s := memory.New(logger)
+
+	apiClient := newAPI(t, s, logger)
+	defer apiClient.Close()
+
+	ctx := t.Context()
+
+	createReq := &api.CreateClientReq{
+		Client: &api.Client{
+			Id:            "allowed-groups-client",
+			Secret:        "secret",
+			RedirectUris:  []string{"http://localhost/callback"},
+			Name:          "Test",
+			LogoUrl:       "",
+			AllowedGroups: []string{"team-a", "team-b"},
+		},
+	}
+	resp, err := apiClient.CreateClient(ctx, createReq)
+	if err != nil {
+		t.Fatalf("CreateClient: %v", err)
+	}
+	if resp.AlreadyExists {
+		t.Fatal("expected new client, got AlreadyExists")
+	}
+
+	getResp, err := apiClient.GetClient(ctx, &api.GetClientReq{Id: createReq.Client.Id})
+	if err != nil {
+		t.Fatalf("GetClient: %v", err)
+	}
+	if getResp.Client == nil {
+		t.Fatal("GetClient returned no client")
+	}
+	if !slices.Equal(getResp.Client.AllowedGroups, []string{"team-a", "team-b"}) {
+		t.Errorf("GetClient AllowedGroups: got %v, want [team-a team-b]", getResp.Client.AllowedGroups)
+	}
+
+	// Verify storage roundtrip
+	stored, err := s.GetClient(ctx, createReq.Client.Id)
+	if err != nil {
+		t.Fatalf("storage GetClient: %v", err)
+	}
+	if !slices.Equal(stored.AllowedGroups, []string{"team-a", "team-b"}) {
+		t.Errorf("stored AllowedGroups: got %v, want [team-a team-b]", stored.AllowedGroups)
+	}
+}
+
 func TestCreateConnector(t *testing.T) {
 	t.Setenv("DEX_API_CONNECTORS_CRUD", "true")
 

@@ -307,6 +307,16 @@ func LogoURLContainsFold(v string) predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.FieldContainsFold(FieldLogoURL, v))
 }
 
+// AllowedGroupsIsNil applies the IsNil predicate on the "allowed_groups" field.
+func AllowedGroupsIsNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldIsNull(FieldAllowedGroups))
+}
+
+// AllowedGroupsNotNil applies the NotNil predicate on the "allowed_groups" field.
+func AllowedGroupsNotNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNotNull(FieldAllowedGroups))
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.OAuth2Client) predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.AndPredicates(predicates...))

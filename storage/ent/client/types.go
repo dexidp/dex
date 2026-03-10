@@ -76,13 +76,14 @@ func toStorageAuthCode(a *db.AuthCode) storage.AuthCode {
 
 func toStorageClient(c *db.OAuth2Client) storage.Client {
 	return storage.Client{
-		ID:           c.ID,
-		Secret:       c.Secret,
-		RedirectURIs: c.RedirectUris,
-		TrustedPeers: c.TrustedPeers,
-		Public:       c.Public,
-		Name:         c.Name,
-		LogoURL:      c.LogoURL,
+		ID:            c.ID,
+		Secret:        c.Secret,
+		RedirectURIs:  c.RedirectUris,
+		TrustedPeers:  c.TrustedPeers,
+		Public:        c.Public,
+		Name:          c.Name,
+		LogoURL:       c.LogoURL,
+		AllowedGroups: c.AllowedGroups,
 	}
 }
 
