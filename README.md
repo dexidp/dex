@@ -46,6 +46,21 @@ Because these tokens are signed by dex and [contain standard-based claims][stand
 
 For details on how to request or validate an ID Token, see [_"Writing apps that use dex"_][using-dex].
 
+## Security Model for JWT-Based Authentication
+
+For connectors that process JWT tokens (such as the SSH connector), dex implements a secure verification model:
+
+**JWT is Just a Packaging Format**: JWTs contain no trusted data until cryptographic verification succeeds against keys configured by dex administrators.
+
+**Administrative Control**: The dex connector configuration provides complete access control:
+- **WHO can connect**: Only users explicitly configured in the connector can authenticate
+- **HOW they prove identity**: Each user's configured public keys/credentials define valid authentication methods
+- **WHAT they can access**: User configuration determines scopes (email, groups, permissions)
+
+**Security Separation**: Authentication (cryptographic proof) is completely separated from authorization (administrative policy), preventing clients from influencing their own permissions.
+
+This model prevents key injection attacks and ensures that all security decisions remain under administrative control rather than being influenced by client-provided data.
+
 ## Kubernetes and Dex
 
 Dex runs natively on top of any Kubernetes cluster using Custom Resource Definitions and can drive API server authentication through the OpenID Connect plugin. Clients, such as the [`kubernetes-dashboard`](https://github.com/kubernetes/dashboard) and `kubectl`, can act on behalf of users who can login to the cluster through any identity provider dex supports.
@@ -82,6 +97,7 @@ Dex implements the following connectors:
 | [Atlassian Crowd](https://dexidp.io/docs/connectors/atlassian-crowd/) | yes | yes | yes * | beta | preferred_username claim must be configured through config |
 | [Gitea](https://dexidp.io/docs/connectors/gitea/) | yes | no | yes | beta | |
 | [OpenStack Keystone](https://dexidp.io/docs/connectors/keystone/) | yes | yes | no | alpha | |
+| [SSH](connector/ssh/) | yes | yes | yes | alpha | Authenticate using SSH keys with OAuth2 Token Exchange support. Uses secure JWT verification model where only administrator-configured keys can verify tokens. |
 
 Stable, beta, and alpha are defined as:
 
