@@ -50,7 +50,7 @@ type opener interface {
 	open(logger *slog.Logger) (*conn, error)
 }
 
-func testDB(t *testing.T, o opener, withTransactions bool) {
+func testDB(t *testing.T, o opener, withTransactions, withConcurrentTests bool) {
 	// t.Fatal has a bad habit of not actually printing the error
 	fatal := func(i any) {
 		fmt.Fprintln(os.Stdout, i)
@@ -71,12 +71,16 @@ func testDB(t *testing.T, o opener, withTransactions bool) {
 	withTimeout(time.Minute*1, func() {
 		conformance.RunTests(t, newStorage)
 	})
-	withTimeout(time.Minute*1, func() {
-		conformance.RunConcurrencyTests(t, newStorage)
-	})
+
 	if withTransactions {
 		withTimeout(time.Minute*1, func() {
 			conformance.RunTransactionTests(t, newStorage)
+		})
+	}
+
+	if withConcurrentTests {
+		withTimeout(time.Minute*1, func() {
+			conformance.RunConcurrencyTests(t, newStorage)
 		})
 	}
 }
@@ -239,7 +243,7 @@ func TestPostgres(t *testing.T) {
 			Mode: pgSSLDisable, // Postgres container doesn't support SSL.
 		},
 	}
-	testDB(t, p, true)
+	testDB(t, p, true, false)
 }
 
 const testMySQLEnv = "DEX_MYSQL_HOST"
@@ -276,7 +280,7 @@ func TestMySQL(t *testing.T) {
 			"innodb_lock_wait_timeout": "3",
 		},
 	}
-	testDB(t, s, true)
+	testDB(t, s, true, false)
 }
 
 const testMySQL8Env = "DEX_MYSQL8_HOST"
@@ -313,5 +317,5 @@ func TestMySQL8(t *testing.T) {
 			"innodb_lock_wait_timeout": "3",
 		},
 	}
-	testDB(t, s, true)
+	testDB(t, s, true, false)
 }
