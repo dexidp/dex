@@ -185,8 +185,17 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Filter connectors based on the client's allowed connectors list.
+	// client_id is required per RFC 6749 §4.1.1.
+	client, authErr := s.getClientWithAuthError(ctx, r.Form.Get("client_id"))
+	if authErr != nil {
+		s.renderError(r, w, authErr.Status, authErr.Error())
+		return
+	}
+	connectors = filterConnectors(connectors, client.AllowedConnectors)
+
 	if len(connectors) == 0 {
-		s.renderError(r, w, http.StatusBadRequest, "No connectors available for the requested grant type.")
+		s.renderError(r, w, http.StatusBadRequest, "No connectors available for this client.")
 		return
 	}
 
@@ -232,6 +241,57 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// filterConnectors filters the list of connectors by the allowed connector IDs.
+// If allowedConnectors is empty, all connectors are returned (no filtering).
+func filterConnectors(connectors []storage.Connector, allowedConnectors []string) []storage.Connector {
+	if len(allowedConnectors) == 0 {
+		return connectors
+	}
+
+	allowed := make(map[string]bool, len(allowedConnectors))
+	for _, id := range allowedConnectors {
+		allowed[id] = true
+	}
+
+	filtered := make([]storage.Connector, 0, len(connectors))
+	for _, c := range connectors {
+		if allowed[c.ID] {
+			filtered = append(filtered, c)
+		}
+	}
+	return filtered
+}
+
+// isConnectorAllowed checks if a connector ID is in the client's allowed connectors list.
+// If allowedConnectors is empty, all connectors are allowed.
+func isConnectorAllowed(allowedConnectors []string, connectorID string) bool {
+	if len(allowedConnectors) == 0 {
+		return true
+	}
+	for _, id := range allowedConnectors {
+		if id == connectorID {
+			return true
+		}
+	}
+	return false
+}
+
+// getClientWithAuthError retrieves a client by ID and returns a displayedAuthErr on failure.
+// Invalid client_id is not treated as a redirect error per RFC 6749 §4.1.2.1.
+// https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.2.1
+func (s *Server) getClientWithAuthError(ctx context.Context, clientID string) (storage.Client, *displayedAuthErr) {
+	client, err := s.storage.GetClient(ctx, clientID)
+	if err != nil {
+		if err == storage.ErrNotFound {
+			s.logger.ErrorContext(ctx, "invalid client_id provided", "client_id", clientID)
+			return storage.Client{}, newDisplayedErr(http.StatusBadRequest, "Invalid client_id provided.")
+		}
+		s.logger.ErrorContext(ctx, "failed to get client", "client_id", clientID, "err", err)
+		return storage.Client{}, newDisplayedErr(http.StatusInternalServerError, "Database error.")
+	}
+	return client, nil
+}
+
 func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	authReq, err := s.parseAuthorizationRequest(r)
@@ -254,6 +314,19 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to parse connector", "err", err)
 		s.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist")
+		return
+	}
+
+	// Validate that the connector is allowed for this client.
+	client, authErr := s.getClientWithAuthError(ctx, authReq.ClientID)
+	if authErr != nil {
+		s.renderError(r, w, authErr.Status, authErr.Error())
+		return
+	}
+	if !isConnectorAllowed(client.AllowedConnectors, connID) {
+		s.logger.ErrorContext(r.Context(), "connector not allowed for client",
+			"connector_id", connID, "client_id", authReq.ClientID)
+		s.renderError(r, w, http.StatusForbidden, "Connector not allowed for this client.")
 		return
 	}
 

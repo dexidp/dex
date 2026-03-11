@@ -475,6 +475,9 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		if !validateConnectorID(connectors, connectorID) {
 			return nil, newRedirectedErr(errInvalidRequest, "Invalid ConnectorID")
 		}
+		if !isConnectorAllowed(client.AllowedConnectors, connectorID) {
+			return nil, newRedirectedErr(errInvalidRequest, "Connector not allowed for this client")
+		}
 	}
 
 	// dex doesn't support request parameter and must return request_not_supported error

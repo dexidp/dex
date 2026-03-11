@@ -134,6 +134,16 @@ web:
 #       - /device/callback
 #     name: 'Static Client for Device Flow'
 #     public: true
+#
+#   # Example of a client restricted to specific connectors
+#   - id: restricted-client
+#     secret: restricted-client-secret
+#     redirectURIs:
+#       - 'https://app.example.com/callback'
+#     name: 'Restricted Client'
+#     allowedConnectors:
+#       - github
+#       - google
 
 # Connectors are used to authenticate users against upstream identity providers.
 #

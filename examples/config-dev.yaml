@@ -133,6 +133,10 @@ staticClients:
   - '/dex/device/callback'
   name: 'Example App'
   secret: ZXhhbXBsZS1hcHAtc2VjcmV0
+  # Optional: restrict which connectors this client can use for authentication.
+  # If omitted or empty, all connectors are allowed.
+  # allowedConnectors:
+  # - mock
 
 # Example using environment variables
 # Set DEX_CLIENT_ID and DEX_SECURE_CLIENT_SECRET before starting Dex
@@ -147,6 +151,7 @@ staticClients:
 #      - /device/callback
 #    name: 'Static Client for Device Flow'
 #    public: true
+
 connectors:
 - type: mockCallback
   id: mock

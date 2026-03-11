@@ -262,11 +262,12 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 	ctx := t.Context()
 	id1 := storage.NewID()
 	c1 := storage.Client{
-		ID:           id1,
-		Secret:       "foobar",
-		RedirectURIs: []string{"foo://bar.com/", "https://auth.example.com"},
-		Name:         "dex client",
-		LogoURL:      "https://goo.gl/JIyzIC",
+		ID:                id1,
+		Secret:            "foobar",
+		RedirectURIs:      []string{"foo://bar.com/", "https://auth.example.com"},
+		Name:              "dex client",
+		LogoURL:           "https://goo.gl/JIyzIC",
+		AllowedConnectors: []string{"github", "google"},
 	}
 	err := s.DeleteClient(ctx, id1)
 	mustBeErrNotFound(t, "client", err)
