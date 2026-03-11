@@ -142,6 +142,21 @@ func (s *Server) constructDiscovery(ctx context.Context) discovery {
 	return d
 }
 
+// grantTypeFromAuthRequest determines the grant type from the authorization request parameters.
+func (s *Server) grantTypeFromAuthRequest(r *http.Request) string {
+	redirectURI := r.Form.Get("redirect_uri")
+	if redirectURI == deviceCallbackURI || strings.HasSuffix(redirectURI, deviceCallbackURI) {
+		return grantTypeDeviceCode
+	}
+	responseType := r.Form.Get("response_type")
+	for _, rt := range strings.Fields(responseType) {
+		if rt == "token" || rt == "id_token" {
+			return grantTypeImplicit
+		}
+	}
+	return grantTypeAuthorizationCode
+}
+
 // handleAuthorization handles the OAuth2 auth endpoint.
 func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -154,10 +169,24 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	}
 
 	connectorID := r.Form.Get("connector_id")
-	connectors, err := s.storage.ListConnectors(ctx)
+	allConnectors, err := s.storage.ListConnectors(ctx)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to get list of connectors", "err", err)
 		s.renderError(r, w, http.StatusInternalServerError, "Failed to retrieve connector list.")
+		return
+	}
+
+	// Determine the grant type from the authorization request to filter connectors.
+	grantType := s.grantTypeFromAuthRequest(r)
+	connectors := make([]storage.Connector, 0, len(allConnectors))
+	for _, c := range allConnectors {
+		if GrantTypeAllowed(c.GrantTypes, grantType) {
+			connectors = append(connectors, c)
+		}
+	}
+
+	if len(connectors) == 0 {
+		s.renderError(r, w, http.StatusBadRequest, "No connectors available for the requested grant type.")
 		return
 	}
 
@@ -187,15 +216,15 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, connURL.String(), http.StatusFound)
 	}
 
-	connectorInfos := make([]connectorInfo, len(connectors))
-	for index, conn := range connectors {
+	connectorInfos := make([]connectorInfo, 0, len(connectors))
+	for _, conn := range connectors {
 		connURL.Path = s.absPath("/auth", url.PathEscape(conn.ID))
-		connectorInfos[index] = connectorInfo{
+		connectorInfos = append(connectorInfos, connectorInfo{
 			ID:   conn.ID,
 			Name: conn.Name,
 			Type: conn.Type,
 			URL:  template.URL(connURL.String()),
-		}
+		})
 	}
 
 	if err := s.templates.login(r, w, connectorInfos); err != nil {
@@ -232,6 +261,15 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "Failed to get connector", "err", err)
 		s.renderError(r, w, http.StatusBadRequest, "Connector failed to initialize")
+		return
+	}
+
+	// Check if the connector allows the requested grant type.
+	grantType := s.grantTypeFromAuthRequest(r)
+	if !GrantTypeAllowed(conn.GrantTypes, grantType) {
+		s.logger.ErrorContext(r.Context(), "connector does not allow requested grant type",
+			"connector_id", connID, "grant_type", grantType)
+		s.renderError(r, w, http.StatusBadRequest, "Requested connector does not support this grant type.")
 		return
 	}
 
@@ -995,9 +1033,16 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 	}
 
 	reqRefresh := func() bool {
-		// Ensure the connector supports refresh tokens.
+		// Determine whether to issue a refresh token. A refresh token is only
+		// issued when all of the following are true:
+		//   1. The connector implements RefreshConnector.
+		//   2. The connector's grantTypes config allows refresh_token.
+		//   3. The client requested the offline_access scope.
 		//
-		// Connectors like `saml` do not implement RefreshConnector.
+		// When any condition is not met, the refresh token is silently omitted
+		// rather than returning an error. This matches the OAuth2 spec: the
+		// server is never required to issue a refresh token (RFC 6749 §1.5).
+		// https://datatracker.ietf.org/doc/html/rfc6749#section-1.5
 		conn, err := s.getConnector(ctx, authCode.ConnectorID)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "connector not found", "connector_id", authCode.ConnectorID, "err", err)
@@ -1007,6 +1052,10 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 
 		_, ok := conn.Connector.(connector.RefreshConnector)
 		if !ok {
+			return false
+		}
+
+		if !GrantTypeAllowed(conn.GrantTypes, grantTypeRefreshToken) {
 			return false
 		}
 
@@ -1215,6 +1264,11 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
 		return
 	}
+	if !GrantTypeAllowed(conn.GrantTypes, grantTypePassword) {
+		s.logger.ErrorContext(r.Context(), "connector does not allow password grant", "connector_id", connID)
+		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not support password grant.", http.StatusBadRequest)
+		return
+	}
 
 	passwordConnector, ok := conn.Connector.(connector.PasswordConnector)
 	if !ok {
@@ -1261,11 +1315,15 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 	}
 
 	reqRefresh := func() bool {
-		// Ensure the connector supports refresh tokens.
-		//
-		// Connectors like `saml` do not implement RefreshConnector.
-		_, ok := conn.Connector.(connector.RefreshConnector)
-		if !ok {
+		// Same logic as in exchangeAuthCode: silently omit refresh token
+		// when the connector doesn't support it or grantTypes forbids it.
+		// See RFC 6749 §1.5 — refresh tokens are never mandatory.
+		// https://datatracker.ietf.org/doc/html/rfc6749#section-1.5
+		if _, ok := conn.Connector.(connector.RefreshConnector); !ok {
+			return false
+		}
+
+		if !GrantTypeAllowed(conn.GrantTypes, grantTypeRefreshToken) {
 			return false
 		}
 
@@ -1420,6 +1478,11 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to get connector", "err", err)
 		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
+		return
+	}
+	if !GrantTypeAllowed(conn.GrantTypes, grantTypeTokenExchange) {
+		s.logger.ErrorContext(r.Context(), "connector does not allow token exchange", "connector_id", connID)
+		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not support token exchange.", http.StatusBadRequest)
 		return
 	}
 	teConn, ok := conn.Connector.(connector.TokenIdentityConnector)

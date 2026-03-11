@@ -769,15 +769,19 @@ func scanOfflineSessions(s scanner) (o storage.OfflineSessions, err error) {
 }
 
 func (c *conn) CreateConnector(ctx context.Context, connector storage.Connector) error {
-	_, err := c.Exec(`
+	grantTypes, err := json.Marshal(connector.GrantTypes)
+	if err != nil {
+		return fmt.Errorf("marshal connector grant types: %v", err)
+	}
+	_, err = c.Exec(`
 		insert into connector (
-			id, type, name, resource_version, config
+			id, type, name, resource_version, config, grant_types
 		)
 		values (
-			$1, $2, $3, $4, $5
+			$1, $2, $3, $4, $5, $6
 		);
 	`,
-		connector.ID, connector.Type, connector.Name, connector.ResourceVersion, connector.Config,
+		connector.ID, connector.Type, connector.Name, connector.ResourceVersion, connector.Config, grantTypes,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -799,16 +803,21 @@ func (c *conn) UpdateConnector(ctx context.Context, id string, updater func(s st
 		if err != nil {
 			return err
 		}
+		grantTypes, err := json.Marshal(newConn.GrantTypes)
+		if err != nil {
+			return fmt.Errorf("marshal connector grant types: %v", err)
+		}
 		_, err = tx.Exec(`
 			update connector
 			set
 			    type = $1,
 			    name = $2,
 			    resource_version = $3,
-			    config = $4
-			where id = $5;
+			    config = $4,
+			    grant_types = $5
+			where id = $6;
 		`,
-			newConn.Type, newConn.Name, newConn.ResourceVersion, newConn.Config, connector.ID,
+			newConn.Type, newConn.Name, newConn.ResourceVersion, newConn.Config, grantTypes, connector.ID,
 		)
 		if err != nil {
 			return fmt.Errorf("update connector: %v", err)
@@ -824,15 +833,16 @@ func (c *conn) GetConnector(ctx context.Context, id string) (storage.Connector, 
 func getConnector(ctx context.Context, q querier, id string) (storage.Connector, error) {
 	return scanConnector(q.QueryRow(`
 		select
-			id, type, name, resource_version, config
+			id, type, name, resource_version, config, grant_types
 		from connector
 		where id = $1;
 		`, id))
 }
 
 func scanConnector(s scanner) (c storage.Connector, err error) {
+	var grantTypes []byte
 	err = s.Scan(
-		&c.ID, &c.Type, &c.Name, &c.ResourceVersion, &c.Config,
+		&c.ID, &c.Type, &c.Name, &c.ResourceVersion, &c.Config, &grantTypes,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -840,13 +850,18 @@ func scanConnector(s scanner) (c storage.Connector, err error) {
 		}
 		return c, fmt.Errorf("select connector: %v", err)
 	}
+	if len(grantTypes) > 0 {
+		if err := json.Unmarshal(grantTypes, &c.GrantTypes); err != nil {
+			return c, fmt.Errorf("unmarshal connector grant types: %v", err)
+		}
+	}
 	return c, nil
 }
 
 func (c *conn) ListConnectors(ctx context.Context) ([]storage.Connector, error) {
 	rows, err := c.Query(`
 		select
-			id, type, name, resource_version, config
+			id, type, name, resource_version, config, grant_types
 		from connector;
 	`)
 	if err != nil {

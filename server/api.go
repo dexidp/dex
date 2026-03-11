@@ -455,12 +455,19 @@ func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq
 		return nil, errors.New("invalid config supplied")
 	}
 
+	for _, gt := range req.Connector.GrantTypes {
+		if !ConnectorGrantTypes[gt] {
+			return nil, fmt.Errorf("unknown grant type %q", gt)
+		}
+	}
+
 	c := storage.Connector{
 		ID:              req.Connector.Id,
 		Name:            req.Connector.Name,
 		Type:            req.Connector.Type,
 		ResourceVersion: "1",
 		Config:          req.Connector.Config,
+		GrantTypes:      req.Connector.GrantTypes,
 	}
 	if err := d.s.CreateConnector(ctx, c); err != nil {
 		if err == storage.ErrAlreadyExists {
@@ -487,12 +494,24 @@ func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq
 		return nil, errors.New("no email supplied")
 	}
 
-	if len(req.NewConfig) == 0 && req.NewName == "" && req.NewType == "" {
+	hasUpdate := len(req.NewConfig) != 0 ||
+		req.NewName != "" ||
+		req.NewType != "" ||
+		req.NewGrantTypes != nil
+	if !hasUpdate {
 		return nil, errors.New("nothing to update")
 	}
 
-	if !json.Valid(req.NewConfig) {
+	if len(req.NewConfig) != 0 && !json.Valid(req.NewConfig) {
 		return nil, errors.New("invalid config supplied")
+	}
+
+	if req.NewGrantTypes != nil {
+		for _, gt := range req.NewGrantTypes.GrantTypes {
+			if !ConnectorGrantTypes[gt] {
+				return nil, fmt.Errorf("unknown grant type %q", gt)
+			}
+		}
 	}
 
 	updater := func(old storage.Connector) (storage.Connector, error) {
@@ -506,6 +525,10 @@ func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq
 
 		if len(req.NewConfig) != 0 {
 			old.Config = req.NewConfig
+		}
+
+		if req.NewGrantTypes != nil {
+			old.GrantTypes = req.NewGrantTypes.GrantTypes
 		}
 
 		if rev, err := strconv.Atoi(defaultTo(old.ResourceVersion, "0")); err == nil {
@@ -561,10 +584,11 @@ func (d dexAPI) ListConnectors(ctx context.Context, req *api.ListConnectorReq) (
 	connectors := make([]*api.Connector, 0, len(connectorList))
 	for _, connector := range connectorList {
 		c := api.Connector{
-			Id:     connector.ID,
-			Name:   connector.Name,
-			Type:   connector.Type,
-			Config: connector.Config,
+			Id:         connector.ID,
+			Name:       connector.Name,
+			Type:       connector.Type,
+			Config:     connector.Config,
+			GrantTypes: connector.GrantTypes,
 		}
 		connectors = append(connectors, &c)
 	}

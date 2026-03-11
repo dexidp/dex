@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -57,6 +58,13 @@ const LocalConnector = "local"
 type Connector struct {
 	ResourceVersion string
 	Connector       connector.Connector
+	GrantTypes      []string
+}
+
+// GrantTypeAllowed checks if the given grant type is allowed for this connector.
+// If no grant types are configured, all are allowed.
+func GrantTypeAllowed(configuredTypes []string, grantType string) bool {
+	return len(configuredTypes) == 0 || slices.Contains(configuredTypes, grantType)
 }
 
 // Config holds the server's configuration options.
@@ -739,6 +747,7 @@ func (s *Server) OpenConnector(conn storage.Connector) (Connector, error) {
 	connector := Connector{
 		ResourceVersion: conn.ResourceVersion,
 		Connector:       c,
+		GrantTypes:      conn.GrantTypes,
 	}
 	s.mu.Lock()
 	s.connectors[conn.ID] = connector

@@ -9,6 +9,7 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage/ent/db/connector"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
@@ -72,6 +73,24 @@ func (_u *ConnectorUpdate) SetNillableResourceVersion(v *string) *ConnectorUpdat
 // SetConfig sets the "config" field.
 func (_u *ConnectorUpdate) SetConfig(v []byte) *ConnectorUpdate {
 	_u.mutation.SetConfig(v)
+	return _u
+}
+
+// SetGrantTypes sets the "grant_types" field.
+func (_u *ConnectorUpdate) SetGrantTypes(v []string) *ConnectorUpdate {
+	_u.mutation.SetGrantTypes(v)
+	return _u
+}
+
+// AppendGrantTypes appends value to the "grant_types" field.
+func (_u *ConnectorUpdate) AppendGrantTypes(v []string) *ConnectorUpdate {
+	_u.mutation.AppendGrantTypes(v)
+	return _u
+}
+
+// ClearGrantTypes clears the value of the "grant_types" field.
+func (_u *ConnectorUpdate) ClearGrantTypes() *ConnectorUpdate {
+	_u.mutation.ClearGrantTypes()
 	return _u
 }
 
@@ -146,6 +165,17 @@ func (_u *ConnectorUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Config(); ok {
 		_spec.SetField(connector.FieldConfig, field.TypeBytes, value)
 	}
+	if value, ok := _u.mutation.GrantTypes(); ok {
+		_spec.SetField(connector.FieldGrantTypes, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedGrantTypes(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, connector.FieldGrantTypes, value)
+		})
+	}
+	if _u.mutation.GrantTypesCleared() {
+		_spec.ClearField(connector.FieldGrantTypes, field.TypeJSON)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{connector.Label}
@@ -211,6 +241,24 @@ func (_u *ConnectorUpdateOne) SetNillableResourceVersion(v *string) *ConnectorUp
 // SetConfig sets the "config" field.
 func (_u *ConnectorUpdateOne) SetConfig(v []byte) *ConnectorUpdateOne {
 	_u.mutation.SetConfig(v)
+	return _u
+}
+
+// SetGrantTypes sets the "grant_types" field.
+func (_u *ConnectorUpdateOne) SetGrantTypes(v []string) *ConnectorUpdateOne {
+	_u.mutation.SetGrantTypes(v)
+	return _u
+}
+
+// AppendGrantTypes appends value to the "grant_types" field.
+func (_u *ConnectorUpdateOne) AppendGrantTypes(v []string) *ConnectorUpdateOne {
+	_u.mutation.AppendGrantTypes(v)
+	return _u
+}
+
+// ClearGrantTypes clears the value of the "grant_types" field.
+func (_u *ConnectorUpdateOne) ClearGrantTypes() *ConnectorUpdateOne {
+	_u.mutation.ClearGrantTypes()
 	return _u
 }
 
@@ -314,6 +362,17 @@ func (_u *ConnectorUpdateOne) sqlSave(ctx context.Context) (_node *Connector, er
 	}
 	if value, ok := _u.mutation.Config(); ok {
 		_spec.SetField(connector.FieldConfig, field.TypeBytes, value)
+	}
+	if value, ok := _u.mutation.GrantTypes(); ok {
+		_spec.SetField(connector.FieldGrantTypes, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedGrantTypes(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, connector.FieldGrantTypes, value)
+		})
+	}
+	if _u.mutation.GrantTypesCleared() {
+		_spec.ClearField(connector.FieldGrantTypes, field.TypeJSON)
 	}
 	_node = &Connector{config: _u.config}
 	_spec.Assign = _node.assignValues

@@ -388,6 +388,10 @@ type Connector struct {
 	// However, fixing this requires migrating Kubernetes objects for all previously created connectors,
 	// or making Dex reading both tags and act accordingly.
 	Config []byte `json:"email"`
+
+	// GrantTypes is a list of grant types that this connector is allowed to be used with.
+	// If empty, all grant types are allowed.
+	GrantTypes []string `json:"grantTypes,omitempty"`
 }
 
 // VerificationKey is a rotated signing key which can still be used to verify

@@ -19,6 +19,8 @@ const (
 	FieldResourceVersion = "resource_version"
 	// FieldConfig holds the string denoting the config field in the database.
 	FieldConfig = "config"
+	// FieldGrantTypes holds the string denoting the grant_types field in the database.
+	FieldGrantTypes = "grant_types"
 	// Table holds the table name of the connector in the database.
 	Table = "connectors"
 )
@@ -30,6 +32,7 @@ var Columns = []string{
 	FieldName,
 	FieldResourceVersion,
 	FieldConfig,
+	FieldGrantTypes,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
