@@ -1156,7 +1156,12 @@ func TestHandleAuthorizationConnectorGrantTypeFiltering(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := t.Context()
-			httpServer, s := newTestServerMultipleConnectors(t, nil)
+			httpServer, s := newTestServerMultipleConnectors(t, func(c *Config) {
+				c.Storage.CreateClient(ctx, storage.Client{
+					ID:           "test",
+					RedirectURIs: []string{"http://example.com/callback"},
+				})
+			})
 			defer httpServer.Close()
 
 			for id, gts := range tc.connectorGrantTypes {

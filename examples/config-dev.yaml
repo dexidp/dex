@@ -151,6 +151,7 @@ staticClients:
 #      - /device/callback
 #    name: 'Static Client for Device Flow'
 #    public: true
+
 connectors:
 - type: mockCallback
   id: mock

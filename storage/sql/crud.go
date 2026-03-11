@@ -582,15 +582,21 @@ func (c *conn) ListClients(ctx context.Context) ([]storage.Client, error) {
 }
 
 func scanClient(s scanner) (cli storage.Client, err error) {
+	var allowedConnectors []byte
 	err = s.Scan(
 		&cli.ID, &cli.Secret, decoder(&cli.RedirectURIs), decoder(&cli.TrustedPeers),
-		&cli.Public, &cli.Name, &cli.LogoURL, decoder(&cli.AllowedConnectors),
+		&cli.Public, &cli.Name, &cli.LogoURL, &allowedConnectors,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return cli, storage.ErrNotFound
 		}
 		return cli, fmt.Errorf("get client: %v", err)
+	}
+	if len(allowedConnectors) > 0 {
+		if err := json.Unmarshal(allowedConnectors, &cli.AllowedConnectors); err != nil {
+			return cli, fmt.Errorf("unmarshal client allowed connectors: %v", err)
+		}
 	}
 	return cli, nil
 }

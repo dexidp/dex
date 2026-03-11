@@ -186,13 +186,13 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Filter connectors based on the client's allowed connectors list.
-	clientID := r.Form.Get("client_id")
-	if clientID != "" {
-		client, err := s.storage.GetClient(ctx, clientID)
-		if err == nil {
-			connectors = filterConnectors(connectors, client.AllowedConnectors)
-		}
+	// client_id is required per RFC 6749 §4.1.1.
+	client, authErr := s.getClientWithAuthError(ctx, r.Form.Get("client_id"))
+	if authErr != nil {
+		s.renderError(r, w, authErr.Status, authErr.Error())
+		return
 	}
+	connectors = filterConnectors(connectors, client.AllowedConnectors)
 
 	if len(connectors) == 0 {
 		s.renderError(r, w, http.StatusBadRequest, "No connectors available for this client.")
@@ -276,6 +276,22 @@ func isConnectorAllowed(allowedConnectors []string, connectorID string) bool {
 	return false
 }
 
+// getClientWithAuthError retrieves a client by ID and returns a displayedAuthErr on failure.
+// Invalid client_id is not treated as a redirect error per RFC 6749 §4.1.2.1.
+// https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.2.1
+func (s *Server) getClientWithAuthError(ctx context.Context, clientID string) (storage.Client, *displayedAuthErr) {
+	client, err := s.storage.GetClient(ctx, clientID)
+	if err != nil {
+		if err == storage.ErrNotFound {
+			s.logger.ErrorContext(ctx, "invalid client_id provided", "client_id", clientID)
+			return storage.Client{}, newDisplayedErr(http.StatusBadRequest, "Invalid client_id provided.")
+		}
+		s.logger.ErrorContext(ctx, "failed to get client", "client_id", clientID, "err", err)
+		return storage.Client{}, newDisplayedErr(http.StatusInternalServerError, "Database error.")
+	}
+	return client, nil
+}
+
 func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	authReq, err := s.parseAuthorizationRequest(r)
@@ -302,10 +318,9 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate that the connector is allowed for this client.
-	client, err := s.storage.GetClient(ctx, authReq.ClientID)
-	if err != nil {
-		s.logger.ErrorContext(r.Context(), "failed to get client", "err", err)
-		s.renderError(r, w, http.StatusInternalServerError, "Failed to retrieve client.")
+	client, authErr := s.getClientWithAuthError(ctx, authReq.ClientID)
+	if authErr != nil {
+		s.renderError(r, w, authErr.Status, authErr.Error())
 		return
 	}
 	if !isConnectorAllowed(client.AllowedConnectors, connID) {
