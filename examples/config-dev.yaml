@@ -68,6 +68,7 @@ web:
 #   issuer: dex
 #   logoURL: theme/logo.png
 #   dir: web/
+#   Allowed values: light, dark
 #   theme: light
 
 # Configuration for telemetry
