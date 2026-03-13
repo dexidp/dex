@@ -1093,7 +1093,7 @@ POST /logout
 GET  /logout
 ```
 
-Logout endpoint following RP-Initiated Logout spec ([RFC draft](https://openid.net/specs/openid-connect-rpinitiated-1_0.html)):
+Logout endpoint following the OpenID RP-Initiated Logout specification ([OpenID spec](https://openid.net/specs/openid-connect-rpinitiated-1_0.html)):
 
 ```go
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -1369,7 +1369,7 @@ Sessions are fully controlled by the `DEX_SESSIONS_ENABLED` feature flag. Rollba
 4. **Storage cleanup**: `AuthSession` and `UserIdentity` records remain in storage but are unused. They can be cleaned up manually or left to accumulate no further growth
 5. **No downtime required**: Feature flag can be toggled without restart if environment variable reload is supported; otherwise, a rolling restart is sufficient
 
-**Key guarantee**: Disabling the feature flag returns Dex to its pre-sessions behavior with zero side effects. No existing functionality (refresh tokens, connector authentication, token issuance) depends on sessions. Additional tables in the database const nothing and can be deleted later.
+**Key guarantee**: Disabling the feature flag returns Dex to its pre-sessions behavior with zero side effects. No existing functionality (refresh tokens, connector authentication, token issuance) depends on sessions. Additional tables in the database cost nothing when the feature flag is disabled: they remain unused schema objects and can be deleted later if desired.
 
 #### Migration Path
 
