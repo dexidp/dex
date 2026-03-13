@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/go-ldap/ldap/v3"
@@ -62,6 +63,9 @@ import (
 type UserMatcher struct {
 	UserAttr  string `json:"userAttr"`
 	GroupAttr string `json:"groupAttr"`
+	// Work only if UserAttr is 'memberOf' and GroupAttr is dn
+	GroupRegexp  string `json:"groupRegexp"`
+	groupMatcher *regexp.Regexp
 	// Look for parent groups
 	RecursionGroupAttr string `json:"recursionGroupAttr"`
 }
@@ -298,6 +302,13 @@ func (c *Config) openConnector(logger *slog.Logger) (*ldapConnector, error) {
 
 	// TODO(nabokihms): remove it after deleting deprecated groupSearch options
 	c.GroupSearch.UserMatchers = userMatchers(c, logger)
+	for i, _ := range c.GroupSearch.UserMatchers {
+		c.GroupSearch.UserMatchers[i].groupMatcher, err = regexp.Compile(c.GroupSearch.UserMatchers[i].GroupRegexp)
+		if err != nil {
+			logger.Error("Regular expression compilation error", "user_attr", c.GroupSearch.UserMatchers[i].UserAttr, "group_attr", c.GroupSearch.UserMatchers[i].GroupAttr, "err", err.Error())
+			c.GroupSearch.UserMatchers[i].groupMatcher, _ = regexp.Compile("")
+		}
+	}
 	return &ldapConnector{*c, userSearchScope, groupSearchScope, tlsConfig, logger}, nil
 }
 
@@ -600,20 +611,62 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 
 	var groupNames []string
 
+	// Initial Search
+	var groups []*ldap.Entry
 	for _, matcher := range c.GroupSearch.UserMatchers {
-		// Initial Search
-		var groups []*ldap.Entry
-		for _, attr := range c.getAttrs(user, matcher.UserAttr) {
-			obtained, filter, err := c.queryGroups(ctx, matcher.GroupAttr, attr)
-			if err != nil {
-				return nil, err
+		// When we get groups from memberof user.s entity attribute, we may
+		// don.t want (Or don.t need) to perform extra search query for each group.
+		// Also when groupattr is dn (which implies memberof freeipa), we cannot use
+		// ldapsearch to retrieve group by DN (LDAP restriction)
+		if strings.ToLower(matcher.UserAttr) == "memberof" &&
+			strings.ToLower(matcher.GroupAttr) == "dn" {
+			for _, attr := range c.getAttrs(user, matcher.UserAttr) {
+				// If group dn has no ends with group search base dn - ignore it.
+				// In FreeIPA case, it also can contain hbac, sudo rules, etc...
+				if !strings.HasSuffix(attr, c.GroupSearch.BaseDN) {
+					continue
+				}
+
+				// Trim {NameAttr}= prefix and baseDN suffix to get group name.
+				// For NameAttr=cn and BaseDN=cn=groups,dc=example,dc=com :
+				// cn=groupname,cn=groups,dc=example,dc=com -> groupname
+				groupName := strings.TrimSuffix(
+					strings.TrimPrefix(attr,
+						fmt.Sprintf("%s=", c.GroupSearch.NameAttr)),
+					fmt.Sprintf(",%s", c.GroupSearch.BaseDN))
+
+				// Is it needed compability with GroupSearch.Filter? (r9odt)
+				if !matcher.groupMatcher.MatchString(groupName) {
+					continue
+				}
+
+				// Append result to group list as ldap.Entry to process it next wihtout
+				// extra changes in code.
+				groups = append(groups, &ldap.Entry{
+					DN: attr,
+					Attributes: []*ldap.EntryAttribute{
+						{
+							Name: c.GroupSearch.NameAttr,
+							Values: []string{
+								groupName,
+							},
+						},
+					},
+				})
 			}
-			gotGroups := len(obtained) != 0
-			if !gotGroups {
-				// TODO(ericchiang): Is this going to spam the logs?
-				c.logger.Error("ldap: groups search returned no groups", "filter", filter)
+		} else {
+			for _, attr := range c.getAttrs(user, matcher.UserAttr) {
+				obtained, filter, err := c.queryGroups(ctx, matcher.GroupAttr, attr)
+				if err != nil {
+					return nil, err
+				}
+				gotGroups := len(obtained) != 0
+				if !gotGroups {
+					// TODO(ericchiang): Is this going to spam the logs?
+					c.logger.Error("ldap: groups search returned no groups", "filter", filter)
+				}
+				groups = append(groups, obtained...)
 			}
-			groups = append(groups, obtained...)
 		}
 
 		// If RecursionGroupAttr is not set, convert direct groups into names and return
