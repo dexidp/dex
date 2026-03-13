@@ -8,8 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dexidp/dex/connector"
 	ldaplib "github.com/go-ldap/ldap/v3"
+
+	"github.com/dexidp/dex/connector"
 )
 
 type mockKrbValidator struct {
