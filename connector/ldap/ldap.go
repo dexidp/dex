@@ -255,7 +255,9 @@ func (c *Config) openConnector(logger *slog.Logger) (*ldapConnector, error) {
 		host string
 		err  error
 	)
-	if host, _, err = net.SplitHostPort(c.Host); err != nil {
+	_, resErr := net.ResolveTCPAddr("tcp", c.Host)
+
+	if host, _, err = net.SplitHostPort(c.Host); err != nil && resErr == nil {
 		host = c.Host
 		if c.InsecureNoSSL {
 			c.Host += ":389"
@@ -327,13 +329,27 @@ func (c *ldapConnector) do(_ context.Context, f func(c *ldap.Conn) error) error 
 		err  error
 	)
 
+	var dialAddr string
+
+	if c.InsecureNoSSL {
+		_, resErr := net.ResolveTCPAddr("tcp", c.Host)
+		if resErr == nil {
+			u := url.URL{Scheme: "ldap", Host: c.Host}
+			dialAddr = u.String()
+		} else {
+			// assume UNIX socket
+			dialAddr = fmt.Sprintf("ldapi:%s", c.Host)
+		}
+	} else {
+		u := url.URL{Scheme: "ldaps", Host: c.Host}
+		dialAddr = u.String()
+	}
+
 	switch {
 	case c.InsecureNoSSL:
-		u := url.URL{Scheme: "ldap", Host: c.Host}
-		conn, err = ldap.DialURL(u.String())
+		conn, err = ldap.DialURL(dialAddr)
 	case c.StartTLS:
-		u := url.URL{Scheme: "ldap", Host: c.Host}
-		conn, err = ldap.DialURL(u.String())
+		conn, err = ldap.DialURL(dialAddr)
 		if err != nil {
 			return fmt.Errorf("failed to connect: %v", err)
 		}
@@ -341,8 +357,7 @@ func (c *ldapConnector) do(_ context.Context, f func(c *ldap.Conn) error) error 
 			return fmt.Errorf("start TLS failed: %v", err)
 		}
 	default:
-		u := url.URL{Scheme: "ldaps", Host: c.Host}
-		conn, err = ldap.DialURL(u.String(), ldap.DialWithTLSConfig(c.tlsConfig))
+		conn, err = ldap.DialURL(dialAddr, ldap.DialWithTLSConfig(c.tlsConfig))
 	}
 	if err != nil {
 		return fmt.Errorf("failed to connect: %v", err)
