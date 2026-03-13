@@ -52,7 +52,7 @@ and external policy engines.
 [#1635]: https://github.com/dexidp/dex/issues/1635
 [#1052]: https://github.com/dexidp/dex/issues/1052
 [#2178]: https://github.com/dexidp/dex/issues/2178
-[dep-token-exchange]: /docs/enhancements/token-exchange-2023-02-03-#2812.md
+[dep-token-exchange]: /docs/enhancements/token-exchange-2023-02-03-%232812.md
 
 ## Motivation
 
