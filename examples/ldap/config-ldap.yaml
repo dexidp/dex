@@ -59,6 +59,15 @@ connectors:
       # The group name should be the "cn" value.
       nameAttr: cn
 
+    # Optional Kerberos (SPNEGO) SSO. When enabled, Dex will challenge with
+    # WWW-Authenticate: Negotiate on GET and skip the password form on success.
+    #kerberos:
+    #  enabled: true
+    #  keytabPath: /etc/dex/krb5.keytab
+    #  expectedRealm: EXAMPLE.COM
+    #  usernameFromPrincipal: sAMAccountName # or userPrincipalName or localpart
+    #  fallbackToPassword: false
+
 staticClients:
 - id: example-app
   redirectURIs:

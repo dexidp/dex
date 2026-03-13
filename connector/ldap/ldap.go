@@ -125,6 +125,9 @@ type Config struct {
 	// "Username".
 	UsernamePrompt string `json:"usernamePrompt"`
 
+	// Optional Kerberos (SPNEGO) SSO configuration.
+	Kerberos *kerberosConfig `json:"kerberos"`
+
 	// User entry search configuration.
 	UserSearch struct {
 		// BaseDN to start the search from. For example "cn=users,dc=example,dc=com"
@@ -188,6 +191,15 @@ type Config struct {
 	} `json:"groupSearch"`
 }
 
+// kerberosConfig defines optional Kerberos (SPNEGO) SSO settings for LDAP.
+type kerberosConfig struct {
+	Enabled               bool   `json:"enabled"`
+	KeytabPath            string `json:"keytabPath"`
+	ExpectedRealm         string `json:"expectedRealm"`
+	UsernameFromPrincipal string `json:"usernameFromPrincipal"`
+	FallbackToPassword    bool   `json:"fallbackToPassword"`
+}
+
 func scopeString(i int) string {
 	switch i {
 	case ldap.ScopeBaseObject:
@@ -240,6 +252,17 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 	conn, err := c.OpenConnector(logger)
 	if err != nil {
 		return nil, err
+	}
+	// If Kerberos is enabled, initialize gokrb5 validator.
+	if lc, ok := conn.(*ldapConnector); ok && lc.krbEnabled && lc.krbValidator == nil {
+		v, verr := newGokrb5ValidatorWithLogger(lc.krbConf.KeytabPath, logger)
+		if verr != nil {
+			logger.Warn("failed to initialize kerberos validator; disabling kerberos", "err", verr)
+			lc.krbEnabled = false
+		} else {
+			lc.krbValidator = v
+			logger.Info("Kerberos enabled for LDAP connector", "keytab", lc.krbConf.KeytabPath, "expected_realm", lc.krbConf.ExpectedRealm)
+		}
 	}
 	return connector.Connector(conn), nil
 }
@@ -325,7 +348,37 @@ func (c *Config) openConnector(logger *slog.Logger) (*ldapConnector, error) {
 
 	// TODO(nabokihms): remove it after deleting deprecated groupSearch options
 	c.GroupSearch.UserMatchers = userMatchers(c, logger)
-	return &ldapConnector{*c, userSearchScope, groupSearchScope, tlsConfig, c.UserSearch.Username, logger}, nil
+
+	// Normalize Kerberos defaults
+	var krbEnabled bool
+	var krbConf kerberosConfig
+	if c.Kerberos != nil {
+		krbConf = *c.Kerberos
+		if krbConf.UsernameFromPrincipal == "" {
+			krbConf.UsernameFromPrincipal = "localpart"
+		}
+		if krbConf.Enabled {
+			if krbConf.KeytabPath == "" {
+				logger.Warn("kerberos enabled but keytabPath is empty; disabling kerberos")
+			} else {
+				krbEnabled = true
+			}
+		}
+	}
+
+	lc := &ldapConnector{
+		Config:           *c,
+		userSearchScope:  userSearchScope,
+		groupSearchScope: groupSearchScope,
+		tlsConfig:        tlsConfig,
+		usernameAttrs:    c.UserSearch.Username,
+		logger:           logger,
+	}
+	if krbEnabled {
+		lc.krbEnabled = true
+		lc.krbConf = krbConf
+	}
+	return lc, nil
 }
 
 var (
@@ -344,6 +397,13 @@ type ldapConnector struct {
 	usernameAttrs []string
 
 	logger *slog.Logger
+
+	// Kerberos/SPNEGO fields
+	krbEnabled   bool
+	krbConf      kerberosConfig
+	krbValidator KerberosValidator
+	// krbLookupUserHook allows tests to inject a user entry without LDAP queries.
+	krbLookupUserHook func(c *ldapConnector, username string) (ldap.Entry, bool, error)
 }
 
 // do initializes a connection to the LDAP directory and passes it to the
