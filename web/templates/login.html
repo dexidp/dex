@@ -16,4 +16,13 @@
   </div>
 </div>
 
+<script type="text/javascript">
+  if (window.location.hash) {
+    var buttons = document.querySelectorAll('div.theme-form-row a');
+    buttons.forEach(function(button) {
+      button.href = button.href + window.location.hash;
+    });
+  }
+</script>
+
 {{ template "footer.html" . }}
