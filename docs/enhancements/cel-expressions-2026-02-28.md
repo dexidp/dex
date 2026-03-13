@@ -128,6 +128,11 @@ and external policy engines.
 - **Multi-phase CEL in a single DEP** — Only Phase 1 (`pkg/cel` package) is targeted for
   immediate implementation. Phases 2-4 are included here for design context and will have their
   own implementation PRs.
+- **Multi-step logic** — CEL in Dex is scoped to single-expression evaluation. Each expression
+  is a standalone, stateless computation with no intermediate variables, chaining, or
+  multi-step transformations. If a use case requires sequential logic or conditionally chained
+  expressions, it belongs outside Dex (e.g. in an external policy engine or middleware).
+  This boundary protects the design from scope creep that pushes CEL beyond what it's good at.
 
 ## Proposal
 
@@ -290,10 +295,10 @@ Presence tests (`has(field)`, `'key' in map`) have zero cost, matching Kubernete
 #### Variable Declarations
 
 Variables are declared via `VariableDeclaration{Name, Type}` and registered with `NewCompiler`.
-All variables are typed as `map(string, dyn)` to allow flexible field access in expressions.
 Helper constructors provide pre-defined variable sets:
 
-**`IdentityVariables()`** — the `identity` variable (from `connector.Identity`):
+**`IdentityVariables()`** — the `identity` variable (from `connector.Identity`),
+typed as `cel.ObjectType`:
 
 | Field | CEL Type | Source |
 |-------|----------|--------|
@@ -304,7 +309,8 @@ Helper constructors provide pre-defined variable sets:
 | `identity.email_verified` | `bool` | `connector.Identity.EmailVerified` |
 | `identity.groups` | `list(string)` | `connector.Identity.Groups` |
 
-**`RequestVariables()`** — the `request` variable (from `RequestContext`):
+**`RequestVariables()`** — the `request` variable (from `RequestContext`),
+typed as `cel.ObjectType`:
 
 | Field | CEL Type |
 |-------|----------|
@@ -314,6 +320,16 @@ Helper constructors provide pre-defined variable sets:
 | `request.redirect_uri` | `string` |
 
 **`ClaimsVariable()`** — the `claims` variable for raw upstream claims as `map(string, dyn)`.
+
+**Typing strategy:**
+
+`identity` and `request` use `cel.ObjectType` with explicitly declared fields. This gives
+compile-time type checking: a typo like `identity.emial` is rejected at config load time
+rather than silently evaluating to null in production — critical for an auth system where a
+misconfigured policy could lock users out.
+
+`claims` remains `map(string, dyn)` because its shape is genuinely unknown — it carries
+arbitrary upstream IdP data.
 
 #### Compatibility Guarantees
 
