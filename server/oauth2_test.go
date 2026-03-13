@@ -53,6 +53,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 		name                   string
 		clients                []storage.Client
 		supportedResponseTypes []string
+		pkce                   PKCEConfig
 
 		usePOST bool
 
@@ -319,6 +320,92 @@ func TestParseAuthorizationRequest(t *testing.T) {
 			},
 			expectedError: &redirectedAuthErr{Type: errInvalidRequest},
 		},
+		{
+			name: "PKCE enforced, no code_challenge provided",
+			clients: []storage.Client{
+				{
+					ID:           "bar",
+					RedirectURIs: []string{"https://example.com/bar"},
+				},
+			},
+			supportedResponseTypes: []string{"code"},
+			pkce: PKCEConfig{
+				Enforce:                       true,
+				CodeChallengeMethodsSupported: []string{"S256", "plain"},
+			},
+			queryParams: map[string]string{
+				"client_id":     "bar",
+				"redirect_uri":  "https://example.com/bar",
+				"response_type": "code",
+				"scope":         "openid email profile",
+			},
+			expectedError: &redirectedAuthErr{Type: errInvalidRequest},
+		},
+		{
+			name: "PKCE enforced, code_challenge provided",
+			clients: []storage.Client{
+				{
+					ID:           "bar",
+					RedirectURIs: []string{"https://example.com/bar"},
+				},
+			},
+			supportedResponseTypes: []string{"code"},
+			pkce: PKCEConfig{
+				Enforce:                       true,
+				CodeChallengeMethodsSupported: []string{"S256", "plain"},
+			},
+			queryParams: map[string]string{
+				"client_id":             "bar",
+				"redirect_uri":          "https://example.com/bar",
+				"response_type":         "code",
+				"code_challenge":        "123",
+				"code_challenge_method": "S256",
+				"scope":                 "openid email profile",
+			},
+		},
+		{
+			name: "PKCE only S256 allowed, plain rejected",
+			clients: []storage.Client{
+				{
+					ID:           "bar",
+					RedirectURIs: []string{"https://example.com/bar"},
+				},
+			},
+			supportedResponseTypes: []string{"code"},
+			pkce: PKCEConfig{
+				CodeChallengeMethodsSupported: []string{"S256"},
+			},
+			queryParams: map[string]string{
+				"client_id":             "bar",
+				"redirect_uri":          "https://example.com/bar",
+				"response_type":         "code",
+				"code_challenge":        "123",
+				"code_challenge_method": "plain",
+				"scope":                 "openid email profile",
+			},
+			expectedError: &redirectedAuthErr{Type: errInvalidRequest},
+		},
+		{
+			name: "PKCE only S256 allowed, S256 accepted",
+			clients: []storage.Client{
+				{
+					ID:           "bar",
+					RedirectURIs: []string{"https://example.com/bar"},
+				},
+			},
+			supportedResponseTypes: []string{"code"},
+			pkce: PKCEConfig{
+				CodeChallengeMethodsSupported: []string{"S256"},
+			},
+			queryParams: map[string]string{
+				"client_id":             "bar",
+				"redirect_uri":          "https://example.com/bar",
+				"response_type":         "code",
+				"code_challenge":        "123",
+				"code_challenge_method": "S256",
+				"scope":                 "openid email profile",
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -326,6 +413,9 @@ func TestParseAuthorizationRequest(t *testing.T) {
 			httpServer, server := newTestServerMultipleConnectors(t, func(c *Config) {
 				c.SupportedResponseTypes = tc.supportedResponseTypes
 				c.Storage = storage.WithStaticClients(c.Storage, tc.clients)
+				if len(tc.pkce.CodeChallengeMethodsSupported) > 0 || tc.pkce.Enforce {
+					c.PKCE = tc.pkce
+				}
 			})
 			defer httpServer.Close()
 

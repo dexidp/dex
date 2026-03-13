@@ -116,7 +116,7 @@ func (s *Server) constructDiscovery(ctx context.Context) discovery {
 		Introspect:        s.absURL("/token/introspect"),
 		Subjects:          []string{"public"},
 		IDTokenAlgs:       []string{string(jose.RS256)},
-		CodeChallengeAlgs: []string{codeChallengeMethodS256, codeChallengeMethodPlain},
+		CodeChallengeAlgs: s.pkce.CodeChallengeMethodsSupported,
 		Scopes:            []string{"openid", "email", "groups", "profile", "offline_access"},
 		AuthMethods:       []string{"client_secret_basic", "client_secret_post"},
 		Claims: []string{

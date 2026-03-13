@@ -109,6 +109,13 @@ web:
 #
 #   # Uncomment to use a specific connector for password grants
 #   passwordConnector: local
+#
+#   # PKCE (Proof Key for Code Exchange) configuration
+#   pkce:
+#     # If true, PKCE is required for all authorization code flows (OAuth 2.1).
+#     enforce: false
+#     # Supported code challenge methods. Defaults to ["S256", "plain"].
+#     codeChallengeMethodsSupported: ["S256", "plain"]
 
 # Static clients registered in Dex by default.
 #

@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -486,9 +487,15 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		return nil, newRedirectedErr(errRequestNotSupported, "Server does not support request parameter.")
 	}
 
-	if codeChallengeMethod != codeChallengeMethodS256 && codeChallengeMethod != codeChallengeMethodPlain {
+	if codeChallenge != "" && !slices.Contains(s.pkce.CodeChallengeMethodsSupported, codeChallengeMethod) {
 		description := fmt.Sprintf("Unsupported PKCE challenge method (%q).", codeChallengeMethod)
 		return nil, newRedirectedErr(errInvalidRequest, description)
+	}
+
+	// Enforce PKCE if configured.
+	// https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-12#section-4.1.1
+	if s.pkce.Enforce && codeChallenge == "" {
+		return nil, newRedirectedErr(errInvalidRequest, "PKCE is required. The code_challenge parameter must be provided.")
 	}
 
 	var (

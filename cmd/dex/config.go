@@ -99,6 +99,7 @@ func (c Config) Validate() error {
 			checkErrors = append(checkErrors, check.errMsg)
 		}
 	}
+
 	if len(checkErrors) != 0 {
 		return fmt.Errorf("invalid Config:\n\t-\t%s", strings.Join(checkErrors, "\n\t-\t"))
 	}
@@ -171,6 +172,16 @@ type OAuth2 struct {
 	AlwaysShowLoginScreen bool `json:"alwaysShowLoginScreen"`
 	// This is the connector that can be used for password grant
 	PasswordConnector string `json:"passwordConnector"`
+	// PKCE configuration
+	PKCE PKCE `json:"pkce"`
+}
+
+// PKCE holds the PKCE (Proof Key for Code Exchange) configuration.
+type PKCE struct {
+	// If true, PKCE is required for all authorization code flows.
+	Enforce bool `json:"enforce"`
+	// Supported code challenge methods. Defaults to ["S256", "plain"].
+	CodeChallengeMethodsSupported []string `json:"codeChallengeMethodsSupported"`
 }
 
 // Web is the config format for the HTTP server.

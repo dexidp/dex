@@ -362,11 +362,15 @@ func runServe(options serveOptions) error {
 	}
 
 	serverConfig := server.Config{
-		AllowedGrantTypes:          c.OAuth2.GrantTypes,
-		SupportedResponseTypes:     c.OAuth2.ResponseTypes,
-		SkipApprovalScreen:         c.OAuth2.SkipApprovalScreen,
-		AlwaysShowLoginScreen:      c.OAuth2.AlwaysShowLoginScreen,
-		PasswordConnector:          c.OAuth2.PasswordConnector,
+		AllowedGrantTypes:      c.OAuth2.GrantTypes,
+		SupportedResponseTypes: c.OAuth2.ResponseTypes,
+		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
+		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
+		PasswordConnector:      c.OAuth2.PasswordConnector,
+		PKCE: server.PKCEConfig{
+			Enforce:                       c.OAuth2.PKCE.Enforce,
+			CodeChallengeMethodsSupported: c.OAuth2.PKCE.CodeChallengeMethodsSupported,
+		},
 		Headers:                    c.Web.Headers.ToHTTPHeader(),
 		AllowedOrigins:             c.Web.AllowedOrigins,
 		AllowedHeaders:             c.Web.AllowedHeaders,

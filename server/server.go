@@ -114,6 +114,9 @@ type Config struct {
 	// If set, the server will use this connector to handle password grants
 	PasswordConnector string
 
+	// PKCE configuration
+	PKCE PKCEConfig
+
 	GCFrequency time.Duration // Defaults to 5 minutes
 
 	// If specified, the server will use this function for determining time.
@@ -166,6 +169,14 @@ type WebConfig struct {
 	Extra map[string]string
 }
 
+// PKCEConfig holds PKCE (Proof Key for Code Exchange) settings.
+type PKCEConfig struct {
+	// If true, PKCE is required for all authorization code flows.
+	Enforce bool
+	// Supported code challenge methods. Defaults to ["S256", "plain"].
+	CodeChallengeMethodsSupported []string
+}
+
 func value(val, defaultValue time.Duration) time.Duration {
 	if val == 0 {
 		return defaultValue
@@ -201,6 +212,8 @@ type Server struct {
 
 	supportedGrantTypes []string
 
+	pkce PKCEConfig
+
 	now func() time.Time
 
 	idTokensValidFor       time.Duration
@@ -234,6 +247,19 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	}
 	if len(c.AllowedHeaders) == 0 {
 		c.AllowedHeaders = []string{"Authorization"}
+	}
+
+	supportedChallengeMethods := map[string]bool{
+		codeChallengeMethodS256:  true,
+		codeChallengeMethodPlain: true,
+	}
+	if len(c.PKCE.CodeChallengeMethodsSupported) == 0 {
+		c.PKCE.CodeChallengeMethodsSupported = []string{codeChallengeMethodS256, codeChallengeMethodPlain}
+	}
+	for _, m := range c.PKCE.CodeChallengeMethodsSupported {
+		if !supportedChallengeMethods[m] {
+			return nil, fmt.Errorf("unsupported PKCE challenge method %q", m)
+		}
 	}
 
 	allSupportedGrants := map[string]bool{
@@ -310,6 +336,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		storage:                newKeyCacher(c.Storage, now),
 		supportedResponseTypes: supportedRes,
 		supportedGrantTypes:    supportedGrants,
+		pkce:                   c.PKCE,
 		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
 		authRequestsValidFor:   value(c.AuthRequestsValidFor, 24*time.Hour),
 		deviceRequestsValidFor: value(c.DeviceRequestsValidFor, 5*time.Minute),
