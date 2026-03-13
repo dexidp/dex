@@ -1,4 +1,4 @@
-# Dex Enhancement Proposal (DEP) - 2026-02-18 - Auth Sessions
+# Dex Enhancement Proposal (DEP 4560) - 2026-02-18 - Auth Sessions
 
 ## Table of Contents
 
@@ -168,7 +168,7 @@ staticClients:
 
 **Cookie Security**: The session cookie is always set with secure defaults:
 - `HttpOnly: true` - Not accessible via JavaScript
-- `Secure: true` - Only sent over HTTPS (automatically disabled for localhost in dev)
+- `Secure: (issuerURL.Scheme == "https")` - Only sent over HTTPS; for `http` (commonly used on localhost in dev) this is disabled
 - `SameSite: Lax` - CSRF protection
 - `Path: <issuerURL.Path>` - Derived from issuer URL (e.g., `/dex` for `https://example.com/dex`)
 
