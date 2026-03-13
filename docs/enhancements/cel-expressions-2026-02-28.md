@@ -238,19 +238,18 @@ reusable CEL environment with Kubernetes-grade guarantees.
 pkg/
   cel/
     cel.go              # Core Environment, compilation, evaluation
-    cel_test.go         # Tests
-    library.go          # Custom Dex CEL function library
-    library_test.go     # Library tests
     types.go            # CEL type declarations (Identity, Request, etc.)
     cost.go             # Cost estimation and budgeting
-    cost_test.go        # Cost estimation tests
     doc.go              # Package documentation
+    library/
+      email.go          # Email-related CEL functions
+      groups.go         # Group-related CEL functions
 ```
 
 #### Dependencies
 
 ```
-github.com/google/cel-go v0.24+
+github.com/google/cel-go v0.27.0
 ```
 
 The `cel-go` library is the canonical Go implementation maintained by Google, used by Kubernetes
@@ -259,19 +258,9 @@ compatibility guarantees.
 
 #### Core API Design
 
+**Public types:**
+
 ```go
-package cel
-
-import (
-    "context"
-    "fmt"
-
-    "github.com/google/cel-go/cel"
-    "github.com/google/cel-go/checker"
-    "github.com/google/cel-go/common/types/ref"
-    "github.com/google/cel-go/ext"
-)
-
 // CompilationResult holds a compiled CEL program ready for evaluation.
 type CompilationResult struct {
     Program    cel.Program
@@ -279,194 +268,52 @@ type CompilationResult struct {
     Expression string
 }
 
-// Compiler compiles and caches CEL expressions against a specific environment.
-type Compiler struct {
-    env *cel.Env
-}
+// Compiler compiles CEL expressions against a specific environment.
+type Compiler struct { /* ... */ }
 
 // CompilerOption configures a Compiler.
 type CompilerOption func(*compilerConfig)
-
-// NewCompiler creates a new CEL compiler with the specified variable
-// declarations and options.
-//
-// All custom Dex libraries are automatically included.
-// The environment is configured with cost limits and safe defaults.
-func NewCompiler(variables []VariableDeclaration, opts ...CompilerOption) (*Compiler, error) {
-    cfg := defaultCompilerConfig()
-    for _, opt := range opts {
-        opt(cfg)
-    }
-
-    envOpts := []cel.EnvOption{
-        cel.DefaultUTCTimeZone(true),
-
-        // Standard extension libraries (same set as Kubernetes)
-        ext.Strings(),
-        ext.Encoders(),
-        ext.Lists(),
-        ext.Sets(),
-        ext.Math(),
-
-        // Custom Dex library
-        cel.Lib(&dexLib{}),
-
-        // Cost limit
-        cel.CostEstimatorOptions(checker.CostEstimatorOptions{
-            SizeEstimateOptions: []checker.SizeEstimateOption{
-                checker.PresenceTestHasCost(false),
-            },
-        }),
-    }
-
-    // Register declared variables
-    for _, v := range variables {
-        envOpts = append(envOpts, cel.Variable(v.Name, v.Type))
-    }
-
-    env, err := cel.NewEnv(envOpts...)
-    if err != nil {
-        return nil, fmt.Errorf("failed to create CEL environment: %w", err)
-    }
-
-    return &Compiler{env: env}, nil
-}
-
-// CompileBool compiles a CEL expression that must evaluate to bool.
-func (c *Compiler) CompileBool(expression string) (*CompilationResult, error) {
-    return c.compile(expression, cel.BoolType)
-}
-
-// CompileString compiles a CEL expression that must evaluate to string.
-func (c *Compiler) CompileString(expression string) (*CompilationResult, error) {
-    return c.compile(expression, cel.StringType)
-}
-
-// CompileStringList compiles a CEL expression that must evaluate to list(string).
-func (c *Compiler) CompileStringList(expression string) (*CompilationResult, error) {
-    return c.compile(expression, cel.ListType(cel.StringType))
-}
-
-// Compile compiles a CEL expression with any output type.
-func (c *Compiler) Compile(expression string) (*CompilationResult, error) {
-    return c.compile(expression, nil)
-}
-
-func (c *Compiler) compile(expression string, expectedType *cel.Type) (*CompilationResult, error) {
-    if len(expression) > MaxExpressionLength {
-        return nil, fmt.Errorf("expression exceeds maximum length of %d characters", MaxExpressionLength)
-    }
-
-    ast, issues := c.env.Compile(expression)
-    if issues != nil && issues.Err() != nil {
-        return nil, fmt.Errorf("CEL compilation failed: %w", issues.Err())
-    }
-
-    if expectedType != nil && !ast.OutputType().IsEquivalentType(expectedType) {
-        return nil, fmt.Errorf(
-            "expected expression output type %s, got %s",
-            expectedType, ast.OutputType(),
-        )
-    }
-
-    prog, err := c.env.Program(ast,
-        cel.EvalOptions(cel.OptOptimize),
-        cel.CostLimit(cfg.costBudget),
-    )
-    if err != nil {
-        return nil, fmt.Errorf("CEL program creation failed: %w", err)
-    }
-
-    return &CompilationResult{
-        Program:    prog,
-        OutputType: ast.OutputType(),
-        Expression: expression,
-    }, nil
-}
-
-// Eval evaluates a compiled program against the given variables.
-func Eval(ctx context.Context, result *CompilationResult, variables map[string]any) (ref.Val, error) {
-    out, _, err := result.Program.ContextEval(ctx, variables)
-    if err != nil {
-        return nil, fmt.Errorf("CEL evaluation failed: %w", err)
-    }
-    return out, nil
-}
-
-// EvalBool is a convenience function that evaluates and asserts bool output.
-func EvalBool(ctx context.Context, result *CompilationResult, variables map[string]any) (bool, error) {
-    out, err := Eval(ctx, result, variables)
-    if err != nil {
-        return false, err
-    }
-    v, ok := out.Value().(bool)
-    if !ok {
-        return false, fmt.Errorf("expected bool result, got %T", out.Value())
-    }
-    return v, nil
-}
-
-// EvalString is a convenience function that evaluates and asserts string output.
-func EvalString(ctx context.Context, result *CompilationResult, variables map[string]any) (string, error) {
-    out, err := Eval(ctx, result, variables)
-    if err != nil {
-        return "", err
-    }
-    v, ok := out.Value().(string)
-    if !ok {
-        return "", fmt.Errorf("expected string result, got %T", out.Value())
-    }
-    return v, nil
-}
 ```
+
+**Compilation pipeline:**
+
+Each `Compile*` call performs these steps sequentially:
+1. Reject expressions exceeding `MaxExpressionLength` (10,240 chars).
+2. Compile and type-check the expression via `cel-go`.
+3. Validate output type matches the expected type (for typed variants).
+4. Estimate cost using `defaultCostEstimator` with size hints — reject if estimated max cost
+   exceeds the cost budget.
+5. Create an optimized `cel.Program` with runtime cost limit.
+
+Presence tests (`has(field)`, `'key' in map`) have zero cost, matching Kubernetes CEL behavior.
 
 #### Variable Declarations
 
-```go
-package cel
+Variables are declared via `VariableDeclaration{Name, Type}` and registered with `NewCompiler`.
+All variables are typed as `map(string, dyn)` to allow flexible field access in expressions.
+Helper constructors provide pre-defined variable sets:
 
-// VariableDeclaration declares a named variable and its CEL type
-// that will be available in expressions.
-type VariableDeclaration struct {
-    Name string
-    Type *cel.Type
-}
+**`IdentityVariables()`** — the `identity` variable (from `connector.Identity`):
 
-// IdentityVariables provides the 'identity' variable with user claims.
-//
-//   identity.user_id        — string
-//   identity.username       — string
-//   identity.email          — string
-//   identity.email_verified — bool
-//   identity.groups         — list(string)
-//   identity.extra          — map(string, dyn)
-func IdentityVariables() []VariableDeclaration {
-    return []VariableDeclaration{
-        {Name: "identity", Type: cel.MapType(cel.StringType, cel.DynType)},
-    }
-}
+| Field | CEL Type | Source |
+|-------|----------|--------|
+| `identity.user_id` | `string` | `connector.Identity.UserID` |
+| `identity.username` | `string` | `connector.Identity.Username` |
+| `identity.preferred_username` | `string` | `connector.Identity.PreferredUsername` |
+| `identity.email` | `string` | `connector.Identity.Email` |
+| `identity.email_verified` | `bool` | `connector.Identity.EmailVerified` |
+| `identity.groups` | `list(string)` | `connector.Identity.Groups` |
 
-// RequestVariables provides the 'request' variable with request context.
-//
-//   request.client_id     — string
-//   request.connector_id  — string
-//   request.scopes        — list(string)
-//   request.redirect_uri  — string
-func RequestVariables() []VariableDeclaration {
-    return []VariableDeclaration{
-        {Name: "request", Type: cel.MapType(cel.StringType, cel.DynType)},
-    }
-}
+**`RequestVariables()`** — the `request` variable (from `RequestContext`):
 
-// ClaimsVariable provides a 'claims' map for raw upstream claims.
-//
-//   claims — map(string, dyn)
-func ClaimsVariable() []VariableDeclaration {
-    return []VariableDeclaration{
-        {Name: "claims", Type: cel.MapType(cel.StringType, cel.DynType)},
-    }
-}
-```
+| Field | CEL Type |
+|-------|----------|
+| `request.client_id` | `string` |
+| `request.connector_id` | `string` |
+| `request.scopes` | `list(string)` |
+| `request.redirect_uri` | `string` |
+
+**`ClaimsVariable()`** — the `claims` variable for raw upstream claims as `map(string, dyn)`.
 
 #### Compatibility Guarantees
 
@@ -488,21 +335,12 @@ Following the Kubernetes CEL compatibility model
    )
 
    // WithVersion sets the target environment version for the compiler.
-   // Defaults to the latest version. Specifying an older version ensures
-   // that only functions/types available at that version are used.
-   func WithVersion(v EnvironmentVersion) CompilerOption {
-       return func(cfg *compilerConfig) {
-           cfg.version = v
-       }
-   }
+   func WithVersion(v EnvironmentVersion) CompilerOption
    ```
 
-   This is directly modeled on how Kubernetes versions CEL environments in
-   `k8s.io/apiserver/pkg/cel/environment` — each Kubernetes version introduces a new
-   environment version that may include new CEL libraries, while older expressions compiled
-   against an older version remain valid.
+   This is directly modeled on `k8s.io/apiserver/pkg/cel/environment`.
 
-2. **Library stability** — Custom functions added via `library.go` follow these rules:
+2. **Library stability** — Custom functions in the `pkg/cel/library` subpackage follow these rules:
    - Functions MUST NOT be removed once released.
    - Function signatures MUST NOT change once released.
    - New functions MUST be added under a new `EnvironmentVersion`.
@@ -526,39 +364,29 @@ Following the Kubernetes CEL compatibility model
 
 #### Cost Estimation and Budgets
 
-Like Kubernetes, Dex CEL expressions must be bounded to prevent denial-of-service:
+Like Kubernetes, Dex CEL expressions must be bounded to prevent denial-of-service.
 
-```go
-package cel
+**Constants:**
 
-// DefaultCostBudget is the default cost budget for a single expression evaluation.
-// Aligned with Kubernetes defaults: enough for typical identity operations
-// but prevents runaway expressions.
-const DefaultCostBudget = 10_000_000
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `DefaultCostBudget` | `10_000_000` | Max cost units per evaluation (aligned with Kubernetes) |
+| `MaxExpressionLength` | `10_240` | Max expression string length in characters |
+| `DefaultStringMaxLength` | `256` | Estimated max string size for cost estimation |
+| `DefaultListMaxLength` | `100` | Estimated max list size for cost estimation |
 
-// MaxExpressionLength is the maximum length of a CEL expression string.
-const MaxExpressionLength = 10_240
+**How it works:**
 
-// EstimateCost returns the estimated cost range for a compiled expression.
-// This is computed statically at compile time without evaluating the expression.
-func EstimateCost(result *CompilationResult) (min, max uint64) {
-    // Uses cel-go's built-in cost estimator (checker.CostEstimator).
-    // ...
-}
+A `defaultCostEstimator` (implementing `checker.CostEstimator`) provides size hints for known
+variables (`identity`, `request`, `claims`) so the `cel-go` cost estimator doesn't assume
+unbounded sizes. It also provides call cost estimates for custom Dex functions
+(`dex.emailDomain`, `dex.emailLocalPart`, `dex.groupMatches`, `dex.groupFilter`).
 
-// WithCostBudget sets a custom cost budget for expression evaluation.
-func WithCostBudget(budget uint64) CompilerOption {
-    return func(cfg *compilerConfig) {
-        cfg.costBudget = budget
-    }
-}
-```
-
-Kubernetes uses `checker.CostEstimator` at admission time to reject CRDs with validation rules
-that exceed cost limits. Dex will similarly validate expressions at config load time:
-- Reject expressions that exceed `MaxExpressionLength`.
-- Estimate cost at compile time and warn if estimated max cost exceeds `DefaultCostBudget`.
-- Enforce runtime cost budget during evaluation and abort expressions that exceed the budget.
+Expressions are validated at three levels:
+1. **Length check** — reject expressions exceeding `MaxExpressionLength`.
+2. **Compile-time cost estimation** — reject expressions whose estimated max cost exceeds
+   the cost budget.
+3. **Runtime cost limit** — abort evaluation if actual cost exceeds the budget.
 
 #### Extension Libraries
 
@@ -572,153 +400,42 @@ The `pkg/cel` environment includes these cel-go standard extensions (same set as
 | `ext.Sets()` | Set operations on lists | `sets.contains(a, b)`, `sets.intersects(a, b)`, `sets.equivalent(a, b)` |
 | `ext.Math()` | Math functions | `math.greatest(a, b)`, `math.least(a, b)` |
 
-Plus a custom `dex` library with identity-specific helpers:
+Plus custom Dex libraries in the `pkg/cel/library` subpackage, each implementing the
+`cel.Library` interface:
 
-```go
-package cel
+**`library.Email`** — email-related helpers:
 
-// dexLib is the custom Dex CEL function library.
-// All functions here are subject to the compatibility guarantees above.
-type dexLib struct{}
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `dex.emailDomain` | `(string) -> string` | Returns the domain portion of an email address. `dex.emailDomain("user@example.com") == "example.com"` |
+| `dex.emailLocalPart` | `(string) -> string` | Returns the local part of an email address. `dex.emailLocalPart("user@example.com") == "user"` |
 
-// CompileOptions returns the CEL environment options for the Dex library.
-func (dexLib) CompileOptions() []cel.EnvOption {
-    return []cel.EnvOption{
-        cel.Function("dex.emailDomain",
-            cel.Overload("dex_email_domain_string",
-                []*cel.Type{cel.StringType},
-                cel.StringType,
-                cel.UnaryBinding(emailDomainImpl),
-            ),
-        ),
-        cel.Function("dex.emailLocalPart",
-            cel.Overload("dex_email_local_part_string",
-                []*cel.Type{cel.StringType},
-                cel.StringType,
-                cel.UnaryBinding(emailLocalPartImpl),
-            ),
-        ),
-        cel.Function("dex.groupMatches",
-            cel.Overload("dex_group_matches_list_string",
-                []*cel.Type{cel.ListType(cel.StringType), cel.StringType},
-                cel.ListType(cel.StringType),
-                cel.BinaryBinding(groupMatchesImpl),
-            ),
-        ),
-    }
-}
+**`library.Groups`** — group-related helpers:
 
-// ProgramOptions returns the CEL program options for the Dex library.
-func (dexLib) ProgramOptions() []cel.ProgramOption {
-    return nil
-}
-
-// Functions provided by dexLib (V1):
-//
-//   dex.emailDomain(email: string) -> string
-//     Returns the domain portion of an email address.
-//     Example: dex.emailDomain("user@example.com") == "example.com"
-//
-//   dex.emailLocalPart(email: string) -> string
-//     Returns the local part of an email address.
-//     Example: dex.emailLocalPart("user@example.com") == "user"
-//
-//   dex.groupMatches(groups: list(string), pattern: string) -> list(string)
-//     Returns groups matching a glob pattern.
-//     Example: dex.groupMatches(identity.groups, "team:*")
-```
-
-#### Activation Data Mapping
-
-Internal Go types are mapped to CEL variables before evaluation:
-
-```go
-package cel
-
-import "github.com/dexidp/dex/connector"
-
-// IdentityFromConnector converts a connector.Identity to a CEL-compatible map.
-func IdentityFromConnector(id connector.Identity) map[string]any {
-    return map[string]any{
-        "user_id":            id.UserID,
-        "username":           id.Username,
-        "preferred_username": id.PreferredUsername,
-        "email":              id.Email,
-        "email_verified":     id.EmailVerified,
-        "groups":             id.Groups,
-    }
-}
-
-// RequestContext represents the authentication/token request context
-// available as the 'request' variable in CEL expressions.
-type RequestContext struct {
-    ClientID    string
-    ConnectorID string
-    Scopes      []string
-    RedirectURI string
-}
-
-// RequestFromContext converts a RequestContext to a CEL-compatible map.
-func RequestFromContext(rc RequestContext) map[string]any {
-    return map[string]any{
-        "client_id":    rc.ClientID,
-        "connector_id": rc.ConnectorID,
-        "scopes":       rc.Scopes,
-        "redirect_uri": rc.RedirectURI,
-    }
-}
-```
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `dex.groupMatches` | `(list(string), string) -> list(string)` | Returns groups matching a glob pattern. `dex.groupMatches(identity.groups, "team:*")` |
+| `dex.groupFilter` | `(list(string), list(string)) -> list(string)` | Returns only groups present in the allowed list. `dex.groupFilter(identity.groups, ["admin", "ops"])` |
 
 #### Example: Compile and Evaluate
 
 ```go
-package main
-
-import (
-    "context"
-    "fmt"
-
-    "github.com/dexidp/dex/connector"
-    dexcel "github.com/dexidp/dex/pkg/cel"
+// 1. Create a compiler with identity and request variables
+compiler, _ := cel.NewCompiler(
+    append(cel.IdentityVariables(), cel.RequestVariables()...),
 )
 
-func main() {
-    // Create a compiler with identity and request variables
-    compiler, err := dexcel.NewCompiler(
-        append(dexcel.IdentityVariables(), dexcel.RequestVariables()...),
-    )
-    if err != nil {
-        panic(err)
-    }
+// 2. Compile a policy expression (type-checked, cost-estimated)
+prog, _ := compiler.CompileBool(
+    `identity.email.endsWith('@example.com') && 'admin' in identity.groups`,
+)
 
-    // Compile a policy expression
-    prog, err := compiler.CompileBool(
-        `identity.email.endsWith('@example.com') && 'admin' in identity.groups`,
-    )
-    if err != nil {
-        panic(err)
-    }
-
-    // Evaluate against real data
-    result, err := dexcel.EvalBool(context.Background(), prog, map[string]any{
-        "identity": dexcel.IdentityFromConnector(connector.Identity{
-            UserID:   "123",
-            Username: "john",
-            Email:    "john@example.com",
-            Groups:   []string{"admin", "dev"},
-        }),
-        "request": dexcel.RequestFromContext(dexcel.RequestContext{
-            ClientID:    "my-app",
-            ConnectorID: "okta",
-            Scopes:      []string{"openid", "email"},
-        }),
-    })
-    if err != nil {
-        panic(err)
-    }
-
-    fmt.Println(result) // true
-}
+// 3. Evaluate against real data
+result, _ := cel.EvalBool(ctx, prog, map[string]any{
+    "identity": cel.IdentityFromConnector(connectorIdentity),
+    "request":  cel.RequestFromContext(cel.RequestContext{...}),
+})
+// result == true
 ```
 
 ### Phase 2: Authentication Policies
