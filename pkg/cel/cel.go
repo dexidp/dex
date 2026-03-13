@@ -3,6 +3,7 @@ package cel
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/checker"
@@ -88,6 +89,14 @@ func NewCompiler(variables []VariableDeclaration, opts ...CompilerOption) (*Comp
 		ext.Lists(),
 		ext.Sets(),
 		ext.Math(),
+
+		// Native Go types for typed variable access.
+		// This gives compile-time field checking: identity.emial → error at config load.
+		ext.NativeTypes(
+			ext.ParseStructTags(true),
+			reflect.TypeOf(IdentityVal{}),
+			reflect.TypeOf(RequestVal{}),
+		),
 
 		// Custom Dex libraries
 		cel.Lib(&library.Email{}),

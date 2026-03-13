@@ -70,9 +70,6 @@ func (defaultCostEstimator) EstimateSize(element checker.AstNode) *checker.SizeE
 			case "email_verified":
 				// bool field — size is always 1
 				return &checker.SizeEstimate{Min: 1, Max: 1}
-			case "redirect_uris":
-				// list(string) field on request
-				return &checker.SizeEstimate{Min: 0, Max: DefaultListMaxLength}
 			default:
 				// string fields (email, username, user_id, client_id, etc.)
 				return &checker.SizeEstimate{Min: 0, Max: DefaultStringMaxLength}

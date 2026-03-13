@@ -139,6 +139,26 @@ func TestCompileErrors(t *testing.T) {
 	}
 }
 
+func TestCompileRejectsUnknownFields(t *testing.T) {
+	vars := dexcel.IdentityVariables()
+	compiler, err := dexcel.NewCompiler(vars)
+	require.NoError(t, err)
+
+	// Typo in field name: should fail at compile time with ObjectType
+	_, err = compiler.CompileBool("identity.emial == 'test@example.com'")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "compilation failed")
+
+	// Type mismatch: comparing string field to int should fail at compile time
+	_, err = compiler.CompileBool("identity.email == 123")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "compilation failed")
+
+	// Valid field: should compile fine
+	_, err = compiler.CompileBool("identity.email == 'test@example.com'")
+	assert.NoError(t, err)
+}
+
 func TestMaxExpressionLength(t *testing.T) {
 	compiler, err := dexcel.NewCompiler(nil)
 	require.NoError(t, err)
@@ -156,36 +176,28 @@ func TestEvalBool(t *testing.T) {
 
 	tests := map[string]struct {
 		expr     string
-		identity map[string]any
+		identity dexcel.IdentityVal
 		want     bool
 	}{
 		"email endsWith": {
-			expr: "identity.email.endsWith('@example.com')",
-			identity: map[string]any{
-				"email": "user@example.com",
-			},
-			want: true,
+			expr:     "identity.email.endsWith('@example.com')",
+			identity: dexcel.IdentityVal{Email: "user@example.com"},
+			want:     true,
 		},
 		"email endsWith false": {
-			expr: "identity.email.endsWith('@example.com')",
-			identity: map[string]any{
-				"email": "user@other.com",
-			},
-			want: false,
+			expr:     "identity.email.endsWith('@example.com')",
+			identity: dexcel.IdentityVal{Email: "user@other.com"},
+			want:     false,
 		},
 		"email_verified": {
-			expr: "identity.email_verified == true",
-			identity: map[string]any{
-				"email_verified": true,
-			},
-			want: true,
+			expr:     "identity.email_verified == true",
+			identity: dexcel.IdentityVal{EmailVerified: true},
+			want:     true,
 		},
 		"group membership": {
-			expr: "identity.groups.exists(g, g == 'admin')",
-			identity: map[string]any{
-				"groups": []string{"admin", "dev"},
-			},
-			want: true,
+			expr:     "identity.groups.exists(g, g == 'admin')",
+			identity: dexcel.IdentityVal{Groups: []string{"admin", "dev"}},
+			want:     true,
 		},
 	}
 
@@ -208,14 +220,12 @@ func TestEvalString(t *testing.T) {
 	compiler, err := dexcel.NewCompiler(vars)
 	require.NoError(t, err)
 
-	// identity.email returns dyn from map access, use Compile (not CompileString)
-	prog, err := compiler.Compile("identity.email")
+	// With ObjectType, identity.email is typed as string, so CompileString works.
+	prog, err := compiler.CompileString("identity.email")
 	require.NoError(t, err)
 
 	result, err := dexcel.EvalString(context.Background(), prog, map[string]any{
-		"identity": map[string]any{
-			"email": "user@example.com",
-		},
+		"identity": dexcel.IdentityVal{Email: "user@example.com"},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "user@example.com", result)
@@ -252,7 +262,7 @@ func TestEvalWithIdentityAndRequest(t *testing.T) {
 }
 
 func TestNewCompilerWithVariables(t *testing.T) {
-	// Claims variable
+	// Claims variable — remains map(string, dyn)
 	compiler, err := dexcel.NewCompiler(dexcel.ClaimsVariable())
 	require.NoError(t, err)
 

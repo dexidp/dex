@@ -54,9 +54,7 @@ func TestGroupMatches(t *testing.T) {
 			require.NoError(t, err)
 
 			out, err := dexcel.Eval(context.Background(), prog, map[string]any{
-				"identity": map[string]any{
-					"groups": tc.groups,
-				},
+				"identity": dexcel.IdentityVal{Groups: tc.groups},
 			})
 			require.NoError(t, err)
 
@@ -79,9 +77,7 @@ func TestGroupMatchesInvalidPattern(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = dexcel.Eval(context.Background(), prog, map[string]any{
-		"identity": map[string]any{
-			"groups": []string{"admin"},
-		},
+		"identity": dexcel.IdentityVal{Groups: []string{"admin"}},
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid pattern")
@@ -130,9 +126,7 @@ func TestGroupFilter(t *testing.T) {
 			require.NoError(t, err)
 
 			out, err := dexcel.Eval(context.Background(), prog, map[string]any{
-				"identity": map[string]any{
-					"groups": tc.groups,
-				},
+				"identity": dexcel.IdentityVal{Groups: tc.groups},
 			})
 			require.NoError(t, err)
 

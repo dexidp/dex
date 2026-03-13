@@ -99,9 +99,7 @@ func TestEmailDomainWithIdentityVariable(t *testing.T) {
 	require.NoError(t, err)
 
 	result, err := dexcel.EvalString(context.Background(), prog, map[string]any{
-		"identity": map[string]any{
-			"email": "admin@corp.example.com",
-		},
+		"identity": dexcel.IdentityVal{Email: "admin@corp.example.com"},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "corp.example.com", result)
