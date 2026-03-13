@@ -696,7 +696,7 @@ type org struct {
 func (c *githubConnector) teamsForOrg(ctx context.Context, client *http.Client, orgName string) ([]string, error) {
 	apiURL, groups := c.apiURL+"/user/teams", []string{}
 	for {
-		// https://developer.github.com/v3/orgs/teams/#list-user-teams
+		// https://docs.github.com/en/rest/teams/teams?apiVersion=2026-03-10#list-teams-for-the-authenticated-user
 		var (
 			teams []team
 			err   error
@@ -706,6 +706,7 @@ func (c *githubConnector) teamsForOrg(ctx context.Context, client *http.Client, 
 		}
 
 		for _, t := range teams {
+			// case-insensitive check to avoid silent failures when config casing is different than GitHub
 			if strings.EqualFold(t.Org.Login, orgName) {
 				groups = append(groups, c.teamGroupClaims(t)...)
 			}
