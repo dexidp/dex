@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/go-ldap/ldap/v3"
 	"github.com/jcmturner/gofork/encoding/asn1"
 	"github.com/jcmturner/gokrb5/v8/credentials"
 	"github.com/jcmturner/gokrb5/v8/gssapi"
@@ -21,7 +22,6 @@ import (
 	"github.com/jcmturner/gokrb5/v8/types"
 
 	"github.com/dexidp/dex/connector"
-	"github.com/go-ldap/ldap/v3"
 )
 
 // KerberosValidator abstracts SPNEGO validation for unit-testing.

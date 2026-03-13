@@ -1031,11 +1031,14 @@ func TestHandlePasswordLogin_SPNEGOShortCircuit(t *testing.T) {
 // to simulate successful SPNEGO authentication on GET.
 type spnegoShortCircuit struct{ Identity connector.Identity }
 
-func (s spnegoShortCircuit) Close() error   { return nil }
+func (s spnegoShortCircuit) Close() error { return nil }
+
 func (s spnegoShortCircuit) Prompt() string { return "" }
+
 func (s spnegoShortCircuit) Login(ctx context.Context, sc connector.Scopes, u, p string) (connector.Identity, bool, error) {
 	return connector.Identity{}, false, nil
 }
+
 func (s spnegoShortCircuit) TrySPNEGO(ctx context.Context, sc connector.Scopes, w http.ResponseWriter, r *http.Request) (*connector.Identity, connector.Handled, error) {
 	id := s.Identity
 	return &id, true, nil
@@ -1045,11 +1048,14 @@ func (s spnegoShortCircuit) TrySPNEGO(ctx context.Context, sc connector.Scopes, 
 // to simulate SPNEGO authentication that fails with an error (e.g., LDAP lookup failed).
 type spnegoError struct{ Err error }
 
-func (s spnegoError) Close() error   { return nil }
+func (s spnegoError) Close() error { return nil }
+
 func (s spnegoError) Prompt() string { return "" }
+
 func (s spnegoError) Login(ctx context.Context, sc connector.Scopes, u, p string) (connector.Identity, bool, error) {
 	return connector.Identity{}, false, nil
 }
+
 func (s spnegoError) TrySPNEGO(ctx context.Context, sc connector.Scopes, w http.ResponseWriter, r *http.Request) (*connector.Identity, connector.Handled, error) {
 	return nil, true, s.Err
 }
