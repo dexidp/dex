@@ -102,7 +102,7 @@ telemetry:
 
 # Default values shown below
 # oauth2:
-    # grantTypes determines the allowed set of authorization flows.
+#   # grantTypes determines the allowed set of authorization flows.
 #   grantTypes:
 #     - "authorization_code"
 #     - "client_credentials"
@@ -111,18 +111,24 @@ telemetry:
 #     - "password"
 #     - "urn:ietf:params:oauth:grant-type:device_code"
 #     - "urn:ietf:params:oauth:grant-type:token-exchange"
-    # responseTypes determines the allowed response contents of a successful authorization flow.
-    # use ["code", "token", "id_token"] to enable implicit flow for web-only clients.
+#   # responseTypes determines the allowed response contents of a successful authorization flow.
+#   # use ["code", "token", "id_token"] to enable implicit flow for web-only clients.
 #   responseTypes: [ "code" ] # also allowed are "token" and "id_token"
-    # By default, Dex will ask for approval to share data with application
-    # (approval for sharing data from connected IdP to Dex is separate process on IdP)
+#   # By default, Dex will ask for approval to share data with application
+#   # (approval for sharing data from connected IdP to Dex is separate process on IdP)
 #   skipApprovalScreen: false
-    # If only one authentication method is enabled, the default behavior is to
-    # go directly to it. For connected IdPs, this redirects the browser away
-    # from application to upstream provider such as the Google login page
+#   # If only one authentication method is enabled, the default behavior is to
+#   # go directly to it. For connected IdPs, this redirects the browser away
+#   # from application to upstream provider such as the Google login page
 #   alwaysShowLoginScreen: false
-    # Uncomment the passwordConnector to use a specific connector for password grants
+#   # Uncomment the passwordConnector to use a specific connector for password grants
 #   passwordConnector: local
+#   # PKCE (Proof Key for Code Exchange) configuration
+#   pkce:
+#     # If true, PKCE is required for all authorization code flows (OAuth 2.1).
+#     enforce: false
+#     # Supported code challenge methods. Defaults to ["S256", "plain"].
+#     codeChallengeMethodsSupported: ["S256", "plain"]
 
 # Instead of reading from an external storage, use this list of clients.
 #
