@@ -28,6 +28,8 @@ const (
 	// GitHub requires this scope to access '/user/teams' and '/orgs' API endpoints
 	// which are used when a client includes the 'groups' scope.
 	scopeOrgs = "read:org"
+	// githubAPIVersion pins the GitHub REST API version used in requests.
+	githubAPIVersion = "2022-11-28"
 )
 
 // Pagination URL patterns
@@ -462,6 +464,7 @@ func get(ctx context.Context, client *http.Client, apiURL string, v interface{})
 		return "", fmt.Errorf("github: new req: %v", err)
 	}
 	req = req.WithContext(ctx)
+	req.Header.Set("X-GitHub-Api-Version", githubAPIVersion)
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("github: get URL %v", err)
@@ -659,6 +662,7 @@ func (c *githubConnector) userInOrg(ctx context.Context, client *http.Client, us
 		return false, fmt.Errorf("github: new req: %v", err)
 	}
 	req = req.WithContext(ctx)
+	req.Header.Set("X-GitHub-Api-Version", githubAPIVersion)
 	resp, err := client.Do(req)
 	if err != nil {
 		return false, fmt.Errorf("github: get teams: %v", err)
