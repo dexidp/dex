@@ -389,4 +389,24 @@ var migrations = []migration{
 				add column allowed_connectors bytea;`,
 		},
 	},
+	{
+		stmts: []string{
+			`
+			create table user_identity (
+				user_id text not null,
+				connector_id text not null,
+				claims_user_id text not null,
+				claims_username text not null,
+				claims_preferred_username text not null default '',
+				claims_email text not null,
+				claims_email_verified boolean not null,
+				claims_groups bytea not null,
+				consents bytea not null,
+				created_at timestamptz not null,
+				last_login timestamptz not null,
+				blocked_until timestamptz not null,
+				PRIMARY KEY (user_id, connector_id)
+			);`,
+		},
+	},
 }

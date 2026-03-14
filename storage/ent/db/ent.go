@@ -22,6 +22,7 @@ import (
 	"github.com/dexidp/dex/storage/ent/db/offlinesession"
 	"github.com/dexidp/dex/storage/ent/db/password"
 	"github.com/dexidp/dex/storage/ent/db/refreshtoken"
+	"github.com/dexidp/dex/storage/ent/db/useridentity"
 )
 
 // ent aliases to avoid import conflicts in user's code.
@@ -92,6 +93,7 @@ func checkColumn(t, c string) error {
 			offlinesession.Table: offlinesession.ValidColumn,
 			password.Table:       password.ValidColumn,
 			refreshtoken.Table:   refreshtoken.ValidColumn,
+			useridentity.Table:   useridentity.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

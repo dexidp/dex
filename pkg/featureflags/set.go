@@ -21,4 +21,7 @@ var (
 	// ClientCredentialGrantEnabledByDefault enables the client_credentials grant type by default
 	// without requiring explicit configuration in oauth2.grantTypes.
 	ClientCredentialGrantEnabledByDefault = newFlag("client_credential_grant_enabled_by_default", false)
+
+	// SessionsEnabled enables experimental auth sessions support.
+	SessionsEnabled = newFlag("sessions_enabled", false)
 )

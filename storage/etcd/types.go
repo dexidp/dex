@@ -256,6 +256,46 @@ func toStorageOfflineSessions(o OfflineSessions) storage.OfflineSessions {
 	return s
 }
 
+// UserIdentity is a mirrored struct from storage with JSON struct tags
+type UserIdentity struct {
+	UserID       string              `json:"user_id,omitempty"`
+	ConnectorID  string              `json:"connector_id,omitempty"`
+	Claims       Claims              `json:"claims,omitempty"`
+	Consents     map[string][]string `json:"consents,omitempty"`
+	CreatedAt    time.Time           `json:"created_at"`
+	LastLogin    time.Time           `json:"last_login"`
+	BlockedUntil time.Time           `json:"blocked_until"`
+}
+
+func fromStorageUserIdentity(u storage.UserIdentity) UserIdentity {
+	return UserIdentity{
+		UserID:       u.UserID,
+		ConnectorID:  u.ConnectorID,
+		Claims:       fromStorageClaims(u.Claims),
+		Consents:     u.Consents,
+		CreatedAt:    u.CreatedAt,
+		LastLogin:    u.LastLogin,
+		BlockedUntil: u.BlockedUntil,
+	}
+}
+
+func toStorageUserIdentity(u UserIdentity) storage.UserIdentity {
+	s := storage.UserIdentity{
+		UserID:       u.UserID,
+		ConnectorID:  u.ConnectorID,
+		Claims:       toStorageClaims(u.Claims),
+		Consents:     u.Consents,
+		CreatedAt:    u.CreatedAt,
+		LastLogin:    u.LastLogin,
+		BlockedUntil: u.BlockedUntil,
+	}
+	if s.Consents == nil {
+		// Server code assumes this will be non-nil.
+		s.Consents = make(map[string][]string)
+	}
+	return s
+}
+
 // DeviceRequest is a mirrored struct from storage with JSON struct tags
 type DeviceRequest struct {
 	UserCode     string    `json:"user_code"`
