@@ -718,9 +718,10 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 	}
 
 	// Create or update UserIdentity to persist user claims across sessions.
+	var userIdentity *storage.UserIdentity
 	if featureflags.SessionsEnabled.Enabled() {
 		now := s.now()
-		_, err := s.storage.GetUserIdentity(ctx, identity.UserID, authReq.ConnectorID)
+		existing, err := s.storage.GetUserIdentity(ctx, identity.UserID, authReq.ConnectorID)
 		switch {
 		case err == storage.ErrNotFound:
 			ui := storage.UserIdentity{
@@ -733,8 +734,12 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 			}
 			if err := s.storage.CreateUserIdentity(ctx, ui); err != nil {
 				s.logger.ErrorContext(ctx, "failed to create user identity", "err", err)
+			} else {
+				userIdentity = &ui
 			}
 		case err == nil:
+			existing.Claims = claims
+			existing.LastLogin = now
 			if err := s.storage.UpdateUserIdentity(ctx, identity.UserID, authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
 				old.Claims = claims
 				old.LastLogin = now
@@ -742,6 +747,7 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 			}); err != nil {
 				s.logger.ErrorContext(ctx, "failed to update user identity", "err", err)
 			}
+			userIdentity = &existing
 		default:
 			s.logger.ErrorContext(ctx, "failed to get user identity", "err", err)
 		}
@@ -753,8 +759,8 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 	}
 
 	// Skip approval if user already consented to the requested scopes for this client.
-	if !authReq.ForceApprovalPrompt && featureflags.SessionsEnabled.Enabled() {
-		if s.hasExistingConsent(ctx, identity.UserID, authReq.ConnectorID, authReq.ClientID, authReq.Scopes) {
+	if !authReq.ForceApprovalPrompt && userIdentity != nil {
+		if scopesCoveredByConsent(userIdentity.Consents[authReq.ClientID], authReq.Scopes) {
 			return "", true, nil
 		}
 	}
@@ -982,26 +988,15 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 	http.Redirect(w, r, u.String(), http.StatusSeeOther)
 }
 
-// hasExistingConsent checks whether the user has already consented to the requested
-// scopes for the given client. Technical scopes (openid, offline_access) are excluded
-// from the comparison. Returns false on any error as a safe default.
-func (s *Server) hasExistingConsent(ctx context.Context, userID, connectorID, clientID string, scopes []string) bool {
-	ui, err := s.storage.GetUserIdentity(ctx, userID, connectorID)
-	if err != nil {
-		return false
-	}
-
-	approved, ok := ui.Consents[clientID]
-	if !ok {
-		return false
-	}
-
+// scopesCoveredByConsent checks whether the approved scopes cover all requested scopes.
+// Technical scopes (openid, offline_access) are excluded from the comparison.
+func scopesCoveredByConsent(approved, requested []string) bool {
 	approvedSet := make(map[string]bool, len(approved))
 	for _, s := range approved {
 		approvedSet[s] = true
 	}
 
-	for _, scope := range scopes {
+	for _, scope := range requested {
 		if scope == scopeOpenID || scope == scopeOfflineAccess {
 			continue
 		}

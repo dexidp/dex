@@ -826,76 +826,48 @@ func TestConsentPersistedOnApproval(t *testing.T) {
 	require.Equal(t, []string{"openid", "email", "profile"}, ui.Consents[clientID])
 }
 
-func TestHasExistingConsent(t *testing.T) {
-	ctx := t.Context()
-
-	httpServer, s := newTestServer(t, nil)
-	defer httpServer.Close()
-
-	userID := "consent-user"
-	connID := "mock"
-
+func TestScopesCoveredByConsent(t *testing.T) {
 	tests := []struct {
-		name     string
-		consents map[string][]string
-		clientID string
-		scopes   []string
-		want     bool
+		name      string
+		approved  []string
+		requested []string
+		want      bool
 	}{
 		{
-			name:     "All scopes covered",
-			consents: map[string][]string{"client-a": {"email", "profile"}},
-			clientID: "client-a",
-			scopes:   []string{"openid", "email", "profile"},
-			want:     true,
+			name:      "All scopes covered",
+			approved:  []string{"email", "profile"},
+			requested: []string{"openid", "email", "profile"},
+			want:      true,
 		},
 		{
-			name:     "Missing scope",
-			consents: map[string][]string{"client-a": {"email"}},
-			clientID: "client-a",
-			scopes:   []string{"openid", "email", "groups"},
-			want:     false,
+			name:      "Missing scope",
+			approved:  []string{"email"},
+			requested: []string{"openid", "email", "groups"},
+			want:      false,
 		},
 		{
-			name:     "Only technical scopes",
-			consents: map[string][]string{"client-a": {}},
-			clientID: "client-a",
-			scopes:   []string{"openid", "offline_access"},
-			want:     true,
+			name:      "Only technical scopes",
+			approved:  []string{},
+			requested: []string{"openid", "offline_access"},
+			want:      true,
 		},
 		{
-			name:     "No consent for client",
-			consents: map[string][]string{"other": {"email"}},
-			clientID: "client-a",
-			scopes:   []string{"email"},
-			want:     false,
+			name:      "Nil approved",
+			approved:  nil,
+			requested: []string{"email"},
+			want:      false,
 		},
 		{
-			name:     "No UserIdentity at all",
-			consents: nil,
-			clientID: "client-a",
-			scopes:   []string{"email"},
-			want:     false,
+			name:      "Empty requested",
+			approved:  []string{"email"},
+			requested: []string{},
+			want:      true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Clean up any previous identity
-			_ = s.storage.DeleteUserIdentity(ctx, userID, connID)
-
-			if tc.consents != nil {
-				require.NoError(t, s.storage.CreateUserIdentity(ctx, storage.UserIdentity{
-					UserID:      userID,
-					ConnectorID: connID,
-					Claims:      storage.Claims{UserID: userID},
-					Consents:    tc.consents,
-					CreatedAt:   time.Now(),
-					LastLogin:   time.Now(),
-				}))
-			}
-
-			got := s.hasExistingConsent(ctx, userID, connID, tc.clientID, tc.scopes)
+			got := scopesCoveredByConsent(tc.approved, tc.requested)
 			require.Equal(t, tc.want, got)
 		})
 	}
