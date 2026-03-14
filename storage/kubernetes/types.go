@@ -243,6 +243,23 @@ func customResourceDefinitions(apiVersion string) []k8sapi.CustomResourceDefinit
 				},
 			},
 		},
+		{
+			ObjectMeta: k8sapi.ObjectMeta{
+				Name: "authsessions.dex.coreos.com",
+			},
+			TypeMeta: crdMeta,
+			Spec: k8sapi.CustomResourceDefinitionSpec{
+				Group:    apiGroup,
+				Version:  version,
+				Versions: versions,
+				Scope:    scope,
+				Names: k8sapi.CustomResourceDefinitionNames{
+					Plural:   "authsessions",
+					Singular: "authsession",
+					Kind:     "AuthSession",
+				},
+			},
+		},
 	}
 }
 
@@ -947,4 +964,56 @@ func toStorageUserIdentity(u UserIdentity) storage.UserIdentity {
 		s.Consents = make(map[string][]string)
 	}
 	return s
+}
+
+// AuthSession is a Kubernetes representation of a storage AuthSession.
+type AuthSession struct {
+	k8sapi.TypeMeta   `json:",inline"`
+	k8sapi.ObjectMeta `json:"metadata,omitempty"`
+
+	ClientStates map[string]*storage.ClientAuthState `json:"clientStates,omitempty"`
+	CreatedAt    time.Time                           `json:"createdAt,omitempty"`
+	LastActivity time.Time                           `json:"lastActivity,omitempty"`
+	IPAddress    string                              `json:"ipAddress,omitempty"`
+	UserAgent    string                              `json:"userAgent,omitempty"`
+}
+
+// AuthSessionList is a list of AuthSessions.
+type AuthSessionList struct {
+	k8sapi.TypeMeta `json:",inline"`
+	k8sapi.ListMeta `json:"metadata,omitempty"`
+	AuthSessions    []AuthSession `json:"items"`
+}
+
+func (cli *client) fromStorageAuthSession(s storage.AuthSession) AuthSession {
+	return AuthSession{
+		TypeMeta: k8sapi.TypeMeta{
+			Kind:       kindAuthSession,
+			APIVersion: cli.apiVersion,
+		},
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name:      s.ID,
+			Namespace: cli.namespace,
+		},
+		ClientStates: s.ClientStates,
+		CreatedAt:    s.CreatedAt,
+		LastActivity: s.LastActivity,
+		IPAddress:    s.IPAddress,
+		UserAgent:    s.UserAgent,
+	}
+}
+
+func toStorageAuthSession(s AuthSession) storage.AuthSession {
+	result := storage.AuthSession{
+		ID:           s.ObjectMeta.Name,
+		ClientStates: s.ClientStates,
+		CreatedAt:    s.CreatedAt,
+		LastActivity: s.LastActivity,
+		IPAddress:    s.IPAddress,
+		UserAgent:    s.UserAgent,
+	}
+	if result.ClientStates == nil {
+		result.ClientStates = make(map[string]*storage.ClientAuthState)
+	}
+	return result
 }

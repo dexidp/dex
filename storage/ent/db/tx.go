@@ -16,6 +16,8 @@ type Tx struct {
 	AuthCode *AuthCodeClient
 	// AuthRequest is the client for interacting with the AuthRequest builders.
 	AuthRequest *AuthRequestClient
+	// AuthSession is the client for interacting with the AuthSession builders.
+	AuthSession *AuthSessionClient
 	// Connector is the client for interacting with the Connector builders.
 	Connector *ConnectorClient
 	// DeviceRequest is the client for interacting with the DeviceRequest builders.
@@ -167,6 +169,7 @@ func (tx *Tx) Client() *Client {
 func (tx *Tx) init() {
 	tx.AuthCode = NewAuthCodeClient(tx.config)
 	tx.AuthRequest = NewAuthRequestClient(tx.config)
+	tx.AuthSession = NewAuthSessionClient(tx.config)
 	tx.Connector = NewConnectorClient(tx.config)
 	tx.DeviceRequest = NewDeviceRequestClient(tx.config)
 	tx.DeviceToken = NewDeviceTokenClient(tx.config)

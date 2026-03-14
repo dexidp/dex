@@ -84,6 +84,7 @@ type Storage interface {
 	CreatePassword(ctx context.Context, p Password) error
 	CreateOfflineSessions(ctx context.Context, s OfflineSessions) error
 	CreateUserIdentity(ctx context.Context, u UserIdentity) error
+	CreateAuthSession(ctx context.Context, s AuthSession) error
 	CreateConnector(ctx context.Context, c Connector) error
 	CreateDeviceRequest(ctx context.Context, d DeviceRequest) error
 	CreateDeviceToken(ctx context.Context, d DeviceToken) error
@@ -98,6 +99,7 @@ type Storage interface {
 	GetPassword(ctx context.Context, email string) (Password, error)
 	GetOfflineSessions(ctx context.Context, userID string, connID string) (OfflineSessions, error)
 	GetUserIdentity(ctx context.Context, userID, connectorID string) (UserIdentity, error)
+	GetAuthSession(ctx context.Context, sessionID string) (AuthSession, error)
 	GetConnector(ctx context.Context, id string) (Connector, error)
 	GetDeviceRequest(ctx context.Context, userCode string) (DeviceRequest, error)
 	GetDeviceToken(ctx context.Context, deviceCode string) (DeviceToken, error)
@@ -116,6 +118,7 @@ type Storage interface {
 	DeletePassword(ctx context.Context, email string) error
 	DeleteOfflineSessions(ctx context.Context, userID string, connID string) error
 	DeleteUserIdentity(ctx context.Context, userID, connectorID string) error
+	DeleteAuthSession(ctx context.Context, sessionID string) error
 	DeleteConnector(ctx context.Context, id string) error
 
 	// Update methods take a function for updating an object then performs that update within
@@ -139,6 +142,7 @@ type Storage interface {
 	UpdatePassword(ctx context.Context, email string, updater func(p Password) (Password, error)) error
 	UpdateOfflineSessions(ctx context.Context, userID string, connID string, updater func(s OfflineSessions) (OfflineSessions, error)) error
 	UpdateUserIdentity(ctx context.Context, userID, connectorID string, updater func(u UserIdentity) (UserIdentity, error)) error
+	UpdateAuthSession(ctx context.Context, sessionID string, updater func(s AuthSession) (AuthSession, error)) error
 	UpdateConnector(ctx context.Context, id string, updater func(c Connector) (Connector, error)) error
 	UpdateDeviceToken(ctx context.Context, deviceCode string, updater func(t DeviceToken) (DeviceToken, error)) error
 
@@ -334,6 +338,26 @@ type UserIdentity struct {
 	CreatedAt    time.Time
 	LastLogin    time.Time
 	BlockedUntil time.Time
+}
+
+// ClientAuthState represents the authentication state for a specific client within a session.
+type ClientAuthState struct {
+	UserID            string
+	ConnectorID       string
+	Active            bool
+	ExpiresAt         time.Time
+	LastActivity      time.Time
+	LastTokenIssuedAt time.Time
+}
+
+// AuthSession represents a browser-bound authentication session.
+type AuthSession struct {
+	ID           string
+	ClientStates map[string]*ClientAuthState // clientID -> auth state
+	CreatedAt    time.Time
+	LastActivity time.Time
+	IPAddress    string
+	UserAgent    string
 }
 
 // OfflineSessions objects are sessions pertaining to users with refresh tokens.

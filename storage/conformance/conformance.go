@@ -52,6 +52,7 @@ func RunTests(t *testing.T, newStorage func(t *testing.T) storage.Storage) {
 		{"DeviceRequestCRUD", testDeviceRequestCRUD},
 		{"DeviceTokenCRUD", testDeviceTokenCRUD},
 		{"UserIdentityCRUD", testUserIdentityCRUD},
+		{"AuthSessionCRUD", testAuthSessionCRUD},
 	})
 }
 
@@ -1165,4 +1166,94 @@ func testUserIdentityCRUD(t *testing.T, s storage.Storage) {
 	// Get deleted should return ErrNotFound.
 	_, err = s.GetUserIdentity(ctx, u1.UserID, u1.ConnectorID)
 	mustBeErrNotFound(t, "user identity", err)
+}
+
+func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
+	ctx := t.Context()
+
+	now := time.Now().UTC().Round(time.Millisecond)
+
+	session := storage.AuthSession{
+		ID: storage.NewID(),
+		ClientStates: map[string]*storage.ClientAuthState{
+			"client1": {
+				UserID:            "user1",
+				ConnectorID:       "conn1",
+				Active:            true,
+				ExpiresAt:         now.Add(24 * time.Hour),
+				LastActivity:      now,
+				LastTokenIssuedAt: now,
+			},
+		},
+		CreatedAt:    now,
+		LastActivity: now,
+		IPAddress:    "192.168.1.1",
+		UserAgent:    "TestBrowser/1.0",
+	}
+
+	// Create.
+	if err := s.CreateAuthSession(ctx, session); err != nil {
+		t.Fatalf("create auth session: %v", err)
+	}
+
+	// Duplicate create should return ErrAlreadyExists.
+	err := s.CreateAuthSession(ctx, session)
+	mustBeErrAlreadyExists(t, "auth session", err)
+
+	// Get and compare.
+	got, err := s.GetAuthSession(ctx, session.ID)
+	if err != nil {
+		t.Fatalf("get auth session: %v", err)
+	}
+
+	got.CreatedAt = got.CreatedAt.UTC().Round(time.Millisecond)
+	got.LastActivity = got.LastActivity.UTC().Round(time.Millisecond)
+	for _, cs := range got.ClientStates {
+		cs.ExpiresAt = cs.ExpiresAt.UTC().Round(time.Millisecond)
+		cs.LastActivity = cs.LastActivity.UTC().Round(time.Millisecond)
+		cs.LastTokenIssuedAt = cs.LastTokenIssuedAt.UTC().Round(time.Millisecond)
+	}
+	if diff := pretty.Compare(session, got); diff != "" {
+		t.Errorf("auth session retrieved from storage did not match: %s", diff)
+	}
+
+	// Update: add a new client state.
+	newNow := now.Add(time.Minute)
+	if err := s.UpdateAuthSession(ctx, session.ID, func(old storage.AuthSession) (storage.AuthSession, error) {
+		old.ClientStates["client2"] = &storage.ClientAuthState{
+			UserID:       "user2",
+			ConnectorID:  "conn2",
+			Active:       true,
+			ExpiresAt:    newNow.Add(24 * time.Hour),
+			LastActivity: newNow,
+		}
+		old.LastActivity = newNow
+		return old, nil
+	}); err != nil {
+		t.Fatalf("update auth session: %v", err)
+	}
+
+	// Get and verify update.
+	got, err = s.GetAuthSession(ctx, session.ID)
+	if err != nil {
+		t.Fatalf("get auth session after update: %v", err)
+	}
+	if len(got.ClientStates) != 2 {
+		t.Fatalf("expected 2 client states, got %d", len(got.ClientStates))
+	}
+	if got.ClientStates["client2"] == nil {
+		t.Fatal("expected client2 state to exist")
+	}
+	if got.ClientStates["client2"].UserID != "user2" {
+		t.Errorf("expected client2 user_id to be user2, got %s", got.ClientStates["client2"].UserID)
+	}
+
+	// Delete.
+	if err := s.DeleteAuthSession(ctx, session.ID); err != nil {
+		t.Fatalf("delete auth session: %v", err)
+	}
+
+	// Get deleted should return ErrNotFound.
+	_, err = s.GetAuthSession(ctx, session.ID)
+	mustBeErrNotFound(t, "auth session", err)
 }
