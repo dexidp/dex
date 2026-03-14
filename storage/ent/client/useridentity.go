@@ -11,7 +11,7 @@ import (
 // CreateUserIdentity saves provided user identity into the database.
 func (d *Database) CreateUserIdentity(ctx context.Context, identity storage.UserIdentity) error {
 	if identity.Consents == nil {
-		identity.Consents = make(map[string]storage.Consent)
+		identity.Consents = make(map[string][]string)
 	}
 	encodedConsents, err := json.Marshal(identity.Consents)
 	if err != nil {
@@ -82,7 +82,7 @@ func (d *Database) UpdateUserIdentity(ctx context.Context, userID string, connec
 	}
 
 	if newUserIdentity.Consents == nil {
-		newUserIdentity.Consents = make(map[string]storage.Consent)
+		newUserIdentity.Consents = make(map[string][]string)
 	}
 
 	encodedConsents, err := json.Marshal(newUserIdentity.Consents)
