@@ -3,6 +3,9 @@ package server
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -493,6 +496,409 @@ func TestHandlePassword_LocalPasswordDBClaims(t *testing.T) {
 	require.False(t, claims.EmailVerified)
 	require.Equal(t, "user-public", claims.PreferredUsername)
 	require.Equal(t, []string{"team-a", "team-a/admins"}, claims.Groups)
+}
+
+func setSessionsEnabled(t *testing.T, enabled bool) {
+	t.Helper()
+	if enabled {
+		t.Setenv("DEX_SESSIONS_ENABLED", "true")
+	} else {
+		t.Setenv("DEX_SESSIONS_ENABLED", "false")
+	}
+}
+
+func TestFinalizeLoginCreatesUserIdentity(t *testing.T) {
+	ctx := t.Context()
+	setSessionsEnabled(t, true)
+
+	connID := "mockPw"
+	authReqID := "test-create-ui"
+	expiry := time.Now().Add(100 * time.Second)
+
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.SkipApprovalScreen = true
+		c.Now = time.Now
+	})
+	defer httpServer.Close()
+
+	sc := storage.Connector{
+		ID:              connID,
+		Type:            "mockPassword",
+		Name:            "MockPassword",
+		ResourceVersion: "1",
+		Config:          []byte(`{"username": "foo", "password": "password"}`),
+	}
+	require.NoError(t, s.storage.CreateConnector(ctx, sc))
+	_, err := s.OpenConnector(sc)
+	require.NoError(t, err)
+
+	authReq := storage.AuthRequest{
+		ID:            authReqID,
+		ConnectorID:   connID,
+		RedirectURI:   "cb",
+		Expiry:        expiry,
+		ResponseTypes: []string{responseTypeCode},
+	}
+	require.NoError(t, s.storage.CreateAuthRequest(ctx, authReq))
+
+	rr := httptest.NewRecorder()
+	reqPath := fmt.Sprintf("/auth/%s/login?state=%s&back=&login=foo&password=password", connID, authReqID)
+	s.handlePasswordLogin(rr, httptest.NewRequest("POST", reqPath, nil))
+
+	require.Equal(t, 303, rr.Code)
+
+	ui, err := s.storage.GetUserIdentity(ctx, "0-385-28089-0", connID)
+	require.NoError(t, err)
+	require.Equal(t, "0-385-28089-0", ui.UserID)
+	require.Equal(t, connID, ui.ConnectorID)
+	require.Equal(t, "kilgore@kilgore.trout", ui.Claims.Email)
+	require.NotZero(t, ui.CreatedAt)
+	require.NotZero(t, ui.LastLogin)
+}
+
+func TestFinalizeLoginUpdatesUserIdentity(t *testing.T) {
+	ctx := t.Context()
+	setSessionsEnabled(t, true)
+
+	connID := "mockPw"
+	authReqID := "test-update-ui"
+	expiry := time.Now().Add(100 * time.Second)
+	oldTime := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.SkipApprovalScreen = true
+		c.Now = time.Now
+	})
+	defer httpServer.Close()
+
+	sc := storage.Connector{
+		ID:              connID,
+		Type:            "mockPassword",
+		Name:            "MockPassword",
+		ResourceVersion: "1",
+		Config:          []byte(`{"username": "foo", "password": "password"}`),
+	}
+	require.NoError(t, s.storage.CreateConnector(ctx, sc))
+	_, err := s.OpenConnector(sc)
+	require.NoError(t, err)
+
+	// Pre-create UserIdentity with old data
+	require.NoError(t, s.storage.CreateUserIdentity(ctx, storage.UserIdentity{
+		UserID:      "0-385-28089-0",
+		ConnectorID: connID,
+		Claims: storage.Claims{
+			UserID:   "0-385-28089-0",
+			Username: "Old Name",
+			Email:    "old@example.com",
+		},
+		Consents:  map[string][]string{"existing-client": {"openid"}},
+		CreatedAt: oldTime,
+		LastLogin: oldTime,
+	}))
+
+	authReq := storage.AuthRequest{
+		ID:            authReqID,
+		ConnectorID:   connID,
+		RedirectURI:   "cb",
+		Expiry:        expiry,
+		ResponseTypes: []string{responseTypeCode},
+	}
+	require.NoError(t, s.storage.CreateAuthRequest(ctx, authReq))
+
+	rr := httptest.NewRecorder()
+	reqPath := fmt.Sprintf("/auth/%s/login?state=%s&back=&login=foo&password=password", connID, authReqID)
+	s.handlePasswordLogin(rr, httptest.NewRequest("POST", reqPath, nil))
+
+	require.Equal(t, 303, rr.Code)
+
+	ui, err := s.storage.GetUserIdentity(ctx, "0-385-28089-0", connID)
+	require.NoError(t, err)
+	// Claims should be refreshed from the connector
+	require.Equal(t, "Kilgore Trout", ui.Claims.Username)
+	require.Equal(t, "kilgore@kilgore.trout", ui.Claims.Email)
+	// LastLogin should be updated
+	require.True(t, ui.LastLogin.After(oldTime))
+	// CreatedAt should NOT change
+	require.Equal(t, oldTime, ui.CreatedAt)
+	// Existing consents should be preserved
+	require.Equal(t, []string{"openid"}, ui.Consents["existing-client"])
+}
+
+func TestFinalizeLoginSkipsUserIdentityWhenDisabled(t *testing.T) {
+	ctx := t.Context()
+	setSessionsEnabled(t, false)
+
+	connID := "mockPw"
+	authReqID := "test-no-ui"
+	expiry := time.Now().Add(100 * time.Second)
+
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.SkipApprovalScreen = true
+		c.Now = time.Now
+	})
+	defer httpServer.Close()
+
+	sc := storage.Connector{
+		ID:              connID,
+		Type:            "mockPassword",
+		Name:            "MockPassword",
+		ResourceVersion: "1",
+		Config:          []byte(`{"username": "foo", "password": "password"}`),
+	}
+	require.NoError(t, s.storage.CreateConnector(ctx, sc))
+	_, err := s.OpenConnector(sc)
+	require.NoError(t, err)
+
+	authReq := storage.AuthRequest{
+		ID:            authReqID,
+		ConnectorID:   connID,
+		RedirectURI:   "cb",
+		Expiry:        expiry,
+		ResponseTypes: []string{responseTypeCode},
+	}
+	require.NoError(t, s.storage.CreateAuthRequest(ctx, authReq))
+
+	rr := httptest.NewRecorder()
+	reqPath := fmt.Sprintf("/auth/%s/login?state=%s&back=&login=foo&password=password", connID, authReqID)
+	s.handlePasswordLogin(rr, httptest.NewRequest("POST", reqPath, nil))
+
+	require.Equal(t, 303, rr.Code)
+
+	_, err = s.storage.GetUserIdentity(ctx, "0-385-28089-0", connID)
+	require.ErrorIs(t, err, storage.ErrNotFound)
+}
+
+func TestSkipApprovalWithExistingConsent(t *testing.T) {
+	ctx := t.Context()
+	setSessionsEnabled(t, true)
+
+	connID := "mock"
+	authReqID := "test-consent-skip"
+	expiry := time.Now().Add(100 * time.Second)
+
+	tests := []struct {
+		name        string
+		consents    map[string][]string
+		scopes      []string
+		clientID    string
+		forcePrompt bool
+		wantPath    string
+	}{
+		{
+			name:     "Existing consent covers requested scopes",
+			consents: map[string][]string{"test": {"email", "profile"}},
+			scopes:   []string{"openid", "email", "profile"},
+			clientID: "test",
+			wantPath: "/callback/cb",
+		},
+		{
+			name:     "Existing consent missing a scope",
+			consents: map[string][]string{"test": {"email"}},
+			scopes:   []string{"openid", "email", "profile"},
+			clientID: "test",
+			wantPath: "/approval",
+		},
+		{
+			name:        "Force approval overrides consent",
+			consents:    map[string][]string{"test": {"email", "profile"}},
+			scopes:      []string{"openid", "email", "profile"},
+			clientID:    "test",
+			forcePrompt: true,
+			wantPath:    "/approval",
+		},
+		{
+			name:     "No consent for this client",
+			consents: map[string][]string{"other-client": {"email"}},
+			scopes:   []string{"openid", "email"},
+			clientID: "test",
+			wantPath: "/approval",
+		},
+		{
+			name:     "Only technical scopes - skip with empty consent",
+			consents: map[string][]string{"test": {}},
+			scopes:   []string{"openid", "offline_access"},
+			clientID: "test",
+			wantPath: "/callback/cb",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			httpServer, s := newTestServer(t, func(c *Config) {
+				c.SkipApprovalScreen = false
+				c.Now = time.Now
+			})
+			defer httpServer.Close()
+
+			// Pre-create UserIdentity with consents
+			require.NoError(t, s.storage.CreateUserIdentity(ctx, storage.UserIdentity{
+				UserID:      "0-385-28089-0",
+				ConnectorID: connID,
+				Claims: storage.Claims{
+					UserID:        "0-385-28089-0",
+					Username:      "Kilgore Trout",
+					Email:         "kilgore@kilgore.trout",
+					EmailVerified: true,
+				},
+				Consents:  tc.consents,
+				CreatedAt: time.Now(),
+				LastLogin: time.Now(),
+			}))
+
+			authReq := storage.AuthRequest{
+				ID:                  authReqID,
+				ConnectorID:         connID,
+				ClientID:            tc.clientID,
+				RedirectURI:         "cb",
+				Expiry:              expiry,
+				ResponseTypes:       []string{responseTypeCode},
+				Scopes:              tc.scopes,
+				ForceApprovalPrompt: tc.forcePrompt,
+			}
+			require.NoError(t, s.storage.CreateAuthRequest(ctx, authReq))
+
+			rr := httptest.NewRecorder()
+			reqPath := fmt.Sprintf("/callback/%s?state=%s", connID, authReqID)
+			s.handleConnectorCallback(rr, httptest.NewRequest("GET", reqPath, nil))
+
+			require.Equal(t, 303, rr.Code)
+			cb, err := url.Parse(rr.Result().Header.Get("Location"))
+			require.NoError(t, err)
+			require.Equal(t, tc.wantPath, cb.Path)
+		})
+	}
+}
+
+func TestConsentPersistedOnApproval(t *testing.T) {
+	ctx := t.Context()
+	setSessionsEnabled(t, true)
+
+	httpServer, s := newTestServer(t, nil)
+	defer httpServer.Close()
+
+	userID := "test-user"
+	connectorID := "mock"
+	clientID := "test"
+
+	// Pre-create UserIdentity (would have been created during login)
+	require.NoError(t, s.storage.CreateUserIdentity(ctx, storage.UserIdentity{
+		UserID:      userID,
+		ConnectorID: connectorID,
+		Claims:      storage.Claims{UserID: userID},
+		Consents:    make(map[string][]string),
+		CreatedAt:   time.Now(),
+		LastLogin:   time.Now(),
+	}))
+
+	authReq := storage.AuthRequest{
+		ID:            "approval-consent-test",
+		ClientID:      clientID,
+		ConnectorID:   connectorID,
+		ResponseTypes: []string{responseTypeCode},
+		RedirectURI:   "https://client.example/callback",
+		Expiry:        time.Now().Add(time.Minute),
+		LoggedIn:      true,
+		Claims:        storage.Claims{UserID: userID},
+		Scopes:        []string{"openid", "email", "profile"},
+		HMACKey:       []byte("consent-test-key"),
+	}
+	require.NoError(t, s.storage.CreateAuthRequest(ctx, authReq))
+
+	h := hmac.New(sha256.New, authReq.HMACKey)
+	h.Write([]byte(authReq.ID))
+	mac := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
+
+	form := url.Values{
+		"approval": {"approve"},
+		"req":      {authReq.ID},
+		"hmac":     {mac},
+	}
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/approval", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	s.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusSeeOther, rr.Code)
+
+	ui, err := s.storage.GetUserIdentity(ctx, userID, connectorID)
+	require.NoError(t, err)
+	require.Equal(t, []string{"openid", "email", "profile"}, ui.Consents[clientID])
+}
+
+func TestHasExistingConsent(t *testing.T) {
+	ctx := t.Context()
+
+	httpServer, s := newTestServer(t, nil)
+	defer httpServer.Close()
+
+	userID := "consent-user"
+	connID := "mock"
+
+	tests := []struct {
+		name     string
+		consents map[string][]string
+		clientID string
+		scopes   []string
+		want     bool
+	}{
+		{
+			name:     "All scopes covered",
+			consents: map[string][]string{"client-a": {"email", "profile"}},
+			clientID: "client-a",
+			scopes:   []string{"openid", "email", "profile"},
+			want:     true,
+		},
+		{
+			name:     "Missing scope",
+			consents: map[string][]string{"client-a": {"email"}},
+			clientID: "client-a",
+			scopes:   []string{"openid", "email", "groups"},
+			want:     false,
+		},
+		{
+			name:     "Only technical scopes",
+			consents: map[string][]string{"client-a": {}},
+			clientID: "client-a",
+			scopes:   []string{"openid", "offline_access"},
+			want:     true,
+		},
+		{
+			name:     "No consent for client",
+			consents: map[string][]string{"other": {"email"}},
+			clientID: "client-a",
+			scopes:   []string{"email"},
+			want:     false,
+		},
+		{
+			name:     "No UserIdentity at all",
+			consents: nil,
+			clientID: "client-a",
+			scopes:   []string{"email"},
+			want:     false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Clean up any previous identity
+			_ = s.storage.DeleteUserIdentity(ctx, userID, connID)
+
+			if tc.consents != nil {
+				require.NoError(t, s.storage.CreateUserIdentity(ctx, storage.UserIdentity{
+					UserID:      userID,
+					ConnectorID: connID,
+					Claims:      storage.Claims{UserID: userID},
+					Consents:    tc.consents,
+					CreatedAt:   time.Now(),
+					LastLogin:   time.Now(),
+				}))
+			}
+
+			got := s.hasExistingConsent(ctx, userID, connID, tc.clientID, tc.scopes)
+			require.Equal(t, tc.want, got)
+		})
+	}
 }
 
 func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
