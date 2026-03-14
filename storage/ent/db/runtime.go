@@ -15,6 +15,7 @@ import (
 	"github.com/dexidp/dex/storage/ent/db/offlinesession"
 	"github.com/dexidp/dex/storage/ent/db/password"
 	"github.com/dexidp/dex/storage/ent/db/refreshtoken"
+	"github.com/dexidp/dex/storage/ent/db/useridentity"
 	"github.com/dexidp/dex/storage/ent/schema"
 )
 
@@ -274,4 +275,38 @@ func init() {
 	refreshtokenDescID := refreshtokenFields[0].Descriptor()
 	// refreshtoken.IDValidator is a validator for the "id" field. It is called by the builders before save.
 	refreshtoken.IDValidator = refreshtokenDescID.Validators[0].(func(string) error)
+	useridentityFields := schema.UserIdentity{}.Fields()
+	_ = useridentityFields
+	// useridentityDescUserID is the schema descriptor for user_id field.
+	useridentityDescUserID := useridentityFields[1].Descriptor()
+	// useridentity.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
+	useridentity.UserIDValidator = useridentityDescUserID.Validators[0].(func(string) error)
+	// useridentityDescConnectorID is the schema descriptor for connector_id field.
+	useridentityDescConnectorID := useridentityFields[2].Descriptor()
+	// useridentity.ConnectorIDValidator is a validator for the "connector_id" field. It is called by the builders before save.
+	useridentity.ConnectorIDValidator = useridentityDescConnectorID.Validators[0].(func(string) error)
+	// useridentityDescClaimsUserID is the schema descriptor for claims_user_id field.
+	useridentityDescClaimsUserID := useridentityFields[3].Descriptor()
+	// useridentity.DefaultClaimsUserID holds the default value on creation for the claims_user_id field.
+	useridentity.DefaultClaimsUserID = useridentityDescClaimsUserID.Default.(string)
+	// useridentityDescClaimsUsername is the schema descriptor for claims_username field.
+	useridentityDescClaimsUsername := useridentityFields[4].Descriptor()
+	// useridentity.DefaultClaimsUsername holds the default value on creation for the claims_username field.
+	useridentity.DefaultClaimsUsername = useridentityDescClaimsUsername.Default.(string)
+	// useridentityDescClaimsPreferredUsername is the schema descriptor for claims_preferred_username field.
+	useridentityDescClaimsPreferredUsername := useridentityFields[5].Descriptor()
+	// useridentity.DefaultClaimsPreferredUsername holds the default value on creation for the claims_preferred_username field.
+	useridentity.DefaultClaimsPreferredUsername = useridentityDescClaimsPreferredUsername.Default.(string)
+	// useridentityDescClaimsEmail is the schema descriptor for claims_email field.
+	useridentityDescClaimsEmail := useridentityFields[6].Descriptor()
+	// useridentity.DefaultClaimsEmail holds the default value on creation for the claims_email field.
+	useridentity.DefaultClaimsEmail = useridentityDescClaimsEmail.Default.(string)
+	// useridentityDescClaimsEmailVerified is the schema descriptor for claims_email_verified field.
+	useridentityDescClaimsEmailVerified := useridentityFields[7].Descriptor()
+	// useridentity.DefaultClaimsEmailVerified holds the default value on creation for the claims_email_verified field.
+	useridentity.DefaultClaimsEmailVerified = useridentityDescClaimsEmailVerified.Default.(bool)
+	// useridentityDescID is the schema descriptor for id field.
+	useridentityDescID := useridentityFields[0].Descriptor()
+	// useridentity.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	useridentity.IDValidator = useridentityDescID.Validators[0].(func(string) error)
 }

@@ -163,6 +163,39 @@ func toStorageDeviceRequest(r *db.DeviceRequest) storage.DeviceRequest {
 	}
 }
 
+func toStorageUserIdentity(u *db.UserIdentity) storage.UserIdentity {
+	s := storage.UserIdentity{
+		UserID:      u.UserID,
+		ConnectorID: u.ConnectorID,
+		Claims: storage.Claims{
+			UserID:            u.ClaimsUserID,
+			Username:          u.ClaimsUsername,
+			PreferredUsername: u.ClaimsPreferredUsername,
+			Email:             u.ClaimsEmail,
+			EmailVerified:     u.ClaimsEmailVerified,
+			Groups:            u.ClaimsGroups,
+		},
+		CreatedAt:    u.CreatedAt,
+		LastLogin:    u.LastLogin,
+		BlockedUntil: u.BlockedUntil,
+	}
+
+	if u.Consents != nil {
+		if err := json.Unmarshal(u.Consents, &s.Consents); err != nil {
+			// Correctness of json structure is guaranteed on uploading
+			panic(err)
+		}
+		if s.Consents == nil {
+			// Ensure Consents is non-nil even if JSON was "null".
+			s.Consents = make(map[string][]string)
+		}
+	} else {
+		// Server code assumes this will be non-nil.
+		s.Consents = make(map[string][]string)
+	}
+	return s
+}
+
 func toStorageDeviceToken(t *db.DeviceToken) storage.DeviceToken {
 	return storage.DeviceToken{
 		DeviceCode:          t.DeviceCode,

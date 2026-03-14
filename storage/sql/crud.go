@@ -775,6 +775,157 @@ func scanOfflineSessions(s scanner) (o storage.OfflineSessions, err error) {
 	return o, nil
 }
 
+func (c *conn) CreateUserIdentity(ctx context.Context, u storage.UserIdentity) error {
+	_, err := c.Exec(`
+		insert into user_identity (
+			user_id, connector_id,
+			claims_user_id, claims_username, claims_preferred_username,
+			claims_email, claims_email_verified, claims_groups,
+			consents,
+			created_at, last_login, blocked_until
+		)
+		values (
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+		);
+	`,
+		u.UserID, u.ConnectorID,
+		u.Claims.UserID, u.Claims.Username, u.Claims.PreferredUsername,
+		u.Claims.Email, u.Claims.EmailVerified, encoder(u.Claims.Groups),
+		encoder(u.Consents),
+		u.CreatedAt, u.LastLogin, u.BlockedUntil,
+	)
+	if err != nil {
+		if c.alreadyExistsCheck(err) {
+			return storage.ErrAlreadyExists
+		}
+		return fmt.Errorf("insert user identity: %v", err)
+	}
+	return nil
+}
+
+func (c *conn) UpdateUserIdentity(ctx context.Context, userID, connectorID string, updater func(u storage.UserIdentity) (storage.UserIdentity, error)) error {
+	return c.ExecTx(func(tx *trans) error {
+		u, err := getUserIdentity(ctx, tx, userID, connectorID)
+		if err != nil {
+			return err
+		}
+
+		newIdentity, err := updater(u)
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(`
+			update user_identity
+			set
+				claims_user_id = $1,
+				claims_username = $2,
+				claims_preferred_username = $3,
+				claims_email = $4,
+				claims_email_verified = $5,
+				claims_groups = $6,
+				consents = $7,
+				created_at = $8,
+				last_login = $9,
+				blocked_until = $10
+			where user_id = $11 AND connector_id = $12;
+		`,
+			newIdentity.Claims.UserID, newIdentity.Claims.Username, newIdentity.Claims.PreferredUsername,
+			newIdentity.Claims.Email, newIdentity.Claims.EmailVerified, encoder(newIdentity.Claims.Groups),
+			encoder(newIdentity.Consents),
+			newIdentity.CreatedAt, newIdentity.LastLogin, newIdentity.BlockedUntil,
+			u.UserID, u.ConnectorID,
+		)
+		if err != nil {
+			return fmt.Errorf("update user identity: %v", err)
+		}
+		return nil
+	})
+}
+
+func (c *conn) GetUserIdentity(ctx context.Context, userID, connectorID string) (storage.UserIdentity, error) {
+	return getUserIdentity(ctx, c, userID, connectorID)
+}
+
+func getUserIdentity(ctx context.Context, q querier, userID, connectorID string) (storage.UserIdentity, error) {
+	return scanUserIdentity(q.QueryRow(`
+		select
+			user_id, connector_id,
+			claims_user_id, claims_username, claims_preferred_username,
+			claims_email, claims_email_verified, claims_groups,
+			consents,
+			created_at, last_login, blocked_until
+		from user_identity
+		where user_id = $1 AND connector_id = $2;
+		`, userID, connectorID))
+}
+
+func (c *conn) ListUserIdentities(ctx context.Context) ([]storage.UserIdentity, error) {
+	rows, err := c.Query(`
+		select
+			user_id, connector_id,
+			claims_user_id, claims_username, claims_preferred_username,
+			claims_email, claims_email_verified, claims_groups,
+			consents,
+			created_at, last_login, blocked_until
+		from user_identity;
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query: %v", err)
+	}
+	defer rows.Close()
+
+	var identities []storage.UserIdentity
+	for rows.Next() {
+		u, err := scanUserIdentity(rows)
+		if err != nil {
+			return nil, err
+		}
+		identities = append(identities, u)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("scan: %v", err)
+	}
+	return identities, nil
+}
+
+func scanUserIdentity(s scanner) (u storage.UserIdentity, err error) {
+	err = s.Scan(
+		&u.UserID, &u.ConnectorID,
+		&u.Claims.UserID, &u.Claims.Username, &u.Claims.PreferredUsername,
+		&u.Claims.Email, &u.Claims.EmailVerified, decoder(&u.Claims.Groups),
+		decoder(&u.Consents),
+		&u.CreatedAt, &u.LastLogin, &u.BlockedUntil,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return u, storage.ErrNotFound
+		}
+		return u, fmt.Errorf("select user identity: %v", err)
+	}
+	if u.Consents == nil {
+		u.Consents = make(map[string][]string)
+	}
+	return u, nil
+}
+
+func (c *conn) DeleteUserIdentity(ctx context.Context, userID, connectorID string) error {
+	result, err := c.Exec(`delete from user_identity where user_id = $1 AND connector_id = $2`, userID, connectorID)
+	if err != nil {
+		return fmt.Errorf("delete user_identity: user_id = %s, connector_id = %s: %w", userID, connectorID, err)
+	}
+
+	// For now mandate that the driver implements RowsAffected. If we ever need to support
+	// a driver that doesn't implement this, we can run this in a transaction with a get beforehand.
+	n, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %v", err)
+	}
+	if n < 1 {
+		return storage.ErrNotFound
+	}
+	return nil
+}
+
 func (c *conn) CreateConnector(ctx context.Context, connector storage.Connector) error {
 	grantTypes, err := json.Marshal(connector.GrantTypes)
 	if err != nil {

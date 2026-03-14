@@ -21,7 +21,8 @@ func New(logger *slog.Logger) storage.Storage {
 		refreshTokens:   make(map[string]storage.RefreshToken),
 		authReqs:        make(map[string]storage.AuthRequest),
 		passwords:       make(map[string]storage.Password),
-		offlineSessions: make(map[offlineSessionID]storage.OfflineSessions),
+		offlineSessions: make(map[compositeKeyID]storage.OfflineSessions),
+		userIdentities:  make(map[compositeKeyID]storage.UserIdentity),
 		connectors:      make(map[string]storage.Connector),
 		deviceRequests:  make(map[string]storage.DeviceRequest),
 		deviceTokens:    make(map[string]storage.DeviceToken),
@@ -48,7 +49,8 @@ type memStorage struct {
 	refreshTokens   map[string]storage.RefreshToken
 	authReqs        map[string]storage.AuthRequest
 	passwords       map[string]storage.Password
-	offlineSessions map[offlineSessionID]storage.OfflineSessions
+	offlineSessions map[compositeKeyID]storage.OfflineSessions
+	userIdentities  map[compositeKeyID]storage.UserIdentity
 	connectors      map[string]storage.Connector
 	deviceRequests  map[string]storage.DeviceRequest
 	deviceTokens    map[string]storage.DeviceToken
@@ -58,7 +60,7 @@ type memStorage struct {
 	logger *slog.Logger
 }
 
-type offlineSessionID struct {
+type compositeKeyID struct {
 	userID string
 	connID string
 }
@@ -158,7 +160,7 @@ func (s *memStorage) CreatePassword(ctx context.Context, p storage.Password) (er
 }
 
 func (s *memStorage) CreateOfflineSessions(ctx context.Context, o storage.OfflineSessions) (err error) {
-	id := offlineSessionID{
+	id := compositeKeyID{
 		userID: o.UserID,
 		connID: o.ConnID,
 	}
@@ -167,6 +169,78 @@ func (s *memStorage) CreateOfflineSessions(ctx context.Context, o storage.Offlin
 			err = storage.ErrAlreadyExists
 		} else {
 			s.offlineSessions[id] = o
+		}
+	})
+	return
+}
+
+func (s *memStorage) CreateUserIdentity(ctx context.Context, u storage.UserIdentity) (err error) {
+	id := compositeKeyID{
+		userID: u.UserID,
+		connID: u.ConnectorID,
+	}
+	s.tx(func() {
+		if _, ok := s.userIdentities[id]; ok {
+			err = storage.ErrAlreadyExists
+		} else {
+			s.userIdentities[id] = u
+		}
+	})
+	return
+}
+
+func (s *memStorage) GetUserIdentity(ctx context.Context, userID, connectorID string) (u storage.UserIdentity, err error) {
+	id := compositeKeyID{
+		userID: userID,
+		connID: connectorID,
+	}
+	s.tx(func() {
+		var ok bool
+		if u, ok = s.userIdentities[id]; !ok {
+			err = storage.ErrNotFound
+			return
+		}
+	})
+	return
+}
+
+func (s *memStorage) UpdateUserIdentity(ctx context.Context, userID, connectorID string, updater func(u storage.UserIdentity) (storage.UserIdentity, error)) (err error) {
+	id := compositeKeyID{
+		userID: userID,
+		connID: connectorID,
+	}
+	s.tx(func() {
+		r, ok := s.userIdentities[id]
+		if !ok {
+			err = storage.ErrNotFound
+			return
+		}
+		if r, err = updater(r); err == nil {
+			s.userIdentities[id] = r
+		}
+	})
+	return
+}
+
+func (s *memStorage) DeleteUserIdentity(ctx context.Context, userID, connectorID string) (err error) {
+	id := compositeKeyID{
+		userID: userID,
+		connID: connectorID,
+	}
+	s.tx(func() {
+		if _, ok := s.userIdentities[id]; !ok {
+			err = storage.ErrNotFound
+			return
+		}
+		delete(s.userIdentities, id)
+	})
+	return
+}
+
+func (s *memStorage) ListUserIdentities(ctx context.Context) (identities []storage.UserIdentity, err error) {
+	s.tx(func() {
+		for _, u := range s.userIdentities {
+			identities = append(identities, u)
 		}
 	})
 	return
@@ -243,7 +317,7 @@ func (s *memStorage) GetAuthRequest(ctx context.Context, id string) (req storage
 }
 
 func (s *memStorage) GetOfflineSessions(ctx context.Context, userID string, connID string) (o storage.OfflineSessions, err error) {
-	id := offlineSessionID{
+	id := compositeKeyID{
 		userID: userID,
 		connID: connID,
 	}
@@ -360,7 +434,7 @@ func (s *memStorage) DeleteAuthRequest(ctx context.Context, id string) (err erro
 }
 
 func (s *memStorage) DeleteOfflineSessions(ctx context.Context, userID string, connID string) (err error) {
-	id := offlineSessionID{
+	id := compositeKeyID{
 		userID: userID,
 		connID: connID,
 	}
@@ -453,7 +527,7 @@ func (s *memStorage) UpdateRefreshToken(ctx context.Context, id string, updater 
 }
 
 func (s *memStorage) UpdateOfflineSessions(ctx context.Context, userID string, connID string, updater func(o storage.OfflineSessions) (storage.OfflineSessions, error)) (err error) {
-	id := offlineSessionID{
+	id := compositeKeyID{
 		userID: userID,
 		connID: connID,
 	}

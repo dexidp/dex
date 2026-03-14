@@ -83,6 +83,7 @@ type Storage interface {
 	CreateRefresh(ctx context.Context, r RefreshToken) error
 	CreatePassword(ctx context.Context, p Password) error
 	CreateOfflineSessions(ctx context.Context, s OfflineSessions) error
+	CreateUserIdentity(ctx context.Context, u UserIdentity) error
 	CreateConnector(ctx context.Context, c Connector) error
 	CreateDeviceRequest(ctx context.Context, d DeviceRequest) error
 	CreateDeviceToken(ctx context.Context, d DeviceToken) error
@@ -96,6 +97,7 @@ type Storage interface {
 	GetRefresh(ctx context.Context, id string) (RefreshToken, error)
 	GetPassword(ctx context.Context, email string) (Password, error)
 	GetOfflineSessions(ctx context.Context, userID string, connID string) (OfflineSessions, error)
+	GetUserIdentity(ctx context.Context, userID, connectorID string) (UserIdentity, error)
 	GetConnector(ctx context.Context, id string) (Connector, error)
 	GetDeviceRequest(ctx context.Context, userCode string) (DeviceRequest, error)
 	GetDeviceToken(ctx context.Context, deviceCode string) (DeviceToken, error)
@@ -104,6 +106,7 @@ type Storage interface {
 	ListRefreshTokens(ctx context.Context) ([]RefreshToken, error)
 	ListPasswords(ctx context.Context) ([]Password, error)
 	ListConnectors(ctx context.Context) ([]Connector, error)
+	ListUserIdentities(ctx context.Context) ([]UserIdentity, error)
 
 	// Delete methods MUST be atomic.
 	DeleteAuthRequest(ctx context.Context, id string) error
@@ -112,6 +115,7 @@ type Storage interface {
 	DeleteRefresh(ctx context.Context, id string) error
 	DeletePassword(ctx context.Context, email string) error
 	DeleteOfflineSessions(ctx context.Context, userID string, connID string) error
+	DeleteUserIdentity(ctx context.Context, userID, connectorID string) error
 	DeleteConnector(ctx context.Context, id string) error
 
 	// Update methods take a function for updating an object then performs that update within
@@ -134,6 +138,7 @@ type Storage interface {
 	UpdateRefreshToken(ctx context.Context, id string, updater func(r RefreshToken) (RefreshToken, error)) error
 	UpdatePassword(ctx context.Context, email string, updater func(p Password) (Password, error)) error
 	UpdateOfflineSessions(ctx context.Context, userID string, connID string, updater func(s OfflineSessions) (OfflineSessions, error)) error
+	UpdateUserIdentity(ctx context.Context, userID, connectorID string, updater func(u UserIdentity) (UserIdentity, error)) error
 	UpdateConnector(ctx context.Context, id string, updater func(c Connector) (Connector, error)) error
 	UpdateDeviceToken(ctx context.Context, deviceCode string, updater func(t DeviceToken) (DeviceToken, error)) error
 
@@ -318,6 +323,17 @@ type RefreshTokenRef struct {
 
 	CreatedAt time.Time
 	LastUsed  time.Time
+}
+
+// UserIdentity represents persistent per-user identity data.
+type UserIdentity struct {
+	UserID       string
+	ConnectorID  string
+	Claims       Claims
+	Consents     map[string][]string // clientID -> approved scopes
+	CreatedAt    time.Time
+	LastLogin    time.Time
+	BlockedUntil time.Time
 }
 
 // OfflineSessions objects are sessions pertaining to users with refresh tokens.

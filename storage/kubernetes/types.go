@@ -226,6 +226,23 @@ func customResourceDefinitions(apiVersion string) []k8sapi.CustomResourceDefinit
 				},
 			},
 		},
+		{
+			ObjectMeta: k8sapi.ObjectMeta{
+				Name: "useridentities.dex.coreos.com",
+			},
+			TypeMeta: crdMeta,
+			Spec: k8sapi.CustomResourceDefinitionSpec{
+				Group:    apiGroup,
+				Version:  version,
+				Versions: versions,
+				Scope:    scope,
+				Names: k8sapi.CustomResourceDefinitionNames{
+					Plural:   "useridentities",
+					Singular: "useridentity",
+					Kind:     "UserIdentity",
+				},
+			},
+		},
 	}
 }
 
@@ -871,4 +888,63 @@ func toStorageDeviceToken(t DeviceToken) storage.DeviceToken {
 			CodeChallengeMethod: t.CodeChallengeMethod,
 		},
 	}
+}
+
+// UserIdentity is a mirrored struct from storage with JSON struct tags and Kubernetes
+// type metadata.
+type UserIdentity struct {
+	k8sapi.TypeMeta   `json:",inline"`
+	k8sapi.ObjectMeta `json:"metadata,omitempty"`
+
+	UserID       string              `json:"userID,omitempty"`
+	ConnectorID  string              `json:"connectorID,omitempty"`
+	Claims       Claims              `json:"claims,omitempty"`
+	Consents     map[string][]string `json:"consents,omitempty"`
+	CreatedAt    time.Time           `json:"createdAt,omitempty"`
+	LastLogin    time.Time           `json:"lastLogin,omitempty"`
+	BlockedUntil time.Time           `json:"blockedUntil,omitempty"`
+}
+
+// UserIdentityList is a list of UserIdentities.
+type UserIdentityList struct {
+	k8sapi.TypeMeta `json:",inline"`
+	k8sapi.ListMeta `json:"metadata,omitempty"`
+	UserIdentities  []UserIdentity `json:"items"`
+}
+
+func (cli *client) fromStorageUserIdentity(u storage.UserIdentity) UserIdentity {
+	return UserIdentity{
+		TypeMeta: k8sapi.TypeMeta{
+			Kind:       kindUserIdentity,
+			APIVersion: cli.apiVersion,
+		},
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name:      cli.offlineTokenName(u.UserID, u.ConnectorID),
+			Namespace: cli.namespace,
+		},
+		UserID:       u.UserID,
+		ConnectorID:  u.ConnectorID,
+		Claims:       fromStorageClaims(u.Claims),
+		Consents:     u.Consents,
+		CreatedAt:    u.CreatedAt,
+		LastLogin:    u.LastLogin,
+		BlockedUntil: u.BlockedUntil,
+	}
+}
+
+func toStorageUserIdentity(u UserIdentity) storage.UserIdentity {
+	s := storage.UserIdentity{
+		UserID:       u.UserID,
+		ConnectorID:  u.ConnectorID,
+		Claims:       toStorageClaims(u.Claims),
+		Consents:     u.Consents,
+		CreatedAt:    u.CreatedAt,
+		LastLogin:    u.LastLogin,
+		BlockedUntil: u.BlockedUntil,
+	}
+	if s.Consents == nil {
+		// Server code assumes this will be non-nil.
+		s.Consents = make(map[string][]string)
+	}
+	return s
 }

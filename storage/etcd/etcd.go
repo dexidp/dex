@@ -24,6 +24,7 @@ const (
 	keysName             = "openid-connect-keys"
 	deviceRequestPrefix  = "device_req/"
 	deviceTokenPrefix    = "device_token/"
+	userIdentityPrefix   = "user_identity/"
 
 	// defaultStorageTimeout will be applied to all storage's operations.
 	defaultStorageTimeout = 5 * time.Second
@@ -366,6 +367,61 @@ func (c *conn) DeleteOfflineSessions(ctx context.Context, userID string, connID 
 	return c.deleteKey(ctx, keySession(userID, connID))
 }
 
+func (c *conn) CreateUserIdentity(ctx context.Context, u storage.UserIdentity) error {
+	return c.txnCreate(ctx, keyUserIdentity(u.UserID, u.ConnectorID), fromStorageUserIdentity(u))
+}
+
+func (c *conn) GetUserIdentity(ctx context.Context, userID, connectorID string) (u storage.UserIdentity, err error) {
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
+	defer cancel()
+	var ui UserIdentity
+	if err = c.getKey(ctx, keyUserIdentity(userID, connectorID), &ui); err != nil {
+		return
+	}
+	return toStorageUserIdentity(ui), nil
+}
+
+func (c *conn) UpdateUserIdentity(ctx context.Context, userID, connectorID string, updater func(u storage.UserIdentity) (storage.UserIdentity, error)) error {
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
+	defer cancel()
+	return c.txnUpdate(ctx, keyUserIdentity(userID, connectorID), func(currentValue []byte) ([]byte, error) {
+		var current UserIdentity
+		if len(currentValue) > 0 {
+			if err := json.Unmarshal(currentValue, &current); err != nil {
+				return nil, err
+			}
+		}
+		updated, err := updater(toStorageUserIdentity(current))
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(fromStorageUserIdentity(updated))
+	})
+}
+
+func (c *conn) DeleteUserIdentity(ctx context.Context, userID, connectorID string) error {
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
+	defer cancel()
+	return c.deleteKey(ctx, keyUserIdentity(userID, connectorID))
+}
+
+func (c *conn) ListUserIdentities(ctx context.Context) (identities []storage.UserIdentity, err error) {
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
+	defer cancel()
+	res, err := c.db.Get(ctx, userIdentityPrefix, clientv3.WithPrefix())
+	if err != nil {
+		return identities, err
+	}
+	for _, v := range res.Kvs {
+		var ui UserIdentity
+		if err = json.Unmarshal(v.Value, &ui); err != nil {
+			return identities, err
+		}
+		identities = append(identities, toStorageUserIdentity(ui))
+	}
+	return identities, nil
+}
+
 func (c *conn) CreateConnector(ctx context.Context, connector storage.Connector) error {
 	return c.txnCreate(ctx, keyID(connectorPrefix, connector.ID), connector)
 }
@@ -555,6 +611,10 @@ func keyID(prefix, id string) string       { return prefix + id }
 func keyEmail(prefix, email string) string { return prefix + strings.ToLower(email) }
 func keySession(userID, connID string) string {
 	return offlineSessionPrefix + strings.ToLower(userID+"|"+connID)
+}
+
+func keyUserIdentity(userID, connectorID string) string {
+	return userIdentityPrefix + strings.ToLower(userID+"|"+connectorID)
 }
 
 func (c *conn) CreateDeviceRequest(ctx context.Context, d storage.DeviceRequest) error {

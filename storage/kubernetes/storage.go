@@ -25,6 +25,7 @@ const (
 	kindConnector       = "Connector"
 	kindDeviceRequest   = "DeviceRequest"
 	kindDeviceToken     = "DeviceToken"
+	kindUserIdentity    = "UserIdentity"
 )
 
 const (
@@ -38,6 +39,7 @@ const (
 	resourceConnector       = "connectors"
 	resourceDeviceRequest   = "devicerequests"
 	resourceDeviceToken     = "devicetokens"
+	resourceUserIdentity    = "useridentities"
 )
 
 const (
@@ -741,6 +743,70 @@ func (cli *client) UpdateDeviceToken(ctx context.Context, deviceCode string, upd
 		newToken.ObjectMeta = r.ObjectMeta
 		return cli.put(resourceDeviceToken, r.ObjectMeta.Name, newToken)
 	})
+}
+
+func (cli *client) CreateUserIdentity(ctx context.Context, u storage.UserIdentity) error {
+	return cli.post(resourceUserIdentity, cli.fromStorageUserIdentity(u))
+}
+
+func (cli *client) GetUserIdentity(ctx context.Context, userID, connectorID string) (storage.UserIdentity, error) {
+	u, err := cli.getUserIdentity(userID, connectorID)
+	if err != nil {
+		return storage.UserIdentity{}, err
+	}
+	return toStorageUserIdentity(u), nil
+}
+
+func (cli *client) getUserIdentity(userID, connectorID string) (u UserIdentity, err error) {
+	name := cli.offlineTokenName(userID, connectorID)
+	if err = cli.get(resourceUserIdentity, name, &u); err != nil {
+		return UserIdentity{}, err
+	}
+	if userID != u.UserID || connectorID != u.ConnectorID {
+		return UserIdentity{}, fmt.Errorf("get user identity: wrong identity retrieved")
+	}
+	return u, nil
+}
+
+func (cli *client) UpdateUserIdentity(ctx context.Context, userID, connectorID string, updater func(old storage.UserIdentity) (storage.UserIdentity, error)) error {
+	return retryOnConflict(ctx, func() error {
+		u, err := cli.getUserIdentity(userID, connectorID)
+		if err != nil {
+			return err
+		}
+
+		updated, err := updater(toStorageUserIdentity(u))
+		if err != nil {
+			return err
+		}
+
+		newUserIdentity := cli.fromStorageUserIdentity(updated)
+		newUserIdentity.ObjectMeta = u.ObjectMeta
+		return cli.put(resourceUserIdentity, u.ObjectMeta.Name, newUserIdentity)
+	})
+}
+
+func (cli *client) DeleteUserIdentity(ctx context.Context, userID, connectorID string) error {
+	// Check for hash collision.
+	u, err := cli.getUserIdentity(userID, connectorID)
+	if err != nil {
+		return err
+	}
+	return cli.delete(resourceUserIdentity, u.ObjectMeta.Name)
+}
+
+func (cli *client) ListUserIdentities(ctx context.Context) ([]storage.UserIdentity, error) {
+	var userIdentityList UserIdentityList
+	if err := cli.list(resourceUserIdentity, &userIdentityList); err != nil {
+		return nil, fmt.Errorf("failed to list user identities: %v", err)
+	}
+
+	userIdentities := make([]storage.UserIdentity, len(userIdentityList.UserIdentities))
+	for i, u := range userIdentityList.UserIdentities {
+		userIdentities[i] = toStorageUserIdentity(u)
+	}
+
+	return userIdentities, nil
 }
 
 func isKubernetesAPIConflictError(err error) bool {

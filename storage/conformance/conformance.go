@@ -51,6 +51,7 @@ func RunTests(t *testing.T, newStorage func(t *testing.T) storage.Storage) {
 		{"TimezoneSupport", testTimezones},
 		{"DeviceRequestCRUD", testDeviceRequestCRUD},
 		{"DeviceTokenCRUD", testDeviceTokenCRUD},
+		{"UserIdentityCRUD", testUserIdentityCRUD},
 	})
 }
 
@@ -1083,4 +1084,85 @@ func testDeviceTokenCRUD(t *testing.T, s storage.Storage) {
 	if !reflect.DeepEqual(got.PKCE, codeChallenge) {
 		t.Fatalf("storage does not support PKCE, wanted challenge=%#v got %#v", codeChallenge, got.PKCE)
 	}
+}
+
+func testUserIdentityCRUD(t *testing.T, s storage.Storage) {
+	ctx := t.Context()
+
+	now := time.Now().UTC().Round(time.Millisecond)
+
+	u1 := storage.UserIdentity{
+		UserID:      "user1",
+		ConnectorID: "conn1",
+		Claims: storage.Claims{
+			UserID:        "user1",
+			Username:      "jane",
+			Email:         "jane@example.com",
+			EmailVerified: true,
+			Groups:        []string{"a", "b"},
+		},
+		Consents:     make(map[string][]string),
+		CreatedAt:    now,
+		LastLogin:    now,
+		BlockedUntil: time.Unix(0, 0).UTC(),
+	}
+
+	// Create with empty Consents map.
+	if err := s.CreateUserIdentity(ctx, u1); err != nil {
+		t.Fatalf("create user identity: %v", err)
+	}
+
+	// Duplicate create should return ErrAlreadyExists.
+	err := s.CreateUserIdentity(ctx, u1)
+	mustBeErrAlreadyExists(t, "user identity", err)
+
+	// Get and compare.
+	got, err := s.GetUserIdentity(ctx, u1.UserID, u1.ConnectorID)
+	if err != nil {
+		t.Fatalf("get user identity: %v", err)
+	}
+
+	got.CreatedAt = got.CreatedAt.UTC().Round(time.Millisecond)
+	got.LastLogin = got.LastLogin.UTC().Round(time.Millisecond)
+	got.BlockedUntil = got.BlockedUntil.UTC().Round(time.Millisecond)
+	u1.BlockedUntil = u1.BlockedUntil.UTC().Round(time.Millisecond)
+	if diff := pretty.Compare(u1, got); diff != "" {
+		t.Errorf("user identity retrieved from storage did not match: %s", diff)
+	}
+
+	// Update: add consent entry.
+	if err := s.UpdateUserIdentity(ctx, u1.UserID, u1.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
+		old.Consents["client1"] = []string{"openid", "email"}
+		return old, nil
+	}); err != nil {
+		t.Fatalf("update user identity: %v", err)
+	}
+
+	// Get and verify updated consents.
+	got, err = s.GetUserIdentity(ctx, u1.UserID, u1.ConnectorID)
+	if err != nil {
+		t.Fatalf("get user identity after update: %v", err)
+	}
+	wantConsents := map[string][]string{"client1": {"openid", "email"}}
+	if diff := pretty.Compare(wantConsents, got.Consents); diff != "" {
+		t.Errorf("user identity consents did not match after update: %s", diff)
+	}
+
+	// List and verify.
+	identities, err := s.ListUserIdentities(ctx)
+	if err != nil {
+		t.Fatalf("list user identities: %v", err)
+	}
+	if len(identities) != 1 {
+		t.Fatalf("expected 1 user identity, got %d", len(identities))
+	}
+
+	// Delete.
+	if err := s.DeleteUserIdentity(ctx, u1.UserID, u1.ConnectorID); err != nil {
+		t.Fatalf("delete user identity: %v", err)
+	}
+
+	// Get deleted should return ErrNotFound.
+	_, err = s.GetUserIdentity(ctx, u1.UserID, u1.ConnectorID)
+	mustBeErrNotFound(t, "user identity", err)
 }
