@@ -185,6 +185,10 @@ func toStorageUserIdentity(u *db.UserIdentity) storage.UserIdentity {
 			// Correctness of json structure is guaranteed on uploading
 			panic(err)
 		}
+		if s.Consents == nil {
+			// Ensure Consents is non-nil even if JSON was "null".
+			s.Consents = make(map[string][]string)
+		}
 	} else {
 		// Server code assumes this will be non-nil.
 		s.Consents = make(map[string][]string)

@@ -911,7 +911,7 @@ func scanUserIdentity(s scanner) (u storage.UserIdentity, err error) {
 func (c *conn) DeleteUserIdentity(ctx context.Context, userID, connectorID string) error {
 	result, err := c.Exec(`delete from user_identity where user_id = $1 AND connector_id = $2`, userID, connectorID)
 	if err != nil {
-		return fmt.Errorf("delete user_identity: user_id = %s, connector_id = %s", userID, connectorID)
+		return fmt.Errorf("delete user_identity: user_id = %s, connector_id = %s: %w", userID, connectorID, err)
 	}
 
 	// For now mandate that the driver implements RowsAffected. If we ever need to support
