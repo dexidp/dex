@@ -56,3 +56,20 @@ func signPayload(key *jose.JSONWebKey, alg jose.SignatureAlgorithm, payload []by
 	}
 	return signature.CompactSerialize()
 }
+
+func signPayloadWithType(key *jose.JSONWebKey, alg jose.SignatureAlgorithm, payload []byte, tokenType string) (jws string, err error) {
+	signingKey := jose.SigningKey{Key: key, Algorithm: alg}
+
+	opts := &jose.SignerOptions{}
+	opts.WithType(jose.ContentType(tokenType))
+
+	signer, err := jose.NewSigner(signingKey, opts)
+	if err != nil {
+		return "", fmt.Errorf("new signer: %v", err)
+	}
+	signature, err := signer.Sign(payload)
+	if err != nil {
+		return "", fmt.Errorf("signing payload: %v", err)
+	}
+	return signature.CompactSerialize()
+}
