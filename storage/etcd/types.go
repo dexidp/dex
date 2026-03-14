@@ -296,6 +296,42 @@ func toStorageUserIdentity(u UserIdentity) storage.UserIdentity {
 	return s
 }
 
+// AuthSession is a mirrored struct from storage with JSON struct tags.
+type AuthSession struct {
+	ID           string                              `json:"id,omitempty"`
+	ClientStates map[string]*storage.ClientAuthState `json:"client_states,omitempty"`
+	CreatedAt    time.Time                           `json:"created_at"`
+	LastActivity time.Time                           `json:"last_activity"`
+	IPAddress    string                              `json:"ip_address,omitempty"`
+	UserAgent    string                              `json:"user_agent,omitempty"`
+}
+
+func fromStorageAuthSession(s storage.AuthSession) AuthSession {
+	return AuthSession{
+		ID:           s.ID,
+		ClientStates: s.ClientStates,
+		CreatedAt:    s.CreatedAt,
+		LastActivity: s.LastActivity,
+		IPAddress:    s.IPAddress,
+		UserAgent:    s.UserAgent,
+	}
+}
+
+func toStorageAuthSession(s AuthSession) storage.AuthSession {
+	result := storage.AuthSession{
+		ID:           s.ID,
+		ClientStates: s.ClientStates,
+		CreatedAt:    s.CreatedAt,
+		LastActivity: s.LastActivity,
+		IPAddress:    s.IPAddress,
+		UserAgent:    s.UserAgent,
+	}
+	if result.ClientStates == nil {
+		result.ClientStates = make(map[string]*storage.ClientAuthState)
+	}
+	return result
+}
+
 // DeviceRequest is a mirrored struct from storage with JSON struct tags
 type DeviceRequest struct {
 	UserCode     string    `json:"user_code"`

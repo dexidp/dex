@@ -196,6 +196,28 @@ func toStorageUserIdentity(u *db.UserIdentity) storage.UserIdentity {
 	return s
 }
 
+func toStorageAuthSession(s *db.AuthSession) storage.AuthSession {
+	result := storage.AuthSession{
+		ID:           s.ID,
+		CreatedAt:    s.CreatedAt,
+		LastActivity: s.LastActivity,
+		IPAddress:    s.IPAddress,
+		UserAgent:    s.UserAgent,
+	}
+
+	if s.ClientStates != nil {
+		if err := json.Unmarshal(s.ClientStates, &result.ClientStates); err != nil {
+			panic(err)
+		}
+		if result.ClientStates == nil {
+			result.ClientStates = make(map[string]*storage.ClientAuthState)
+		}
+	} else {
+		result.ClientStates = make(map[string]*storage.ClientAuthState)
+	}
+	return result
+}
+
 func toStorageDeviceToken(t *db.DeviceToken) storage.DeviceToken {
 	return storage.DeviceToken{
 		DeviceCode:          t.DeviceCode,

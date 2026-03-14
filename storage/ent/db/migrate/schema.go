@@ -63,6 +63,21 @@ var (
 		Columns:    AuthRequestsColumns,
 		PrimaryKey: []*schema.Column{AuthRequestsColumns[0]},
 	}
+	// AuthSessionsColumns holds the columns for the "auth_sessions" table.
+	AuthSessionsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
+		{Name: "client_states", Type: field.TypeBytes},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)", "postgres": "timestamptz", "sqlite3": "timestamp"}},
+		{Name: "last_activity", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)", "postgres": "timestamptz", "sqlite3": "timestamp"}},
+		{Name: "ip_address", Type: field.TypeString, Size: 2147483647, Default: "", SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
+		{Name: "user_agent", Type: field.TypeString, Size: 2147483647, Default: "", SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
+	}
+	// AuthSessionsTable holds the schema information for the "auth_sessions" table.
+	AuthSessionsTable = &schema.Table{
+		Name:       "auth_sessions",
+		Columns:    AuthSessionsColumns,
+		PrimaryKey: []*schema.Column{AuthSessionsColumns[0]},
+	}
 	// ConnectorsColumns holds the columns for the "connectors" table.
 	ConnectorsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true, Size: 100, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
@@ -226,6 +241,7 @@ var (
 	Tables = []*schema.Table{
 		AuthCodesTable,
 		AuthRequestsTable,
+		AuthSessionsTable,
 		ConnectorsTable,
 		DeviceRequestsTable,
 		DeviceTokensTable,
