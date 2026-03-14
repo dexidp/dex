@@ -956,6 +956,187 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 	}
 }
 
+// SPNEGO integration test (server layer): on GET login, if connector implements SPNEGOAware
+// and returns an identity, server should finalize login and redirect without rendering form.
+func TestHandlePasswordLogin_SPNEGOShortCircuit(t *testing.T) {
+	ctx := t.Context()
+	connID := "mockPassword"
+	authReqID := "spnego"
+	expiry := time.Now().Add(100 * time.Second)
+	resTypes := []string{responseTypeCode}
+
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.SkipApprovalScreen = true
+		c.Now = time.Now
+	})
+	defer httpServer.Close()
+
+	// Create password connector which we will wrap with a SPNEGO-aware adapter in storage config
+	sc := storage.Connector{
+		ID:              connID,
+		Type:            "mockPassword",
+		Name:            "MockPassword",
+		ResourceVersion: "1",
+		Config:          []byte("{\"username\": \"foo\", \"password\": \"password\"}"),
+	}
+	require.NoError(t, s.storage.CreateConnector(ctx, sc))
+	_, err := s.OpenConnector(sc)
+	require.NoError(t, err)
+
+	// Prepare auth request
+	require.NoError(t, s.storage.CreateAuthRequest(ctx, storage.AuthRequest{
+		ID:            authReqID,
+		ClientID:      "client_1",
+		ConnectorID:   connID,
+		RedirectURI:   "cb",
+		Expiry:        expiry,
+		ResponseTypes: resTypes,
+		Scopes:        []string{"openid"},
+	}))
+
+	// Replace the server connector with a SPNEGO-aware fake that short-circuits
+	s.mu.Lock()
+	orig := s.connectors[connID]
+	s.connectors[connID] = Connector{
+		ResourceVersion: orig.ResourceVersion,
+		Connector: spnegoShortCircuit{Identity: connector.Identity{
+			UserID:        "user-id",
+			Username:      "user",
+			Email:         "user@example.com",
+			EmailVerified: true,
+		}},
+	}
+	s.mu.Unlock()
+
+	// Need a client for finalizeLogin to succeed
+	require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+		ID:           "client_1",
+		Secret:       "secret",
+		RedirectURIs: []string{"http://127.0.0.1/callback"},
+		Name:         "test",
+	}))
+
+	// GET login should short-circuit and redirect to /approval or code response
+	rr := httptest.NewRecorder()
+	path := fmt.Sprintf("/auth/%s/login?state=%s&back=", connID, authReqID)
+	s.handlePasswordLogin(rr, httptest.NewRequest("GET", path, nil))
+
+	// In SkipApproval mode server may directly send code response (200) or 303 redirect
+	if rr.Code != http.StatusSeeOther && rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 or 303, got %d", rr.Code)
+	}
+}
+
+// spnegoShortCircuit implements connector.PasswordConnector and connector.SPNEGOAware
+// to simulate successful SPNEGO authentication on GET.
+type spnegoShortCircuit struct{ Identity connector.Identity }
+
+func (s spnegoShortCircuit) Close() error { return nil }
+
+func (s spnegoShortCircuit) Prompt() string { return "" }
+
+func (s spnegoShortCircuit) Login(ctx context.Context, sc connector.Scopes, u, p string) (connector.Identity, bool, error) {
+	return connector.Identity{}, false, nil
+}
+
+func (s spnegoShortCircuit) TrySPNEGO(ctx context.Context, sc connector.Scopes, w http.ResponseWriter, r *http.Request) (*connector.Identity, connector.Handled, error) {
+	id := s.Identity
+	return &id, true, nil
+}
+
+// spnegoError implements connector.PasswordConnector and connector.SPNEGOAware
+// to simulate SPNEGO authentication that fails with an error (e.g., LDAP lookup failed).
+type spnegoError struct{ Err error }
+
+func (s spnegoError) Close() error { return nil }
+
+func (s spnegoError) Prompt() string { return "" }
+
+func (s spnegoError) Login(ctx context.Context, sc connector.Scopes, u, p string) (connector.Identity, bool, error) {
+	return connector.Identity{}, false, nil
+}
+
+func (s spnegoError) TrySPNEGO(ctx context.Context, sc connector.Scopes, w http.ResponseWriter, r *http.Request) (*connector.Identity, connector.Handled, error) {
+	return nil, true, s.Err
+}
+
+// TestHandlePasswordLogin_SPNEGOError verifies that when SPNEGO returns an error
+// (e.g., Kerberos auth succeeded but LDAP lookup failed), the server renders
+// an error page instead of showing an empty 401 or falling back to password form.
+func TestHandlePasswordLogin_SPNEGOError(t *testing.T) {
+	ctx := t.Context()
+	connID := "mockPassword"
+	authReqID := "spnego-err"
+	expiry := time.Now().Add(100 * time.Second)
+	resTypes := []string{responseTypeCode}
+
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.SkipApprovalScreen = true
+		c.Now = time.Now
+	})
+	defer httpServer.Close()
+
+	// Create password connector
+	sc := storage.Connector{
+		ID:              connID,
+		Type:            "mockPassword",
+		Name:            "MockPassword",
+		ResourceVersion: "1",
+		Config:          []byte("{\"username\": \"foo\", \"password\": \"password\"}"),
+	}
+	require.NoError(t, s.storage.CreateConnector(ctx, sc))
+	_, err := s.OpenConnector(sc)
+	require.NoError(t, err)
+
+	// Prepare auth request
+	require.NoError(t, s.storage.CreateAuthRequest(ctx, storage.AuthRequest{
+		ID:            authReqID,
+		ClientID:      "client_1",
+		ConnectorID:   connID,
+		RedirectURI:   "cb",
+		Expiry:        expiry,
+		ResponseTypes: resTypes,
+		Scopes:        []string{"openid"},
+	}))
+
+	// Replace the server connector with a SPNEGO-aware fake that returns an error
+	s.mu.Lock()
+	orig := s.connectors[connID]
+	s.connectors[connID] = Connector{
+		ResourceVersion: orig.ResourceVersion,
+		Connector:       spnegoError{Err: errors.New("ldap: user lookup failed for kerberos principal")},
+	}
+	s.mu.Unlock()
+
+	// Need a client for the flow
+	require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+		ID:           "client_1",
+		Secret:       "secret",
+		RedirectURIs: []string{"http://127.0.0.1/callback"},
+		Name:         "test",
+	}))
+
+	// GET login should return 401 with error message rendered
+	rr := httptest.NewRecorder()
+	path := fmt.Sprintf("/auth/%s/login?state=%s&back=", connID, authReqID)
+	s.handlePasswordLogin(rr, httptest.NewRequest("GET", path, nil))
+
+	// Should return 401 (unauthorized) with an error page, not 200 (form) or empty response
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 Unauthorized, got %d", rr.Code)
+	}
+
+	// The response body should contain safe generic error message (not internal details)
+	body := rr.Body.String()
+	if !strings.Contains(body, "Authentication failed") {
+		t.Fatalf("expected error page with 'Authentication failed', got: %s", body)
+	}
+	// Should NOT contain internal error details (per 008-hide-internal-500-error-details.patch)
+	if strings.Contains(body, "ldap: user lookup failed") {
+		t.Fatalf("error page should not contain internal error details")
+	}
+}
+
 func TestHandleTokenExchange(t *testing.T) {
 	tests := []struct {
 		name               string
