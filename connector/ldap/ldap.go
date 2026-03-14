@@ -37,7 +37,9 @@ import (
 //         # Would translate to the query "(&(objectClass=person)(|(uid=<username>)(mail=<username>)))"
 //         baseDN: cn=users,dc=example,dc=com
 //         filter: "(objectClass=person)"
-//         username: uid,mail
+//         username:
+//         - uid
+//         - mail
 //         idAttr: uid
 //         emailAttr: mail
 //         nameAttr: name
@@ -57,6 +59,27 @@ import (
 //           groupAttr: member
 //         nameAttr: name
 //
+
+// UsernameAttributes represents one or more LDAP attributes to match against
+// the username input. It supports unmarshaling from both a single string
+// (e.g. "uid") and a list of strings (e.g. ["uid", "mail"]).
+type UsernameAttributes []string
+
+func (u *UsernameAttributes) UnmarshalJSON(data []byte) error {
+	var arr []string
+	if err := json.Unmarshal(data, &arr); err == nil {
+		*u = arr
+		return nil
+	}
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return fmt.Errorf("username must be a string or list of strings")
+	}
+	if s != "" {
+		*u = UsernameAttributes{s}
+	}
+	return nil
+}
 
 // UserMatcher holds information about user and group matching.
 type UserMatcher struct {
@@ -110,9 +133,10 @@ type Config struct {
 		// Optional filter to apply when searching the directory. For example "(objectClass=person)"
 		Filter string `json:"filter"`
 
-		// Attributes (comma-separated) to match (OR)against the inputted username. This will be translated and combined
-		// with the other filter as "(|(<attr1>=<username>)(<attr2>=<username>))".
-		Username string `json:"username"`
+		// Attribute(s) to match against the inputted username. Accepts a single string
+		// or a list of strings. When multiple attributes are specified, an OR filter is
+		// constructed: "(|(<attr1>=<username>)(<attr2>=<username>))".
+		Username UsernameAttributes `json:"username"`
 
 		// Can either be:
 		// * "sub" - search the whole sub tree
@@ -240,13 +264,16 @@ func (c *Config) openConnector(logger *slog.Logger) (*ldapConnector, error) {
 	}{
 		{"host", c.Host},
 		{"userSearch.baseDN", c.UserSearch.BaseDN},
-		{"userSearch.username", c.UserSearch.Username},
 	}
 
 	for _, field := range requiredFields {
 		if field.val == "" {
 			return nil, fmt.Errorf("ldap: missing required field %q", field.name)
 		}
+	}
+
+	if len(c.UserSearch.Username) == 0 {
+		return nil, fmt.Errorf("ldap: missing required field %q", "userSearch.username")
 	}
 
 	var (
@@ -296,7 +323,7 @@ func (c *Config) openConnector(logger *slog.Logger) (*ldapConnector, error) {
 
 	// TODO(nabokihms): remove it after deleting deprecated groupSearch options
 	c.GroupSearch.UserMatchers = userMatchers(c, logger)
-	return &ldapConnector{*c, userSearchScope, groupSearchScope, tlsConfig, logger}, nil
+	return &ldapConnector{*c, userSearchScope, groupSearchScope, tlsConfig, c.UserSearch.Username, logger}, nil
 }
 
 type ldapConnector struct {
@@ -306,6 +333,8 @@ type ldapConnector struct {
 	groupSearchScope int
 
 	tlsConfig *tls.Config
+
+	usernameAttrs []string
 
 	logger *slog.Logger
 }
@@ -422,15 +451,9 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 	var filter string
 	escapedUsername := ldap.EscapeFilter(username)
 
-	// Split username attribute by comma to support multiple search attributes
-	usernameAttrs := strings.Split(c.UserSearch.Username, ",")
-
-	attrFilters := make([]string, 0, len(usernameAttrs))
-	for _, attr := range usernameAttrs {
-		attr = strings.TrimSpace(attr)
-		if attr != "" {
-			attrFilters = append(attrFilters, fmt.Sprintf("(%s=%s)", attr, escapedUsername))
-		}
+	attrFilters := make([]string, 0, len(c.usernameAttrs))
+	for _, attr := range c.usernameAttrs {
+		attrFilters = append(attrFilters, fmt.Sprintf("(%s=%s)", attr, escapedUsername))
 	}
 	if len(attrFilters) == 1 {
 		filter = attrFilters[0] // Skip OR wrapper for single attribute
@@ -455,10 +478,7 @@ func (c *ldapConnector) userEntry(conn *ldap.Conn, username string) (user ldap.E
 		},
 	}
 
-	for _, attr := range usernameAttrs {
-		attr = strings.TrimSpace(attr)
-		req.Attributes = append(req.Attributes, attr)
-	}
+	req.Attributes = append(req.Attributes, c.usernameAttrs...)
 
 	for _, matcher := range c.GroupSearch.UserMatchers {
 		req.Attributes = append(req.Attributes, matcher.UserAttr)
