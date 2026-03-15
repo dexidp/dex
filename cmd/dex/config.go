@@ -571,6 +571,12 @@ type Logger struct {
 
 	// Format specifies the format to be used for logging.
 	Format string `json:"format"`
+
+	// ExcludeFields specifies log attribute keys that should be dropped from all
+	// log output. This is useful for suppressing PII fields like email, username,
+	// preferred_username, or groups in environments subject to GDPR or similar
+	// data-handling constraints.
+	ExcludeFields []string `json:"excludeFields"`
 }
 
 type RefreshToken struct {
