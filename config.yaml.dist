@@ -72,6 +72,8 @@ web:
 # logger:
 #   level: "debug"
 #   format: "text" # can also be "json"
+#   # Drop these attribute keys from all log output (useful for GDPR/PII suppression).
+#   # excludeFields: [email, username, preferred_username, groups]
 
 # gRPC API configuration
 # Uncomment this block to enable the gRPC API.

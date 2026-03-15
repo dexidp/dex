@@ -669,8 +669,9 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 	}
 
 	s.logger.InfoContext(ctx, "login successful",
-		"connector_id", authReq.ConnectorID, "username", claims.Username,
-		"preferred_username", claims.PreferredUsername, "email", email, "groups", claims.Groups)
+		"connector_id", authReq.ConnectorID, "user_id", claims.UserID,
+		"username", claims.Username, "preferred_username", claims.PreferredUsername,
+		"email", email, "groups", claims.Groups)
 
 	offlineAccessRequested := false
 	for _, scope := range authReq.Scopes {

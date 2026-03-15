@@ -109,7 +109,7 @@ func runServe(options serveOptions) error {
 
 	applyConfigOverrides(options, &c)
 
-	logger, err := newLogger(c.Logger.Level, c.Logger.Format)
+	logger, err := newLogger(c.Logger.Level, c.Logger.Format, c.Logger.ExcludeFields)
 	if err != nil {
 		return fmt.Errorf("invalid config: %v", err)
 	}
