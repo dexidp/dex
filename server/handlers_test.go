@@ -548,12 +548,12 @@ func TestFinalizeLoginCreatesUserIdentity(t *testing.T) {
 	require.Equal(t, 303, rr.Code)
 
 	ui, err := s.storage.GetUserIdentity(ctx, "0-385-28089-0", connID)
-	require.NoError(t, err)
+	require.NoError(t, err, "UserIdentity should exist after login")
 	require.Equal(t, "0-385-28089-0", ui.UserID)
 	require.Equal(t, connID, ui.ConnectorID)
 	require.Equal(t, "kilgore@kilgore.trout", ui.Claims.Email)
-	require.NotZero(t, ui.CreatedAt)
-	require.NotZero(t, ui.LastLogin)
+	require.NotZero(t, ui.CreatedAt, "CreatedAt should be set")
+	require.NotZero(t, ui.LastLogin, "LastLogin should be set")
 }
 
 func TestFinalizeLoginUpdatesUserIdentity(t *testing.T) {
@@ -612,16 +612,12 @@ func TestFinalizeLoginUpdatesUserIdentity(t *testing.T) {
 	require.Equal(t, 303, rr.Code)
 
 	ui, err := s.storage.GetUserIdentity(ctx, "0-385-28089-0", connID)
-	require.NoError(t, err)
-	// Claims should be refreshed from the connector
-	require.Equal(t, "Kilgore Trout", ui.Claims.Username)
-	require.Equal(t, "kilgore@kilgore.trout", ui.Claims.Email)
-	// LastLogin should be updated
-	require.True(t, ui.LastLogin.After(oldTime))
-	// CreatedAt should NOT change
-	require.Equal(t, oldTime, ui.CreatedAt)
-	// Existing consents should be preserved
-	require.Equal(t, []string{"openid"}, ui.Consents["existing-client"])
+	require.NoError(t, err, "UserIdentity should exist after login")
+	require.Equal(t, "Kilgore Trout", ui.Claims.Username, "claims should be refreshed from the connector")
+	require.Equal(t, "kilgore@kilgore.trout", ui.Claims.Email, "claims should be refreshed from the connector")
+	require.True(t, ui.LastLogin.After(oldTime), "LastLogin should be updated")
+	require.Equal(t, oldTime, ui.CreatedAt, "CreatedAt should not change on update")
+	require.Equal(t, []string{"openid"}, ui.Consents["existing-client"], "existing consents should be preserved")
 }
 
 func TestFinalizeLoginSkipsUserIdentityWhenDisabled(t *testing.T) {
@@ -665,7 +661,7 @@ func TestFinalizeLoginSkipsUserIdentityWhenDisabled(t *testing.T) {
 	require.Equal(t, 303, rr.Code)
 
 	_, err = s.storage.GetUserIdentity(ctx, "0-385-28089-0", connID)
-	require.ErrorIs(t, err, storage.ErrNotFound)
+	require.ErrorIs(t, err, storage.ErrNotFound, "UserIdentity should not be created when sessions disabled")
 }
 
 func TestSkipApprovalWithExistingConsent(t *testing.T) {
@@ -714,11 +710,18 @@ func TestSkipApprovalWithExistingConsent(t *testing.T) {
 			wantPath: "/approval",
 		},
 		{
-			name:     "Only technical scopes - skip with empty consent",
+			name:     "Only openid scope - skip with empty consent",
+			consents: map[string][]string{"test": {}},
+			scopes:   []string{"openid"},
+			clientID: "test",
+			wantPath: "/callback/cb",
+		},
+		{
+			name:     "offline_access requires consent",
 			consents: map[string][]string{"test": {}},
 			scopes:   []string{"openid", "offline_access"},
 			clientID: "test",
-			wantPath: "/callback/cb",
+			wantPath: "/approval",
 		},
 	}
 
@@ -819,11 +822,11 @@ func TestConsentPersistedOnApproval(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	s.ServeHTTP(rr, req)
 
-	require.Equal(t, http.StatusSeeOther, rr.Code)
+	require.Equal(t, http.StatusSeeOther, rr.Code, "approval should redirect")
 
 	ui, err := s.storage.GetUserIdentity(ctx, userID, connectorID)
-	require.NoError(t, err)
-	require.Equal(t, []string{"openid", "email", "profile"}, ui.Consents[clientID])
+	require.NoError(t, err, "UserIdentity should exist")
+	require.Equal(t, []string{"openid", "email", "profile"}, ui.Consents[clientID], "approved scopes should be persisted")
 }
 
 func TestScopesCoveredByConsent(t *testing.T) {
@@ -846,8 +849,20 @@ func TestScopesCoveredByConsent(t *testing.T) {
 			want:      false,
 		},
 		{
-			name:      "Only technical scopes",
+			name:      "Only openid scope skipped",
 			approved:  []string{},
+			requested: []string{"openid"},
+			want:      true,
+		},
+		{
+			name:      "offline_access requires consent",
+			approved:  []string{},
+			requested: []string{"openid", "offline_access"},
+			want:      false,
+		},
+		{
+			name:      "offline_access covered by consent",
+			approved:  []string{"offline_access"},
 			requested: []string{"openid", "offline_access"},
 			want:      true,
 		},

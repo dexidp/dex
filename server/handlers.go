@@ -721,10 +721,11 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 	var userIdentity *storage.UserIdentity
 	if featureflags.SessionsEnabled.Enabled() {
 		now := s.now()
-		existing, err := s.storage.GetUserIdentity(ctx, identity.UserID, authReq.ConnectorID)
+
+		ui, err := s.storage.GetUserIdentity(ctx, identity.UserID, authReq.ConnectorID)
 		switch {
-		case err == storage.ErrNotFound:
-			ui := storage.UserIdentity{
+		case err != nil && errors.Is(err, storage.ErrNotFound):
+			ui = storage.UserIdentity{
 				UserID:      identity.UserID,
 				ConnectorID: authReq.ConnectorID,
 				Claims:      claims,
@@ -734,23 +735,28 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 			}
 			if err := s.storage.CreateUserIdentity(ctx, ui); err != nil {
 				s.logger.ErrorContext(ctx, "failed to create user identity", "err", err)
-			} else {
-				userIdentity = &ui
+				return "", false, err
 			}
 		case err == nil:
-			existing.Claims = claims
-			existing.LastLogin = now
 			if err := s.storage.UpdateUserIdentity(ctx, identity.UserID, authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
-				old.Claims = claims
-				old.LastLogin = now
+				if len(identity.ConnectorData) > 0 {
+					old.Claims = claims
+					old.LastLogin = now
+					return old, nil
+				}
 				return old, nil
 			}); err != nil {
 				s.logger.ErrorContext(ctx, "failed to update user identity", "err", err)
+				return "", false, err
 			}
-			userIdentity = &existing
+			// Update the existing UserIdentity obj with new claims to use them later in the flow.
+			ui.Claims = claims
+			ui.LastLogin = now
 		default:
 			s.logger.ErrorContext(ctx, "failed to get user identity", "err", err)
+			return "", false, err
 		}
+		userIdentity = &ui
 	}
 
 	// we can skip the redirect to /approval and go ahead and send code if it's not required
@@ -829,6 +835,18 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 		if r.FormValue("approval") != "approve" {
 			s.renderError(r, w, http.StatusInternalServerError, "Approval rejected.")
 			return
+		}
+		// Persist user-approved scopes as consent for this client.
+		if featureflags.SessionsEnabled.Enabled() {
+			if err := s.storage.UpdateUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
+				if old.Consents == nil {
+					old.Consents = make(map[string][]string)
+				}
+				old.Consents[authReq.ClientID] = authReq.Scopes
+				return old, nil
+			}); err != nil {
+				s.logger.ErrorContext(ctx, "failed to update user identity consents", "err", err)
+			}
 		}
 		s.sendCodeResponse(w, r, authReq)
 	}
@@ -972,35 +990,23 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 		u.RawQuery = q.Encode()
 	}
 
-	// Persist approved scopes as user consent for this client.
-	if featureflags.SessionsEnabled.Enabled() {
-		if err := s.storage.UpdateUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
-			if old.Consents == nil {
-				old.Consents = make(map[string][]string)
-			}
-			old.Consents[authReq.ClientID] = authReq.Scopes
-			return old, nil
-		}); err != nil {
-			s.logger.ErrorContext(ctx, "failed to update user identity consents", "err", err)
-		}
-	}
-
 	http.Redirect(w, r, u.String(), http.StatusSeeOther)
 }
 
 // scopesCoveredByConsent checks whether the approved scopes cover all requested scopes.
-// Technical scopes (openid, offline_access) are excluded from the comparison.
+// The openid scope is excluded from the comparison as it is a technical scope
+// that does not require user consent.
 func scopesCoveredByConsent(approved, requested []string) bool {
-	approvedSet := make(map[string]bool, len(approved))
+	approvedSet := make(map[string]struct{}, len(approved))
 	for _, s := range approved {
-		approvedSet[s] = true
+		approvedSet[s] = struct{}{}
 	}
 
 	for _, scope := range requested {
-		if scope == scopeOpenID || scope == scopeOfflineAccess {
+		if scope == scopeOpenID {
 			continue
 		}
-		if !approvedSet[scope] {
+		if _, ok := approvedSet[scope]; !ok {
 			return false
 		}
 	}
