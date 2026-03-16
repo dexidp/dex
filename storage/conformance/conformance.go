@@ -1248,6 +1248,15 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 		t.Errorf("expected client2 user_id to be user2, got %s", got.ClientStates["client2"].UserID)
 	}
 
+	// List and verify.
+	sessions, err := s.ListAuthSessions(ctx)
+	if err != nil {
+		t.Fatalf("list auth sessions: %v", err)
+	}
+	if len(sessions) != 1 {
+		t.Fatalf("expected 1 auth session, got %d", len(sessions))
+	}
+
 	// Delete.
 	if err := s.DeleteAuthSession(ctx, session.ID); err != nil {
 		t.Fatalf("delete auth session: %v", err)

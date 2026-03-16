@@ -455,6 +455,23 @@ func (c *conn) UpdateAuthSession(ctx context.Context, sessionID string, updater 
 	})
 }
 
+func (c *conn) ListAuthSessions(ctx context.Context) (sessions []storage.AuthSession, err error) {
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
+	defer cancel()
+	res, err := c.db.Get(ctx, authSessionPrefix, clientv3.WithPrefix())
+	if err != nil {
+		return sessions, err
+	}
+	for _, v := range res.Kvs {
+		var s AuthSession
+		if err = json.Unmarshal(v.Value, &s); err != nil {
+			return sessions, err
+		}
+		sessions = append(sessions, toStorageAuthSession(s))
+	}
+	return sessions, nil
+}
+
 func (c *conn) DeleteAuthSession(ctx context.Context, sessionID string) error {
 	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
 	defer cancel()

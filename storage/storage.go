@@ -109,6 +109,7 @@ type Storage interface {
 	ListPasswords(ctx context.Context) ([]Password, error)
 	ListConnectors(ctx context.Context) ([]Connector, error)
 	ListUserIdentities(ctx context.Context) ([]UserIdentity, error)
+	ListAuthSessions(ctx context.Context) ([]AuthSession, error)
 
 	// Delete methods MUST be atomic.
 	DeleteAuthRequest(ctx context.Context, id string) error

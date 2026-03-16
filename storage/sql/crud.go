@@ -963,14 +963,13 @@ func (c *conn) UpdateAuthSession(ctx context.Context, sessionID string, updater 
 			update auth_session
 			set
 				client_states = $1,
-				created_at = $2,
-				last_activity = $3,
-				ip_address = $4,
-				user_agent = $5
-			where id = $6;
+				last_activity = $2,
+				ip_address = $3,
+				user_agent = $4
+			where id = $5;
 		`,
 			encoder(newSession.ClientStates),
-			newSession.CreatedAt, newSession.LastActivity,
+			newSession.LastActivity,
 			newSession.IPAddress, newSession.UserAgent,
 			sessionID,
 		)
@@ -1012,6 +1011,33 @@ func scanAuthSession(s scanner) (session storage.AuthSession, err error) {
 		session.ClientStates = make(map[string]*storage.ClientAuthState)
 	}
 	return session, nil
+}
+
+func (c *conn) ListAuthSessions(ctx context.Context) ([]storage.AuthSession, error) {
+	rows, err := c.Query(`
+		select
+			id, client_states,
+			created_at, last_activity,
+			ip_address, user_agent
+		from auth_session;
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query: %v", err)
+	}
+	defer rows.Close()
+
+	var sessions []storage.AuthSession
+	for rows.Next() {
+		s, err := scanAuthSession(rows)
+		if err != nil {
+			return nil, err
+		}
+		sessions = append(sessions, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("scan: %v", err)
+	}
+	return sessions, nil
 }
 
 func (c *conn) DeleteAuthSession(ctx context.Context, sessionID string) error {

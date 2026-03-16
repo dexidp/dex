@@ -248,6 +248,15 @@ func (s *memStorage) ListUserIdentities(ctx context.Context) (identities []stora
 	return
 }
 
+func (s *memStorage) ListAuthSessions(ctx context.Context) (sessions []storage.AuthSession, err error) {
+	s.tx(func() {
+		for _, session := range s.authSessions {
+			sessions = append(sessions, session)
+		}
+	})
+	return
+}
+
 func (s *memStorage) CreateAuthSession(ctx context.Context, session storage.AuthSession) (err error) {
 	s.tx(func() {
 		if _, ok := s.authSessions[session.ID]; ok {

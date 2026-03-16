@@ -41,6 +41,20 @@ func (d *Database) GetAuthSession(ctx context.Context, sessionID string) (storag
 	return toStorageAuthSession(authSession), nil
 }
 
+// ListAuthSessions extracts all auth sessions from the database.
+func (d *Database) ListAuthSessions(ctx context.Context) ([]storage.AuthSession, error) {
+	authSessions, err := d.client.AuthSession.Query().All(ctx)
+	if err != nil {
+		return nil, convertDBError("list auth sessions: %w", err)
+	}
+
+	storageAuthSessions := make([]storage.AuthSession, 0, len(authSessions))
+	for _, s := range authSessions {
+		storageAuthSessions = append(storageAuthSessions, toStorageAuthSession(s))
+	}
+	return storageAuthSessions, nil
+}
+
 // DeleteAuthSession deletes an auth session from the database by session ID.
 func (d *Database) DeleteAuthSession(ctx context.Context, sessionID string) error {
 	err := d.client.AuthSession.DeleteOneID(sessionID).Exec(ctx)
@@ -78,13 +92,12 @@ func (d *Database) UpdateAuthSession(ctx context.Context, sessionID string, upda
 
 	_, err = tx.AuthSession.UpdateOneID(sessionID).
 		SetClientStates(encodedStates).
-		SetCreatedAt(newSession.CreatedAt).
 		SetLastActivity(newSession.LastActivity).
 		SetIPAddress(newSession.IPAddress).
 		SetUserAgent(newSession.UserAgent).
 		Save(ctx)
 	if err != nil {
-		return rollback(tx, "update auth session uploading: %w", err)
+		return rollback(tx, "update auth session updating: %w", err)
 	}
 
 	if err = tx.Commit(); err != nil {

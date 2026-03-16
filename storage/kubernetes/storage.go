@@ -841,6 +841,20 @@ func (cli *client) UpdateAuthSession(ctx context.Context, sessionID string, upda
 	})
 }
 
+func (cli *client) ListAuthSessions(ctx context.Context) ([]storage.AuthSession, error) {
+	var authSessionList AuthSessionList
+	if err := cli.list(resourceAuthSession, &authSessionList); err != nil {
+		return nil, fmt.Errorf("failed to list auth sessions: %v", err)
+	}
+
+	sessions := make([]storage.AuthSession, len(authSessionList.AuthSessions))
+	for i, s := range authSessionList.AuthSessions {
+		sessions[i] = toStorageAuthSession(s)
+	}
+
+	return sessions, nil
+}
+
 func (cli *client) DeleteAuthSession(ctx context.Context, sessionID string) error {
 	return cli.delete(resourceAuthSession, sessionID)
 }
