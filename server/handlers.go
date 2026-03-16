@@ -802,10 +802,14 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 		return "", false, fmt.Errorf("failed to get MFA chain for client: %v", err)
 	}
 	if len(mfaChain) > 0 {
-		// Redirect to MFA verification for the first authenticator in the chain.
+		// Redirect to MFA verification starting with the first authenticator.
+		// Each authenticator redirects to the next one in the chain upon success.
+		// HMAC includes authenticatorID to prevent skipping steps by URL manipulation.
+		h.Reset()
+		h.Write([]byte(authReq.ID + "|" + mfaChain[0]))
 		v := url.Values{}
 		v.Set("req", authReq.ID)
-		v.Set("hmac", hmacParam)
+		v.Set("hmac", base64.RawURLEncoding.EncodeToString(h.Sum(nil)))
 		v.Set("authenticator", mfaChain[0])
 		returnURL := path.Join(s.issuerURL.Path, "/totp/verify") + "?" + v.Encode()
 		return returnURL, false, nil
@@ -863,6 +867,8 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 		s.renderError(r, w, http.StatusInternalServerError, "Login process not yet finalized.")
 		return
 	}
+
+	h := hmac.New(sha256.New, authReq.HMACKey)
 	if !authReq.MFAValidated {
 		// Check if MFA is actually required — if so, redirect to TOTP instead of blocking.
 		// This handles the case where MFA was enabled after the auth flow started.
@@ -873,12 +879,12 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(mfaChain) > 0 {
-			h := hmac.New(sha256.New, authReq.HMACKey)
-			h.Write([]byte(authReq.ID))
+			h.Write([]byte(authReq.ID + "|" + mfaChain[0]))
 			v := url.Values{}
 			v.Set("req", authReq.ID)
 			v.Set("hmac", base64.RawURLEncoding.EncodeToString(h.Sum(nil)))
 			v.Set("authenticator", mfaChain[0])
+			h.Reset()
 			totpURL := path.Join(s.issuerURL.Path, "/totp/verify") + "?" + v.Encode()
 			http.Redirect(w, r, totpURL, http.StatusSeeOther)
 			return
@@ -887,7 +893,6 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// build expected hmac with secret key
-	h := hmac.New(sha256.New, authReq.HMACKey)
 	h.Write([]byte(authReq.ID))
 	expectedMAC := h.Sum(nil)
 	// constant time comparison

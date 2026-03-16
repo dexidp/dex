@@ -8,7 +8,8 @@
     <img src="data:image/png;base64,{{ .QRCode }}" alt="QR code" width="200" height="200"/>
   </div>
   {{ else }}
-  <p>Enter the code from your authenticator app for <b>{{ .Issuer }}</b>.</p>
+  <p>Enter the code from your authenticator app.</p>
+  <p class="theme-heading">{{ .Issuer }}</p>
   {{ end }}
   <form method="post" action="{{ .PostURL }}">
     <div class="theme-form-row">

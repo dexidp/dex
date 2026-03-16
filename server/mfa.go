@@ -9,7 +9,8 @@ import (
 	"fmt"
 	"image/png"
 	"net/http"
-	"strings"
+	"net/url"
+	"path"
 
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
@@ -84,15 +85,15 @@ func (s *Server) handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify HMAC
+	authenticatorID := r.FormValue("authenticator")
+
+	// Verify HMAC — includes authenticatorID to prevent skipping steps in the MFA chain.
 	h := hmac.New(sha256.New, authReq.HMACKey)
-	h.Write([]byte(authReq.ID))
+	h.Write([]byte(authReq.ID + "|" + authenticatorID))
 	if !hmac.Equal(mac, h.Sum(nil)) {
 		s.renderError(r, w, http.StatusUnauthorized, "Unauthorized request.")
 		return
 	}
-
-	authenticatorID := r.FormValue("authenticator")
 	provider, ok := s.mfaProviders[authenticatorID]
 	if !ok {
 		s.renderError(r, w, http.StatusBadRequest, "Unknown authenticator.")
@@ -112,7 +113,12 @@ func (s *Server) handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	returnURL := strings.Replace(r.URL.String(), "/totp/verify", "/approval", 1)
+	// Build approval URL with an HMAC that covers only the request ID
+	// (MFA HMAC includes authenticatorID and is not valid for approval).
+	approvalH := hmac.New(sha256.New, authReq.HMACKey)
+	approvalH.Write([]byte(authReq.ID))
+	returnURL := path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID +
+		"&hmac=" + base64.RawURLEncoding.EncodeToString(approvalH.Sum(nil))
 
 	if authReq.MFAValidated {
 		http.Redirect(w, r, returnURL, http.StatusSeeOther)
@@ -125,6 +131,8 @@ func (s *Server) handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		if secret == nil {
 			// First-time enrollment: generate a new TOTP key.
+			// TODO(nabokihms): clean up stale unconfirmed secrets. If a user starts
+			// enrollment multiple times without completing it, old secrets accumulate.
 			generated, err := totpProvider.generate(authReq.ConnectorID, authReq.Claims.Email)
 			if err != nil {
 				s.logger.ErrorContext(ctx, "failed to generate TOTP key", "err", err)
@@ -156,6 +164,12 @@ func (s *Server) handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 		s.renderTOTPPage(secret, false, totpProvider.issuer, authReq.ConnectorID, w, r)
 
 	case http.MethodPost:
+		// TODO(nabokihms): this endpoint should be proteted with a rate limit (like the auth endpoint).
+		// TOTP has a limited keyspace (6 digits) with a 30-second validity window,
+		// making it particularly vulnerable to brute-force without rate limiting.
+		// This endpoint should be protected similarly to the auth/login endpoints.
+		//
+		// For now the best way is to use external rate limitting solutions.
 		if secret == nil || secret.Secret == "" {
 			s.renderError(r, w, http.StatusBadRequest, "MFA not enrolled.")
 			return
@@ -188,7 +202,37 @@ func (s *Server) handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// Mark auth request as MFA-validated.
+		// Check if there are more authenticators in the MFA chain.
+		mfaChain, err := s.mfaChainForClient(ctx, authReq.ClientID, authReq.ConnectorID)
+		if err != nil {
+			s.logger.ErrorContext(ctx, "failed to get MFA chain", "err", err)
+			s.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
+			return
+		}
+
+		// Find the next authenticator in the chain after the current one.
+		var nextAuthenticator string
+		for i, id := range mfaChain {
+			if id == authenticatorID && i+1 < len(mfaChain) {
+				nextAuthenticator = mfaChain[i+1]
+				break
+			}
+		}
+
+		if nextAuthenticator != "" {
+			// Redirect to the next authenticator in the chain.
+			h := hmac.New(sha256.New, authReq.HMACKey)
+			h.Write([]byte(authReq.ID + "|" + nextAuthenticator))
+			v := url.Values{}
+			v.Set("req", authReq.ID)
+			v.Set("hmac", base64.RawURLEncoding.EncodeToString(h.Sum(nil)))
+			v.Set("authenticator", nextAuthenticator)
+			nextURL := path.Join(s.issuerURL.Path, "/totp/verify") + "?" + v.Encode()
+			http.Redirect(w, r, nextURL, http.StatusSeeOther)
+			return
+		}
+
+		// All authenticators in the chain completed — mark as validated.
 		if err := s.storage.UpdateAuthRequest(ctx, authReq.ID, func(old storage.AuthRequest) (storage.AuthRequest, error) {
 			old.MFAValidated = true
 			return old, nil
@@ -208,6 +252,21 @@ func (s *Server) handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 			}
 			s.sendCodeResponse(w, r, authReq)
 			return
+		}
+
+		// Skip approval if user already consented to the requested scopes.
+		if !authReq.ForceApprovalPrompt {
+			ui, err := s.storage.GetUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID)
+			if err == nil && scopesCoveredByConsent(ui.Consents[authReq.ClientID], authReq.Scopes) {
+				authReq, err = s.storage.GetAuthRequest(ctx, authReq.ID)
+				if err != nil {
+					s.logger.ErrorContext(ctx, "failed to get auth request", "err", err)
+					s.renderError(r, w, http.StatusInternalServerError, "Login error.")
+					return
+				}
+				s.sendCodeResponse(w, r, authReq)
+				return
+			}
 		}
 
 		http.Redirect(w, r, returnURL, http.StatusSeeOther)
@@ -273,7 +332,7 @@ func (s *Server) mfaChainForClient(ctx context.Context, clientID, connectorID st
 	}
 
 	// Resolve connector type from connector ID.
-	connectorType := s.getConnectorType(connectorID)
+	connectorType := s.getConnectorType(ctx, connectorID)
 
 	var chain []string
 	for _, authID := range source {
@@ -286,8 +345,8 @@ func (s *Server) mfaChainForClient(ctx context.Context, clientID, connectorID st
 }
 
 // getConnectorType returns the type of the connector with the given ID.
-func (s *Server) getConnectorType(connectorID string) string {
-	conn, err := s.storage.GetConnector(context.Background(), connectorID)
+func (s *Server) getConnectorType(ctx context.Context, connectorID string) string {
+	conn, err := s.storage.GetConnector(ctx, connectorID)
 	if err != nil {
 		return ""
 	}

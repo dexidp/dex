@@ -140,12 +140,12 @@ telemetry:
 
 # Multi-factor authentication configuration.
 # Requires DEX_SESSIONS_ENABLED=true feature flag.
-# mfa:
-#   authenticators:
-#   - id: totp-1
-#     type: TOTP
-#     config:
-#       issuer: "dex"
+mfa:
+   authenticators:
+   - id: totp-1
+     type: TOTP
+     config:
+       issuer: "dex-1"
 #     # Optional: limit this authenticator to specific connector types (e.g., ldap, oidc, saml).
 #     # If omitted or empty, applies to all connector types.
 #     # It is recommended to use this option to prevent MFA from being used for connectors
