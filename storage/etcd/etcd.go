@@ -674,7 +674,7 @@ func keyUserIdentity(userID, connectorID string) string {
 }
 
 func keyAuthSession(sessionID string) string {
-	return authSessionPrefix + sessionID
+	return strings.ToLower(authSessionPrefix + sessionID)
 }
 
 func (c *conn) CreateDeviceRequest(ctx context.Context, d storage.DeviceRequest) error {
