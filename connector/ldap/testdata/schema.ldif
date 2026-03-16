@@ -512,11 +512,15 @@ dn: ou=TestUsernameWithMultipleAttributes,dc=example,dc=org
 objectClass: organizationalUnit
 ou: TestUsernameWithMultipleAttributes
 
-dn: ou=People,ou=TestUsernameWithMultipleAttributes,dc=example,dc=org
+dn: ou=Seattle,ou=TestUsernameWithMultipleAttributes,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Seattle
+
+dn: ou=People,ou=Seattle,ou=TestUsernameWithMultipleAttributes,dc=example,dc=org
 objectClass: organizationalUnit
 ou: People
 
-dn: cn=jane,ou=People,ou=TestUsernameWithMultipleAttributes,dc=example,dc=org
+dn: cn=jane,ou=People,ou=Seattle,ou=TestUsernameWithMultipleAttributes,dc=example,dc=org
 objectClass: person
 objectClass: inetOrgPerson
 sn: doe
