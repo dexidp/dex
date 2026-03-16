@@ -23,6 +23,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
@@ -717,9 +718,58 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 		}
 	}
 
+	// Create or update UserIdentity to persist user claims across sessions.
+	var userIdentity *storage.UserIdentity
+	if featureflags.SessionsEnabled.Enabled() {
+		now := s.now()
+
+		ui, err := s.storage.GetUserIdentity(ctx, identity.UserID, authReq.ConnectorID)
+		switch {
+		case err != nil && errors.Is(err, storage.ErrNotFound):
+			ui = storage.UserIdentity{
+				UserID:      identity.UserID,
+				ConnectorID: authReq.ConnectorID,
+				Claims:      claims,
+				Consents:    make(map[string][]string),
+				CreatedAt:   now,
+				LastLogin:   now,
+			}
+			if err := s.storage.CreateUserIdentity(ctx, ui); err != nil {
+				s.logger.ErrorContext(ctx, "failed to create user identity", "err", err)
+				return "", false, err
+			}
+		case err == nil:
+			if err := s.storage.UpdateUserIdentity(ctx, identity.UserID, authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
+				if len(identity.ConnectorData) > 0 {
+					old.Claims = claims
+					old.LastLogin = now
+					return old, nil
+				}
+				return old, nil
+			}); err != nil {
+				s.logger.ErrorContext(ctx, "failed to update user identity", "err", err)
+				return "", false, err
+			}
+			// Update the existing UserIdentity obj with new claims to use them later in the flow.
+			ui.Claims = claims
+			ui.LastLogin = now
+		default:
+			s.logger.ErrorContext(ctx, "failed to get user identity", "err", err)
+			return "", false, err
+		}
+		userIdentity = &ui
+	}
+
 	// we can skip the redirect to /approval and go ahead and send code if it's not required
 	if s.skipApproval && !authReq.ForceApprovalPrompt {
 		return "", true, nil
+	}
+
+	// Skip approval if user already consented to the requested scopes for this client.
+	if !authReq.ForceApprovalPrompt && userIdentity != nil {
+		if scopesCoveredByConsent(userIdentity.Consents[authReq.ClientID], authReq.Scopes) {
+			return "", true, nil
+		}
 	}
 
 	// an HMAC is used here to ensure that the request ID is unpredictable, ensuring that an attacker who intercepted the original
@@ -786,6 +836,18 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 		if r.FormValue("approval") != "approve" {
 			s.renderError(r, w, http.StatusInternalServerError, "Approval rejected.")
 			return
+		}
+		// Persist user-approved scopes as consent for this client.
+		if featureflags.SessionsEnabled.Enabled() {
+			if err := s.storage.UpdateUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
+				if old.Consents == nil {
+					old.Consents = make(map[string][]string)
+				}
+				old.Consents[authReq.ClientID] = authReq.Scopes
+				return old, nil
+			}); err != nil {
+				s.logger.ErrorContext(ctx, "failed to update user identity consents", "err", err)
+			}
 		}
 		s.sendCodeResponse(w, r, authReq)
 	}
@@ -930,6 +992,27 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 	}
 
 	http.Redirect(w, r, u.String(), http.StatusSeeOther)
+}
+
+// scopesCoveredByConsent checks whether the approved scopes cover all requested scopes.
+// The openid scope is excluded from the comparison as it is a technical scope
+// that does not require user consent.
+func scopesCoveredByConsent(approved, requested []string) bool {
+	approvedSet := make(map[string]struct{}, len(approved))
+	for _, s := range approved {
+		approvedSet[s] = struct{}{}
+	}
+
+	for _, scope := range requested {
+		if scope == scopeOpenID {
+			continue
+		}
+		if _, ok := approvedSet[scope]; !ok {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (s *Server) withClientFromStorage(w http.ResponseWriter, r *http.Request, handler func(http.ResponseWriter, *http.Request, storage.Client)) {

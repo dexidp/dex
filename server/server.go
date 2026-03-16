@@ -45,6 +45,7 @@ import (
 	"github.com/dexidp/dex/connector/oidc"
 	"github.com/dexidp/dex/connector/openshift"
 	"github.com/dexidp/dex/connector/saml"
+	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/web"
@@ -375,6 +376,10 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 
 	if c.ContinueOnConnectorFailure && failedCount == len(storageConnectors) {
 		return nil, fmt.Errorf("server: failed to open all connectors (%d/%d)", failedCount, len(storageConnectors))
+	}
+
+	if featureflags.SessionsEnabled.Enabled() {
+		s.logger.InfoContext(ctx, "sessions feature flag is enabled")
 	}
 
 	instrumentHandler := func(_ string, handler http.Handler) http.HandlerFunc {
