@@ -103,9 +103,10 @@ func TestSessionCookieValueRoundtrip(t *testing.T) {
 }
 
 func TestParseSessionCookie_Invalid(t *testing.T) {
+	//nolint:dogsled // only for tests
 	_, _, _, err := parseSessionCookie("invalid")
 	assert.Error(t, err)
-
+	//nolint:dogsled // only for tests
 	_, _, _, err = parseSessionCookie("a.b")
 	assert.Error(t, err)
 }

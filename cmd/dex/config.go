@@ -68,7 +68,7 @@ type Config struct {
 
 	// Sessions holds authentication session configuration.
 	// Requires DEX_SESSIONS_ENABLED=true feature flag.
-	Sessions Sessions `json:"sessions"`
+	Sessions *Sessions `json:"sessions"`
 }
 
 // Validate the configuration
@@ -108,7 +108,7 @@ func (c Config) Validate() error {
 		return fmt.Errorf("invalid Config:\n\t-\t%s", strings.Join(checkErrors, "\n\t-\t"))
 	}
 
-	if c.Sessions.isSet() && !featureflags.SessionsEnabled.Enabled() {
+	if c.Sessions != nil && !featureflags.SessionsEnabled.Enabled() {
 		return fmt.Errorf("sessions config requires sessions to be enabled (DEX_SESSIONS_ENABLED=true)")
 	}
 
@@ -604,9 +604,5 @@ type Sessions struct {
 	// ValidIfNotUsedFor is the idle timeout. Defaults to "1h".
 	ValidIfNotUsedFor string `json:"validIfNotUsedFor"`
 	// RememberMeCheckedByDefault controls the default state of the "remember me" checkbox.
-	RememberMeCheckedByDefault bool `json:"rememberMeCheckedByDefault"`
-}
-
-func (s Sessions) isSet() bool {
-	return s.CookieName != "" || s.AbsoluteLifetime != "" || s.ValidIfNotUsedFor != "" || s.RememberMeCheckedByDefault
+	RememberMeCheckedByDefault *bool `json:"rememberMeCheckedByDefault"`
 }

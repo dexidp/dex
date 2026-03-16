@@ -773,29 +773,34 @@ func recordBuildInfo() {
 	buildInfo.WithLabelValues(version, runtime.Version(), fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)).Set(1)
 }
 
-func parseSessionConfig(c Sessions) (*server.SessionConfig, error) {
+func parseSessionConfig(s *Sessions) (*server.SessionConfig, error) {
 	sc := &server.SessionConfig{
-		CookieName:                 c.CookieName,
+		CookieName:                 "dex_session",
 		AbsoluteLifetime:           24 * time.Hour,
 		ValidIfNotUsedFor:          1 * time.Hour,
-		RememberMeCheckedByDefault: c.RememberMeCheckedByDefault,
+		RememberMeCheckedByDefault: true,
 	}
-	if sc.CookieName == "" {
-		sc.CookieName = "dex_session"
-	}
-	if c.AbsoluteLifetime != "" {
-		d, err := time.ParseDuration(c.AbsoluteLifetime)
-		if err != nil {
-			return nil, fmt.Errorf("invalid absoluteLifetime %q: %v", c.AbsoluteLifetime, err)
+	if s != nil {
+		if s.CookieName != "" {
+			sc.CookieName = s.CookieName
 		}
-		sc.AbsoluteLifetime = d
-	}
-	if c.ValidIfNotUsedFor != "" {
-		d, err := time.ParseDuration(c.ValidIfNotUsedFor)
-		if err != nil {
-			return nil, fmt.Errorf("invalid validIfNotUsedFor %q: %v", c.ValidIfNotUsedFor, err)
+		if s.AbsoluteLifetime != "" {
+			d, err := time.ParseDuration(s.AbsoluteLifetime)
+			if err != nil {
+				return nil, fmt.Errorf("invalid absoluteLifetime %q: %v", s.AbsoluteLifetime, err)
+			}
+			sc.AbsoluteLifetime = d
 		}
-		sc.ValidIfNotUsedFor = d
+		if s.ValidIfNotUsedFor != "" {
+			d, err := time.ParseDuration(s.ValidIfNotUsedFor)
+			if err != nil {
+				return nil, fmt.Errorf("invalid validIfNotUsedFor %q: %v", s.ValidIfNotUsedFor, err)
+			}
+			sc.ValidIfNotUsedFor = d
+		}
+		if s.RememberMeCheckedByDefault != nil {
+			sc.RememberMeCheckedByDefault = *s.RememberMeCheckedByDefault
+		}
 	}
 	return sc, nil
 }

@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/http"
 	"path"
@@ -24,6 +25,7 @@ func (s *Server) rememberMeDefault() *bool {
 
 // sessionCookieValue encodes session identity into a cookie value.
 // Format: base64url(userID) + "." + base64url(connectorID) + "." + nonce
+// TODO(nabokihms): consider cookie encoding
 func sessionCookieValue(userID, connectorID, nonce string) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(userID)) +
 		"." + base64.RawURLEncoding.EncodeToString([]byte(connectorID)) +
@@ -98,7 +100,7 @@ func (s *Server) getValidAuthSession(ctx context.Context, r *http.Request) *stor
 
 	session, err := s.storage.GetAuthSession(ctx, userID, connectorID)
 	if err != nil {
-		if err != storage.ErrNotFound {
+		if errors.Is(err, storage.ErrNotFound) {
 			s.logger.ErrorContext(ctx, "failed to get auth session", "err", err)
 		}
 		return nil
