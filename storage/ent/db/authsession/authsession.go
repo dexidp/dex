@@ -11,6 +11,12 @@ const (
 	Label = "auth_session"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
+	// FieldUserID holds the string denoting the user_id field in the database.
+	FieldUserID = "user_id"
+	// FieldConnectorID holds the string denoting the connector_id field in the database.
+	FieldConnectorID = "connector_id"
+	// FieldNonce holds the string denoting the nonce field in the database.
+	FieldNonce = "nonce"
 	// FieldClientStates holds the string denoting the client_states field in the database.
 	FieldClientStates = "client_states"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
@@ -28,6 +34,9 @@ const (
 // Columns holds all SQL columns for authsession fields.
 var Columns = []string{
 	FieldID,
+	FieldUserID,
+	FieldConnectorID,
+	FieldNonce,
 	FieldClientStates,
 	FieldCreatedAt,
 	FieldLastActivity,
@@ -46,6 +55,12 @@ func ValidColumn(column string) bool {
 }
 
 var (
+	// UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
+	UserIDValidator func(string) error
+	// ConnectorIDValidator is a validator for the "connector_id" field. It is called by the builders before save.
+	ConnectorIDValidator func(string) error
+	// NonceValidator is a validator for the "nonce" field. It is called by the builders before save.
+	NonceValidator func(string) error
 	// DefaultIPAddress holds the default value on creation for the "ip_address" field.
 	DefaultIPAddress string
 	// DefaultUserAgent holds the default value on creation for the "user_agent" field.
@@ -60,6 +75,21 @@ type OrderOption func(*sql.Selector)
 // ByID orders the results by the id field.
 func ByID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldID, opts...).ToFunc()
+}
+
+// ByUserID orders the results by the user_id field.
+func ByUserID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUserID, opts...).ToFunc()
+}
+
+// ByConnectorID orders the results by the connector_id field.
+func ByConnectorID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldConnectorID, opts...).ToFunc()
+}
+
+// ByNonce orders the results by the nonce field.
+func ByNonce(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldNonce, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

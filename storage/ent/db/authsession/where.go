@@ -64,6 +64,21 @@ func IDContainsFold(id string) predicate.AuthSession {
 	return predicate.AuthSession(sql.FieldContainsFold(FieldID, id))
 }
 
+// UserID applies equality check predicate on the "user_id" field. It's identical to UserIDEQ.
+func UserID(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldEQ(FieldUserID, v))
+}
+
+// ConnectorID applies equality check predicate on the "connector_id" field. It's identical to ConnectorIDEQ.
+func ConnectorID(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldEQ(FieldConnectorID, v))
+}
+
+// Nonce applies equality check predicate on the "nonce" field. It's identical to NonceEQ.
+func Nonce(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldEQ(FieldNonce, v))
+}
+
 // ClientStates applies equality check predicate on the "client_states" field. It's identical to ClientStatesEQ.
 func ClientStates(v []byte) predicate.AuthSession {
 	return predicate.AuthSession(sql.FieldEQ(FieldClientStates, v))
@@ -87,6 +102,201 @@ func IPAddress(v string) predicate.AuthSession {
 // UserAgent applies equality check predicate on the "user_agent" field. It's identical to UserAgentEQ.
 func UserAgent(v string) predicate.AuthSession {
 	return predicate.AuthSession(sql.FieldEQ(FieldUserAgent, v))
+}
+
+// UserIDEQ applies the EQ predicate on the "user_id" field.
+func UserIDEQ(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldEQ(FieldUserID, v))
+}
+
+// UserIDNEQ applies the NEQ predicate on the "user_id" field.
+func UserIDNEQ(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldNEQ(FieldUserID, v))
+}
+
+// UserIDIn applies the In predicate on the "user_id" field.
+func UserIDIn(vs ...string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldIn(FieldUserID, vs...))
+}
+
+// UserIDNotIn applies the NotIn predicate on the "user_id" field.
+func UserIDNotIn(vs ...string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldNotIn(FieldUserID, vs...))
+}
+
+// UserIDGT applies the GT predicate on the "user_id" field.
+func UserIDGT(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldGT(FieldUserID, v))
+}
+
+// UserIDGTE applies the GTE predicate on the "user_id" field.
+func UserIDGTE(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldGTE(FieldUserID, v))
+}
+
+// UserIDLT applies the LT predicate on the "user_id" field.
+func UserIDLT(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldLT(FieldUserID, v))
+}
+
+// UserIDLTE applies the LTE predicate on the "user_id" field.
+func UserIDLTE(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldLTE(FieldUserID, v))
+}
+
+// UserIDContains applies the Contains predicate on the "user_id" field.
+func UserIDContains(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldContains(FieldUserID, v))
+}
+
+// UserIDHasPrefix applies the HasPrefix predicate on the "user_id" field.
+func UserIDHasPrefix(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldHasPrefix(FieldUserID, v))
+}
+
+// UserIDHasSuffix applies the HasSuffix predicate on the "user_id" field.
+func UserIDHasSuffix(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldHasSuffix(FieldUserID, v))
+}
+
+// UserIDEqualFold applies the EqualFold predicate on the "user_id" field.
+func UserIDEqualFold(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldEqualFold(FieldUserID, v))
+}
+
+// UserIDContainsFold applies the ContainsFold predicate on the "user_id" field.
+func UserIDContainsFold(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldContainsFold(FieldUserID, v))
+}
+
+// ConnectorIDEQ applies the EQ predicate on the "connector_id" field.
+func ConnectorIDEQ(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldEQ(FieldConnectorID, v))
+}
+
+// ConnectorIDNEQ applies the NEQ predicate on the "connector_id" field.
+func ConnectorIDNEQ(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldNEQ(FieldConnectorID, v))
+}
+
+// ConnectorIDIn applies the In predicate on the "connector_id" field.
+func ConnectorIDIn(vs ...string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldIn(FieldConnectorID, vs...))
+}
+
+// ConnectorIDNotIn applies the NotIn predicate on the "connector_id" field.
+func ConnectorIDNotIn(vs ...string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldNotIn(FieldConnectorID, vs...))
+}
+
+// ConnectorIDGT applies the GT predicate on the "connector_id" field.
+func ConnectorIDGT(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldGT(FieldConnectorID, v))
+}
+
+// ConnectorIDGTE applies the GTE predicate on the "connector_id" field.
+func ConnectorIDGTE(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldGTE(FieldConnectorID, v))
+}
+
+// ConnectorIDLT applies the LT predicate on the "connector_id" field.
+func ConnectorIDLT(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldLT(FieldConnectorID, v))
+}
+
+// ConnectorIDLTE applies the LTE predicate on the "connector_id" field.
+func ConnectorIDLTE(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldLTE(FieldConnectorID, v))
+}
+
+// ConnectorIDContains applies the Contains predicate on the "connector_id" field.
+func ConnectorIDContains(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldContains(FieldConnectorID, v))
+}
+
+// ConnectorIDHasPrefix applies the HasPrefix predicate on the "connector_id" field.
+func ConnectorIDHasPrefix(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldHasPrefix(FieldConnectorID, v))
+}
+
+// ConnectorIDHasSuffix applies the HasSuffix predicate on the "connector_id" field.
+func ConnectorIDHasSuffix(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldHasSuffix(FieldConnectorID, v))
+}
+
+// ConnectorIDEqualFold applies the EqualFold predicate on the "connector_id" field.
+func ConnectorIDEqualFold(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldEqualFold(FieldConnectorID, v))
+}
+
+// ConnectorIDContainsFold applies the ContainsFold predicate on the "connector_id" field.
+func ConnectorIDContainsFold(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldContainsFold(FieldConnectorID, v))
+}
+
+// NonceEQ applies the EQ predicate on the "nonce" field.
+func NonceEQ(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldEQ(FieldNonce, v))
+}
+
+// NonceNEQ applies the NEQ predicate on the "nonce" field.
+func NonceNEQ(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldNEQ(FieldNonce, v))
+}
+
+// NonceIn applies the In predicate on the "nonce" field.
+func NonceIn(vs ...string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldIn(FieldNonce, vs...))
+}
+
+// NonceNotIn applies the NotIn predicate on the "nonce" field.
+func NonceNotIn(vs ...string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldNotIn(FieldNonce, vs...))
+}
+
+// NonceGT applies the GT predicate on the "nonce" field.
+func NonceGT(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldGT(FieldNonce, v))
+}
+
+// NonceGTE applies the GTE predicate on the "nonce" field.
+func NonceGTE(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldGTE(FieldNonce, v))
+}
+
+// NonceLT applies the LT predicate on the "nonce" field.
+func NonceLT(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldLT(FieldNonce, v))
+}
+
+// NonceLTE applies the LTE predicate on the "nonce" field.
+func NonceLTE(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldLTE(FieldNonce, v))
+}
+
+// NonceContains applies the Contains predicate on the "nonce" field.
+func NonceContains(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldContains(FieldNonce, v))
+}
+
+// NonceHasPrefix applies the HasPrefix predicate on the "nonce" field.
+func NonceHasPrefix(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldHasPrefix(FieldNonce, v))
+}
+
+// NonceHasSuffix applies the HasSuffix predicate on the "nonce" field.
+func NonceHasSuffix(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldHasSuffix(FieldNonce, v))
+}
+
+// NonceEqualFold applies the EqualFold predicate on the "nonce" field.
+func NonceEqualFold(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldEqualFold(FieldNonce, v))
+}
+
+// NonceContainsFold applies the ContainsFold predicate on the "nonce" field.
+func NonceContainsFold(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldContainsFold(FieldNonce, v))
 }
 
 // ClientStatesEQ applies the EQ predicate on the "client_states" field.

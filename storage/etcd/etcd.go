@@ -424,23 +424,23 @@ func (c *conn) ListUserIdentities(ctx context.Context) (identities []storage.Use
 }
 
 func (c *conn) CreateAuthSession(ctx context.Context, s storage.AuthSession) error {
-	return c.txnCreate(ctx, keyAuthSession(s.ID), fromStorageAuthSession(s))
+	return c.txnCreate(ctx, keyAuthSession(s.UserID, s.ConnectorID), fromStorageAuthSession(s))
 }
 
-func (c *conn) GetAuthSession(ctx context.Context, sessionID string) (storage.AuthSession, error) {
+func (c *conn) GetAuthSession(ctx context.Context, userID, connectorID string) (storage.AuthSession, error) {
 	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
 	defer cancel()
 	var s AuthSession
-	if err := c.getKey(ctx, keyAuthSession(sessionID), &s); err != nil {
+	if err := c.getKey(ctx, keyAuthSession(userID, connectorID), &s); err != nil {
 		return storage.AuthSession{}, err
 	}
 	return toStorageAuthSession(s), nil
 }
 
-func (c *conn) UpdateAuthSession(ctx context.Context, sessionID string, updater func(s storage.AuthSession) (storage.AuthSession, error)) error {
+func (c *conn) UpdateAuthSession(ctx context.Context, userID, connectorID string, updater func(s storage.AuthSession) (storage.AuthSession, error)) error {
 	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
 	defer cancel()
-	return c.txnUpdate(ctx, keyAuthSession(sessionID), func(currentValue []byte) ([]byte, error) {
+	return c.txnUpdate(ctx, keyAuthSession(userID, connectorID), func(currentValue []byte) ([]byte, error) {
 		var current AuthSession
 		if len(currentValue) > 0 {
 			if err := json.Unmarshal(currentValue, &current); err != nil {
@@ -472,10 +472,10 @@ func (c *conn) ListAuthSessions(ctx context.Context) (sessions []storage.AuthSes
 	return sessions, nil
 }
 
-func (c *conn) DeleteAuthSession(ctx context.Context, sessionID string) error {
+func (c *conn) DeleteAuthSession(ctx context.Context, userID, connectorID string) error {
 	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
 	defer cancel()
-	return c.deleteKey(ctx, keyAuthSession(sessionID))
+	return c.deleteKey(ctx, keyAuthSession(userID, connectorID))
 }
 
 func (c *conn) CreateConnector(ctx context.Context, connector storage.Connector) error {
@@ -673,8 +673,8 @@ func keyUserIdentity(userID, connectorID string) string {
 	return userIdentityPrefix + strings.ToLower(userID+"|"+connectorID)
 }
 
-func keyAuthSession(sessionID string) string {
-	return strings.ToLower(authSessionPrefix + sessionID)
+func keyAuthSession(userID, connectorID string) string {
+	return authSessionPrefix + strings.ToLower(userID+"|"+connectorID)
 }
 
 func (c *conn) CreateDeviceRequest(ctx context.Context, d storage.DeviceRequest) error {

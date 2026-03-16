@@ -198,7 +198,9 @@ func toStorageUserIdentity(u *db.UserIdentity) storage.UserIdentity {
 
 func toStorageAuthSession(s *db.AuthSession) storage.AuthSession {
 	result := storage.AuthSession{
-		ID:           s.ID,
+		UserID:       s.UserID,
+		ConnectorID:  s.ConnectorID,
+		Nonce:        s.Nonce,
 		CreatedAt:    s.CreatedAt,
 		LastActivity: s.LastActivity,
 		IPAddress:    s.IPAddress,

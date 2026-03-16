@@ -99,7 +99,7 @@ type Storage interface {
 	GetPassword(ctx context.Context, email string) (Password, error)
 	GetOfflineSessions(ctx context.Context, userID string, connID string) (OfflineSessions, error)
 	GetUserIdentity(ctx context.Context, userID, connectorID string) (UserIdentity, error)
-	GetAuthSession(ctx context.Context, sessionID string) (AuthSession, error)
+	GetAuthSession(ctx context.Context, userID, connectorID string) (AuthSession, error)
 	GetConnector(ctx context.Context, id string) (Connector, error)
 	GetDeviceRequest(ctx context.Context, userCode string) (DeviceRequest, error)
 	GetDeviceToken(ctx context.Context, deviceCode string) (DeviceToken, error)
@@ -119,7 +119,7 @@ type Storage interface {
 	DeletePassword(ctx context.Context, email string) error
 	DeleteOfflineSessions(ctx context.Context, userID string, connID string) error
 	DeleteUserIdentity(ctx context.Context, userID, connectorID string) error
-	DeleteAuthSession(ctx context.Context, sessionID string) error
+	DeleteAuthSession(ctx context.Context, userID, connectorID string) error
 	DeleteConnector(ctx context.Context, id string) error
 
 	// Update methods take a function for updating an object then performs that update within
@@ -143,7 +143,7 @@ type Storage interface {
 	UpdatePassword(ctx context.Context, email string, updater func(p Password) (Password, error)) error
 	UpdateOfflineSessions(ctx context.Context, userID string, connID string, updater func(s OfflineSessions) (OfflineSessions, error)) error
 	UpdateUserIdentity(ctx context.Context, userID, connectorID string, updater func(u UserIdentity) (UserIdentity, error)) error
-	UpdateAuthSession(ctx context.Context, sessionID string, updater func(s AuthSession) (AuthSession, error)) error
+	UpdateAuthSession(ctx context.Context, userID, connectorID string, updater func(s AuthSession) (AuthSession, error)) error
 	UpdateConnector(ctx context.Context, id string, updater func(c Connector) (Connector, error)) error
 	UpdateDeviceToken(ctx context.Context, deviceCode string, updater func(t DeviceToken) (DeviceToken, error)) error
 
@@ -342,18 +342,25 @@ type UserIdentity struct {
 }
 
 // ClientAuthState represents the authentication state for a specific client within a session.
+// ClientAuthState represents authentication state for a specific client within an auth session.
 type ClientAuthState struct {
-	UserID            string
-	ConnectorID       string
 	Active            bool
 	ExpiresAt         time.Time
 	LastActivity      time.Time
 	LastTokenIssuedAt time.Time
 }
 
-// AuthSession represents a browser-bound authentication session.
+// AuthSession represents a user's authentication session from a specific connector.
+// Keyed by composite (UserID, ConnectorID), similar to OfflineSessions.
+// The Nonce field is a random value included in the session cookie to prevent forgery.
+//
+// TODO(nabokihms): support multiple sessions in one browser by storing multiple
+// session references in the cookie (e.g. "ref1|ref2") so that different users
+// can maintain independent sessions in the same browser.
 type AuthSession struct {
-	ID           string
+	UserID       string
+	ConnectorID  string
+	Nonce        string                      // random, included in cookie for verification
 	ClientStates map[string]*ClientAuthState // clientID -> auth state
 	CreatedAt    time.Time
 	LastActivity time.Time

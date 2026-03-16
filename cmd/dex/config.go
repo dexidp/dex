@@ -65,6 +65,10 @@ type Config struct {
 	// querying the storage. Cannot be specified without enabling a passwords
 	// database.
 	StaticPasswords []password `json:"staticPasswords"`
+
+	// Sessions holds authentication session configuration.
+	// Requires DEX_SESSIONS_ENABLED=true feature flag.
+	Sessions Sessions `json:"sessions"`
 }
 
 // Validate the configuration
@@ -103,6 +107,11 @@ func (c Config) Validate() error {
 	if len(checkErrors) != 0 {
 		return fmt.Errorf("invalid Config:\n\t-\t%s", strings.Join(checkErrors, "\n\t-\t"))
 	}
+
+	if c.Sessions.isSet() && !featureflags.SessionsEnabled.Enabled() {
+		return fmt.Errorf("sessions config requires sessions to be enabled (DEX_SESSIONS_ENABLED=true)")
+	}
+
 	return nil
 }
 
@@ -584,4 +593,20 @@ type RefreshToken struct {
 	ReuseInterval     string `json:"reuseInterval"`
 	AbsoluteLifetime  string `json:"absoluteLifetime"`
 	ValidIfNotUsedFor string `json:"validIfNotUsedFor"`
+}
+
+// Sessions holds authentication session configuration.
+type Sessions struct {
+	// CookieName is the name of the session cookie. Defaults to "dex_session".
+	CookieName string `json:"cookieName"`
+	// AbsoluteLifetime is the maximum session lifetime from creation. Defaults to "24h".
+	AbsoluteLifetime string `json:"absoluteLifetime"`
+	// ValidIfNotUsedFor is the idle timeout. Defaults to "1h".
+	ValidIfNotUsedFor string `json:"validIfNotUsedFor"`
+	// RememberMeCheckedByDefault controls the default state of the "remember me" checkbox.
+	RememberMeCheckedByDefault bool `json:"rememberMeCheckedByDefault"`
+}
+
+func (s Sessions) isSet() bool {
+	return s.CookieName != "" || s.AbsoluteLifetime != "" || s.ValidIfNotUsedFor != "" || s.RememberMeCheckedByDefault
 }

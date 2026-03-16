@@ -117,3 +117,13 @@
 .theme-link-back {
   margin-top: 8px;
 }
+
+.theme-remember-me {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  width: 260px;
+  margin: 4px auto;
+}

@@ -415,6 +415,19 @@ func runServe(options serveOptions) error {
 
 	serverConfig.RefreshTokenPolicy = refreshTokenPolicy
 
+	if featureflags.SessionsEnabled.Enabled() {
+		sessionConfig, err := parseSessionConfig(c.Sessions)
+		if err != nil {
+			return fmt.Errorf("invalid session config: %v", err)
+		}
+		serverConfig.SessionConfig = sessionConfig
+		logger.Info("config sessions",
+			"cookie_name", sessionConfig.CookieName,
+			"absolute_lifetime", sessionConfig.AbsoluteLifetime,
+			"valid_if_not_used_for", sessionConfig.ValidIfNotUsedFor,
+		)
+	}
+
 	serverConfig.RealIPHeader = c.Web.ClientRemoteIP.Header
 	serverConfig.TrustedRealIPCIDRs, err = c.Web.ClientRemoteIP.ParseTrustedProxies()
 	if err != nil {
@@ -758,4 +771,31 @@ func loadTLSConfig(certFile, keyFile, caFile string, baseConfig *tls.Config) (*t
 // recordBuildInfo publishes information about Dex version and runtime info through an info metric (gauge).
 func recordBuildInfo() {
 	buildInfo.WithLabelValues(version, runtime.Version(), fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)).Set(1)
+}
+
+func parseSessionConfig(c Sessions) (*server.SessionConfig, error) {
+	sc := &server.SessionConfig{
+		CookieName:                 c.CookieName,
+		AbsoluteLifetime:           24 * time.Hour,
+		ValidIfNotUsedFor:          1 * time.Hour,
+		RememberMeCheckedByDefault: c.RememberMeCheckedByDefault,
+	}
+	if sc.CookieName == "" {
+		sc.CookieName = "dex_session"
+	}
+	if c.AbsoluteLifetime != "" {
+		d, err := time.ParseDuration(c.AbsoluteLifetime)
+		if err != nil {
+			return nil, fmt.Errorf("invalid absoluteLifetime %q: %v", c.AbsoluteLifetime, err)
+		}
+		sc.AbsoluteLifetime = d
+	}
+	if c.ValidIfNotUsedFor != "" {
+		d, err := time.ParseDuration(c.ValidIfNotUsedFor)
+		if err != nil {
+			return nil, fmt.Errorf("invalid validIfNotUsedFor %q: %v", c.ValidIfNotUsedFor, err)
+		}
+		sc.ValidIfNotUsedFor = d
+	}
+	return sc, nil
 }

@@ -20,6 +20,24 @@ type AuthSessionCreate struct {
 	hooks    []Hook
 }
 
+// SetUserID sets the "user_id" field.
+func (_c *AuthSessionCreate) SetUserID(v string) *AuthSessionCreate {
+	_c.mutation.SetUserID(v)
+	return _c
+}
+
+// SetConnectorID sets the "connector_id" field.
+func (_c *AuthSessionCreate) SetConnectorID(v string) *AuthSessionCreate {
+	_c.mutation.SetConnectorID(v)
+	return _c
+}
+
+// SetNonce sets the "nonce" field.
+func (_c *AuthSessionCreate) SetNonce(v string) *AuthSessionCreate {
+	_c.mutation.SetNonce(v)
+	return _c
+}
+
 // SetClientStates sets the "client_states" field.
 func (_c *AuthSessionCreate) SetClientStates(v []byte) *AuthSessionCreate {
 	_c.mutation.SetClientStates(v)
@@ -119,6 +137,30 @@ func (_c *AuthSessionCreate) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (_c *AuthSessionCreate) check() error {
+	if _, ok := _c.mutation.UserID(); !ok {
+		return &ValidationError{Name: "user_id", err: errors.New(`db: missing required field "AuthSession.user_id"`)}
+	}
+	if v, ok := _c.mutation.UserID(); ok {
+		if err := authsession.UserIDValidator(v); err != nil {
+			return &ValidationError{Name: "user_id", err: fmt.Errorf(`db: validator failed for field "AuthSession.user_id": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.ConnectorID(); !ok {
+		return &ValidationError{Name: "connector_id", err: errors.New(`db: missing required field "AuthSession.connector_id"`)}
+	}
+	if v, ok := _c.mutation.ConnectorID(); ok {
+		if err := authsession.ConnectorIDValidator(v); err != nil {
+			return &ValidationError{Name: "connector_id", err: fmt.Errorf(`db: validator failed for field "AuthSession.connector_id": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.Nonce(); !ok {
+		return &ValidationError{Name: "nonce", err: errors.New(`db: missing required field "AuthSession.nonce"`)}
+	}
+	if v, ok := _c.mutation.Nonce(); ok {
+		if err := authsession.NonceValidator(v); err != nil {
+			return &ValidationError{Name: "nonce", err: fmt.Errorf(`db: validator failed for field "AuthSession.nonce": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.ClientStates(); !ok {
 		return &ValidationError{Name: "client_states", err: errors.New(`db: missing required field "AuthSession.client_states"`)}
 	}
@@ -173,6 +215,18 @@ func (_c *AuthSessionCreate) createSpec() (*AuthSession, *sqlgraph.CreateSpec) {
 	if id, ok := _c.mutation.ID(); ok {
 		_node.ID = id
 		_spec.ID.Value = id
+	}
+	if value, ok := _c.mutation.UserID(); ok {
+		_spec.SetField(authsession.FieldUserID, field.TypeString, value)
+		_node.UserID = value
+	}
+	if value, ok := _c.mutation.ConnectorID(); ok {
+		_spec.SetField(authsession.FieldConnectorID, field.TypeString, value)
+		_node.ConnectorID = value
+	}
+	if value, ok := _c.mutation.Nonce(); ok {
+		_spec.SetField(authsession.FieldNonce, field.TypeString, value)
+		_node.Nonce = value
 	}
 	if value, ok := _c.mutation.ClientStates(); ok {
 		_spec.SetField(authsession.FieldClientStates, field.TypeBytes, value)
