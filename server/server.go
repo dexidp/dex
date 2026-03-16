@@ -140,6 +140,12 @@ type Config struct {
 
 	// SessionConfig holds session settings. Nil when sessions are disabled.
 	SessionConfig *SessionConfig
+
+	// MFAProviders maps authenticator IDs to their provider implementations.
+	MFAProviders map[string]MFAProvider
+
+	// DefaultMFAChain is applied to clients that don't specify their own mfaChain.
+	DefaultMFAChain []string
 }
 
 // SessionConfig holds resolved session configuration.
@@ -239,6 +245,9 @@ type Server struct {
 	signer signer.Signer
 
 	sessionConfig *SessionConfig
+
+	mfaProviders    map[string]MFAProvider
+	defaultMFAChain []string
 }
 
 // NewServer constructs a server from the provided config.
@@ -363,6 +372,8 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		logger:                 c.Logger,
 		signer:                 c.Signer,
 		sessionConfig:          c.SessionConfig,
+		mfaProviders:           c.MFAProviders,
+		defaultMFAChain:        c.DefaultMFAChain,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
@@ -551,6 +562,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	// "authproxy" connector.
 	handleFunc("/callback/{connector}", s.handleConnectorCallback)
 	handleFunc("/approval", s.handleApproval)
+	handleFunc("/totp/verify", s.handleMFAVerify)
 	handle("/healthz", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !c.HealthChecker.IsHealthy() {
 			s.renderError(r, w, http.StatusInternalServerError, "Health check failed.")

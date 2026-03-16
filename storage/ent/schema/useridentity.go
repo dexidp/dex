@@ -41,6 +41,9 @@ func (UserIdentity) Fields() []ent.Field {
 		field.JSON("claims_groups", []string{}).
 			Optional(),
 		field.Bytes("consents"),
+		field.Bytes("mfa_secrets").
+			Nillable().
+			Optional(),
 		field.Time("created_at").
 			SchemaType(timeSchema),
 		field.Time("last_login").

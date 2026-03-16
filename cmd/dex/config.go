@@ -69,6 +69,19 @@ type Config struct {
 	// Sessions holds authentication session configuration.
 	// Requires DEX_SESSIONS_ENABLED=true feature flag.
 	Sessions *Sessions `json:"sessions"`
+
+	// MFA holds multi-factor authentication configuration.
+	MFA MFAConfig `json:"mfa"`
+}
+
+// MFAConfig holds multi-factor authentication settings.
+type MFAConfig struct {
+	// Authenticators defines MFA providers available for clients to reference.
+	Authenticators []MFAAuthenticator `json:"authenticators"`
+
+	// DefaultMFAChain is the default ordered list of authenticator IDs applied
+	// to clients that don't specify their own mfaChain. Empty means no MFA by default.
+	DefaultMFAChain []string `json:"defaultMFAChain"`
 }
 
 // Validate the configuration
@@ -110,6 +123,54 @@ func (c Config) Validate() error {
 
 	if c.Sessions != nil && !featureflags.SessionsEnabled.Enabled() {
 		return fmt.Errorf("sessions config requires sessions to be enabled (DEX_SESSIONS_ENABLED=true)")
+	}
+
+	if err := c.validateMFA(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c Config) validateMFA() error {
+	mfa := c.MFA
+	if len(mfa.Authenticators) == 0 && len(mfa.DefaultMFAChain) == 0 {
+		return nil
+	}
+
+	if !featureflags.SessionsEnabled.Enabled() {
+		return fmt.Errorf("mfa requires sessions to be enabled (DEX_SESSIONS_ENABLED=true)")
+	}
+
+	knownTypes := map[string]bool{"TOTP": true}
+	ids := make(map[string]bool, len(mfa.Authenticators))
+
+	for _, auth := range mfa.Authenticators {
+		if auth.ID == "" {
+			return fmt.Errorf("mfa.authenticators: authenticator must have an id")
+		}
+		if ids[auth.ID] {
+			return fmt.Errorf("mfa.authenticators: duplicate authenticator id %q", auth.ID)
+		}
+		ids[auth.ID] = true
+
+		if !knownTypes[auth.Type] {
+			return fmt.Errorf("mfa.authenticators: unknown type %q for authenticator %q", auth.Type, auth.ID)
+		}
+	}
+
+	for _, authID := range mfa.DefaultMFAChain {
+		if !ids[authID] {
+			return fmt.Errorf("mfa.defaultMFAChain: references unknown authenticator %q", authID)
+		}
+	}
+
+	for _, client := range c.StaticClients {
+		for _, authID := range client.MFAChain {
+			if !ids[authID] {
+				return fmt.Errorf("staticClients: client %q references unknown MFA authenticator %q", client.ID, authID)
+			}
+		}
 	}
 
 	return nil
@@ -605,4 +666,21 @@ type Sessions struct {
 	ValidIfNotUsedFor string `json:"validIfNotUsedFor"`
 	// RememberMeCheckedByDefault controls the default state of the "remember me" checkbox.
 	RememberMeCheckedByDefault *bool `json:"rememberMeCheckedByDefault"`
+}
+
+// MFAAuthenticator defines a multi-factor authentication provider.
+type MFAAuthenticator struct {
+	ID     string          `json:"id"`
+	Type   string          `json:"type"`
+	Config json.RawMessage `json:"config"`
+
+	// ConnectorTypes limits this authenticator to specific connector types (e.g., "ldap", "oidc", "saml").
+	// If empty, the authenticator applies to all connector types.
+	ConnectorTypes []string `json:"connectorTypes"`
+}
+
+// TOTPConfig holds configuration for a TOTP authenticator.
+type TOTPConfig struct {
+	// Issuer is the name of the service shown in the authenticator app.
+	Issuer string `json:"issuer"`
 }

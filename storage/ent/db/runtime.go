@@ -84,6 +84,10 @@ func init() {
 	authrequestDescCodeChallengeMethod := authrequestFields[19].Descriptor()
 	// authrequest.DefaultCodeChallengeMethod holds the default value on creation for the code_challenge_method field.
 	authrequest.DefaultCodeChallengeMethod = authrequestDescCodeChallengeMethod.Default.(string)
+	// authrequestDescMfaValidated is the schema descriptor for mfa_validated field.
+	authrequestDescMfaValidated := authrequestFields[21].Descriptor()
+	// authrequest.DefaultMfaValidated holds the default value on creation for the mfa_validated field.
+	authrequest.DefaultMfaValidated = authrequestDescMfaValidated.Default.(bool)
 	// authrequestDescID is the schema descriptor for id field.
 	authrequestDescID := authrequestFields[0].Descriptor()
 	// authrequest.IDValidator is a validator for the "id" field. It is called by the builders before save.

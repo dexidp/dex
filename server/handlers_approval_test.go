@@ -84,6 +84,7 @@ func TestHandleApprovalDoubleSubmitPOST(t *testing.T) {
 		RedirectURI:   "https://client.example/callback",
 		Expiry:        time.Now().Add(time.Minute),
 		LoggedIn:      true,
+		MFAValidated:  true,
 		HMACKey:       []byte("approval-double-submit-key"),
 	}
 	require.NoError(t, server.storage.CreateAuthRequest(ctx, authReq))

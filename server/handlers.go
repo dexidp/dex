@@ -789,6 +789,36 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 		userIdentity = &ui
 	}
 
+	// an HMAC is used here to ensure that the request ID is unpredictable, ensuring that an attacker who intercepted the original
+	// flow would be unable to poll for the result at the /approval endpoint
+	h := hmac.New(sha256.New, authReq.HMACKey)
+	h.Write([]byte(authReq.ID))
+	mac := h.Sum(nil)
+	hmacParam := base64.RawURLEncoding.EncodeToString(mac)
+
+	// Check if the client requires MFA.
+	mfaChain, err := s.mfaChainForClient(ctx, authReq.ClientID, authReq.ConnectorID)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to get MFA chain for client: %v", err)
+	}
+	if len(mfaChain) > 0 {
+		// Redirect to MFA verification for the first authenticator in the chain.
+		v := url.Values{}
+		v.Set("req", authReq.ID)
+		v.Set("hmac", hmacParam)
+		v.Set("authenticator", mfaChain[0])
+		returnURL := path.Join(s.issuerURL.Path, "/totp/verify") + "?" + v.Encode()
+		return returnURL, false, nil
+	}
+
+	// No MFA required — mark as validated.
+	if err := s.storage.UpdateAuthRequest(ctx, authReq.ID, func(a storage.AuthRequest) (storage.AuthRequest, error) {
+		a.MFAValidated = true
+		return a, nil
+	}); err != nil {
+		return "", false, fmt.Errorf("failed to update auth request MFA status: %v", err)
+	}
+
 	// we can skip the redirect to /approval and go ahead and send code if it's not required
 	if s.skipApproval && !authReq.ForceApprovalPrompt {
 		return "", true, nil
@@ -801,13 +831,7 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 		}
 	}
 
-	// an HMAC is used here to ensure that the request ID is unpredictable, ensuring that an attacker who intercepted the original
-	// flow would be unable to poll for the result at the /approval endpoint
-	h := hmac.New(sha256.New, authReq.HMACKey)
-	h.Write([]byte(authReq.ID))
-	mac := h.Sum(nil)
-
-	returnURL := path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID + "&hmac=" + base64.RawURLEncoding.EncodeToString(mac)
+	returnURL := path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID + "&hmac=" + hmacParam
 	return returnURL, false, nil
 }
 
@@ -838,6 +862,28 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 		s.logger.ErrorContext(r.Context(), "auth request does not have an identity for approval")
 		s.renderError(r, w, http.StatusInternalServerError, "Login process not yet finalized.")
 		return
+	}
+	if !authReq.MFAValidated {
+		// Check if MFA is actually required — if so, redirect to TOTP instead of blocking.
+		// This handles the case where MFA was enabled after the auth flow started.
+		mfaChain, err := s.mfaChainForClient(ctx, authReq.ClientID, authReq.ConnectorID)
+		if err != nil {
+			s.logger.ErrorContext(ctx, "failed to get MFA chain", "err", err)
+			s.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
+			return
+		}
+		if len(mfaChain) > 0 {
+			h := hmac.New(sha256.New, authReq.HMACKey)
+			h.Write([]byte(authReq.ID))
+			v := url.Values{}
+			v.Set("req", authReq.ID)
+			v.Set("hmac", base64.RawURLEncoding.EncodeToString(h.Sum(nil)))
+			v.Set("authenticator", mfaChain[0])
+			totpURL := path.Join(s.issuerURL.Path, "/totp/verify") + "?" + v.Encode()
+			http.Redirect(w, r, totpURL, http.StatusSeeOther)
+			return
+		}
+		// No MFA required but flag not set — allow through (backward compat).
 	}
 
 	// build expected hmac with secret key

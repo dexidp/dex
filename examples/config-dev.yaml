@@ -138,6 +138,25 @@ telemetry:
 #     # Supported code challenge methods. Defaults to ["S256", "plain"].
 #     codeChallengeMethodsSupported: ["S256", "plain"]
 
+# Multi-factor authentication configuration.
+# Requires DEX_SESSIONS_ENABLED=true feature flag.
+# mfa:
+#   authenticators:
+#   - id: totp-1
+#     type: TOTP
+#     config:
+#       issuer: "dex"
+#     # Optional: limit this authenticator to specific connector types (e.g., ldap, oidc, saml).
+#     # If omitted or empty, applies to all connector types.
+#     # It is recommended to use this option to prevent MFA from being used for connectors
+#     # with their own MFA mechanisms, e.g., OIDC, Google, etc. (but technically, it is possible).
+#     connectorTypes:
+#     - mockCallback
+#   # Default MFA chain applied to clients that don't specify their own mfaChain.
+#   # If omitted or empty, no MFA is required by default.
+#   defaultMFAChain:
+#   - totp-1
+
 # Instead of reading from an external storage, use this list of clients.
 #
 # If this option isn't chosen clients may be added through the gRPC API.
@@ -152,6 +171,11 @@ staticClients:
   # If omitted or empty, all connectors are allowed.
   # allowedConnectors:
   # - mock
+  # Optional: ordered list of MFA authenticator IDs the user must complete during login.
+  # References authenticator IDs from mfa.authenticators.
+  # If omitted, mfa.defaultMFAChain is used.
+  # mfaChain:
+  # - totp-1
 
 # Example using environment variables
 # Set DEX_CLIENT_ID and DEX_SECURE_CLIENT_SECRET before starting Dex

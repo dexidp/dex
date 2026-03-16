@@ -317,6 +317,16 @@ func AllowedConnectorsNotNil() predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.FieldNotNull(FieldAllowedConnectors))
 }
 
+// MfaChainIsNil applies the IsNil predicate on the "mfa_chain" field.
+func MfaChainIsNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldIsNull(FieldMfaChain))
+}
+
+// MfaChainNotNil applies the NotNil predicate on the "mfa_chain" field.
+func MfaChainNotNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNotNull(FieldMfaChain))
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.OAuth2Client) predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.AndPredicates(predicates...))

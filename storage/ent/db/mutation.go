@@ -1262,6 +1262,7 @@ type AuthRequestMutation struct {
 	code_challenge            *string
 	code_challenge_method     *string
 	hmac_key                  *[]byte
+	mfa_validated             *bool
 	clearedFields             map[string]struct{}
 	done                      bool
 	oldValue                  func(context.Context) (*AuthRequest, error)
@@ -2192,6 +2193,42 @@ func (m *AuthRequestMutation) ResetHmacKey() {
 	m.hmac_key = nil
 }
 
+// SetMfaValidated sets the "mfa_validated" field.
+func (m *AuthRequestMutation) SetMfaValidated(b bool) {
+	m.mfa_validated = &b
+}
+
+// MfaValidated returns the value of the "mfa_validated" field in the mutation.
+func (m *AuthRequestMutation) MfaValidated() (r bool, exists bool) {
+	v := m.mfa_validated
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMfaValidated returns the old "mfa_validated" field's value of the AuthRequest entity.
+// If the AuthRequest object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AuthRequestMutation) OldMfaValidated(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMfaValidated is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMfaValidated requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMfaValidated: %w", err)
+	}
+	return oldValue.MfaValidated, nil
+}
+
+// ResetMfaValidated resets all changes to the "mfa_validated" field.
+func (m *AuthRequestMutation) ResetMfaValidated() {
+	m.mfa_validated = nil
+}
+
 // Where appends a list predicates to the AuthRequestMutation builder.
 func (m *AuthRequestMutation) Where(ps ...predicate.AuthRequest) {
 	m.predicates = append(m.predicates, ps...)
@@ -2226,7 +2263,7 @@ func (m *AuthRequestMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AuthRequestMutation) Fields() []string {
-	fields := make([]string, 0, 20)
+	fields := make([]string, 0, 21)
 	if m.client_id != nil {
 		fields = append(fields, authrequest.FieldClientID)
 	}
@@ -2287,6 +2324,9 @@ func (m *AuthRequestMutation) Fields() []string {
 	if m.hmac_key != nil {
 		fields = append(fields, authrequest.FieldHmacKey)
 	}
+	if m.mfa_validated != nil {
+		fields = append(fields, authrequest.FieldMfaValidated)
+	}
 	return fields
 }
 
@@ -2335,6 +2375,8 @@ func (m *AuthRequestMutation) Field(name string) (ent.Value, bool) {
 		return m.CodeChallengeMethod()
 	case authrequest.FieldHmacKey:
 		return m.HmacKey()
+	case authrequest.FieldMfaValidated:
+		return m.MfaValidated()
 	}
 	return nil, false
 }
@@ -2384,6 +2426,8 @@ func (m *AuthRequestMutation) OldField(ctx context.Context, name string) (ent.Va
 		return m.OldCodeChallengeMethod(ctx)
 	case authrequest.FieldHmacKey:
 		return m.OldHmacKey(ctx)
+	case authrequest.FieldMfaValidated:
+		return m.OldMfaValidated(ctx)
 	}
 	return nil, fmt.Errorf("unknown AuthRequest field %s", name)
 }
@@ -2533,6 +2577,13 @@ func (m *AuthRequestMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetHmacKey(v)
 		return nil
+	case authrequest.FieldMfaValidated:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMfaValidated(v)
+		return nil
 	}
 	return fmt.Errorf("unknown AuthRequest field %s", name)
 }
@@ -2668,6 +2719,9 @@ func (m *AuthRequestMutation) ResetField(name string) error {
 		return nil
 	case authrequest.FieldHmacKey:
 		m.ResetHmacKey()
+		return nil
+	case authrequest.FieldMfaValidated:
+		m.ResetMfaValidated()
 		return nil
 	}
 	return fmt.Errorf("unknown AuthRequest field %s", name)
@@ -5941,6 +5995,8 @@ type OAuth2ClientMutation struct {
 	logo_url                 *string
 	allowed_connectors       *[]string
 	appendallowed_connectors []string
+	mfa_chain                *[]string
+	appendmfa_chain          []string
 	clearedFields            map[string]struct{}
 	done                     bool
 	oldValue                 func(context.Context) (*OAuth2Client, error)
@@ -6390,6 +6446,71 @@ func (m *OAuth2ClientMutation) ResetAllowedConnectors() {
 	delete(m.clearedFields, oauth2client.FieldAllowedConnectors)
 }
 
+// SetMfaChain sets the "mfa_chain" field.
+func (m *OAuth2ClientMutation) SetMfaChain(s []string) {
+	m.mfa_chain = &s
+	m.appendmfa_chain = nil
+}
+
+// MfaChain returns the value of the "mfa_chain" field in the mutation.
+func (m *OAuth2ClientMutation) MfaChain() (r []string, exists bool) {
+	v := m.mfa_chain
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMfaChain returns the old "mfa_chain" field's value of the OAuth2Client entity.
+// If the OAuth2Client object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuth2ClientMutation) OldMfaChain(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMfaChain is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMfaChain requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMfaChain: %w", err)
+	}
+	return oldValue.MfaChain, nil
+}
+
+// AppendMfaChain adds s to the "mfa_chain" field.
+func (m *OAuth2ClientMutation) AppendMfaChain(s []string) {
+	m.appendmfa_chain = append(m.appendmfa_chain, s...)
+}
+
+// AppendedMfaChain returns the list of values that were appended to the "mfa_chain" field in this mutation.
+func (m *OAuth2ClientMutation) AppendedMfaChain() ([]string, bool) {
+	if len(m.appendmfa_chain) == 0 {
+		return nil, false
+	}
+	return m.appendmfa_chain, true
+}
+
+// ClearMfaChain clears the value of the "mfa_chain" field.
+func (m *OAuth2ClientMutation) ClearMfaChain() {
+	m.mfa_chain = nil
+	m.appendmfa_chain = nil
+	m.clearedFields[oauth2client.FieldMfaChain] = struct{}{}
+}
+
+// MfaChainCleared returns if the "mfa_chain" field was cleared in this mutation.
+func (m *OAuth2ClientMutation) MfaChainCleared() bool {
+	_, ok := m.clearedFields[oauth2client.FieldMfaChain]
+	return ok
+}
+
+// ResetMfaChain resets all changes to the "mfa_chain" field.
+func (m *OAuth2ClientMutation) ResetMfaChain() {
+	m.mfa_chain = nil
+	m.appendmfa_chain = nil
+	delete(m.clearedFields, oauth2client.FieldMfaChain)
+}
+
 // Where appends a list predicates to the OAuth2ClientMutation builder.
 func (m *OAuth2ClientMutation) Where(ps ...predicate.OAuth2Client) {
 	m.predicates = append(m.predicates, ps...)
@@ -6424,7 +6545,7 @@ func (m *OAuth2ClientMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *OAuth2ClientMutation) Fields() []string {
-	fields := make([]string, 0, 7)
+	fields := make([]string, 0, 8)
 	if m.secret != nil {
 		fields = append(fields, oauth2client.FieldSecret)
 	}
@@ -6445,6 +6566,9 @@ func (m *OAuth2ClientMutation) Fields() []string {
 	}
 	if m.allowed_connectors != nil {
 		fields = append(fields, oauth2client.FieldAllowedConnectors)
+	}
+	if m.mfa_chain != nil {
+		fields = append(fields, oauth2client.FieldMfaChain)
 	}
 	return fields
 }
@@ -6468,6 +6592,8 @@ func (m *OAuth2ClientMutation) Field(name string) (ent.Value, bool) {
 		return m.LogoURL()
 	case oauth2client.FieldAllowedConnectors:
 		return m.AllowedConnectors()
+	case oauth2client.FieldMfaChain:
+		return m.MfaChain()
 	}
 	return nil, false
 }
@@ -6491,6 +6617,8 @@ func (m *OAuth2ClientMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldLogoURL(ctx)
 	case oauth2client.FieldAllowedConnectors:
 		return m.OldAllowedConnectors(ctx)
+	case oauth2client.FieldMfaChain:
+		return m.OldMfaChain(ctx)
 	}
 	return nil, fmt.Errorf("unknown OAuth2Client field %s", name)
 }
@@ -6549,6 +6677,13 @@ func (m *OAuth2ClientMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetAllowedConnectors(v)
 		return nil
+	case oauth2client.FieldMfaChain:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMfaChain(v)
+		return nil
 	}
 	return fmt.Errorf("unknown OAuth2Client field %s", name)
 }
@@ -6588,6 +6723,9 @@ func (m *OAuth2ClientMutation) ClearedFields() []string {
 	if m.FieldCleared(oauth2client.FieldAllowedConnectors) {
 		fields = append(fields, oauth2client.FieldAllowedConnectors)
 	}
+	if m.FieldCleared(oauth2client.FieldMfaChain) {
+		fields = append(fields, oauth2client.FieldMfaChain)
+	}
 	return fields
 }
 
@@ -6610,6 +6748,9 @@ func (m *OAuth2ClientMutation) ClearField(name string) error {
 		return nil
 	case oauth2client.FieldAllowedConnectors:
 		m.ClearAllowedConnectors()
+		return nil
+	case oauth2client.FieldMfaChain:
+		m.ClearMfaChain()
 		return nil
 	}
 	return fmt.Errorf("unknown OAuth2Client nullable field %s", name)
@@ -6639,6 +6780,9 @@ func (m *OAuth2ClientMutation) ResetField(name string) error {
 		return nil
 	case oauth2client.FieldAllowedConnectors:
 		m.ResetAllowedConnectors()
+		return nil
+	case oauth2client.FieldMfaChain:
+		m.ResetMfaChain()
 		return nil
 	}
 	return fmt.Errorf("unknown OAuth2Client field %s", name)
@@ -9168,6 +9312,7 @@ type UserIdentityMutation struct {
 	claims_groups             *[]string
 	appendclaims_groups       []string
 	consents                  *[]byte
+	mfa_secrets               *[]byte
 	created_at                *time.Time
 	last_login                *time.Time
 	blocked_until             *time.Time
@@ -9634,6 +9779,55 @@ func (m *UserIdentityMutation) ResetConsents() {
 	m.consents = nil
 }
 
+// SetMfaSecrets sets the "mfa_secrets" field.
+func (m *UserIdentityMutation) SetMfaSecrets(b []byte) {
+	m.mfa_secrets = &b
+}
+
+// MfaSecrets returns the value of the "mfa_secrets" field in the mutation.
+func (m *UserIdentityMutation) MfaSecrets() (r []byte, exists bool) {
+	v := m.mfa_secrets
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMfaSecrets returns the old "mfa_secrets" field's value of the UserIdentity entity.
+// If the UserIdentity object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserIdentityMutation) OldMfaSecrets(ctx context.Context) (v *[]byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMfaSecrets is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMfaSecrets requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMfaSecrets: %w", err)
+	}
+	return oldValue.MfaSecrets, nil
+}
+
+// ClearMfaSecrets clears the value of the "mfa_secrets" field.
+func (m *UserIdentityMutation) ClearMfaSecrets() {
+	m.mfa_secrets = nil
+	m.clearedFields[useridentity.FieldMfaSecrets] = struct{}{}
+}
+
+// MfaSecretsCleared returns if the "mfa_secrets" field was cleared in this mutation.
+func (m *UserIdentityMutation) MfaSecretsCleared() bool {
+	_, ok := m.clearedFields[useridentity.FieldMfaSecrets]
+	return ok
+}
+
+// ResetMfaSecrets resets all changes to the "mfa_secrets" field.
+func (m *UserIdentityMutation) ResetMfaSecrets() {
+	m.mfa_secrets = nil
+	delete(m.clearedFields, useridentity.FieldMfaSecrets)
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *UserIdentityMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -9776,7 +9970,7 @@ func (m *UserIdentityMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserIdentityMutation) Fields() []string {
-	fields := make([]string, 0, 12)
+	fields := make([]string, 0, 13)
 	if m.user_id != nil {
 		fields = append(fields, useridentity.FieldUserID)
 	}
@@ -9803,6 +9997,9 @@ func (m *UserIdentityMutation) Fields() []string {
 	}
 	if m.consents != nil {
 		fields = append(fields, useridentity.FieldConsents)
+	}
+	if m.mfa_secrets != nil {
+		fields = append(fields, useridentity.FieldMfaSecrets)
 	}
 	if m.created_at != nil {
 		fields = append(fields, useridentity.FieldCreatedAt)
@@ -9839,6 +10036,8 @@ func (m *UserIdentityMutation) Field(name string) (ent.Value, bool) {
 		return m.ClaimsGroups()
 	case useridentity.FieldConsents:
 		return m.Consents()
+	case useridentity.FieldMfaSecrets:
+		return m.MfaSecrets()
 	case useridentity.FieldCreatedAt:
 		return m.CreatedAt()
 	case useridentity.FieldLastLogin:
@@ -9872,6 +10071,8 @@ func (m *UserIdentityMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldClaimsGroups(ctx)
 	case useridentity.FieldConsents:
 		return m.OldConsents(ctx)
+	case useridentity.FieldMfaSecrets:
+		return m.OldMfaSecrets(ctx)
 	case useridentity.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case useridentity.FieldLastLogin:
@@ -9950,6 +10151,13 @@ func (m *UserIdentityMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetConsents(v)
 		return nil
+	case useridentity.FieldMfaSecrets:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMfaSecrets(v)
+		return nil
 	case useridentity.FieldCreatedAt:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -10004,6 +10212,9 @@ func (m *UserIdentityMutation) ClearedFields() []string {
 	if m.FieldCleared(useridentity.FieldClaimsGroups) {
 		fields = append(fields, useridentity.FieldClaimsGroups)
 	}
+	if m.FieldCleared(useridentity.FieldMfaSecrets) {
+		fields = append(fields, useridentity.FieldMfaSecrets)
+	}
 	return fields
 }
 
@@ -10020,6 +10231,9 @@ func (m *UserIdentityMutation) ClearField(name string) error {
 	switch name {
 	case useridentity.FieldClaimsGroups:
 		m.ClearClaimsGroups()
+		return nil
+	case useridentity.FieldMfaSecrets:
+		m.ClearMfaSecrets()
 		return nil
 	}
 	return fmt.Errorf("unknown UserIdentity nullable field %s", name)
@@ -10055,6 +10269,9 @@ func (m *UserIdentityMutation) ResetField(name string) error {
 		return nil
 	case useridentity.FieldConsents:
 		m.ResetConsents()
+		return nil
+	case useridentity.FieldMfaSecrets:
+		m.ResetMfaSecrets()
 		return nil
 	case useridentity.FieldCreatedAt:
 		m.ResetCreatedAt()

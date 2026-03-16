@@ -88,6 +88,8 @@ func (AuthRequest) Fields() []ent.Field {
 			SchemaType(textSchema).
 			Default(""),
 		field.Bytes("hmac_key"),
+		field.Bool("mfa_validated").
+			Default(false),
 	}
 }
 

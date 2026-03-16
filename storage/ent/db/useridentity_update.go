@@ -151,6 +151,18 @@ func (_u *UserIdentityUpdate) SetConsents(v []byte) *UserIdentityUpdate {
 	return _u
 }
 
+// SetMfaSecrets sets the "mfa_secrets" field.
+func (_u *UserIdentityUpdate) SetMfaSecrets(v []byte) *UserIdentityUpdate {
+	_u.mutation.SetMfaSecrets(v)
+	return _u
+}
+
+// ClearMfaSecrets clears the value of the "mfa_secrets" field.
+func (_u *UserIdentityUpdate) ClearMfaSecrets() *UserIdentityUpdate {
+	_u.mutation.ClearMfaSecrets()
+	return _u
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_u *UserIdentityUpdate) SetCreatedAt(v time.Time) *UserIdentityUpdate {
 	_u.mutation.SetCreatedAt(v)
@@ -286,6 +298,12 @@ func (_u *UserIdentityUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if value, ok := _u.mutation.Consents(); ok {
 		_spec.SetField(useridentity.FieldConsents, field.TypeBytes, value)
+	}
+	if value, ok := _u.mutation.MfaSecrets(); ok {
+		_spec.SetField(useridentity.FieldMfaSecrets, field.TypeBytes, value)
+	}
+	if _u.mutation.MfaSecretsCleared() {
+		_spec.ClearField(useridentity.FieldMfaSecrets, field.TypeBytes)
 	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(useridentity.FieldCreatedAt, field.TypeTime, value)
@@ -435,6 +453,18 @@ func (_u *UserIdentityUpdateOne) ClearClaimsGroups() *UserIdentityUpdateOne {
 // SetConsents sets the "consents" field.
 func (_u *UserIdentityUpdateOne) SetConsents(v []byte) *UserIdentityUpdateOne {
 	_u.mutation.SetConsents(v)
+	return _u
+}
+
+// SetMfaSecrets sets the "mfa_secrets" field.
+func (_u *UserIdentityUpdateOne) SetMfaSecrets(v []byte) *UserIdentityUpdateOne {
+	_u.mutation.SetMfaSecrets(v)
+	return _u
+}
+
+// ClearMfaSecrets clears the value of the "mfa_secrets" field.
+func (_u *UserIdentityUpdateOne) ClearMfaSecrets() *UserIdentityUpdateOne {
+	_u.mutation.ClearMfaSecrets()
 	return _u
 }
 
@@ -603,6 +633,12 @@ func (_u *UserIdentityUpdateOne) sqlSave(ctx context.Context) (_node *UserIdenti
 	}
 	if value, ok := _u.mutation.Consents(); ok {
 		_spec.SetField(useridentity.FieldConsents, field.TypeBytes, value)
+	}
+	if value, ok := _u.mutation.MfaSecrets(); ok {
+		_spec.SetField(useridentity.FieldMfaSecrets, field.TypeBytes, value)
+	}
+	if _u.mutation.MfaSecretsCleared() {
+		_spec.ClearField(useridentity.FieldMfaSecrets, field.TypeBytes)
 	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(useridentity.FieldCreatedAt, field.TypeTime, value)

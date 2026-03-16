@@ -134,10 +134,11 @@ func (c *conn) CreateAuthRequest(ctx context.Context, a storage.AuthRequest) err
 			connector_id, connector_data,
 			expiry,
 			code_challenge, code_challenge_method,
-			hmac_key
+			hmac_key,
+			mfa_validated
 		)
 		values (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
 		);
 	`,
 		a.ID, a.ClientID, encoder(a.ResponseTypes), encoder(a.Scopes), a.RedirectURI, a.Nonce, a.State,
@@ -148,6 +149,7 @@ func (c *conn) CreateAuthRequest(ctx context.Context, a storage.AuthRequest) err
 		a.Expiry,
 		a.PKCE.CodeChallenge, a.PKCE.CodeChallengeMethod,
 		a.HMACKey,
+		a.MFAValidated,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -180,8 +182,9 @@ func (c *conn) UpdateAuthRequest(ctx context.Context, id string, updater func(a 
 				connector_id = $15, connector_data = $16,
 				expiry = $17,
 				code_challenge = $18, code_challenge_method = $19,
-				hmac_key = $20
-			where id = $21;
+				hmac_key = $20,
+				mfa_validated = $21
+			where id = $22;
 		`,
 			a.ClientID, encoder(a.ResponseTypes), encoder(a.Scopes), a.RedirectURI, a.Nonce, a.State,
 			a.ForceApprovalPrompt, a.LoggedIn,
@@ -191,6 +194,7 @@ func (c *conn) UpdateAuthRequest(ctx context.Context, id string, updater func(a 
 			a.ConnectorID, a.ConnectorData,
 			a.Expiry,
 			a.PKCE.CodeChallenge, a.PKCE.CodeChallengeMethod, a.HMACKey,
+			a.MFAValidated,
 			r.ID,
 		)
 		if err != nil {
@@ -212,7 +216,8 @@ func getAuthRequest(ctx context.Context, q querier, id string) (a storage.AuthRe
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
 			connector_id, connector_data, expiry,
-			code_challenge, code_challenge_method, hmac_key
+			code_challenge, code_challenge_method, hmac_key,
+			mfa_validated
 		from auth_request where id = $1;
 	`, id).Scan(
 		&a.ID, &a.ClientID, decoder(&a.ResponseTypes), decoder(&a.Scopes), &a.RedirectURI, &a.Nonce, &a.State,
@@ -222,6 +227,7 @@ func getAuthRequest(ctx context.Context, q querier, id string) (a storage.AuthRe
 		decoder(&a.Claims.Groups),
 		&a.ConnectorID, &a.ConnectorData, &a.Expiry,
 		&a.PKCE.CodeChallenge, &a.PKCE.CodeChallengeMethod, &a.HMACKey,
+		&a.MFAValidated,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -514,9 +520,10 @@ func (c *conn) UpdateClient(ctx context.Context, id string, updater func(old sto
 				public = $4,
 				name = $5,
 				logo_url = $6,
-				allowed_connectors = $7
-			where id = $8;
-		`, nc.Secret, encoder(nc.RedirectURIs), encoder(nc.TrustedPeers), nc.Public, nc.Name, nc.LogoURL, encoder(nc.AllowedConnectors), id,
+				allowed_connectors = $7,
+				mfa_chain = $8
+			where id = $9;
+		`, nc.Secret, encoder(nc.RedirectURIs), encoder(nc.TrustedPeers), nc.Public, nc.Name, nc.LogoURL, encoder(nc.AllowedConnectors), encoder(nc.MFAChain), id,
 		)
 		if err != nil {
 			return fmt.Errorf("update client: %v", err)
@@ -528,12 +535,12 @@ func (c *conn) UpdateClient(ctx context.Context, id string, updater func(old sto
 func (c *conn) CreateClient(ctx context.Context, cli storage.Client) error {
 	_, err := c.Exec(`
 		insert into client (
-			id, secret, redirect_uris, trusted_peers, public, name, logo_url, allowed_connectors
+			id, secret, redirect_uris, trusted_peers, public, name, logo_url, allowed_connectors, mfa_chain
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9);
 	`,
 		cli.ID, cli.Secret, encoder(cli.RedirectURIs), encoder(cli.TrustedPeers),
-		cli.Public, cli.Name, cli.LogoURL, encoder(cli.AllowedConnectors),
+		cli.Public, cli.Name, cli.LogoURL, encoder(cli.AllowedConnectors), encoder(cli.MFAChain),
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -547,7 +554,7 @@ func (c *conn) CreateClient(ctx context.Context, cli storage.Client) error {
 func getClient(ctx context.Context, q querier, id string) (storage.Client, error) {
 	return scanClient(q.QueryRow(`
 		select
-			id, secret, redirect_uris, trusted_peers, public, name, logo_url, allowed_connectors
+			id, secret, redirect_uris, trusted_peers, public, name, logo_url, allowed_connectors, mfa_chain
 	    from client where id = $1;
 	`, id))
 }
@@ -559,7 +566,7 @@ func (c *conn) GetClient(ctx context.Context, id string) (storage.Client, error)
 func (c *conn) ListClients(ctx context.Context) ([]storage.Client, error) {
 	rows, err := c.Query(`
 		select
-			id, secret, redirect_uris, trusted_peers, public, name, logo_url, allowed_connectors
+			id, secret, redirect_uris, trusted_peers, public, name, logo_url, allowed_connectors, mfa_chain
 		from client;
 	`)
 	if err != nil {
@@ -583,9 +590,10 @@ func (c *conn) ListClients(ctx context.Context) ([]storage.Client, error) {
 
 func scanClient(s scanner) (cli storage.Client, err error) {
 	var allowedConnectors []byte
+	var mfaChain []byte
 	err = s.Scan(
 		&cli.ID, &cli.Secret, decoder(&cli.RedirectURIs), decoder(&cli.TrustedPeers),
-		&cli.Public, &cli.Name, &cli.LogoURL, &allowedConnectors,
+		&cli.Public, &cli.Name, &cli.LogoURL, &allowedConnectors, &mfaChain,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -596,6 +604,11 @@ func scanClient(s scanner) (cli storage.Client, err error) {
 	if len(allowedConnectors) > 0 {
 		if err := json.Unmarshal(allowedConnectors, &cli.AllowedConnectors); err != nil {
 			return cli, fmt.Errorf("unmarshal client allowed connectors: %v", err)
+		}
+	}
+	if len(mfaChain) > 0 {
+		if err := json.Unmarshal(mfaChain, &cli.MFAChain); err != nil {
+			return cli, fmt.Errorf("unmarshal client mfa chain: %v", err)
 		}
 	}
 	return cli, nil
@@ -781,17 +794,17 @@ func (c *conn) CreateUserIdentity(ctx context.Context, u storage.UserIdentity) e
 			user_id, connector_id,
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
-			consents,
+			consents, mfa_secrets,
 			created_at, last_login, blocked_until
 		)
 		values (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
 		);
 	`,
 		u.UserID, u.ConnectorID,
 		u.Claims.UserID, u.Claims.Username, u.Claims.PreferredUsername,
 		u.Claims.Email, u.Claims.EmailVerified, encoder(u.Claims.Groups),
-		encoder(u.Consents),
+		encoder(u.Consents), encoder(u.MFASecrets),
 		u.CreatedAt, u.LastLogin, u.BlockedUntil,
 	)
 	if err != nil {
@@ -824,14 +837,15 @@ func (c *conn) UpdateUserIdentity(ctx context.Context, userID, connectorID strin
 				claims_email_verified = $5,
 				claims_groups = $6,
 				consents = $7,
-				created_at = $8,
-				last_login = $9,
-				blocked_until = $10
-			where user_id = $11 AND connector_id = $12;
+				mfa_secrets = $8,
+				created_at = $9,
+				last_login = $10,
+				blocked_until = $11
+			where user_id = $12 AND connector_id = $13;
 		`,
 			newIdentity.Claims.UserID, newIdentity.Claims.Username, newIdentity.Claims.PreferredUsername,
 			newIdentity.Claims.Email, newIdentity.Claims.EmailVerified, encoder(newIdentity.Claims.Groups),
-			encoder(newIdentity.Consents),
+			encoder(newIdentity.Consents), encoder(newIdentity.MFASecrets),
 			newIdentity.CreatedAt, newIdentity.LastLogin, newIdentity.BlockedUntil,
 			u.UserID, u.ConnectorID,
 		)
@@ -852,7 +866,7 @@ func getUserIdentity(ctx context.Context, q querier, userID, connectorID string)
 			user_id, connector_id,
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
-			consents,
+			consents, mfa_secrets,
 			created_at, last_login, blocked_until
 		from user_identity
 		where user_id = $1 AND connector_id = $2;
@@ -865,7 +879,7 @@ func (c *conn) ListUserIdentities(ctx context.Context) ([]storage.UserIdentity, 
 			user_id, connector_id,
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
-			consents,
+			consents, mfa_secrets,
 			created_at, last_login, blocked_until
 		from user_identity;
 	`)
@@ -889,11 +903,12 @@ func (c *conn) ListUserIdentities(ctx context.Context) ([]storage.UserIdentity, 
 }
 
 func scanUserIdentity(s scanner) (u storage.UserIdentity, err error) {
+	var mfaSecrets []byte
 	err = s.Scan(
 		&u.UserID, &u.ConnectorID,
 		&u.Claims.UserID, &u.Claims.Username, &u.Claims.PreferredUsername,
 		&u.Claims.Email, &u.Claims.EmailVerified, decoder(&u.Claims.Groups),
-		decoder(&u.Consents),
+		decoder(&u.Consents), &mfaSecrets,
 		&u.CreatedAt, &u.LastLogin, &u.BlockedUntil,
 	)
 	if err != nil {
@@ -904,6 +919,11 @@ func scanUserIdentity(s scanner) (u storage.UserIdentity, err error) {
 	}
 	if u.Consents == nil {
 		u.Consents = make(map[string][]string)
+	}
+	if len(mfaSecrets) > 0 {
+		if err := json.Unmarshal(mfaSecrets, &u.MFASecrets); err != nil {
+			return u, fmt.Errorf("unmarshal user identity mfa secrets: %v", err)
+		}
 	}
 	return u, nil
 }

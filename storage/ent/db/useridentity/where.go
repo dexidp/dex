@@ -104,6 +104,11 @@ func Consents(v []byte) predicate.UserIdentity {
 	return predicate.UserIdentity(sql.FieldEQ(FieldConsents, v))
 }
 
+// MfaSecrets applies equality check predicate on the "mfa_secrets" field. It's identical to MfaSecretsEQ.
+func MfaSecrets(v []byte) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldEQ(FieldMfaSecrets, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.UserIdentity {
 	return predicate.UserIdentity(sql.FieldEQ(FieldCreatedAt, v))
@@ -567,6 +572,56 @@ func ConsentsLT(v []byte) predicate.UserIdentity {
 // ConsentsLTE applies the LTE predicate on the "consents" field.
 func ConsentsLTE(v []byte) predicate.UserIdentity {
 	return predicate.UserIdentity(sql.FieldLTE(FieldConsents, v))
+}
+
+// MfaSecretsEQ applies the EQ predicate on the "mfa_secrets" field.
+func MfaSecretsEQ(v []byte) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldEQ(FieldMfaSecrets, v))
+}
+
+// MfaSecretsNEQ applies the NEQ predicate on the "mfa_secrets" field.
+func MfaSecretsNEQ(v []byte) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldNEQ(FieldMfaSecrets, v))
+}
+
+// MfaSecretsIn applies the In predicate on the "mfa_secrets" field.
+func MfaSecretsIn(vs ...[]byte) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldIn(FieldMfaSecrets, vs...))
+}
+
+// MfaSecretsNotIn applies the NotIn predicate on the "mfa_secrets" field.
+func MfaSecretsNotIn(vs ...[]byte) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldNotIn(FieldMfaSecrets, vs...))
+}
+
+// MfaSecretsGT applies the GT predicate on the "mfa_secrets" field.
+func MfaSecretsGT(v []byte) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldGT(FieldMfaSecrets, v))
+}
+
+// MfaSecretsGTE applies the GTE predicate on the "mfa_secrets" field.
+func MfaSecretsGTE(v []byte) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldGTE(FieldMfaSecrets, v))
+}
+
+// MfaSecretsLT applies the LT predicate on the "mfa_secrets" field.
+func MfaSecretsLT(v []byte) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldLT(FieldMfaSecrets, v))
+}
+
+// MfaSecretsLTE applies the LTE predicate on the "mfa_secrets" field.
+func MfaSecretsLTE(v []byte) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldLTE(FieldMfaSecrets, v))
+}
+
+// MfaSecretsIsNil applies the IsNil predicate on the "mfa_secrets" field.
+func MfaSecretsIsNil() predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldIsNull(FieldMfaSecrets))
+}
+
+// MfaSecretsNotNil applies the NotNil predicate on the "mfa_secrets" field.
+func MfaSecretsNotNil() predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldNotNull(FieldMfaSecrets))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
