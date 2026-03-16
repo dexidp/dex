@@ -42,9 +42,9 @@ func newRefreshTokenLock(cli *client) *refreshTokenLock {
 }
 
 // Lock polls until the lock annotation can be set on the refresh token resource.
-// Returns nil when the lock is acquired, or an error on timeout (60 attempts × 100ms).
+// Returns nil when the lock is acquired, or an error on timeout (200 attempts × 100ms).
 func (l *refreshTokenLock) Lock(id string) error {
-	for i := 0; i <= 60; i++ {
+	for i := 0; i <= 200; i++ {
 		ok, err := l.setLockAnnotation(id)
 		if err != nil {
 			return err
