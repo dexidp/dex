@@ -7,6 +7,7 @@ import (
 
 	"github.com/dexidp/dex/storage/ent/db/authcode"
 	"github.com/dexidp/dex/storage/ent/db/authrequest"
+	"github.com/dexidp/dex/storage/ent/db/authsession"
 	"github.com/dexidp/dex/storage/ent/db/connector"
 	"github.com/dexidp/dex/storage/ent/db/devicerequest"
 	"github.com/dexidp/dex/storage/ent/db/devicetoken"
@@ -87,6 +88,20 @@ func init() {
 	authrequestDescID := authrequestFields[0].Descriptor()
 	// authrequest.IDValidator is a validator for the "id" field. It is called by the builders before save.
 	authrequest.IDValidator = authrequestDescID.Validators[0].(func(string) error)
+	authsessionFields := schema.AuthSession{}.Fields()
+	_ = authsessionFields
+	// authsessionDescIPAddress is the schema descriptor for ip_address field.
+	authsessionDescIPAddress := authsessionFields[4].Descriptor()
+	// authsession.DefaultIPAddress holds the default value on creation for the ip_address field.
+	authsession.DefaultIPAddress = authsessionDescIPAddress.Default.(string)
+	// authsessionDescUserAgent is the schema descriptor for user_agent field.
+	authsessionDescUserAgent := authsessionFields[5].Descriptor()
+	// authsession.DefaultUserAgent holds the default value on creation for the user_agent field.
+	authsession.DefaultUserAgent = authsessionDescUserAgent.Default.(string)
+	// authsessionDescID is the schema descriptor for id field.
+	authsessionDescID := authsessionFields[0].Descriptor()
+	// authsession.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	authsession.IDValidator = authsessionDescID.Validators[0].(func(string) error)
 	connectorFields := schema.Connector{}.Fields()
 	_ = connectorFields
 	// connectorDescType is the schema descriptor for type field.

@@ -25,6 +25,7 @@ const (
 	deviceRequestPrefix  = "device_req/"
 	deviceTokenPrefix    = "device_token/"
 	userIdentityPrefix   = "user_identity/"
+	authSessionPrefix    = "auth_session/"
 
 	// defaultStorageTimeout will be applied to all storage's operations.
 	defaultStorageTimeout = 5 * time.Second
@@ -422,6 +423,61 @@ func (c *conn) ListUserIdentities(ctx context.Context) (identities []storage.Use
 	return identities, nil
 }
 
+func (c *conn) CreateAuthSession(ctx context.Context, s storage.AuthSession) error {
+	return c.txnCreate(ctx, keyAuthSession(s.ID), fromStorageAuthSession(s))
+}
+
+func (c *conn) GetAuthSession(ctx context.Context, sessionID string) (storage.AuthSession, error) {
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
+	defer cancel()
+	var s AuthSession
+	if err := c.getKey(ctx, keyAuthSession(sessionID), &s); err != nil {
+		return storage.AuthSession{}, err
+	}
+	return toStorageAuthSession(s), nil
+}
+
+func (c *conn) UpdateAuthSession(ctx context.Context, sessionID string, updater func(s storage.AuthSession) (storage.AuthSession, error)) error {
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
+	defer cancel()
+	return c.txnUpdate(ctx, keyAuthSession(sessionID), func(currentValue []byte) ([]byte, error) {
+		var current AuthSession
+		if len(currentValue) > 0 {
+			if err := json.Unmarshal(currentValue, &current); err != nil {
+				return nil, err
+			}
+		}
+		updated, err := updater(toStorageAuthSession(current))
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(fromStorageAuthSession(updated))
+	})
+}
+
+func (c *conn) ListAuthSessions(ctx context.Context) (sessions []storage.AuthSession, err error) {
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
+	defer cancel()
+	res, err := c.db.Get(ctx, authSessionPrefix, clientv3.WithPrefix())
+	if err != nil {
+		return sessions, err
+	}
+	for _, v := range res.Kvs {
+		var s AuthSession
+		if err = json.Unmarshal(v.Value, &s); err != nil {
+			return sessions, err
+		}
+		sessions = append(sessions, toStorageAuthSession(s))
+	}
+	return sessions, nil
+}
+
+func (c *conn) DeleteAuthSession(ctx context.Context, sessionID string) error {
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
+	defer cancel()
+	return c.deleteKey(ctx, keyAuthSession(sessionID))
+}
+
 func (c *conn) CreateConnector(ctx context.Context, connector storage.Connector) error {
 	return c.txnCreate(ctx, keyID(connectorPrefix, connector.ID), connector)
 }
@@ -615,6 +671,10 @@ func keySession(userID, connID string) string {
 
 func keyUserIdentity(userID, connectorID string) string {
 	return userIdentityPrefix + strings.ToLower(userID+"|"+connectorID)
+}
+
+func keyAuthSession(sessionID string) string {
+	return strings.ToLower(authSessionPrefix + sessionID)
 }
 
 func (c *conn) CreateDeviceRequest(ctx context.Context, d storage.DeviceRequest) error {

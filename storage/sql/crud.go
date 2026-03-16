@@ -926,6 +926,136 @@ func (c *conn) DeleteUserIdentity(ctx context.Context, userID, connectorID strin
 	return nil
 }
 
+func (c *conn) CreateAuthSession(ctx context.Context, s storage.AuthSession) error {
+	_, err := c.Exec(`
+		insert into auth_session (
+			id, client_states,
+			created_at, last_activity,
+			ip_address, user_agent
+		)
+		values ($1, $2, $3, $4, $5, $6);
+	`,
+		s.ID, encoder(s.ClientStates),
+		s.CreatedAt, s.LastActivity,
+		s.IPAddress, s.UserAgent,
+	)
+	if err != nil {
+		if c.alreadyExistsCheck(err) {
+			return storage.ErrAlreadyExists
+		}
+		return fmt.Errorf("insert auth session: %v", err)
+	}
+	return nil
+}
+
+func (c *conn) UpdateAuthSession(ctx context.Context, sessionID string, updater func(s storage.AuthSession) (storage.AuthSession, error)) error {
+	return c.ExecTx(func(tx *trans) error {
+		s, err := getAuthSession(ctx, tx, sessionID)
+		if err != nil {
+			return err
+		}
+
+		newSession, err := updater(s)
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(`
+			update auth_session
+			set
+				client_states = $1,
+				last_activity = $2,
+				ip_address = $3,
+				user_agent = $4
+			where id = $5;
+		`,
+			encoder(newSession.ClientStates),
+			newSession.LastActivity,
+			newSession.IPAddress, newSession.UserAgent,
+			sessionID,
+		)
+		if err != nil {
+			return fmt.Errorf("update auth session: %v", err)
+		}
+		return nil
+	})
+}
+
+func (c *conn) GetAuthSession(ctx context.Context, sessionID string) (storage.AuthSession, error) {
+	return getAuthSession(ctx, c, sessionID)
+}
+
+func getAuthSession(ctx context.Context, q querier, sessionID string) (storage.AuthSession, error) {
+	return scanAuthSession(q.QueryRow(`
+		select
+			id, client_states,
+			created_at, last_activity,
+			ip_address, user_agent
+		from auth_session
+		where id = $1;
+	`, sessionID))
+}
+
+func scanAuthSession(s scanner) (session storage.AuthSession, err error) {
+	err = s.Scan(
+		&session.ID, decoder(&session.ClientStates),
+		&session.CreatedAt, &session.LastActivity,
+		&session.IPAddress, &session.UserAgent,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return session, storage.ErrNotFound
+		}
+		return session, fmt.Errorf("select auth session: %v", err)
+	}
+	if session.ClientStates == nil {
+		session.ClientStates = make(map[string]*storage.ClientAuthState)
+	}
+	return session, nil
+}
+
+func (c *conn) ListAuthSessions(ctx context.Context) ([]storage.AuthSession, error) {
+	rows, err := c.Query(`
+		select
+			id, client_states,
+			created_at, last_activity,
+			ip_address, user_agent
+		from auth_session;
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query: %v", err)
+	}
+	defer rows.Close()
+
+	var sessions []storage.AuthSession
+	for rows.Next() {
+		s, err := scanAuthSession(rows)
+		if err != nil {
+			return nil, err
+		}
+		sessions = append(sessions, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("scan: %v", err)
+	}
+	return sessions, nil
+}
+
+func (c *conn) DeleteAuthSession(ctx context.Context, sessionID string) error {
+	result, err := c.Exec(`delete from auth_session where id = $1`, sessionID)
+	if err != nil {
+		return fmt.Errorf("delete auth_session: id = %s: %w", sessionID, err)
+	}
+
+	n, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %v", err)
+	}
+	if n < 1 {
+		return storage.ErrNotFound
+	}
+	return nil
+}
+
 func (c *conn) CreateConnector(ctx context.Context, connector storage.Connector) error {
 	grantTypes, err := json.Marshal(connector.GrantTypes)
 	if err != nil {

@@ -23,6 +23,7 @@ func New(logger *slog.Logger) storage.Storage {
 		passwords:       make(map[string]storage.Password),
 		offlineSessions: make(map[compositeKeyID]storage.OfflineSessions),
 		userIdentities:  make(map[compositeKeyID]storage.UserIdentity),
+		authSessions:    make(map[string]storage.AuthSession),
 		connectors:      make(map[string]storage.Connector),
 		deviceRequests:  make(map[string]storage.DeviceRequest),
 		deviceTokens:    make(map[string]storage.DeviceToken),
@@ -51,6 +52,7 @@ type memStorage struct {
 	passwords       map[string]storage.Password
 	offlineSessions map[compositeKeyID]storage.OfflineSessions
 	userIdentities  map[compositeKeyID]storage.UserIdentity
+	authSessions    map[string]storage.AuthSession
 	connectors      map[string]storage.Connector
 	deviceRequests  map[string]storage.DeviceRequest
 	deviceTokens    map[string]storage.DeviceToken
@@ -242,6 +244,61 @@ func (s *memStorage) ListUserIdentities(ctx context.Context) (identities []stora
 		for _, u := range s.userIdentities {
 			identities = append(identities, u)
 		}
+	})
+	return
+}
+
+func (s *memStorage) ListAuthSessions(ctx context.Context) (sessions []storage.AuthSession, err error) {
+	s.tx(func() {
+		for _, session := range s.authSessions {
+			sessions = append(sessions, session)
+		}
+	})
+	return
+}
+
+func (s *memStorage) CreateAuthSession(ctx context.Context, session storage.AuthSession) (err error) {
+	s.tx(func() {
+		if _, ok := s.authSessions[session.ID]; ok {
+			err = storage.ErrAlreadyExists
+		} else {
+			s.authSessions[session.ID] = session
+		}
+	})
+	return
+}
+
+func (s *memStorage) GetAuthSession(ctx context.Context, sessionID string) (session storage.AuthSession, err error) {
+	s.tx(func() {
+		var ok bool
+		if session, ok = s.authSessions[sessionID]; !ok {
+			err = storage.ErrNotFound
+		}
+	})
+	return
+}
+
+func (s *memStorage) UpdateAuthSession(ctx context.Context, sessionID string, updater func(s storage.AuthSession) (storage.AuthSession, error)) (err error) {
+	s.tx(func() {
+		r, ok := s.authSessions[sessionID]
+		if !ok {
+			err = storage.ErrNotFound
+			return
+		}
+		if r, err = updater(r); err == nil {
+			s.authSessions[sessionID] = r
+		}
+	})
+	return
+}
+
+func (s *memStorage) DeleteAuthSession(ctx context.Context, sessionID string) (err error) {
+	s.tx(func() {
+		if _, ok := s.authSessions[sessionID]; !ok {
+			err = storage.ErrNotFound
+			return
+		}
+		delete(s.authSessions, sessionID)
 	})
 	return
 }

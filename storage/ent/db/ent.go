@@ -14,6 +14,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/dexidp/dex/storage/ent/db/authcode"
 	"github.com/dexidp/dex/storage/ent/db/authrequest"
+	"github.com/dexidp/dex/storage/ent/db/authsession"
 	"github.com/dexidp/dex/storage/ent/db/connector"
 	"github.com/dexidp/dex/storage/ent/db/devicerequest"
 	"github.com/dexidp/dex/storage/ent/db/devicetoken"
@@ -85,6 +86,7 @@ func checkColumn(t, c string) error {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			authcode.Table:       authcode.ValidColumn,
 			authrequest.Table:    authrequest.ValidColumn,
+			authsession.Table:    authsession.ValidColumn,
 			connector.Table:      connector.ValidColumn,
 			devicerequest.Table:  devicerequest.ValidColumn,
 			devicetoken.Table:    devicetoken.ValidColumn,
