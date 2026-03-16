@@ -14,6 +14,7 @@ message Client {
   bool public = 5;
   string name = 6;
   string logo_url = 7;
+  repeated string allowed_connectors = 8;
 }
 
 // ClientInfo represents an OAuth2 client without sensitive information.
@@ -24,6 +25,7 @@ message ClientInfo {
   bool public = 4;
   string name = 5;
   string logo_url = 6;
+  repeated string allowed_connectors = 7;
 }
 
 // GetClientReq is a request to retrieve client details.
@@ -66,6 +68,7 @@ message UpdateClientReq {
     repeated string trusted_peers = 3;
     string name = 4;
     string logo_url = 5;
+    repeated string allowed_connectors = 6;
 }
 
 // UpdateClientResp returns the response from updating a client.
@@ -140,6 +143,7 @@ message Connector {
   string type = 2;
   string name = 3;
   bytes config = 4;
+  repeated string grant_types = 5;
 }
 
 // CreateConnectorReq is a request to make a connector.
@@ -152,6 +156,12 @@ message CreateConnectorResp {
   bool already_exists = 1;
 }
 
+// GrantTypes wraps a list of grant types to distinguish between
+// "not specified" (no update) and "empty list" (unrestricted).
+message GrantTypes {
+  repeated string grant_types = 1;
+}
+
 // UpdateConnectorReq is a request to modify an existing connector.
 message UpdateConnectorReq {
   // The id used to lookup the connector. This field cannot be modified
@@ -159,6 +169,10 @@ message UpdateConnectorReq {
   string new_type = 2;
   string new_name = 3;
   bytes new_config = 4;
+  // If set, updates the connector's allowed grant types.
+  // An empty grant_types list means unrestricted (all grant types allowed).
+  // If not set (null), grant types are not modified.
+  GrantTypes new_grant_types = 5;
 }
 
 // UpdateConnectorResp returns the response from modifying an existing connector.

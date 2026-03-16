@@ -48,6 +48,24 @@ jobs:
           - 3306
         options: --health-cmd "mysql -proot -e \"show databases;\"" --health-interval 10s --health-timeout 5s --health-retries 5
 
+      mysql8:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: dex
+        ports:
+          - 3306
+        options: --health-cmd "mysql -proot -e \"show databases;\"" --health-interval 10s --health-timeout 5s --health-retries 5
+
+      mysql8-ent:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: dex
+        ports:
+          - 3306
+        options: --health-cmd "mysql -proot -e \"show databases;\"" --health-interval 10s --health-timeout 5s --health-retries 5
+
       etcd:
         image: gcr.io/etcd-development/etcd:v3.5.0
         ports:
@@ -87,7 +105,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Go
-        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version: "1.25"
 
@@ -123,6 +141,18 @@ jobs:
           DEX_MYSQL_ENT_PASSWORD: root
           DEX_MYSQL_ENT_HOST: 127.0.0.1
           DEX_MYSQL_ENT_PORT: ${{ job.services.mysql-ent.ports[3306] }}
+
+          DEX_MYSQL8_DATABASE: dex
+          DEX_MYSQL8_USER: root
+          DEX_MYSQL8_PASSWORD: root
+          DEX_MYSQL8_HOST: 127.0.0.1
+          DEX_MYSQL8_PORT: ${{ job.services.mysql8.ports[3306] }}
+
+          DEX_MYSQL8_ENT_DATABASE: dex
+          DEX_MYSQL8_ENT_USER: root
+          DEX_MYSQL8_ENT_PASSWORD: root
+          DEX_MYSQL8_ENT_HOST: 127.0.0.1
+          DEX_MYSQL8_ENT_PORT: ${{ job.services.mysql8-ent.ports[3306] }}
 
           DEX_POSTGRES_DATABASE: postgres
           DEX_POSTGRES_USER: postgres
@@ -163,7 +193,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Go
-        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version: "1.25"
 
@@ -198,4 +228,4 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Dependency Review
-        uses: actions/dependency-review-action@05fe4576374b728f0c523d6a13d64c25081e0803 # v4.8.3
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0

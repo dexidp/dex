@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -22,6 +23,15 @@ import (
 	"github.com/dexidp/dex/storage/memory"
 	"github.com/dexidp/dex/storage/sql"
 )
+
+func configUnmarshaller(b []byte, v interface{}) error {
+	if !featureflags.ConfigDisallowUnknownFields.Enabled() {
+		return json.Unmarshal(b, v)
+	}
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+	return dec.Decode(v)
+}
 
 // Config is the config format for the main application.
 type Config struct {
@@ -89,6 +99,7 @@ func (c Config) Validate() error {
 			checkErrors = append(checkErrors, check.errMsg)
 		}
 	}
+
 	if len(checkErrors) != 0 {
 		return fmt.Errorf("invalid Config:\n\t-\t%s", strings.Join(checkErrors, "\n\t-\t"))
 	}
@@ -109,7 +120,7 @@ func (p *password) UnmarshalJSON(b []byte) error {
 		HashFromEnv       string   `json:"hashFromEnv"`
 		Groups            []string `json:"groups"`
 	}
-	if err := json.Unmarshal(b, &data); err != nil {
+	if err := configUnmarshaller(b, &data); err != nil {
 		return err
 	}
 	*p = password(storage.Password{
@@ -161,6 +172,16 @@ type OAuth2 struct {
 	AlwaysShowLoginScreen bool `json:"alwaysShowLoginScreen"`
 	// This is the connector that can be used for password grant
 	PasswordConnector string `json:"passwordConnector"`
+	// PKCE configuration
+	PKCE PKCE `json:"pkce"`
+}
+
+// PKCE holds the PKCE (Proof Key for Code Exchange) configuration.
+type PKCE struct {
+	// If true, PKCE is required for all authorization code flows.
+	Enforce bool `json:"enforce"`
+	// Supported code challenge methods. Defaults to ["S256", "plain"].
+	CodeChallengeMethodsSupported []string `json:"codeChallengeMethodsSupported"`
 }
 
 // Web is the config format for the HTTP server.
@@ -333,7 +354,7 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 		Type   string          `json:"type"`
 		Config json.RawMessage `json:"config"`
 	}
-	if err := json.Unmarshal(b, &store); err != nil {
+	if err := configUnmarshaller(b, &store); err != nil {
 		return fmt.Errorf("parse storage: %v", err)
 	}
 	f, ok := storages[store.Type]
@@ -346,7 +367,7 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 		data := []byte(store.Config)
 		if featureflags.ExpandEnv.Enabled() {
 			var rawMap map[string]interface{}
-			if err := json.Unmarshal(store.Config, &rawMap); err != nil {
+			if err := configUnmarshaller(store.Config, &rawMap); err != nil {
 				return fmt.Errorf("unmarshal config for env expansion: %v", err)
 			}
 
@@ -363,7 +384,7 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 			data = expandedData
 		}
 
-		if err := json.Unmarshal(data, storageConfig); err != nil {
+		if err := configUnmarshaller(data, storageConfig); err != nil {
 			return fmt.Errorf("parse storage config: %v", err)
 		}
 	}
@@ -449,7 +470,8 @@ type Connector struct {
 	Name string `json:"name"`
 	ID   string `json:"id"`
 
-	Config server.ConnectorConfig `json:"config"`
+	Config     server.ConnectorConfig `json:"config"`
+	GrantTypes []string               `json:"grantTypes"`
 }
 
 // UnmarshalJSON allows Connector to implement the unmarshaler interface to
@@ -460,9 +482,10 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 		Name string `json:"name"`
 		ID   string `json:"id"`
 
-		Config json.RawMessage `json:"config"`
+		Config     json.RawMessage `json:"config"`
+		GrantTypes []string        `json:"grantTypes"`
 	}
-	if err := json.Unmarshal(b, &conn); err != nil {
+	if err := configUnmarshaller(b, &conn); err != nil {
 		return fmt.Errorf("parse connector: %v", err)
 	}
 	f, ok := server.ConnectorsConfig[conn.Type]
@@ -475,7 +498,7 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 		data := []byte(conn.Config)
 		if featureflags.ExpandEnv.Enabled() {
 			var rawMap map[string]interface{}
-			if err := json.Unmarshal(conn.Config, &rawMap); err != nil {
+			if err := configUnmarshaller(conn.Config, &rawMap); err != nil {
 				return fmt.Errorf("unmarshal config for env expansion: %v", err)
 			}
 
@@ -492,16 +515,17 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 			data = expandedData
 		}
 
-		if err := json.Unmarshal(data, connConfig); err != nil {
+		if err := configUnmarshaller(data, connConfig); err != nil {
 			return fmt.Errorf("parse connector config: %v", err)
 		}
 	}
 
 	*c = Connector{
-		Type:   conn.Type,
-		Name:   conn.Name,
-		ID:     conn.ID,
-		Config: connConfig,
+		Type:       conn.Type,
+		Name:       conn.Name,
+		ID:         conn.ID,
+		Config:     connConfig,
+		GrantTypes: conn.GrantTypes,
 	}
 	return nil
 }
@@ -514,10 +538,11 @@ func ToStorageConnector(c Connector) (storage.Connector, error) {
 	}
 
 	return storage.Connector{
-		ID:     c.ID,
-		Type:   c.Type,
-		Name:   c.Name,
-		Config: data,
+		ID:         c.ID,
+		Type:       c.Type,
+		Name:       c.Name,
+		Config:     data,
+		GrantTypes: c.GrantTypes,
 	}, nil
 }
 
@@ -546,6 +571,12 @@ type Logger struct {
 
 	// Format specifies the format to be used for logging.
 	Format string `json:"format"`
+
+	// ExcludeFields specifies log attribute keys that should be dropped from all
+	// log output. This is useful for suppressing PII fields like email, username,
+	// preferred_username, or groups in environments subject to GDPR or similar
+	// data-handling constraints.
+	ExcludeFields []string `json:"excludeFields"`
 }
 
 type RefreshToken struct {

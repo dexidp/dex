@@ -97,13 +97,19 @@ func runServe(options serveOptions) error {
 	}
 
 	var c Config
-	if err := yaml.Unmarshal(configData, &c); err != nil {
+
+	jsonConfigData, err := yaml.YAMLToJSON(configData)
+	if err != nil {
 		return fmt.Errorf("error parse config file %s: %v", configFile, err)
+	}
+
+	if err := configUnmarshaller(jsonConfigData, &c); err != nil {
+		return fmt.Errorf("error unmarshalling config file %s: %v", configFile, err)
 	}
 
 	applyConfigOverrides(options, &c)
 
-	logger, err := newLogger(c.Logger.Level, c.Logger.Format)
+	logger, err := newLogger(c.Logger.Level, c.Logger.Format, c.Logger.ExcludeFields)
 	if err != nil {
 		return fmt.Errorf("invalid config: %v", err)
 	}
@@ -249,6 +255,11 @@ func runServe(options serveOptions) error {
 		if c.Config == nil {
 			return fmt.Errorf("invalid config: no config field for connector %q", c.ID)
 		}
+		for _, gt := range c.GrantTypes {
+			if !server.ConnectorGrantTypes[gt] {
+				return fmt.Errorf("invalid config: unknown grant type %q for connector %q", gt, c.ID)
+			}
+		}
 		logger.Info("config connector", "connector_id", c.ID)
 
 		// convert to a storage connector object
@@ -351,11 +362,15 @@ func runServe(options serveOptions) error {
 	}
 
 	serverConfig := server.Config{
-		AllowedGrantTypes:          c.OAuth2.GrantTypes,
-		SupportedResponseTypes:     c.OAuth2.ResponseTypes,
-		SkipApprovalScreen:         c.OAuth2.SkipApprovalScreen,
-		AlwaysShowLoginScreen:      c.OAuth2.AlwaysShowLoginScreen,
-		PasswordConnector:          c.OAuth2.PasswordConnector,
+		AllowedGrantTypes:      c.OAuth2.GrantTypes,
+		SupportedResponseTypes: c.OAuth2.ResponseTypes,
+		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
+		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
+		PasswordConnector:      c.OAuth2.PasswordConnector,
+		PKCE: server.PKCEConfig{
+			Enforce:                       c.OAuth2.PKCE.Enforce,
+			CodeChallengeMethodsSupported: c.OAuth2.PKCE.CodeChallengeMethodsSupported,
+		},
 		Headers:                    c.Web.Headers.ToHTTPHeader(),
 		AllowedOrigins:             c.Web.AllowedOrigins,
 		AllowedHeaders:             c.Web.AllowedHeaders,
@@ -382,7 +397,7 @@ func runServe(options serveOptions) error {
 	if c.Expiry.DeviceRequests != "" {
 		deviceRequests, err := time.ParseDuration(c.Expiry.DeviceRequests)
 		if err != nil {
-			return fmt.Errorf("invalid config value %q for device request expiry: %v", c.Expiry.AuthRequests, err)
+			return fmt.Errorf("invalid config value %q for device request expiry: %v", c.Expiry.DeviceRequests, err)
 		}
 		logger.Info("config device requests", "valid_for", deviceRequests)
 		serverConfig.DeviceRequestsValidFor = deviceRequests
@@ -556,7 +571,7 @@ func runServe(options serveOptions) error {
 
 		grpcListener, err := net.Listen("tcp", c.GRPC.Addr)
 		if err != nil {
-			return fmt.Errorf("listening (grcp) on %s: %w", c.GRPC.Addr, err)
+			return fmt.Errorf("listening (grpc) on %s: %w", c.GRPC.Addr, err)
 		}
 
 		grpcSrv := grpc.NewServer(grpcOptions...)
@@ -615,6 +630,9 @@ func applyConfigOverrides(options serveOptions, config *Config) {
 			"refresh_token",
 			"urn:ietf:params:oauth:grant-type:device_code",
 			"urn:ietf:params:oauth:grant-type:token-exchange",
+		}
+		if featureflags.ClientCredentialGrantEnabledByDefault.Enabled() {
+			config.OAuth2.GrantTypes = append(config.OAuth2.GrantTypes, "client_credentials")
 		}
 	}
 }

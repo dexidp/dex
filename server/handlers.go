@@ -23,6 +23,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
@@ -116,7 +117,7 @@ func (s *Server) constructDiscovery(ctx context.Context) discovery {
 		Introspect:        s.absURL("/token/introspect"),
 		Subjects:          []string{"public"},
 		IDTokenAlgs:       []string{string(jose.RS256)},
-		CodeChallengeAlgs: []string{codeChallengeMethodS256, codeChallengeMethodPlain},
+		CodeChallengeAlgs: s.pkce.CodeChallengeMethodsSupported,
 		Scopes:            []string{"openid", "email", "groups", "profile", "offline_access"},
 		AuthMethods:       []string{"client_secret_basic", "client_secret_post"},
 		Claims: []string{
@@ -142,6 +143,21 @@ func (s *Server) constructDiscovery(ctx context.Context) discovery {
 	return d
 }
 
+// grantTypeFromAuthRequest determines the grant type from the authorization request parameters.
+func (s *Server) grantTypeFromAuthRequest(r *http.Request) string {
+	redirectURI := r.Form.Get("redirect_uri")
+	if redirectURI == deviceCallbackURI || strings.HasSuffix(redirectURI, deviceCallbackURI) {
+		return grantTypeDeviceCode
+	}
+	responseType := r.Form.Get("response_type")
+	for _, rt := range strings.Fields(responseType) {
+		if rt == "token" || rt == "id_token" {
+			return grantTypeImplicit
+		}
+	}
+	return grantTypeAuthorizationCode
+}
+
 // handleAuthorization handles the OAuth2 auth endpoint.
 func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -154,10 +170,33 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	}
 
 	connectorID := r.Form.Get("connector_id")
-	connectors, err := s.storage.ListConnectors(ctx)
+	allConnectors, err := s.storage.ListConnectors(ctx)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to get list of connectors", "err", err)
 		s.renderError(r, w, http.StatusInternalServerError, "Failed to retrieve connector list.")
+		return
+	}
+
+	// Determine the grant type from the authorization request to filter connectors.
+	grantType := s.grantTypeFromAuthRequest(r)
+	connectors := make([]storage.Connector, 0, len(allConnectors))
+	for _, c := range allConnectors {
+		if GrantTypeAllowed(c.GrantTypes, grantType) {
+			connectors = append(connectors, c)
+		}
+	}
+
+	// Filter connectors based on the client's allowed connectors list.
+	// client_id is required per RFC 6749 §4.1.1.
+	client, authErr := s.getClientWithAuthError(ctx, r.Form.Get("client_id"))
+	if authErr != nil {
+		s.renderError(r, w, authErr.Status, authErr.Error())
+		return
+	}
+	connectors = filterConnectors(connectors, client.AllowedConnectors)
+
+	if len(connectors) == 0 {
+		s.renderError(r, w, http.StatusBadRequest, "No connectors available for this client.")
 		return
 	}
 
@@ -187,20 +226,71 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, connURL.String(), http.StatusFound)
 	}
 
-	connectorInfos := make([]connectorInfo, len(connectors))
-	for index, conn := range connectors {
+	connectorInfos := make([]connectorInfo, 0, len(connectors))
+	for _, conn := range connectors {
 		connURL.Path = s.absPath("/auth", url.PathEscape(conn.ID))
-		connectorInfos[index] = connectorInfo{
+		connectorInfos = append(connectorInfos, connectorInfo{
 			ID:   conn.ID,
 			Name: conn.Name,
 			Type: conn.Type,
 			URL:  template.URL(connURL.String()),
-		}
+		})
 	}
 
 	if err := s.templates.login(r, w, connectorInfos); err != nil {
 		s.logger.ErrorContext(r.Context(), "server template error", "err", err)
 	}
+}
+
+// filterConnectors filters the list of connectors by the allowed connector IDs.
+// If allowedConnectors is empty, all connectors are returned (no filtering).
+func filterConnectors(connectors []storage.Connector, allowedConnectors []string) []storage.Connector {
+	if len(allowedConnectors) == 0 {
+		return connectors
+	}
+
+	allowed := make(map[string]bool, len(allowedConnectors))
+	for _, id := range allowedConnectors {
+		allowed[id] = true
+	}
+
+	filtered := make([]storage.Connector, 0, len(connectors))
+	for _, c := range connectors {
+		if allowed[c.ID] {
+			filtered = append(filtered, c)
+		}
+	}
+	return filtered
+}
+
+// isConnectorAllowed checks if a connector ID is in the client's allowed connectors list.
+// If allowedConnectors is empty, all connectors are allowed.
+func isConnectorAllowed(allowedConnectors []string, connectorID string) bool {
+	if len(allowedConnectors) == 0 {
+		return true
+	}
+	for _, id := range allowedConnectors {
+		if id == connectorID {
+			return true
+		}
+	}
+	return false
+}
+
+// getClientWithAuthError retrieves a client by ID and returns a displayedAuthErr on failure.
+// Invalid client_id is not treated as a redirect error per RFC 6749 §4.1.2.1.
+// https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.2.1
+func (s *Server) getClientWithAuthError(ctx context.Context, clientID string) (storage.Client, *displayedAuthErr) {
+	client, err := s.storage.GetClient(ctx, clientID)
+	if err != nil {
+		if err == storage.ErrNotFound {
+			s.logger.ErrorContext(ctx, "invalid client_id provided", "client_id", clientID)
+			return storage.Client{}, newDisplayedErr(http.StatusBadRequest, "Invalid client_id provided.")
+		}
+		s.logger.ErrorContext(ctx, "failed to get client", "client_id", clientID, "err", err)
+		return storage.Client{}, newDisplayedErr(http.StatusInternalServerError, "Database error.")
+	}
+	return client, nil
 }
 
 func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
@@ -228,10 +318,32 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate that the connector is allowed for this client.
+	client, authErr := s.getClientWithAuthError(ctx, authReq.ClientID)
+	if authErr != nil {
+		s.renderError(r, w, authErr.Status, authErr.Error())
+		return
+	}
+	if !isConnectorAllowed(client.AllowedConnectors, connID) {
+		s.logger.ErrorContext(r.Context(), "connector not allowed for client",
+			"connector_id", connID, "client_id", authReq.ClientID)
+		s.renderError(r, w, http.StatusForbidden, "Connector not allowed for this client.")
+		return
+	}
+
 	conn, err := s.getConnector(ctx, connID)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "Failed to get connector", "err", err)
 		s.renderError(r, w, http.StatusBadRequest, "Connector failed to initialize")
+		return
+	}
+
+	// Check if the connector allows the requested grant type.
+	grantType := s.grantTypeFromAuthRequest(r)
+	if !GrantTypeAllowed(conn.GrantTypes, grantType) {
+		s.logger.ErrorContext(r.Context(), "connector does not allow requested grant type",
+			"connector_id", connID, "grant_type", grantType)
+		s.renderError(r, w, http.StatusBadRequest, "Requested connector does not support this grant type.")
 		return
 	}
 
@@ -558,8 +670,9 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 	}
 
 	s.logger.InfoContext(ctx, "login successful",
-		"connector_id", authReq.ConnectorID, "username", claims.Username,
-		"preferred_username", claims.PreferredUsername, "email", email, "groups", claims.Groups)
+		"connector_id", authReq.ConnectorID, "user_id", claims.UserID,
+		"username", claims.Username, "preferred_username", claims.PreferredUsername,
+		"email", email, "groups", claims.Groups)
 
 	offlineAccessRequested := false
 	for _, scope := range authReq.Scopes {
@@ -605,9 +718,58 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 		}
 	}
 
+	// Create or update UserIdentity to persist user claims across sessions.
+	var userIdentity *storage.UserIdentity
+	if featureflags.SessionsEnabled.Enabled() {
+		now := s.now()
+
+		ui, err := s.storage.GetUserIdentity(ctx, identity.UserID, authReq.ConnectorID)
+		switch {
+		case err != nil && errors.Is(err, storage.ErrNotFound):
+			ui = storage.UserIdentity{
+				UserID:      identity.UserID,
+				ConnectorID: authReq.ConnectorID,
+				Claims:      claims,
+				Consents:    make(map[string][]string),
+				CreatedAt:   now,
+				LastLogin:   now,
+			}
+			if err := s.storage.CreateUserIdentity(ctx, ui); err != nil {
+				s.logger.ErrorContext(ctx, "failed to create user identity", "err", err)
+				return "", false, err
+			}
+		case err == nil:
+			if err := s.storage.UpdateUserIdentity(ctx, identity.UserID, authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
+				if len(identity.ConnectorData) > 0 {
+					old.Claims = claims
+					old.LastLogin = now
+					return old, nil
+				}
+				return old, nil
+			}); err != nil {
+				s.logger.ErrorContext(ctx, "failed to update user identity", "err", err)
+				return "", false, err
+			}
+			// Update the existing UserIdentity obj with new claims to use them later in the flow.
+			ui.Claims = claims
+			ui.LastLogin = now
+		default:
+			s.logger.ErrorContext(ctx, "failed to get user identity", "err", err)
+			return "", false, err
+		}
+		userIdentity = &ui
+	}
+
 	// we can skip the redirect to /approval and go ahead and send code if it's not required
 	if s.skipApproval && !authReq.ForceApprovalPrompt {
 		return "", true, nil
+	}
+
+	// Skip approval if user already consented to the requested scopes for this client.
+	if !authReq.ForceApprovalPrompt && userIdentity != nil {
+		if scopesCoveredByConsent(userIdentity.Consents[authReq.ClientID], authReq.Scopes) {
+			return "", true, nil
+		}
 	}
 
 	// an HMAC is used here to ensure that the request ID is unpredictable, ensuring that an attacker who intercepted the original
@@ -635,6 +797,10 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 
 	authReq, err := s.storage.GetAuthRequest(ctx, r.FormValue("req"))
 	if err != nil {
+		if err == storage.ErrNotFound {
+			s.renderError(r, w, http.StatusBadRequest, "User session error.")
+			return
+		}
 		s.logger.ErrorContext(r.Context(), "failed to get auth request", "err", err)
 		s.renderError(r, w, http.StatusInternalServerError, "Database error.")
 		return
@@ -670,6 +836,18 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 		if r.FormValue("approval") != "approve" {
 			s.renderError(r, w, http.StatusInternalServerError, "Approval rejected.")
 			return
+		}
+		// Persist user-approved scopes as consent for this client.
+		if featureflags.SessionsEnabled.Enabled() {
+			if err := s.storage.UpdateUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
+				if old.Consents == nil {
+					old.Consents = make(map[string][]string)
+				}
+				old.Consents[authReq.ClientID] = authReq.Scopes
+				return old, nil
+			}); err != nil {
+				s.logger.ErrorContext(ctx, "failed to update user identity consents", "err", err)
+			}
 		}
 		s.sendCodeResponse(w, r, authReq)
 	}
@@ -816,6 +994,27 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 	http.Redirect(w, r, u.String(), http.StatusSeeOther)
 }
 
+// scopesCoveredByConsent checks whether the approved scopes cover all requested scopes.
+// The openid scope is excluded from the comparison as it is a technical scope
+// that does not require user consent.
+func scopesCoveredByConsent(approved, requested []string) bool {
+	approvedSet := make(map[string]struct{}, len(approved))
+	for _, s := range approved {
+		approvedSet[s] = struct{}{}
+	}
+
+	for _, scope := range requested {
+		if scope == scopeOpenID {
+			continue
+		}
+		if _, ok := approvedSet[scope]; !ok {
+			return false
+		}
+	}
+
+	return true
+}
+
 func (s *Server) withClientFromStorage(w http.ResponseWriter, r *http.Request, handler func(http.ResponseWriter, *http.Request, storage.Client)) {
 	ctx := r.Context()
 	clientID, clientSecret, ok := r.BasicAuth()
@@ -889,6 +1088,8 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		s.withClientFromStorage(w, r, s.handlePasswordGrant)
 	case grantTypeTokenExchange:
 		s.withClientFromStorage(w, r, s.handleTokenExchange)
+	case grantTypeClientCredentials:
+		s.withClientFromStorage(w, r, s.handleClientCredentialsGrant)
 	default:
 		s.tokenErrHelper(w, errUnsupportedGrantType, "", http.StatusBadRequest)
 	}
@@ -989,9 +1190,16 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 	}
 
 	reqRefresh := func() bool {
-		// Ensure the connector supports refresh tokens.
+		// Determine whether to issue a refresh token. A refresh token is only
+		// issued when all of the following are true:
+		//   1. The connector implements RefreshConnector.
+		//   2. The connector's grantTypes config allows refresh_token.
+		//   3. The client requested the offline_access scope.
 		//
-		// Connectors like `saml` do not implement RefreshConnector.
+		// When any condition is not met, the refresh token is silently omitted
+		// rather than returning an error. This matches the OAuth2 spec: the
+		// server is never required to issue a refresh token (RFC 6749 §1.5).
+		// https://datatracker.ietf.org/doc/html/rfc6749#section-1.5
 		conn, err := s.getConnector(ctx, authCode.ConnectorID)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "connector not found", "connector_id", authCode.ConnectorID, "err", err)
@@ -1001,6 +1209,10 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 
 		_, ok := conn.Connector.(connector.RefreshConnector)
 		if !ok {
+			return false
+		}
+
+		if !GrantTypeAllowed(conn.GrantTypes, grantTypeRefreshToken) {
 			return false
 		}
 
@@ -1072,9 +1284,10 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 				return nil, err
 			}
 			offlineSessions := storage.OfflineSessions{
-				UserID:  refresh.Claims.UserID,
-				ConnID:  refresh.ConnectorID,
-				Refresh: make(map[string]*storage.RefreshTokenRef),
+				UserID:        refresh.Claims.UserID,
+				ConnID:        refresh.ConnectorID,
+				Refresh:       make(map[string]*storage.RefreshTokenRef),
+				ConnectorData: refresh.ConnectorData,
 			}
 			offlineSessions.Refresh[tokenRef.ClientID] = &tokenRef
 
@@ -1100,6 +1313,9 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 			// Update existing OfflineSession obj with new RefreshTokenRef.
 			if err := s.storage.UpdateOfflineSessions(ctx, session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
 				old.Refresh[tokenRef.ClientID] = &tokenRef
+				if len(refresh.ConnectorData) > 0 {
+					old.ConnectorData = refresh.ConnectorData
+				}
 				return old, nil
 			}); err != nil {
 				s.logger.ErrorContext(ctx, "failed to update offline session", "err", err)
@@ -1205,6 +1421,11 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
 		return
 	}
+	if !GrantTypeAllowed(conn.GrantTypes, grantTypePassword) {
+		s.logger.ErrorContext(r.Context(), "connector does not allow password grant", "connector_id", connID)
+		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not support password grant.", http.StatusBadRequest)
+		return
+	}
 
 	passwordConnector, ok := conn.Connector.(connector.PasswordConnector)
 	if !ok {
@@ -1251,11 +1472,15 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 	}
 
 	reqRefresh := func() bool {
-		// Ensure the connector supports refresh tokens.
-		//
-		// Connectors like `saml` do not implement RefreshConnector.
-		_, ok := conn.Connector.(connector.RefreshConnector)
-		if !ok {
+		// Same logic as in exchangeAuthCode: silently omit refresh token
+		// when the connector doesn't support it or grantTypes forbids it.
+		// See RFC 6749 §1.5 — refresh tokens are never mandatory.
+		// https://datatracker.ietf.org/doc/html/rfc6749#section-1.5
+		if _, ok := conn.Connector.(connector.RefreshConnector); !ok {
+			return false
+		}
+
+		if !GrantTypeAllowed(conn.GrantTypes, grantTypeRefreshToken) {
 			return false
 		}
 
@@ -1417,6 +1642,11 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
 		return
 	}
+	if !GrantTypeAllowed(conn.GrantTypes, grantTypeTokenExchange) {
+		s.logger.ErrorContext(r.Context(), "connector does not allow token exchange", "connector_id", connID)
+		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not support token exchange.", http.StatusBadRequest)
+		return
+	}
 	teConn, ok := conn.Connector.(connector.TokenIdentityConnector)
 	if !ok {
 		s.logger.ErrorContext(r.Context(), "connector doesn't implement token exchange", "connector_id", connID)
@@ -1474,6 +1704,108 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Request, client storage.Client) {
+	ctx := r.Context()
+
+	// client_credentials requires a confidential client.
+	if client.Public {
+		s.tokenErrHelper(w, errUnauthorizedClient, "Public clients cannot use client_credentials grant.", http.StatusBadRequest)
+		return
+	}
+
+	// Parse scopes from request.
+	if err := r.ParseForm(); err != nil {
+		s.tokenErrHelper(w, errInvalidRequest, "Couldn't parse data", http.StatusBadRequest)
+		return
+	}
+	scopes := strings.Fields(r.Form.Get("scope"))
+
+	// Validate scopes.
+	var (
+		unrecognized  []string
+		invalidScopes []string
+	)
+	hasOpenIDScope := false
+	for _, scope := range scopes {
+		switch scope {
+		case scopeOpenID:
+			hasOpenIDScope = true
+		case scopeEmail, scopeProfile, scopeGroups:
+			// allowed
+		case scopeOfflineAccess:
+			s.tokenErrHelper(w, errInvalidScope, "client_credentials grant does not support offline_access scope.", http.StatusBadRequest)
+			return
+		case scopeFederatedID:
+			s.tokenErrHelper(w, errInvalidScope, "client_credentials grant does not support federated:id scope.", http.StatusBadRequest)
+			return
+		default:
+			peerID, ok := parseCrossClientScope(scope)
+			if !ok {
+				unrecognized = append(unrecognized, scope)
+				continue
+			}
+
+			isTrusted, err := s.validateCrossClientTrust(ctx, client.ID, peerID)
+			if err != nil {
+				s.logger.ErrorContext(ctx, "error validating cross client trust", "client_id", client.ID, "peer_id", peerID, "err", err)
+				s.tokenErrHelper(w, errInvalidClient, "Error validating cross client trust.", http.StatusBadRequest)
+				return
+			}
+			if !isTrusted {
+				invalidScopes = append(invalidScopes, scope)
+			}
+		}
+	}
+	if len(unrecognized) > 0 {
+		s.tokenErrHelper(w, errInvalidScope, fmt.Sprintf("Unrecognized scope(s) %q", unrecognized), http.StatusBadRequest)
+		return
+	}
+	if len(invalidScopes) > 0 {
+		s.tokenErrHelper(w, errInvalidScope, fmt.Sprintf("Client can't request scope(s) %q", invalidScopes), http.StatusBadRequest)
+		return
+	}
+
+	// Build claims from the client itself — no user involved.
+	claims := storage.Claims{
+		UserID: client.ID,
+	}
+
+	// Only populate Username/PreferredUsername when the profile scope is requested.
+	for _, scope := range scopes {
+		if scope == scopeProfile {
+			claims.Username = client.Name
+			claims.PreferredUsername = client.Name
+			break
+		}
+	}
+
+	nonce := r.Form.Get("nonce")
+
+	// Empty connector ID is unique for cluster credentials grant
+	// Creating connectors with an empty ID with the config and API is prohibited
+	connID := ""
+
+	accessToken, expiry, err := s.newAccessToken(ctx, client.ID, claims, scopes, nonce, connID)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "client_credentials grant failed to create new access token", "err", err)
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
+
+	var idToken string
+	if hasOpenIDScope {
+		idToken, expiry, err = s.newIDToken(ctx, client.ID, claims, scopes, nonce, accessToken, "", connID)
+		if err != nil {
+			s.logger.ErrorContext(ctx, "client_credentials grant failed to create new ID token", "err", err)
+			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	resp := s.toAccessTokenResponse(idToken, accessToken, "", expiry)
+	s.writeAccessToken(w, resp)
 }
 
 type accessTokenResponse struct {

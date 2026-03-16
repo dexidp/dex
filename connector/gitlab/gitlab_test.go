@@ -485,3 +485,88 @@ func expectEquals(t *testing.T, a interface{}, b interface{}) {
 		t.Errorf("Expected %+v to equal %+v", a, b)
 	}
 }
+
+func TestTokenIdentity(t *testing.T) {
+	// Note: These tests verify that the connector returns groups based on its configuration.
+	// The actual inclusion of groups in the final Dex token depends on the 'groups' scope
+	// in the token exchange request, which is handled by the Dex server, not the connector.
+	tests := []struct {
+		name                string
+		userInfo            userInfo
+		groups              []string
+		getGroupsPermission bool
+		useLoginAsID        bool
+		expectUserID        string
+		expectGroups        []string
+	}{
+		{
+			name:         "without groups config",
+			expectUserID: "12345678",
+			expectGroups: nil,
+		},
+		{
+			name: "with groups filter",
+			userInfo: userInfo{
+				Groups: []string{"team-1", "team-2"},
+			},
+			groups:       []string{"team-1"},
+			expectUserID: "12345678",
+			expectGroups: []string{"team-1"},
+		},
+		{
+			name: "with groups permission",
+			userInfo: userInfo{
+				Groups:               []string{"ops", "dev"},
+				OwnerPermission:      []string{"ops"},
+				DeveloperPermission:  []string{"dev"},
+				MaintainerPermission: []string{},
+			},
+			getGroupsPermission: true,
+			expectUserID:        "12345678",
+			expectGroups:        []string{"ops", "dev", "ops:owner", "dev:developer"},
+		},
+		{
+			name:         "with useLoginAsID",
+			useLoginAsID: true,
+			expectUserID: "joebloggs",
+			expectGroups: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			responses := map[string]interface{}{
+				"/api/v4/user": gitlabUser{
+					Email:    "some@email.com",
+					ID:       12345678,
+					Name:     "Joe Bloggs",
+					Username: "joebloggs",
+				},
+				"/oauth/userinfo": tc.userInfo,
+			}
+
+			s := newTestServer(responses)
+			defer s.Close()
+
+			c := gitlabConnector{
+				baseURL:             s.URL,
+				httpClient:          newClient(),
+				groups:              tc.groups,
+				getGroupsPermission: tc.getGroupsPermission,
+				useLoginAsID:        tc.useLoginAsID,
+			}
+
+			accessToken := "test-access-token"
+			ctx := context.Background()
+			identity, err := c.TokenIdentity(ctx, "urn:ietf:params:oauth:token-type:access_token", accessToken)
+
+			expectNil(t, err)
+			expectEquals(t, identity.UserID, tc.expectUserID)
+			expectEquals(t, identity.Username, "Joe Bloggs")
+			expectEquals(t, identity.PreferredUsername, "joebloggs")
+			expectEquals(t, identity.Email, "some@email.com")
+			expectEquals(t, identity.EmailVerified, true)
+			expectEquals(t, identity.Groups, tc.expectGroups)
+		})
+	}
+}

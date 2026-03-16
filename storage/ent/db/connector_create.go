@@ -43,6 +43,12 @@ func (_c *ConnectorCreate) SetConfig(v []byte) *ConnectorCreate {
 	return _c
 }
 
+// SetGrantTypes sets the "grant_types" field.
+func (_c *ConnectorCreate) SetGrantTypes(v []string) *ConnectorCreate {
+	_c.mutation.SetGrantTypes(v)
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *ConnectorCreate) SetID(v string) *ConnectorCreate {
 	_c.mutation.SetID(v)
@@ -160,6 +166,10 @@ func (_c *ConnectorCreate) createSpec() (*Connector, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Config(); ok {
 		_spec.SetField(connector.FieldConfig, field.TypeBytes, value)
 		_node.Config = value
+	}
+	if value, ok := _c.mutation.GrantTypes(); ok {
+		_spec.SetField(connector.FieldGrantTypes, field.TypeJSON, value)
+		_node.GrantTypes = value
 	}
 	return _node, _spec
 }

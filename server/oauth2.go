@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -143,7 +144,18 @@ const (
 	grantTypePassword          = "password"
 	grantTypeDeviceCode        = "urn:ietf:params:oauth:grant-type:device_code"
 	grantTypeTokenExchange     = "urn:ietf:params:oauth:grant-type:token-exchange"
+	grantTypeClientCredentials = "client_credentials"
 )
+
+// ConnectorGrantTypes is the set of grant types that can be restricted per connector.
+var ConnectorGrantTypes = map[string]bool{
+	grantTypeAuthorizationCode: true,
+	grantTypeRefreshToken:      true,
+	grantTypeImplicit:          true,
+	grantTypePassword:          true,
+	grantTypeDeviceCode:        true,
+	grantTypeTokenExchange:     true,
+}
 
 const (
 	// https://www.rfc-editor.org/rfc/rfc8693.html#section-3
@@ -464,6 +476,9 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		if !validateConnectorID(connectors, connectorID) {
 			return nil, newRedirectedErr(errInvalidRequest, "Invalid ConnectorID")
 		}
+		if !isConnectorAllowed(client.AllowedConnectors, connectorID) {
+			return nil, newRedirectedErr(errInvalidRequest, "Connector not allowed for this client")
+		}
 	}
 
 	// dex doesn't support request parameter and must return request_not_supported error
@@ -472,8 +487,14 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		return nil, newRedirectedErr(errRequestNotSupported, "Server does not support request parameter.")
 	}
 
-	if codeChallengeMethod != codeChallengeMethodS256 && codeChallengeMethod != codeChallengeMethodPlain {
+	if codeChallenge != "" && !slices.Contains(s.pkce.CodeChallengeMethodsSupported, codeChallengeMethod) {
 		return nil, newRedirectedErr(errInvalidRequest, "Unsupported PKCE challenge method (%q).", codeChallengeMethod)
+	}
+
+	// Enforce PKCE if configured.
+	// https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-12#section-4.1.1
+	if s.pkce.Enforce && codeChallenge == "" {
+		return nil, newRedirectedErr(errInvalidRequest, "PKCE is required. The code_challenge parameter must be provided.")
 	}
 
 	var (

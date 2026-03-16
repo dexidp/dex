@@ -298,7 +298,7 @@ func TestHandleIntrospect(t *testing.T) {
 		{
 			testName:           "Access Token: active",
 			token:              activeAccessToken,
-			response:           toJSON(getIntrospectionValue(s.issuerURL, time.Now(), expiry, "access_token")),
+			response:           toJSON(getIntrospectionValue(s.issuerURL, t0, expiry, "access_token")),
 			responseStatusCode: 200,
 		},
 		{
@@ -311,7 +311,7 @@ func TestHandleIntrospect(t *testing.T) {
 		{
 			testName:           "Refresh Token: active",
 			token:              activeRefreshToken,
-			response:           toJSON(getIntrospectionValue(s.issuerURL, time.Now(), time.Now().Add(s.refreshTokenPolicy.absoluteLifetime), "refresh_token")),
+			response:           toJSON(getIntrospectionValue(s.issuerURL, t0, t0.Add(s.refreshTokenPolicy.absoluteLifetime), "refresh_token")),
 			responseStatusCode: 200,
 		},
 		{

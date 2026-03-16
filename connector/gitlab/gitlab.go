@@ -87,8 +87,9 @@ type connectorData struct {
 }
 
 var (
-	_ connector.CallbackConnector = (*gitlabConnector)(nil)
-	_ connector.RefreshConnector  = (*gitlabConnector)(nil)
+	_ connector.CallbackConnector      = (*gitlabConnector)(nil)
+	_ connector.RefreshConnector       = (*gitlabConnector)(nil)
+	_ connector.TokenIdentityConnector = (*gitlabConnector)(nil)
 )
 
 type gitlabConnector struct {
@@ -241,6 +242,34 @@ func (c *gitlabConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 	default:
 		return ident, errors.New("no refresh or access token found")
 	}
+}
+
+// TokenIdentity is used for token exchange, verifying a GitLab access token
+// and returning the associated user identity. This enables direct authentication
+// with Dex using an existing GitLab token without going through the OAuth flow.
+//
+// Note: The connector decides whether to fetch groups based on its configuration
+// (groups filter, getGroupsPermission), not on the scopes from the token exchange request.
+// The server will then decide whether to include groups in the final token based on
+// the requested scopes. This matches the behavior of other connectors (e.g., OIDC).
+func (c *gitlabConnector) TokenIdentity(ctx context.Context, _, subjectToken string) (connector.Identity, error) {
+	if c.httpClient != nil {
+		ctx = context.WithValue(ctx, oauth2.HTTPClient, c.httpClient)
+	}
+
+	token := &oauth2.Token{
+		AccessToken: subjectToken,
+		TokenType:   "Bearer", // GitLab tokens are typically Bearer tokens even if the type is not explicitly provided.
+	}
+
+	// For token exchange, we determine if groups should be fetched based on connector configuration.
+	// If the connector has groups filter or getGroupsPermission enabled, we fetch groups.
+	scopes := connector.Scopes{
+		// Scopes are not provided in token exchange, so we request groups every time and return only if configured.
+		Groups: true,
+	}
+
+	return c.identity(ctx, scopes, token)
 }
 
 func (c *gitlabConnector) groupsRequired(groupScope bool) bool {

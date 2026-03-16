@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -45,6 +46,7 @@ import (
 	"github.com/dexidp/dex/connector/openshift"
 	"github.com/dexidp/dex/connector/saml"
 	"github.com/dexidp/dex/connector/ssh"
+	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/web"
@@ -58,6 +60,13 @@ const LocalConnector = "local"
 type Connector struct {
 	ResourceVersion string
 	Connector       connector.Connector
+	GrantTypes      []string
+}
+
+// GrantTypeAllowed checks if the given grant type is allowed for this connector.
+// If no grant types are configured, all are allowed.
+func GrantTypeAllowed(configuredTypes []string, grantType string) bool {
+	return len(configuredTypes) == 0 || slices.Contains(configuredTypes, grantType)
 }
 
 // Config holds the server's configuration options.
@@ -106,6 +115,9 @@ type Config struct {
 
 	// If set, the server will use this connector to handle password grants
 	PasswordConnector string
+
+	// PKCE configuration
+	PKCE PKCEConfig
 
 	GCFrequency time.Duration // Defaults to 5 minutes
 
@@ -159,6 +171,14 @@ type WebConfig struct {
 	Extra map[string]string
 }
 
+// PKCEConfig holds PKCE (Proof Key for Code Exchange) settings.
+type PKCEConfig struct {
+	// If true, PKCE is required for all authorization code flows.
+	Enforce bool
+	// Supported code challenge methods. Defaults to ["S256", "plain"].
+	CodeChallengeMethodsSupported []string
+}
+
 func value(val, defaultValue time.Duration) time.Duration {
 	if val == 0 {
 		return defaultValue
@@ -193,6 +213,8 @@ type Server struct {
 	supportedResponseTypes map[string]bool
 
 	supportedGrantTypes []string
+
+	pkce PKCEConfig
 
 	now func() time.Time
 
@@ -229,6 +251,19 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		c.AllowedHeaders = []string{"Authorization"}
 	}
 
+	supportedChallengeMethods := map[string]bool{
+		codeChallengeMethodS256:  true,
+		codeChallengeMethodPlain: true,
+	}
+	if len(c.PKCE.CodeChallengeMethodsSupported) == 0 {
+		c.PKCE.CodeChallengeMethodsSupported = []string{codeChallengeMethodS256, codeChallengeMethodPlain}
+	}
+	for _, m := range c.PKCE.CodeChallengeMethodsSupported {
+		if !supportedChallengeMethods[m] {
+			return nil, fmt.Errorf("unsupported PKCE challenge method %q", m)
+		}
+	}
+
 	allSupportedGrants := map[string]bool{
 		grantTypeAuthorizationCode: true,
 		grantTypeRefreshToken:      true,
@@ -254,6 +289,8 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	if c.PasswordConnector != "" {
 		allSupportedGrants[grantTypePassword] = true
 	}
+
+	allSupportedGrants[grantTypeClientCredentials] = true
 
 	var supportedGrants []string
 	if len(c.AllowedGrantTypes) > 0 {
@@ -301,6 +338,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		storage:                newKeyCacher(c.Storage, now),
 		supportedResponseTypes: supportedRes,
 		supportedGrantTypes:    supportedGrants,
+		pkce:                   c.PKCE,
 		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
 		authRequestsValidFor:   value(c.AuthRequestsValidFor, 24*time.Hour),
 		deviceRequestsValidFor: value(c.DeviceRequestsValidFor, 5*time.Minute),
@@ -339,6 +377,10 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 
 	if c.ContinueOnConnectorFailure && failedCount == len(storageConnectors) {
 		return nil, fmt.Errorf("server: failed to open all connectors (%d/%d)", failedCount, len(storageConnectors))
+	}
+
+	if featureflags.SessionsEnabled.Enabled() {
+		s.logger.InfoContext(ctx, "sessions feature flag is enabled")
 	}
 
 	instrumentHandler := func(_ string, handler http.Handler) http.HandlerFunc {
@@ -739,12 +781,20 @@ func (s *Server) OpenConnector(conn storage.Connector) (Connector, error) {
 	connector := Connector{
 		ResourceVersion: conn.ResourceVersion,
 		Connector:       c,
+		GrantTypes:      conn.GrantTypes,
 	}
 	s.mu.Lock()
 	s.connectors[conn.ID] = connector
 	s.mu.Unlock()
 
 	return connector, nil
+}
+
+// CloseConnector removes the connector from the server's in-memory map.
+func (s *Server) CloseConnector(id string) {
+	s.mu.Lock()
+	delete(s.connectors, id)
+	s.mu.Unlock()
 }
 
 // getConnector retrieves the connector object with the given id from the storage

@@ -374,4 +374,52 @@ var migrations = []migration{
 		},
 		flavor: &flavorMySQL,
 	},
+	{
+		stmts: []string{
+			`
+			alter table connector
+				add column grant_types bytea;`,
+		},
+	},
+	// Migration for adding allowed_connectors to client table
+	{
+		stmts: []string{
+			`
+			alter table client
+				add column allowed_connectors bytea;`,
+		},
+	},
+	{
+		stmts: []string{
+			`
+			create table user_identity (
+				user_id text not null,
+				connector_id text not null,
+				claims_user_id text not null,
+				claims_username text not null,
+				claims_preferred_username text not null default '',
+				claims_email text not null,
+				claims_email_verified boolean not null,
+				claims_groups bytea not null,
+				consents bytea not null,
+				created_at timestamptz not null,
+				last_login timestamptz not null,
+				blocked_until timestamptz not null,
+				PRIMARY KEY (user_id, connector_id)
+			);`,
+		},
+	},
+	{
+		stmts: []string{
+			`
+			create table auth_session (
+				id text not null primary key,
+				client_states bytea not null,
+				created_at timestamptz not null,
+				last_activity timestamptz not null,
+				ip_address text not null default '',
+				user_agent text not null default ''
+			);`,
+		},
+	},
 }

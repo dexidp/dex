@@ -226,6 +226,40 @@ func customResourceDefinitions(apiVersion string) []k8sapi.CustomResourceDefinit
 				},
 			},
 		},
+		{
+			ObjectMeta: k8sapi.ObjectMeta{
+				Name: "useridentities.dex.coreos.com",
+			},
+			TypeMeta: crdMeta,
+			Spec: k8sapi.CustomResourceDefinitionSpec{
+				Group:    apiGroup,
+				Version:  version,
+				Versions: versions,
+				Scope:    scope,
+				Names: k8sapi.CustomResourceDefinitionNames{
+					Plural:   "useridentities",
+					Singular: "useridentity",
+					Kind:     "UserIdentity",
+				},
+			},
+		},
+		{
+			ObjectMeta: k8sapi.ObjectMeta{
+				Name: "authsessions.dex.coreos.com",
+			},
+			TypeMeta: crdMeta,
+			Spec: k8sapi.CustomResourceDefinitionSpec{
+				Group:    apiGroup,
+				Version:  version,
+				Versions: versions,
+				Scope:    scope,
+				Names: k8sapi.CustomResourceDefinitionNames{
+					Plural:   "authsessions",
+					Singular: "authsession",
+					Kind:     "AuthSession",
+				},
+			},
+		},
 	}
 }
 
@@ -251,6 +285,8 @@ type Client struct {
 
 	Name    string `json:"name,omitempty"`
 	LogoURL string `json:"logoURL,omitempty"`
+
+	AllowedConnectors []string `json:"allowedConnectors,omitempty"`
 }
 
 // ClientList is a list of Clients.
@@ -270,25 +306,27 @@ func (cli *client) fromStorageClient(c storage.Client) Client {
 			Name:      cli.idToName(c.ID),
 			Namespace: cli.namespace,
 		},
-		ID:           c.ID,
-		Secret:       c.Secret,
-		RedirectURIs: c.RedirectURIs,
-		TrustedPeers: c.TrustedPeers,
-		Public:       c.Public,
-		Name:         c.Name,
-		LogoURL:      c.LogoURL,
+		ID:                c.ID,
+		Secret:            c.Secret,
+		RedirectURIs:      c.RedirectURIs,
+		TrustedPeers:      c.TrustedPeers,
+		Public:            c.Public,
+		Name:              c.Name,
+		LogoURL:           c.LogoURL,
+		AllowedConnectors: c.AllowedConnectors,
 	}
 }
 
 func toStorageClient(c Client) storage.Client {
 	return storage.Client{
-		ID:           c.ID,
-		Secret:       c.Secret,
-		RedirectURIs: c.RedirectURIs,
-		TrustedPeers: c.TrustedPeers,
-		Public:       c.Public,
-		Name:         c.Name,
-		LogoURL:      c.LogoURL,
+		ID:                c.ID,
+		Secret:            c.Secret,
+		RedirectURIs:      c.RedirectURIs,
+		TrustedPeers:      c.TrustedPeers,
+		Public:            c.Public,
+		Name:              c.Name,
+		LogoURL:           c.LogoURL,
+		AllowedConnectors: c.AllowedConnectors,
 	}
 }
 
@@ -721,6 +759,8 @@ type Connector struct {
 	Name string `json:"name,omitempty"`
 	// Config holds connector specific configuration information
 	Config []byte `json:"config,omitempty"`
+	// GrantTypes is a list of grant types that this connector is allowed to be used with.
+	GrantTypes []string `json:"grantTypes,omitempty"`
 }
 
 func (cli *client) fromStorageConnector(c storage.Connector) Connector {
@@ -733,10 +773,11 @@ func (cli *client) fromStorageConnector(c storage.Connector) Connector {
 			Name:      c.ID,
 			Namespace: cli.namespace,
 		},
-		ID:     c.ID,
-		Type:   c.Type,
-		Name:   c.Name,
-		Config: c.Config,
+		ID:         c.ID,
+		Type:       c.Type,
+		Name:       c.Name,
+		Config:     c.Config,
+		GrantTypes: c.GrantTypes,
 	}
 }
 
@@ -747,6 +788,7 @@ func toStorageConnector(c Connector) storage.Connector {
 		Name:            c.Name,
 		ResourceVersion: c.ObjectMeta.ResourceVersion,
 		Config:          c.Config,
+		GrantTypes:      c.GrantTypes,
 	}
 }
 
@@ -863,4 +905,115 @@ func toStorageDeviceToken(t DeviceToken) storage.DeviceToken {
 			CodeChallengeMethod: t.CodeChallengeMethod,
 		},
 	}
+}
+
+// UserIdentity is a mirrored struct from storage with JSON struct tags and Kubernetes
+// type metadata.
+type UserIdentity struct {
+	k8sapi.TypeMeta   `json:",inline"`
+	k8sapi.ObjectMeta `json:"metadata,omitempty"`
+
+	UserID       string              `json:"userID,omitempty"`
+	ConnectorID  string              `json:"connectorID,omitempty"`
+	Claims       Claims              `json:"claims,omitempty"`
+	Consents     map[string][]string `json:"consents,omitempty"`
+	CreatedAt    time.Time           `json:"createdAt,omitempty"`
+	LastLogin    time.Time           `json:"lastLogin,omitempty"`
+	BlockedUntil time.Time           `json:"blockedUntil,omitempty"`
+}
+
+// UserIdentityList is a list of UserIdentities.
+type UserIdentityList struct {
+	k8sapi.TypeMeta `json:",inline"`
+	k8sapi.ListMeta `json:"metadata,omitempty"`
+	UserIdentities  []UserIdentity `json:"items"`
+}
+
+func (cli *client) fromStorageUserIdentity(u storage.UserIdentity) UserIdentity {
+	return UserIdentity{
+		TypeMeta: k8sapi.TypeMeta{
+			Kind:       kindUserIdentity,
+			APIVersion: cli.apiVersion,
+		},
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name:      cli.offlineTokenName(u.UserID, u.ConnectorID),
+			Namespace: cli.namespace,
+		},
+		UserID:       u.UserID,
+		ConnectorID:  u.ConnectorID,
+		Claims:       fromStorageClaims(u.Claims),
+		Consents:     u.Consents,
+		CreatedAt:    u.CreatedAt,
+		LastLogin:    u.LastLogin,
+		BlockedUntil: u.BlockedUntil,
+	}
+}
+
+func toStorageUserIdentity(u UserIdentity) storage.UserIdentity {
+	s := storage.UserIdentity{
+		UserID:       u.UserID,
+		ConnectorID:  u.ConnectorID,
+		Claims:       toStorageClaims(u.Claims),
+		Consents:     u.Consents,
+		CreatedAt:    u.CreatedAt,
+		LastLogin:    u.LastLogin,
+		BlockedUntil: u.BlockedUntil,
+	}
+	if s.Consents == nil {
+		// Server code assumes this will be non-nil.
+		s.Consents = make(map[string][]string)
+	}
+	return s
+}
+
+// AuthSession is a Kubernetes representation of a storage AuthSession.
+type AuthSession struct {
+	k8sapi.TypeMeta   `json:",inline"`
+	k8sapi.ObjectMeta `json:"metadata,omitempty"`
+
+	ClientStates map[string]*storage.ClientAuthState `json:"clientStates,omitempty"`
+	CreatedAt    time.Time                           `json:"createdAt,omitempty"`
+	LastActivity time.Time                           `json:"lastActivity,omitempty"`
+	IPAddress    string                              `json:"ipAddress,omitempty"`
+	UserAgent    string                              `json:"userAgent,omitempty"`
+}
+
+// AuthSessionList is a list of AuthSessions.
+type AuthSessionList struct {
+	k8sapi.TypeMeta `json:",inline"`
+	k8sapi.ListMeta `json:"metadata,omitempty"`
+	AuthSessions    []AuthSession `json:"items"`
+}
+
+func (cli *client) fromStorageAuthSession(s storage.AuthSession) AuthSession {
+	return AuthSession{
+		TypeMeta: k8sapi.TypeMeta{
+			Kind:       kindAuthSession,
+			APIVersion: cli.apiVersion,
+		},
+		ObjectMeta: k8sapi.ObjectMeta{
+			Name:      s.ID,
+			Namespace: cli.namespace,
+		},
+		ClientStates: s.ClientStates,
+		CreatedAt:    s.CreatedAt,
+		LastActivity: s.LastActivity,
+		IPAddress:    s.IPAddress,
+		UserAgent:    s.UserAgent,
+	}
+}
+
+func toStorageAuthSession(s AuthSession) storage.AuthSession {
+	result := storage.AuthSession{
+		ID:           s.ObjectMeta.Name,
+		ClientStates: s.ClientStates,
+		CreatedAt:    s.CreatedAt,
+		LastActivity: s.LastActivity,
+		IPAddress:    s.IPAddress,
+		UserAgent:    s.UserAgent,
+	}
+	if result.ClientStates == nil {
+		result.ClientStates = make(map[string]*storage.ClientAuthState)
+	}
+	return result
 }

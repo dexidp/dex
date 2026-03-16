@@ -107,6 +107,9 @@ connectors:
 - type: mockCallback
   id: mock
   name: Example
+  grantTypes:
+  - authorization_code
+  - "urn:ietf:params:oauth:grant-type:token-exchange"
 - type: oidc
   id: google
   name: Google
@@ -202,6 +205,10 @@ additionalFeatures: [
 				ID:     "mock",
 				Name:   "Example",
 				Config: &mock.CallbackConfig{},
+				GrantTypes: []string{
+					"authorization_code",
+					"urn:ietf:params:oauth:grant-type:token-exchange",
+				},
 			},
 			{
 				Type: "oidc",

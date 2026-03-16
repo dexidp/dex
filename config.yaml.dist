@@ -72,6 +72,8 @@ web:
 # logger:
 #   level: "debug"
 #   format: "text" # can also be "json"
+#   # Drop these attribute keys from all log output (useful for GDPR/PII suppression).
+#   # excludeFields: [email, username, preferred_username, groups]
 
 # gRPC API configuration
 # Uncomment this block to enable the gRPC API.
@@ -109,6 +111,13 @@ web:
 #
 #   # Uncomment to use a specific connector for password grants
 #   passwordConnector: local
+#
+#   # PKCE (Proof Key for Code Exchange) configuration
+#   pkce:
+#     # If true, PKCE is required for all authorization code flows (OAuth 2.1).
+#     enforce: false
+#     # Supported code challenge methods. Defaults to ["S256", "plain"].
+#     codeChallengeMethodsSupported: ["S256", "plain"]
 
 # Static clients registered in Dex by default.
 #
@@ -134,6 +143,16 @@ web:
 #       - /device/callback
 #     name: 'Static Client for Device Flow'
 #     public: true
+#
+#   # Example of a client restricted to specific connectors
+#   - id: restricted-client
+#     secret: restricted-client-secret
+#     redirectURIs:
+#       - 'https://app.example.com/callback'
+#     name: 'Restricted Client'
+#     allowedConnectors:
+#       - github
+#       - google
 
 # Connectors are used to authenticate users against upstream identity providers.
 #
