@@ -811,7 +811,7 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 		v.Set("req", authReq.ID)
 		v.Set("hmac", base64.RawURLEncoding.EncodeToString(h.Sum(nil)))
 		v.Set("authenticator", mfaChain[0])
-		returnURL := path.Join(s.issuerURL.Path, "/totp/verify") + "?" + v.Encode()
+		returnURL := path.Join(s.issuerURL.Path, "/mfa/verify") + "?" + v.Encode()
 		return returnURL, false, nil
 	}
 
@@ -823,7 +823,7 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 		return "", false, fmt.Errorf("failed to update auth request MFA status: %v", err)
 	}
 
-	// we can skip the redirect to /approval and go ahead and send code if it's not required
+	// Skip approval if globally configured.
 	if s.skipApproval && !authReq.ForceApprovalPrompt {
 		return "", true, nil
 	}
@@ -885,7 +885,7 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 			v.Set("hmac", base64.RawURLEncoding.EncodeToString(h.Sum(nil)))
 			v.Set("authenticator", mfaChain[0])
 			h.Reset()
-			totpURL := path.Join(s.issuerURL.Path, "/totp/verify") + "?" + v.Encode()
+			totpURL := path.Join(s.issuerURL.Path, "/mfa/verify") + "?" + v.Encode()
 			http.Redirect(w, r, totpURL, http.StatusSeeOther)
 			return
 		}

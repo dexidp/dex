@@ -227,7 +227,7 @@ func (s *Server) handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 			v.Set("req", authReq.ID)
 			v.Set("hmac", base64.RawURLEncoding.EncodeToString(h.Sum(nil)))
 			v.Set("authenticator", nextAuthenticator)
-			nextURL := path.Join(s.issuerURL.Path, "/totp/verify") + "?" + v.Encode()
+			nextURL := path.Join(s.issuerURL.Path, "/mfa/verify") + "?" + v.Encode()
 			http.Redirect(w, r, nextURL, http.StatusSeeOther)
 			return
 		}
@@ -242,34 +242,7 @@ func (s *Server) handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Skip approval if configured.
-		if s.skipApproval && !authReq.ForceApprovalPrompt {
-			authReq, err = s.storage.GetAuthRequest(ctx, authReq.ID)
-			if err != nil {
-				s.logger.ErrorContext(ctx, "failed to get finalized auth request", "err", err)
-				s.renderError(r, w, http.StatusInternalServerError, "Login error.")
-				return
-			}
-			s.sendCodeResponse(w, r, authReq)
-			return
-		}
-
-		// Skip approval if user already consented to the requested scopes.
-		if !authReq.ForceApprovalPrompt {
-			ui, err := s.storage.GetUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID)
-			if err == nil && scopesCoveredByConsent(ui.Consents[authReq.ClientID], authReq.Scopes) {
-				authReq, err = s.storage.GetAuthRequest(ctx, authReq.ID)
-				if err != nil {
-					s.logger.ErrorContext(ctx, "failed to get auth request", "err", err)
-					s.renderError(r, w, http.StatusInternalServerError, "Login error.")
-					return
-				}
-				s.sendCodeResponse(w, r, authReq)
-				return
-			}
-		}
-
-		http.Redirect(w, r, returnURL, http.StatusSeeOther)
+		s.sendCodeOrRedirectToApproval(w, r, authReq, returnURL)
 
 	default:
 		s.renderError(r, w, http.StatusBadRequest, "Unsupported request method.")
@@ -290,6 +263,39 @@ func (s *Server) renderTOTPPage(secret *storage.MFASecret, lastFail bool, issuer
 	if err := s.templates.totpVerify(r, w, r.URL.String(), issuer, connectorID, qrCode, lastFail); err != nil {
 		s.logger.ErrorContext(r.Context(), "server template error", "err", err)
 	}
+}
+
+// sendCodeOrRedirectToApproval checks skipApproval and stored consent,
+// sending a code response directly if possible, or redirecting to the approval page.
+func (s *Server) sendCodeOrRedirectToApproval(w http.ResponseWriter, r *http.Request, authReq storage.AuthRequest, approvalURL string) {
+	ctx := r.Context()
+
+	if !authReq.ForceApprovalPrompt {
+		if s.skipApproval {
+			authReq, err := s.storage.GetAuthRequest(ctx, authReq.ID)
+			if err != nil {
+				s.logger.ErrorContext(ctx, "failed to get auth request", "err", err)
+				s.renderError(r, w, http.StatusInternalServerError, "Login error.")
+				return
+			}
+			s.sendCodeResponse(w, r, authReq)
+			return
+		}
+
+		ui, err := s.storage.GetUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID)
+		if err == nil && scopesCoveredByConsent(ui.Consents[authReq.ClientID], authReq.Scopes) {
+			authReq, err := s.storage.GetAuthRequest(ctx, authReq.ID)
+			if err != nil {
+				s.logger.ErrorContext(ctx, "failed to get auth request", "err", err)
+				s.renderError(r, w, http.StatusInternalServerError, "Login error.")
+				return
+			}
+			s.sendCodeResponse(w, r, authReq)
+			return
+		}
+	}
+
+	http.Redirect(w, r, approvalURL, http.StatusSeeOther)
 }
 
 func generateTOTPQRCode(keyURL string) (string, error) {
@@ -332,7 +338,10 @@ func (s *Server) mfaChainForClient(ctx context.Context, clientID, connectorID st
 	}
 
 	// Resolve connector type from connector ID.
-	connectorType := s.getConnectorType(ctx, connectorID)
+	connectorType, err := s.getConnectorType(ctx, connectorID)
+	if err != nil {
+		return nil, err
+	}
 
 	var chain []string
 	for _, authID := range source {
@@ -345,10 +354,10 @@ func (s *Server) mfaChainForClient(ctx context.Context, clientID, connectorID st
 }
 
 // getConnectorType returns the type of the connector with the given ID.
-func (s *Server) getConnectorType(ctx context.Context, connectorID string) string {
+func (s *Server) getConnectorType(ctx context.Context, connectorID string) (string, error) {
 	conn, err := s.storage.GetConnector(ctx, connectorID)
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("get connector %q: %w", connectorID, err)
 	}
-	return conn.Type
+	return conn.Type, nil
 }
