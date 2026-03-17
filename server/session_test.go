@@ -113,32 +113,39 @@ func TestParseSessionCookie_Invalid(t *testing.T) {
 
 func TestGetValidAuthSession(t *testing.T) {
 	ctx := t.Context()
+	authReq := &storage.AuthRequest{ConnectorID: "conn1"}
 
 	t.Run("no session config", func(t *testing.T) {
 		s := newTestSessionServer(t)
 		s.sessionConfig = nil
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		assert.Nil(t, s.getValidAuthSession(ctx, r))
+		assert.Nil(t, s.getValidAuthSession(ctx, httptest.NewRecorder(), r, authReq))
 	})
 
 	t.Run("no cookie", func(t *testing.T) {
 		s := newTestSessionServer(t)
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		assert.Nil(t, s.getValidAuthSession(ctx, r))
+		assert.Nil(t, s.getValidAuthSession(ctx, httptest.NewRecorder(), r, authReq))
 	})
 
 	t.Run("invalid cookie format", func(t *testing.T) {
 		s := newTestSessionServer(t)
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		r.AddCookie(&http.Cookie{Name: "dex_session", Value: "invalid-format"})
-		assert.Nil(t, s.getValidAuthSession(ctx, r))
+		w := httptest.NewRecorder()
+		assert.Nil(t, s.getValidAuthSession(ctx, w, r, authReq))
+		// Cookie should be cleared.
+		assert.Equal(t, -1, w.Result().Cookies()[0].MaxAge)
 	})
 
 	t.Run("session not found", func(t *testing.T) {
 		s := newTestSessionServer(t)
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("nouser", "noconn", "nonce")})
-		assert.Nil(t, s.getValidAuthSession(ctx, r))
+		w := httptest.NewRecorder()
+		assert.Nil(t, s.getValidAuthSession(ctx, w, r, authReq))
+		// Cookie should be cleared.
+		assert.Equal(t, -1, w.Result().Cookies()[0].MaxAge)
 	})
 
 	t.Run("valid session", func(t *testing.T) {
@@ -161,10 +168,34 @@ func TestGetValidAuthSession(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user1", "conn1", nonce)})
 
-		result := s.getValidAuthSession(ctx, r)
+		result := s.getValidAuthSession(ctx, httptest.NewRecorder(), r, authReq)
 		require.NotNil(t, result)
 		assert.Equal(t, "user1", result.UserID)
 		assert.Equal(t, "conn1", result.ConnectorID)
+	})
+
+	t.Run("connector mismatch", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		now := s.now()
+		nonce := "test-nonce-conn"
+
+		session := storage.AuthSession{
+			UserID:       "user1",
+			ConnectorID:  "ldap",
+			Nonce:        nonce,
+			ClientStates: map[string]*storage.ClientAuthState{},
+			CreatedAt:    now.Add(-30 * time.Minute),
+			LastActivity: now.Add(-5 * time.Minute),
+			IPAddress:    "127.0.0.1",
+			UserAgent:    "test",
+		}
+		require.NoError(t, s.storage.CreateAuthSession(ctx, session))
+
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user1", "ldap", nonce)})
+
+		githubReq := &storage.AuthRequest{ConnectorID: "github"}
+		assert.Nil(t, s.getValidAuthSession(ctx, httptest.NewRecorder(), r, githubReq))
 	})
 
 	t.Run("nonce mismatch", func(t *testing.T) {
@@ -186,7 +217,10 @@ func TestGetValidAuthSession(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user2", "conn2", "wrong-nonce")})
 
-		assert.Nil(t, s.getValidAuthSession(ctx, r))
+		conn2Req := &storage.AuthRequest{ConnectorID: "conn2"}
+		w := httptest.NewRecorder()
+		assert.Nil(t, s.getValidAuthSession(ctx, w, r, conn2Req))
+		assert.Equal(t, -1, w.Result().Cookies()[0].MaxAge)
 	})
 
 	t.Run("expired absolute lifetime", func(t *testing.T) {
@@ -209,7 +243,10 @@ func TestGetValidAuthSession(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user3", "conn3", nonce)})
 
-		assert.Nil(t, s.getValidAuthSession(ctx, r))
+		conn3Req := &storage.AuthRequest{ConnectorID: "conn3"}
+		w := httptest.NewRecorder()
+		assert.Nil(t, s.getValidAuthSession(ctx, w, r, conn3Req))
+		assert.Equal(t, -1, w.Result().Cookies()[0].MaxAge)
 
 		// Session should be deleted.
 		_, err := s.storage.GetAuthSession(ctx, "user3", "conn3")
@@ -236,7 +273,10 @@ func TestGetValidAuthSession(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user4", "conn4", nonce)})
 
-		assert.Nil(t, s.getValidAuthSession(ctx, r))
+		conn4Req := &storage.AuthRequest{ConnectorID: "conn4"}
+		w := httptest.NewRecorder()
+		assert.Nil(t, s.getValidAuthSession(ctx, w, r, conn4Req))
+		assert.Equal(t, -1, w.Result().Cookies()[0].MaxAge)
 
 		// Session should be deleted.
 		_, err := s.storage.GetAuthSession(ctx, "user4", "conn4")

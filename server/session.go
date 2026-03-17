@@ -82,7 +82,8 @@ func (s *Server) clearSessionCookie(w http.ResponseWriter) {
 // getValidAuthSession returns a valid, non-expired session or nil.
 // It parses the session cookie to extract (userID, connectorID, nonce),
 // looks up the session by composite key, and verifies the nonce.
-func (s *Server) getValidAuthSession(ctx context.Context, r *http.Request) *storage.AuthSession {
+// Invalid or expired session cookies are cleared automatically.
+func (s *Server) getValidAuthSession(ctx context.Context, w http.ResponseWriter, r *http.Request, authReq *storage.AuthRequest) *storage.AuthSession {
 	if s.sessionConfig == nil {
 		return nil
 	}
@@ -95,20 +96,23 @@ func (s *Server) getValidAuthSession(ctx context.Context, r *http.Request) *stor
 	userID, connectorID, nonce, err := parseSessionCookie(cookie.Value)
 	if err != nil {
 		s.logger.DebugContext(ctx, "invalid session cookie format", "err", err)
+		s.clearSessionCookie(w)
 		return nil
 	}
 
 	session, err := s.storage.GetAuthSession(ctx, userID, connectorID)
 	if err != nil {
-		if errors.Is(err, storage.ErrNotFound) {
+		if !errors.Is(err, storage.ErrNotFound) {
 			s.logger.ErrorContext(ctx, "failed to get auth session", "err", err)
 		}
+		s.clearSessionCookie(w)
 		return nil
 	}
 
 	// Verify nonce to prevent cookie forgery.
 	if session.Nonce != nonce {
 		s.logger.DebugContext(ctx, "auth session nonce mismatch")
+		s.clearSessionCookie(w)
 		return nil
 	}
 
@@ -119,6 +123,7 @@ func (s *Server) getValidAuthSession(ctx context.Context, r *http.Request) *stor
 		s.logger.InfoContext(ctx, "auth session expired (absolute lifetime)",
 			"user_id", session.UserID, "connector_id", session.ConnectorID)
 		_ = s.storage.DeleteAuthSession(ctx, session.UserID, session.ConnectorID)
+		s.clearSessionCookie(w)
 		return nil
 	}
 
@@ -127,6 +132,12 @@ func (s *Server) getValidAuthSession(ctx context.Context, r *http.Request) *stor
 		s.logger.InfoContext(ctx, "auth session expired (idle timeout)",
 			"user_id", session.UserID, "connector_id", session.ConnectorID)
 		_ = s.storage.DeleteAuthSession(ctx, session.UserID, session.ConnectorID)
+		s.clearSessionCookie(w)
+		return nil
+	}
+
+	// Only reuse sessions from the same connector.
+	if session.ConnectorID != authReq.ConnectorID {
 		return nil
 	}
 
@@ -154,6 +165,7 @@ func (s *Server) createOrUpdateAuthSession(ctx context.Context, r *http.Request,
 	// Try to reuse existing session for this (userID, connectorID).
 	session, err := s.storage.GetAuthSession(ctx, userID, connectorID)
 	if err == nil {
+		// Session exists, update it.
 		s.logger.DebugContext(ctx, "updating existing auth session",
 			"user_id", userID, "connector_id", connectorID, "client_id", authReq.ClientID)
 
@@ -168,12 +180,15 @@ func (s *Server) createOrUpdateAuthSession(ctx context.Context, r *http.Request,
 			return fmt.Errorf("update auth session: %w", err)
 		}
 
-		// Update cookie with current nonce (in case a different session was in the cookie before).
 		s.setSessionCookie(w, userID, connectorID, session.Nonce, rememberMe)
 		return nil
 	}
 
-	// Create new session.
+	// Unexpected error, exit the method.
+	if !errors.Is(err, storage.ErrNotFound) {
+		return fmt.Errorf("get auth session: %w", err)
+	}
+
 	nonce := storage.NewID()
 	newSession := storage.AuthSession{
 		UserID:      userID,
@@ -198,11 +213,11 @@ func (s *Server) createOrUpdateAuthSession(ctx context.Context, r *http.Request,
 	return nil
 }
 
-// trySessionLogin checks if the user has a valid session for this connector.
+// trySessionLogin checks if the user has a valid session for the same connector.
 // If so, it finalizes login from the stored identity and returns a redirect URL.
 // Returns ("", false) if session-based login is not possible.
 func (s *Server) trySessionLogin(ctx context.Context, r *http.Request, w http.ResponseWriter, authReq *storage.AuthRequest) (string, bool) {
-	session := s.getValidAuthSession(ctx, r)
+	session := s.getValidAuthSession(ctx, w, r, authReq)
 	if session == nil {
 		return "", false
 	}
