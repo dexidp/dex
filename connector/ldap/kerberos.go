@@ -42,28 +42,35 @@ func writeNegotiateChallenge(w http.ResponseWriter) {
 }
 
 // mapPrincipal maps a Kerberos principal to LDAP username per configuration.
-func mapPrincipal(principal, realm, mapping string) string {
-	p := principal
+// Supported mappings:
+//   - "localpart" / "samaccountname": extracts username before @ (default)
+//   - "userprincipalname": uses full principal as-is
+func mapPrincipal(principal, mapping string) string {
+	// Extract localpart (before @) from principal
+	localpart := principal
+	if i := strings.IndexByte(principal, '@'); i >= 0 {
+		localpart = principal[:i]
+	}
+
 	switch strings.ToLower(mapping) {
-	case "localpart", "samaccountname":
-		if i := strings.IndexByte(principal, '@'); i >= 0 {
-			p = principal[:i]
-		}
-		return strings.ToLower(p)
 	case "userprincipalname":
 		return strings.ToLower(principal)
+	case "localpart", "samaccountname":
+		return strings.ToLower(localpart)
 	default:
-		if i := strings.IndexByte(principal, '@'); i >= 0 {
-			p = principal[:i]
-		}
-		return strings.ToLower(p)
+		return strings.ToLower(localpart)
 	}
 }
 
 // gokrb5 implementation of KerberosValidator
 
-// context key used by gokrb5 to store credentials in the context
-var ctxCredentialsKey interface{} = "github.com/jcmturner/gokrb5/v8/ctxCredentials"
+// ctxCredentialsKeyType is the type for gokrb5 context key.
+// gokrb5 uses a string constant as context key for storing credentials.
+type ctxCredentialsKeyType string
+
+// ctxCredentialsKey is the context key used by gokrb5 to store credentials.
+// This must match the exact string used in gokrb5/v8/spnego package.
+const ctxCredentialsKey ctxCredentialsKeyType = "github.com/jcmturner/gokrb5/v8/ctxCredentials"
 
 // SPNEGO NegTokenResp (AcceptIncomplete + KRB5 mech) base64 payload used by gokrb5's HTTP server
 // to prompt the client to continue the handshake.
@@ -75,12 +82,16 @@ type gokrb5Validator struct {
 }
 
 func newGokrb5ValidatorWithLogger(keytabPath string, logger *slog.Logger) (KerberosValidator, error) {
+	fi, err := os.Stat(keytabPath)
+	if err != nil {
+		return nil, fmt.Errorf("keytab file not found: %w", err)
+	}
+	if fi.IsDir() {
+		return nil, fmt.Errorf("keytab path is a directory: %s", keytabPath)
+	}
 	kt, err := keytab.Load(keytabPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load keytab: %w", err)
-	}
-	if fi, err := os.Stat(keytabPath); err != nil || fi.IsDir() {
-		return nil, fmt.Errorf("invalid keytab path: %s", keytabPath)
 	}
 	if logger == nil {
 		logger = slog.Default()
@@ -88,37 +99,33 @@ func newGokrb5ValidatorWithLogger(keytabPath string, logger *slog.Logger) (Kerbe
 	return &gokrb5Validator{kt: kt, logger: logger}, nil
 }
 
-func (v *gokrb5Validator) ValidateRequest(r *http.Request) (string, string, bool, error) {
+// parseNegotiateHeader extracts and decodes the SPNEGO token from Authorization header.
+// Returns (token, ok). If ok is false, the header is missing, malformed, or not Negotiate.
+func (v *gokrb5Validator) parseNegotiateHeader(r *http.Request) (*spnego.SPNEGOToken, bool) {
 	h := r.Header.Get("Authorization")
 	if h == "" || !strings.HasPrefix(h, "Negotiate ") {
-		if v.logger != nil {
-			v.logger.Info("kerberos: missing or non-negotiate Authorization header", "path", r.URL.Path)
-		}
-		return "", "", false, nil
+		return nil, false
 	}
 	b64 := strings.TrimSpace(h[len("Negotiate "):])
 	if b64 == "" {
-		if v.logger != nil {
-			v.logger.Info("kerberos: empty negotiate token", "path", r.URL.Path)
-		}
-		return "", "", false, nil
+		return nil, false
 	}
 	data, err := base64.StdEncoding.DecodeString(b64)
 	if err != nil {
 		if v.logger != nil {
 			v.logger.Info("kerberos: invalid base64 in Authorization", "err", err)
 		}
-		return "", "", false, nil
+		return nil, false
 	}
 	var tok spnego.SPNEGOToken
 	if err := tok.Unmarshal(data); err != nil {
-		// Try raw KRB5 token and wrap
+		// Try raw KRB5 token and wrap it as SPNEGO
 		var k5 spnego.KRB5Token
 		if k5.Unmarshal(data) != nil {
 			if v.logger != nil {
-				v.logger.Info("kerberos: failed to unmarshal SPNEGO token and not raw KRB5", "err", err)
+				v.logger.Info("kerberos: failed to unmarshal SPNEGO/KRB5 token", "err", err)
 			}
-			return "", "", false, nil
+			return nil, false
 		}
 		tok.Init = true
 		tok.NegTokenInit = spnego.NegTokenInit{
@@ -126,18 +133,31 @@ func (v *gokrb5Validator) ValidateRequest(r *http.Request) (string, string, bool
 			MechTokenBytes: data,
 		}
 	}
+	return &tok, true
+}
 
-	// Pass client address when available (improves AP-REQ validation with address-bound tickets)
-	var sp *spnego.SPNEGO
+// createSPNEGOService creates a SPNEGO service with optional client address binding.
+func (v *gokrb5Validator) createSPNEGOService(r *http.Request) *spnego.SPNEGO {
 	if ha, err := types.GetHostAddress(r.RemoteAddr); err == nil {
-		sp = spnego.SPNEGOService(v.kt, service.ClientAddress(ha), service.DecodePAC(false))
-	} else {
-		if v.logger != nil {
-			v.logger.Info("kerberos: cannot parse client address", "remote", r.RemoteAddr, "err", err)
-		}
-		sp = spnego.SPNEGOService(v.kt, service.DecodePAC(false))
+		return spnego.SPNEGOService(v.kt, service.ClientAddress(ha), service.DecodePAC(false))
 	}
-	authed, ctx, status := sp.AcceptSecContext(&tok)
+	if v.logger != nil {
+		v.logger.Info("kerberos: cannot parse client address", "remote", r.RemoteAddr)
+	}
+	return spnego.SPNEGOService(v.kt, service.DecodePAC(false))
+}
+
+func (v *gokrb5Validator) ValidateRequest(r *http.Request) (string, string, bool, error) {
+	tok, ok := v.parseNegotiateHeader(r)
+	if !ok {
+		if v.logger != nil {
+			v.logger.Info("kerberos: missing or invalid Negotiate header", "path", r.URL.Path)
+		}
+		return "", "", false, nil
+	}
+
+	sp := v.createSPNEGOService(r)
+	authed, ctx, status := sp.AcceptSecContext(tok)
 	if status.Code != gssapi.StatusComplete {
 		if v.logger != nil {
 			v.logger.Info("kerberos: AcceptSecContext not complete", "code", status.Code, "message", status.Message)
@@ -165,73 +185,36 @@ func (v *gokrb5Validator) Challenge(w http.ResponseWriter) { writeNegotiateChall
 // ContinueToken attempts to continue the SPNEGO handshake and returns a response token
 // (to be placed into WWW-Authenticate: Negotiate <b64>) if available.
 func (v *gokrb5Validator) ContinueToken(r *http.Request) ([]byte, bool) {
-	h := r.Header.Get("Authorization")
-	if h == "" || !strings.HasPrefix(h, "Negotiate ") {
-		if v.logger != nil {
-			v.logger.Info("kerberos: ContinueToken without negotiate header", "path", r.URL.Path)
-		}
-		return nil, false
+	tok, ok := v.parseNegotiateHeader(r)
+	if !ok {
+		// No valid token; return incomplete response to prompt client
+		return v.incompleteResponse()
 	}
-	b64 := strings.TrimSpace(h[len("Negotiate "):])
-	data, err := base64.StdEncoding.DecodeString(b64)
-	if err != nil {
-		// Malformed header: ask client to continue with KRB5 mech
-		if tok, e := base64.StdEncoding.DecodeString(spnegoIncompleteKRB5B64); e == nil {
-			if v.logger != nil {
-				v.logger.Info("kerberos: malformed negotiate token; sending incomplete KRB5 response")
-			}
-			return tok, true
-		}
-		return nil, false
-	}
-	var tok spnego.SPNEGOToken
-	if err := tok.Unmarshal(data); err != nil {
-		// Not a full SPNEGO token; still ask client to continue
-		if tokb, e := base64.StdEncoding.DecodeString(spnegoIncompleteKRB5B64); e == nil {
-			if v.logger != nil {
-				v.logger.Info("kerberos: non-SPNEGO token; sending incomplete KRB5 response")
-			}
-			return tokb, true
-		}
-		// As a fallback, try wrapping as raw KRB5
-		var k5 spnego.KRB5Token
-		if k5.Unmarshal(data) != nil {
-			if v.logger != nil {
-				v.logger.Info("kerberos: not KRB5 token; cannot continue")
-			}
-			return nil, false
-		}
-		tok.Init = true
-		tok.NegTokenInit = spnego.NegTokenInit{MechTypes: []asn1.ObjectIdentifier{k5.OID}, MechTokenBytes: data}
-	}
-	// Try continue with same options as in ValidateRequest
-	var sp *spnego.SPNEGO
-	if ha, err := types.GetHostAddress(r.RemoteAddr); err == nil {
-		sp = spnego.SPNEGOService(v.kt, service.ClientAddress(ha), service.DecodePAC(false))
-	} else {
-		sp = spnego.SPNEGOService(v.kt, service.DecodePAC(false))
-	}
-	_, ctx, status := sp.AcceptSecContext(&tok)
+
+	sp := v.createSPNEGOService(r)
+	_, ctx, status := sp.AcceptSecContext(tok)
 	if status.Code != gssapi.StatusContinueNeeded || ctx == nil {
 		if v.logger != nil {
 			v.logger.Info("kerberos: no continuation required", "code", status.Code, "message", status.Message)
 		}
 		return nil, false
 	}
-	// Ask client to continue using standard NegTokenResp (KRB5, incomplete)
-	if tokb, e := base64.StdEncoding.DecodeString(spnegoIncompleteKRB5B64); e == nil {
-		if v.logger != nil {
-			v.logger.Info("kerberos: continuation needed; sending incomplete KRB5 response")
-		}
-		return tokb, true
+	return v.incompleteResponse()
+}
+
+// incompleteResponse returns the standard NegTokenResp to prompt client continuation.
+func (v *gokrb5Validator) incompleteResponse() ([]byte, bool) {
+	tokb, err := base64.StdEncoding.DecodeString(spnegoIncompleteKRB5B64)
+	if err != nil {
+		return nil, false
 	}
-	return nil, false
+	if v.logger != nil {
+		v.logger.Info("kerberos: sending incomplete KRB5 response for continuation")
+	}
+	return tokb, true
 }
 
 // LDAP connector SPNEGO integration
-
-// krbLookupUserHook allows tests to inject a user entry without LDAP queries.
-var krbLookupUserHook func(c *ldapConnector, username string) (ldap.Entry, bool, error)
 
 // TrySPNEGO attempts Kerberos auth and builds identity on success.
 func (c *ldapConnector) TrySPNEGO(ctx context.Context, s connector.Scopes, w http.ResponseWriter, r *http.Request) (*connector.Identity, connector.Handled, error) {
@@ -271,13 +254,13 @@ func (c *ldapConnector) TrySPNEGO(ctx context.Context, s connector.Scopes, w htt
 		return nil, false, nil
 	}
 
-	mapped := mapPrincipal(principal, realm, c.krbConf.UsernameFromPrincipal)
+	mapped := mapPrincipal(principal, c.krbConf.UsernameFromPrincipal)
 	c.logger.Info("kerberos principal mapped", "principal", principal, "realm", realm, "mapped_username", mapped)
 
 	var userEntry ldap.Entry
 	// Allow test hook override
-	if krbLookupUserHook != nil {
-		if v, found, herr := krbLookupUserHook(c, mapped); found {
+	if c.krbLookupUserHook != nil {
+		if v, found, herr := c.krbLookupUserHook(c, mapped); found {
 			if herr != nil {
 				return nil, true, herr
 			}

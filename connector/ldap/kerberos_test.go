@@ -169,7 +169,7 @@ func TestKerberos_ContinueThenSuccess_ShortCircuitIdentity(t *testing.T) {
 	}
 
 	// Second request -> validator now returns ok=true (due to step increment)
-	krbLookupUserHook = func(c *ldapConnector, username string) (ldaplib.Entry, bool, error) {
+	lc.krbLookupUserHook = func(c *ldapConnector, username string) (ldaplib.Entry, bool, error) {
 		e := ldaplib.NewEntry("cn=jdoe,dc=example,dc=org", map[string][]string{
 			c.UserSearch.IDAttr:    {"uid-jdoe"},
 			c.UserSearch.EmailAttr: {"jdoe@example.com"},
@@ -177,7 +177,6 @@ func TestKerberos_ContinueThenSuccess_ShortCircuitIdentity(t *testing.T) {
 		})
 		return *e, true, nil
 	}
-	defer func() { krbLookupUserHook = nil }()
 	r2 := httptest.NewRequest("GET", "/auth/ldap/login?state=abc", nil)
 	w2 := httptest.NewRecorder()
 	ident2, handled2, err2 := lc.TrySPNEGO(r2.Context(), connector.Scopes{}, w2, r2)
@@ -208,15 +207,15 @@ func TestKerberos_ContinueNeeded_FallbackTrue_NotHandled(t *testing.T) {
 }
 
 func TestKerberos_mapPrincipal(t *testing.T) {
-	cases := []struct{ in, realm, mode, want string }{
-		{"JDoe@EXAMPLE.COM", "EXAMPLE.COM", "localpart", "jdoe"},
-		{"JDoe@EXAMPLE.COM", "EXAMPLE.COM", "sAMAccountName", "jdoe"},
-		{"JDoe@EXAMPLE.COM", "EXAMPLE.COM", "userPrincipalName", "jdoe@example.com"},
+	cases := []struct{ in, mode, want string }{
+		{"JDoe@EXAMPLE.COM", "localpart", "jdoe"},
+		{"JDoe@EXAMPLE.COM", "sAMAccountName", "jdoe"},
+		{"JDoe@EXAMPLE.COM", "userPrincipalName", "jdoe@example.com"},
 	}
 	for _, c := range cases {
-		got := mapPrincipal(c.in, c.realm, c.mode)
+		got := mapPrincipal(c.in, c.mode)
 		if got != c.want {
-			t.Fatalf("mapPrincipal(%q,%q,%q)=%q; want %q", c.in, c.realm, c.mode, got, c.want)
+			t.Fatalf("mapPrincipal(%q,%q)=%q; want %q", c.in, c.mode, got, c.want)
 		}
 	}
 }
@@ -249,7 +248,7 @@ func TestKerberos_ValidPrincipal_CompletesFlow(t *testing.T) {
 	lc.Config.UserSearch.NameAttr = "cn"
 	mv := &mockKrbValidator{principal: "jdoe@EXAMPLE.COM", realm: "EXAMPLE.COM", ok: true, err: nil, step: -1}
 	lc.krbValidator = mv
-	krbLookupUserHook = func(c *ldapConnector, username string) (ldaplib.Entry, bool, error) {
+	lc.krbLookupUserHook = func(c *ldapConnector, username string) (ldaplib.Entry, bool, error) {
 		e := ldaplib.NewEntry("cn=jdoe,dc=example,dc=org", map[string][]string{
 			c.UserSearch.IDAttr:    {"uid-jdoe"},
 			c.UserSearch.EmailAttr: {"jdoe@example.com"},
@@ -257,7 +256,6 @@ func TestKerberos_ValidPrincipal_CompletesFlow(t *testing.T) {
 		})
 		return *e, true, nil
 	}
-	defer func() { krbLookupUserHook = nil }()
 	r := httptest.NewRequest("GET", "/auth/ldap/login?state=abc", nil)
 	w := httptest.NewRecorder()
 	ident, handled, err := lc.TrySPNEGO(r.Context(), connector.Scopes{}, w, r)
@@ -307,7 +305,7 @@ func TestKerberos_UserPrincipalName_Mapping(t *testing.T) {
 	lc.Config.UserSearch.NameAttr = "cn"
 	mv := &mockKrbValidator{principal: "J.Doe@Example.COM", realm: "Example.COM", ok: true, err: nil, step: -1}
 	lc.krbValidator = mv
-	krbLookupUserHook = func(c *ldapConnector, username string) (ldaplib.Entry, bool, error) {
+	lc.krbLookupUserHook = func(c *ldapConnector, username string) (ldaplib.Entry, bool, error) {
 		if username != "j.doe@example.com" {
 			return ldaplib.Entry{}, false, nil
 		}
@@ -318,7 +316,6 @@ func TestKerberos_UserPrincipalName_Mapping(t *testing.T) {
 		})
 		return *e, true, nil
 	}
-	defer func() { krbLookupUserHook = nil }()
 	r := httptest.NewRequest("GET", "/auth/ldap/login?state=abc", nil)
 	w := httptest.NewRecorder()
 	ident, handled, err := lc.TrySPNEGO(r.Context(), connector.Scopes{}, w, r)
@@ -340,7 +337,7 @@ func TestKerberos_OfflineAccess_SetsConnectorData(t *testing.T) {
 	lc.Config.UserSearch.NameAttr = "cn"
 	mv := &mockKrbValidator{principal: "jdoe@EXAMPLE.COM", realm: "EXAMPLE.COM", ok: true, err: nil, step: -1}
 	lc.krbValidator = mv
-	krbLookupUserHook = func(c *ldapConnector, username string) (ldaplib.Entry, bool, error) {
+	lc.krbLookupUserHook = func(c *ldapConnector, username string) (ldaplib.Entry, bool, error) {
 		e := ldaplib.NewEntry("cn=jdoe,dc=example,dc=org", map[string][]string{
 			c.UserSearch.IDAttr:    {"uid-jdoe"},
 			c.UserSearch.EmailAttr: {"jdoe@example.com"},
@@ -348,7 +345,6 @@ func TestKerberos_OfflineAccess_SetsConnectorData(t *testing.T) {
 		})
 		return *e, true, nil
 	}
-	defer func() { krbLookupUserHook = nil }()
 	r := httptest.NewRequest("GET", "/auth/ldap/login?state=abc", nil)
 	w := httptest.NewRecorder()
 	scopes := connector.Scopes{OfflineAccess: true}
@@ -396,7 +392,7 @@ func TestKerberos_sAMAccountName_EqualsLocalpart(t *testing.T) {
 	lc.Config.UserSearch.NameAttr = "cn"
 	mv := &mockKrbValidator{principal: "Admin@REALM.LOCAL", realm: "REALM.LOCAL", ok: true, err: nil, step: -1}
 	lc.krbValidator = mv
-	krbLookupUserHook = func(c *ldapConnector, username string) (ldaplib.Entry, bool, error) {
+	lc.krbLookupUserHook = func(c *ldapConnector, username string) (ldaplib.Entry, bool, error) {
 		if username != "admin" {
 			return ldaplib.Entry{}, false, nil
 		}
@@ -407,7 +403,6 @@ func TestKerberos_sAMAccountName_EqualsLocalpart(t *testing.T) {
 		})
 		return *e, true, nil
 	}
-	defer func() { krbLookupUserHook = nil }()
 	r := httptest.NewRequest("GET", "/auth/ldap/login?state=abc", nil)
 	w := httptest.NewRecorder()
 	ident, handled, err := lc.TrySPNEGO(r.Context(), connector.Scopes{}, w, r)
@@ -429,7 +424,7 @@ func TestKerberos_ExpectedRealm_CaseInsensitive(t *testing.T) {
 	lc.Config.UserSearch.NameAttr = "cn"
 	mv := &mockKrbValidator{principal: "user@EXAMPLE.COM", realm: "EXAMPLE.COM", ok: true, err: nil, step: -1}
 	lc.krbValidator = mv
-	krbLookupUserHook = func(c *ldapConnector, username string) (ldaplib.Entry, bool, error) {
+	lc.krbLookupUserHook = func(c *ldapConnector, username string) (ldaplib.Entry, bool, error) {
 		e := ldaplib.NewEntry("cn=user,dc=example,dc=com", map[string][]string{
 			c.UserSearch.IDAttr:    {"uid-user"},
 			c.UserSearch.EmailAttr: {"user@example.com"},
@@ -437,7 +432,6 @@ func TestKerberos_ExpectedRealm_CaseInsensitive(t *testing.T) {
 		})
 		return *e, true, nil
 	}
-	defer func() { krbLookupUserHook = nil }()
 	r := httptest.NewRequest("GET", "/auth/ldap/login?state=abc", nil)
 	w := httptest.NewRecorder()
 	ident, handled, err := lc.TrySPNEGO(r.Context(), connector.Scopes{}, w, r)
