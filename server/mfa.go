@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"time"
 
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
@@ -164,12 +165,11 @@ func (s *Server) handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 		s.renderTOTPPage(secret, false, totpProvider.issuer, authReq.ConnectorID, w, r)
 
 	case http.MethodPost:
-		// TODO(nabokihms): this endpoint should be proteted with a rate limit (like the auth endpoint).
+		// TODO(nabokihms): this endpoint should be protected with a rate limit (like the auth endpoint).
 		// TOTP has a limited keyspace (6 digits) with a 30-second validity window,
 		// making it particularly vulnerable to brute-force without rate limiting.
-		// This endpoint should be protected similarly to the auth/login endpoints.
 		//
-		// For now the best way is to use external rate limitting solutions.
+		// For now the best way is to use external rate limiting solutions.
 		if secret == nil || secret.Secret == "" {
 			s.renderError(r, w, http.StatusBadRequest, "MFA not enrolled.")
 			return
@@ -250,6 +250,8 @@ func (s *Server) handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) renderTOTPPage(secret *storage.MFASecret, lastFail bool, issuer, connectorID string, w http.ResponseWriter, r *http.Request) {
+	// Prevent browser from caching the TOTP page (contains QR code with secret).
+	w.Header().Set("Cache-Control", "no-store")
 	var qrCode string
 	if !secret.Confirmed {
 		var err error
@@ -355,7 +357,7 @@ func (s *Server) mfaChainForClient(ctx context.Context, clientID, connectorID st
 
 // getConnectorType returns the type of the connector with the given ID.
 func (s *Server) getConnectorType(ctx context.Context, connectorID string) (string, error) {
-	conn, err := s.storage.GetConnector(ctx, connectorID)
+	conn, err := s.getConnector(ctx, connectorID)
 	if err != nil {
 		return "", fmt.Errorf("get connector %q: %w", connectorID, err)
 	}

@@ -57,6 +57,7 @@ const LocalConnector = "local"
 
 // Connector is a connector with resource version metadata.
 type Connector struct {
+	Type            string
 	ResourceVersion string
 	Connector       connector.Connector
 	GrantTypes      []string
@@ -803,6 +804,7 @@ func (s *Server) OpenConnector(conn storage.Connector) (Connector, error) {
 	}
 
 	connector := Connector{
+		Type:            conn.Type,
 		ResourceVersion: conn.ResourceVersion,
 		Connector:       c,
 		GrantTypes:      conn.GrantTypes,

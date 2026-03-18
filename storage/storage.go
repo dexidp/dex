@@ -338,6 +338,8 @@ type RefreshTokenRef struct {
 }
 
 // MFASecret stores the enrollment state and secret for an MFA authenticator.
+// Note: Secret is stored without encryption. Encrypting secrets at rest is the
+// responsibility of the storage backend (e.g., encrypted etcd, disk encryption).
 type MFASecret struct {
 	AuthenticatorID string    `json:"authenticatorID"`
 	Type            string    `json:"type"`
