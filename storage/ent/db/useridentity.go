@@ -36,6 +36,8 @@ type UserIdentity struct {
 	ClaimsGroups []string `json:"claims_groups,omitempty"`
 	// Consents holds the value of the "consents" field.
 	Consents []byte `json:"consents,omitempty"`
+	// MfaSecrets holds the value of the "mfa_secrets" field.
+	MfaSecrets *[]byte `json:"mfa_secrets,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// LastLogin holds the value of the "last_login" field.
@@ -50,7 +52,7 @@ func (*UserIdentity) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case useridentity.FieldClaimsGroups, useridentity.FieldConsents:
+		case useridentity.FieldClaimsGroups, useridentity.FieldConsents, useridentity.FieldMfaSecrets:
 			values[i] = new([]byte)
 		case useridentity.FieldClaimsEmailVerified:
 			values[i] = new(sql.NullBool)
@@ -135,6 +137,12 @@ func (_m *UserIdentity) assignValues(columns []string, values []any) error {
 			} else if value != nil {
 				_m.Consents = *value
 			}
+		case useridentity.FieldMfaSecrets:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field mfa_secrets", values[i])
+			} else if value != nil {
+				_m.MfaSecrets = value
+			}
 		case useridentity.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -215,6 +223,11 @@ func (_m *UserIdentity) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("consents=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Consents))
+	builder.WriteString(", ")
+	if v := _m.MfaSecrets; v != nil {
+		builder.WriteString("mfa_secrets=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

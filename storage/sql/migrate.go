@@ -425,4 +425,17 @@ var migrations = []migration{
 			);`,
 		},
 	},
+	{
+		stmts: []string{
+			`
+			alter table auth_request
+				add column mfa_validated boolean not null default false;`,
+			`
+			alter table user_identity
+				add column mfa_secrets bytea;`,
+			`
+			alter table client
+				add column mfa_chain bytea;`,
+		},
+	},
 }

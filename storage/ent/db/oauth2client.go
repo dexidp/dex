@@ -31,7 +31,9 @@ type OAuth2Client struct {
 	LogoURL string `json:"logo_url,omitempty"`
 	// AllowedConnectors holds the value of the "allowed_connectors" field.
 	AllowedConnectors []string `json:"allowed_connectors,omitempty"`
-	selectValues      sql.SelectValues
+	// MfaChain holds the value of the "mfa_chain" field.
+	MfaChain     []string `json:"mfa_chain,omitempty"`
+	selectValues sql.SelectValues
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -39,7 +41,7 @@ func (*OAuth2Client) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case oauth2client.FieldRedirectUris, oauth2client.FieldTrustedPeers, oauth2client.FieldAllowedConnectors:
+		case oauth2client.FieldRedirectUris, oauth2client.FieldTrustedPeers, oauth2client.FieldAllowedConnectors, oauth2client.FieldMfaChain:
 			values[i] = new([]byte)
 		case oauth2client.FieldPublic:
 			values[i] = new(sql.NullBool)
@@ -114,6 +116,14 @@ func (_m *OAuth2Client) assignValues(columns []string, values []any) error {
 					return fmt.Errorf("unmarshal field allowed_connectors: %w", err)
 				}
 			}
+		case oauth2client.FieldMfaChain:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field mfa_chain", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.MfaChain); err != nil {
+					return fmt.Errorf("unmarshal field mfa_chain: %w", err)
+				}
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -170,6 +180,9 @@ func (_m *OAuth2Client) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("allowed_connectors=")
 	builder.WriteString(fmt.Sprintf("%v", _m.AllowedConnectors))
+	builder.WriteString(", ")
+	builder.WriteString("mfa_chain=")
+	builder.WriteString(fmt.Sprintf("%v", _m.MfaChain))
 	builder.WriteByte(')')
 	return builder.String()
 }

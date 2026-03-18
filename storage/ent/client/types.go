@@ -45,7 +45,8 @@ func toStorageAuthRequest(a *db.AuthRequest) storage.AuthRequest {
 			CodeChallenge:       a.CodeChallenge,
 			CodeChallengeMethod: a.CodeChallengeMethod,
 		},
-		HMACKey: a.HmacKey,
+		HMACKey:      a.HmacKey,
+		MFAValidated: a.MfaValidated,
 	}
 }
 
@@ -84,6 +85,7 @@ func toStorageClient(c *db.OAuth2Client) storage.Client {
 		Name:              c.Name,
 		LogoURL:           c.LogoURL,
 		AllowedConnectors: c.AllowedConnectors,
+		MFAChain:          c.MfaChain,
 	}
 }
 
@@ -192,6 +194,18 @@ func toStorageUserIdentity(u *db.UserIdentity) storage.UserIdentity {
 	} else {
 		// Server code assumes this will be non-nil.
 		s.Consents = make(map[string][]string)
+	}
+
+	if u.MfaSecrets != nil {
+		if err := json.Unmarshal(*u.MfaSecrets, &s.MFASecrets); err != nil {
+			// Correctness of json structure is guaranteed on uploading
+			panic(err)
+		}
+		if s.MFASecrets == nil {
+			s.MFASecrets = make(map[string]*storage.MFASecret)
+		}
+	} else {
+		s.MFASecrets = make(map[string]*storage.MFASecret)
 	}
 	return s
 }

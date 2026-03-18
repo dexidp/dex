@@ -185,6 +185,10 @@ type Client struct {
 	// AllowedConnectors is a list of connector IDs that the client is allowed to use for authentication.
 	// If empty, all connectors are allowed.
 	AllowedConnectors []string `json:"allowedConnectors"`
+
+	// MFAChain is an ordered list of MFA authenticator IDs that a user must complete
+	// during login. Empty means no MFA required.
+	MFAChain []string `json:"mfaChain"`
 }
 
 // Claims represents the ID Token claims supported by the server.
@@ -247,6 +251,9 @@ type AuthRequest struct {
 
 	// HMACKey is used when generating an AuthRequest-specific HMAC
 	HMACKey []byte
+
+	// MFAValidated is set to true if the user has completed multi-factor authentication.
+	MFAValidated bool
 }
 
 // AuthCode represents a code which can be exchanged for an OAuth2 token response.
@@ -330,12 +337,24 @@ type RefreshTokenRef struct {
 	LastUsed  time.Time
 }
 
+// MFASecret stores the enrollment state and secret for an MFA authenticator.
+// Note: Secret is stored without encryption. Encrypting secrets at rest is the
+// responsibility of the storage backend (e.g., encrypted etcd, disk encryption).
+type MFASecret struct {
+	AuthenticatorID string    `json:"authenticatorID"`
+	Type            string    `json:"type"`
+	Secret          string    `json:"secret"`
+	Confirmed       bool      `json:"confirmed"`
+	CreatedAt       time.Time `json:"createdAt"`
+}
+
 // UserIdentity represents persistent per-user identity data.
 type UserIdentity struct {
 	UserID       string
 	ConnectorID  string
 	Claims       Claims
-	Consents     map[string][]string // clientID -> approved scopes
+	Consents     map[string][]string   // clientID -> approved scopes
+	MFASecrets   map[string]*MFASecret // authenticatorID -> secret
 	CreatedAt    time.Time
 	LastLogin    time.Time
 	BlockedUntil time.Time

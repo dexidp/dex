@@ -29,6 +29,8 @@ const (
 	FieldClaimsGroups = "claims_groups"
 	// FieldConsents holds the string denoting the consents field in the database.
 	FieldConsents = "consents"
+	// FieldMfaSecrets holds the string denoting the mfa_secrets field in the database.
+	FieldMfaSecrets = "mfa_secrets"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldLastLogin holds the string denoting the last_login field in the database.
@@ -51,6 +53,7 @@ var Columns = []string{
 	FieldClaimsEmailVerified,
 	FieldClaimsGroups,
 	FieldConsents,
+	FieldMfaSecrets,
 	FieldCreatedAt,
 	FieldLastLogin,
 	FieldBlockedUntil,

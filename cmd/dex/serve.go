@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -384,6 +385,8 @@ func runServe(options serveOptions) error {
 		ContinueOnConnectorFailure: featureflags.ContinueOnConnectorFailure.Enabled(),
 		Signer:                     signerInstance,
 		IDTokensValidFor:           idTokensValidFor,
+		MFAProviders:               buildMFAProviders(c.MFA.Authenticators, logger),
+		DefaultMFAChain:            c.MFA.DefaultMFAChain,
 	}
 
 	if c.Expiry.AuthRequests != "" {
@@ -812,4 +815,27 @@ func parseSessionConfig(s *Sessions) (*server.SessionConfig, error) {
 		return nil, fmt.Errorf("validIfNotUsedFor (%v) must not exceed absoluteLifetime (%v)", sc.ValidIfNotUsedFor, sc.AbsoluteLifetime)
 	}
 	return sc, nil
+}
+
+func buildMFAProviders(authenticators []MFAAuthenticator, logger *slog.Logger) map[string]server.MFAProvider {
+	if len(authenticators) == 0 {
+		return nil
+	}
+
+	providers := make(map[string]server.MFAProvider, len(authenticators))
+	for _, auth := range authenticators {
+		switch auth.Type {
+		case "TOTP":
+			var cfg TOTPConfig
+			if err := json.Unmarshal(auth.Config, &cfg); err != nil {
+				logger.Error("failed to parse TOTP config", "id", auth.ID, "err", err)
+				continue
+			}
+			providers[auth.ID] = server.NewTOTPProvider(cfg.Issuer, auth.ConnectorTypes)
+			logger.Info("MFA authenticator configured", "id", auth.ID, "type", auth.Type)
+		default:
+			logger.Error("unknown MFA authenticator type, skipping", "id", auth.ID, "type", auth.Type)
+		}
+	}
+	return providers
 }

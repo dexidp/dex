@@ -86,6 +86,8 @@ type AuthRequest struct {
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
 
 	HMACKey []byte `json:"hmac_key"`
+
+	MFAValidated bool `json:"mfa_validated"`
 }
 
 func fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
@@ -106,6 +108,7 @@ func fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		CodeChallenge:       a.PKCE.CodeChallenge,
 		CodeChallengeMethod: a.PKCE.CodeChallengeMethod,
 		HMACKey:             a.HMACKey,
+		MFAValidated:        a.MFAValidated,
 	}
 }
 
@@ -128,7 +131,8 @@ func toStorageAuthRequest(a AuthRequest) storage.AuthRequest {
 			CodeChallenge:       a.CodeChallenge,
 			CodeChallengeMethod: a.CodeChallengeMethod,
 		},
-		HMACKey: a.HMACKey,
+		HMACKey:      a.HMACKey,
+		MFAValidated: a.MFAValidated,
 	}
 }
 
@@ -258,13 +262,14 @@ func toStorageOfflineSessions(o OfflineSessions) storage.OfflineSessions {
 
 // UserIdentity is a mirrored struct from storage with JSON struct tags
 type UserIdentity struct {
-	UserID       string              `json:"user_id,omitempty"`
-	ConnectorID  string              `json:"connector_id,omitempty"`
-	Claims       Claims              `json:"claims,omitempty"`
-	Consents     map[string][]string `json:"consents,omitempty"`
-	CreatedAt    time.Time           `json:"created_at"`
-	LastLogin    time.Time           `json:"last_login"`
-	BlockedUntil time.Time           `json:"blocked_until"`
+	UserID       string                        `json:"user_id,omitempty"`
+	ConnectorID  string                        `json:"connector_id,omitempty"`
+	Claims       Claims                        `json:"claims,omitempty"`
+	Consents     map[string][]string           `json:"consents,omitempty"`
+	MFASecrets   map[string]*storage.MFASecret `json:"mfa_secrets,omitempty"`
+	CreatedAt    time.Time                     `json:"created_at"`
+	LastLogin    time.Time                     `json:"last_login"`
+	BlockedUntil time.Time                     `json:"blocked_until"`
 }
 
 func fromStorageUserIdentity(u storage.UserIdentity) UserIdentity {
@@ -273,6 +278,7 @@ func fromStorageUserIdentity(u storage.UserIdentity) UserIdentity {
 		ConnectorID:  u.ConnectorID,
 		Claims:       fromStorageClaims(u.Claims),
 		Consents:     u.Consents,
+		MFASecrets:   u.MFASecrets,
 		CreatedAt:    u.CreatedAt,
 		LastLogin:    u.LastLogin,
 		BlockedUntil: u.BlockedUntil,
@@ -285,6 +291,7 @@ func toStorageUserIdentity(u UserIdentity) storage.UserIdentity {
 		ConnectorID:  u.ConnectorID,
 		Claims:       toStorageClaims(u.Claims),
 		Consents:     u.Consents,
+		MFASecrets:   u.MFASecrets,
 		CreatedAt:    u.CreatedAt,
 		LastLogin:    u.LastLogin,
 		BlockedUntil: u.BlockedUntil,

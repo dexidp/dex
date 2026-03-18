@@ -114,6 +114,12 @@ func (_c *UserIdentityCreate) SetConsents(v []byte) *UserIdentityCreate {
 	return _c
 }
 
+// SetMfaSecrets sets the "mfa_secrets" field.
+func (_c *UserIdentityCreate) SetMfaSecrets(v []byte) *UserIdentityCreate {
+	_c.mutation.SetMfaSecrets(v)
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *UserIdentityCreate) SetCreatedAt(v time.Time) *UserIdentityCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -315,6 +321,10 @@ func (_c *UserIdentityCreate) createSpec() (*UserIdentity, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.Consents(); ok {
 		_spec.SetField(useridentity.FieldConsents, field.TypeBytes, value)
 		_node.Consents = value
+	}
+	if value, ok := _c.mutation.MfaSecrets(); ok {
+		_spec.SetField(useridentity.FieldMfaSecrets, field.TypeBytes, value)
+		_node.MfaSecrets = &value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(useridentity.FieldCreatedAt, field.TypeTime, value)

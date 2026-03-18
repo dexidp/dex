@@ -287,6 +287,8 @@ type Client struct {
 	LogoURL string `json:"logoURL,omitempty"`
 
 	AllowedConnectors []string `json:"allowedConnectors,omitempty"`
+
+	MFAChain []string `json:"mfaChain,omitempty"`
 }
 
 // ClientList is a list of Clients.
@@ -314,6 +316,7 @@ func (cli *client) fromStorageClient(c storage.Client) Client {
 		Name:              c.Name,
 		LogoURL:           c.LogoURL,
 		AllowedConnectors: c.AllowedConnectors,
+		MFAChain:          c.MFAChain,
 	}
 }
 
@@ -327,6 +330,7 @@ func toStorageClient(c Client) storage.Client {
 		Name:              c.Name,
 		LogoURL:           c.LogoURL,
 		AllowedConnectors: c.AllowedConnectors,
+		MFAChain:          c.MFAChain,
 	}
 }
 
@@ -396,6 +400,8 @@ type AuthRequest struct {
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
 
 	HMACKey []byte `json:"hmac_key"`
+
+	MFAValidated bool `json:"mfa_validated"`
 }
 
 // AuthRequestList is a list of AuthRequests.
@@ -424,7 +430,8 @@ func toStorageAuthRequest(req AuthRequest) storage.AuthRequest {
 			CodeChallenge:       req.CodeChallenge,
 			CodeChallengeMethod: req.CodeChallengeMethod,
 		},
-		HMACKey: req.HMACKey,
+		HMACKey:      req.HMACKey,
+		MFAValidated: req.MFAValidated,
 	}
 	return a
 }
@@ -454,6 +461,7 @@ func (cli *client) fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		CodeChallenge:       a.PKCE.CodeChallenge,
 		CodeChallengeMethod: a.PKCE.CodeChallengeMethod,
 		HMACKey:             a.HMACKey,
+		MFAValidated:        a.MFAValidated,
 	}
 	return req
 }
@@ -913,13 +921,14 @@ type UserIdentity struct {
 	k8sapi.TypeMeta   `json:",inline"`
 	k8sapi.ObjectMeta `json:"metadata,omitempty"`
 
-	UserID       string              `json:"userID,omitempty"`
-	ConnectorID  string              `json:"connectorID,omitempty"`
-	Claims       Claims              `json:"claims,omitempty"`
-	Consents     map[string][]string `json:"consents,omitempty"`
-	CreatedAt    time.Time           `json:"createdAt,omitempty"`
-	LastLogin    time.Time           `json:"lastLogin,omitempty"`
-	BlockedUntil time.Time           `json:"blockedUntil,omitempty"`
+	UserID       string                        `json:"userID,omitempty"`
+	ConnectorID  string                        `json:"connectorID,omitempty"`
+	Claims       Claims                        `json:"claims,omitempty"`
+	Consents     map[string][]string           `json:"consents,omitempty"`
+	MFASecrets   map[string]*storage.MFASecret `json:"mfaSecrets,omitempty"`
+	CreatedAt    time.Time                     `json:"createdAt,omitempty"`
+	LastLogin    time.Time                     `json:"lastLogin,omitempty"`
+	BlockedUntil time.Time                     `json:"blockedUntil,omitempty"`
 }
 
 // UserIdentityList is a list of UserIdentities.
@@ -943,6 +952,7 @@ func (cli *client) fromStorageUserIdentity(u storage.UserIdentity) UserIdentity 
 		ConnectorID:  u.ConnectorID,
 		Claims:       fromStorageClaims(u.Claims),
 		Consents:     u.Consents,
+		MFASecrets:   u.MFASecrets,
 		CreatedAt:    u.CreatedAt,
 		LastLogin:    u.LastLogin,
 		BlockedUntil: u.BlockedUntil,
@@ -955,6 +965,7 @@ func toStorageUserIdentity(u UserIdentity) storage.UserIdentity {
 		ConnectorID:  u.ConnectorID,
 		Claims:       toStorageClaims(u.Claims),
 		Consents:     u.Consents,
+		MFASecrets:   u.MFASecrets,
 		CreatedAt:    u.CreatedAt,
 		LastLogin:    u.LastLogin,
 		BlockedUntil: u.BlockedUntil,

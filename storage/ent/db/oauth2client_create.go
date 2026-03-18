@@ -61,6 +61,12 @@ func (_c *OAuth2ClientCreate) SetAllowedConnectors(v []string) *OAuth2ClientCrea
 	return _c
 }
 
+// SetMfaChain sets the "mfa_chain" field.
+func (_c *OAuth2ClientCreate) SetMfaChain(v []string) *OAuth2ClientCreate {
+	_c.mutation.SetMfaChain(v)
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *OAuth2ClientCreate) SetID(v string) *OAuth2ClientCreate {
 	_c.mutation.SetID(v)
@@ -195,6 +201,10 @@ func (_c *OAuth2ClientCreate) createSpec() (*OAuth2Client, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.AllowedConnectors(); ok {
 		_spec.SetField(oauth2client.FieldAllowedConnectors, field.TypeJSON, value)
 		_node.AllowedConnectors = value
+	}
+	if value, ok := _c.mutation.MfaChain(); ok {
+		_spec.SetField(oauth2client.FieldMfaChain, field.TypeJSON, value)
+		_node.MfaChain = value
 	}
 	return _node, _spec
 }

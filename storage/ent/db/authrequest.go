@@ -57,7 +57,9 @@ type AuthRequest struct {
 	// CodeChallengeMethod holds the value of the "code_challenge_method" field.
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
 	// HmacKey holds the value of the "hmac_key" field.
-	HmacKey      []byte `json:"hmac_key,omitempty"`
+	HmacKey []byte `json:"hmac_key,omitempty"`
+	// MfaValidated holds the value of the "mfa_validated" field.
+	MfaValidated bool `json:"mfa_validated,omitempty"`
 	selectValues sql.SelectValues
 }
 
@@ -68,7 +70,7 @@ func (*AuthRequest) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case authrequest.FieldScopes, authrequest.FieldResponseTypes, authrequest.FieldClaimsGroups, authrequest.FieldConnectorData, authrequest.FieldHmacKey:
 			values[i] = new([]byte)
-		case authrequest.FieldForceApprovalPrompt, authrequest.FieldLoggedIn, authrequest.FieldClaimsEmailVerified:
+		case authrequest.FieldForceApprovalPrompt, authrequest.FieldLoggedIn, authrequest.FieldClaimsEmailVerified, authrequest.FieldMfaValidated:
 			values[i] = new(sql.NullBool)
 		case authrequest.FieldID, authrequest.FieldClientID, authrequest.FieldRedirectURI, authrequest.FieldNonce, authrequest.FieldState, authrequest.FieldClaimsUserID, authrequest.FieldClaimsUsername, authrequest.FieldClaimsEmail, authrequest.FieldClaimsPreferredUsername, authrequest.FieldConnectorID, authrequest.FieldCodeChallenge, authrequest.FieldCodeChallengeMethod:
 			values[i] = new(sql.NullString)
@@ -221,6 +223,12 @@ func (_m *AuthRequest) assignValues(columns []string, values []any) error {
 			} else if value != nil {
 				_m.HmacKey = *value
 			}
+		case authrequest.FieldMfaValidated:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field mfa_validated", values[i])
+			} else if value.Valid {
+				_m.MfaValidated = value.Bool
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -318,6 +326,9 @@ func (_m *AuthRequest) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("hmac_key=")
 	builder.WriteString(fmt.Sprintf("%v", _m.HmacKey))
+	builder.WriteString(", ")
+	builder.WriteString("mfa_validated=")
+	builder.WriteString(fmt.Sprintf("%v", _m.MfaValidated))
 	builder.WriteByte(')')
 	return builder.String()
 }

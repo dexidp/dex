@@ -18,6 +18,14 @@ func (d *Database) CreateUserIdentity(ctx context.Context, identity storage.User
 		return fmt.Errorf("encode consents user identity: %w", err)
 	}
 
+	if identity.MFASecrets == nil {
+		identity.MFASecrets = make(map[string]*storage.MFASecret)
+	}
+	encodedMFASecrets, err := json.Marshal(identity.MFASecrets)
+	if err != nil {
+		return fmt.Errorf("encode mfa secrets user identity: %w", err)
+	}
+
 	id := compositeKeyID(identity.UserID, identity.ConnectorID, d.hasher)
 	_, err = d.client.UserIdentity.Create().
 		SetID(id).
@@ -30,6 +38,7 @@ func (d *Database) CreateUserIdentity(ctx context.Context, identity storage.User
 		SetClaimsEmailVerified(identity.Claims.EmailVerified).
 		SetClaimsGroups(identity.Claims.Groups).
 		SetConsents(encodedConsents).
+		SetMfaSecrets(encodedMFASecrets).
 		SetCreatedAt(identity.CreatedAt).
 		SetLastLogin(identity.LastLogin).
 		SetBlockedUntil(identity.BlockedUntil).
@@ -90,6 +99,15 @@ func (d *Database) UpdateUserIdentity(ctx context.Context, userID string, connec
 		return rollback(tx, "encode consents user identity: %w", err)
 	}
 
+	if newUserIdentity.MFASecrets == nil {
+		newUserIdentity.MFASecrets = make(map[string]*storage.MFASecret)
+	}
+
+	encodedMFASecrets, err := json.Marshal(newUserIdentity.MFASecrets)
+	if err != nil {
+		return rollback(tx, "encode mfa secrets user identity: %w", err)
+	}
+
 	_, err = tx.UserIdentity.UpdateOneID(id).
 		SetUserID(newUserIdentity.UserID).
 		SetConnectorID(newUserIdentity.ConnectorID).
@@ -100,6 +118,7 @@ func (d *Database) UpdateUserIdentity(ctx context.Context, userID string, connec
 		SetClaimsEmailVerified(newUserIdentity.Claims.EmailVerified).
 		SetClaimsGroups(newUserIdentity.Claims.Groups).
 		SetConsents(encodedConsents).
+		SetMfaSecrets(encodedMFASecrets).
 		SetCreatedAt(newUserIdentity.CreatedAt).
 		SetLastLogin(newUserIdentity.LastLogin).
 		SetBlockedUntil(newUserIdentity.BlockedUntil).
