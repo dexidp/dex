@@ -179,6 +179,88 @@ func (v *vaultSigner) Sign(ctx context.Context, payload []byte) (string, error) 
 	return fmt.Sprintf("%s.%s.%s", headerB64, payloadB64, signatureB64), nil
 }
 
+func (v *vaultSigner) SignWithType(ctx context.Context, payload []byte, tokenType string) (string, error) {
+	// 1. Fetch keys to determine the key to use (latest version) and its ID.
+	keysMap, latestVersion, err := v.getTransitKeysMap(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get keys for signing context: %v", err)
+	}
+
+	// Determine the key version and ID to use
+	signingJWK, ok := keysMap[latestVersion]
+	if !ok {
+		return "", fmt.Errorf("latest key version %d not found in public keys", latestVersion)
+	}
+
+	// 2. Construct JWS Header with custom typ and Payload first (Signing Input)
+	header := map[string]interface{}{
+		"alg": signingJWK.Algorithm,
+		"kid": signingJWK.KeyID,
+		"typ": tokenType,
+	}
+
+	headerBytes, err := json.Marshal(header)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal header: %v", err)
+	}
+
+	headerB64 := base64.RawURLEncoding.EncodeToString(headerBytes)
+	payloadB64 := base64.RawURLEncoding.EncodeToString(payload)
+
+	// The input to the signature is "header.payload"
+	signingInput := fmt.Sprintf("%s.%s", headerB64, payloadB64)
+
+	// 3. Sign the signingInput using Vault
+	var vaultInput string
+	data := map[string]interface{}{}
+
+	// Determine Vault params based on JWS algorithm
+	params, err := getVaultParams(signingJWK.Algorithm)
+	if err != nil {
+		return "", err
+	}
+
+	// Apply params to data map
+	for k, v := range params.extraParams {
+		data[k] = v
+	}
+
+	// Hash input if needed
+	if params.hasher != nil {
+		params.hasher.Write([]byte(signingInput))
+		hash := params.hasher.Sum(nil)
+		vaultInput = base64.StdEncoding.EncodeToString(hash)
+	} else {
+		// No pre-hashing (EdDSA)
+		vaultInput = base64.StdEncoding.EncodeToString([]byte(signingInput))
+	}
+	data["input"] = vaultInput
+
+	signPath := fmt.Sprintf("transit/sign/%s", v.keyName)
+	signSecret, err := v.client.Logical().WriteWithContext(ctx, signPath, data)
+	if err != nil {
+		return "", fmt.Errorf("vault sign: %v", err)
+	}
+
+	signatureString, ok := signSecret.Data["signature"].(string)
+	if !ok {
+		return "", fmt.Errorf("vault response missing signature")
+	}
+
+	// Parse vault signature: "vault:v1:base64sig"
+	var signatureB64 []byte
+	if len(signatureString) > 8 && signatureString[:6] == "vault:" {
+		parts := splitVaultSignature(signatureString)
+		if len(parts) == 3 {
+			signatureB64 = []byte(parts[2])
+		}
+	} else {
+		return "", fmt.Errorf("unexpected signature format: %s", signatureString)
+	}
+
+	return fmt.Sprintf("%s.%s.%s", headerB64, payloadB64, signatureB64), nil
+}
+
 func (v *vaultSigner) ValidationKeys(ctx context.Context) ([]*jose.JSONWebKey, error) {
 	keysMap, _, err := v.getTransitKeysMap(ctx)
 	if err != nil {

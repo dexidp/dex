@@ -89,6 +89,7 @@ web:
 #   deviceRequests: "5m"
 #   signingKeys: "6h" # deprecated, use signer.config.keysRotationPeriod
 #   idTokens: "24h"
+#   idJAGTokens: "5m"  # default: 5m; independent of idTokens
 #   refreshTokens:
 #     disableRotation: false
 #     reuseInterval: "3s"
@@ -124,6 +125,14 @@ web:
 #     enforce: false
 #     # Supported code challenge methods. Defaults to ["S256", "plain"].
 #     codeChallengeMethodsSupported: ["S256", "plain"]
+#
+#   # Token Exchange configuration
+#   tokenExchange:
+#     # List of token types enabled for exchange. Adding id-jag enables ID-JAG support.
+#     # Omitting it (default) disables ID-JAG without affecting other token exchange flows.
+#     tokenTypes:
+#       - urn:ietf:params:oauth:token-type:id_token
+#       - urn:ietf:params:oauth:token-type:id-jag
 
 # Static clients registered in Dex by default.
 #
@@ -159,6 +168,21 @@ web:
 #     allowedConnectors:
 #       - github
 #       - google
+#
+#   # Example of a client with ID-JAG token exchange policy
+#   - id: wiki-app
+#     secret: wiki-secret
+#     redirectURIs:
+#       - 'https://wiki.example/callback'
+#     name: 'Wiki Application'
+#     # Per-client ID-JAG policy. Clients without this section cannot obtain ID-JAG tokens.
+#     idJAGPolicies:
+#       allowedAudiences:
+#         - "https://chat.example/"
+#         - "https://calendar.example/"
+#       allowedScopes:
+#         - "chat.read"
+#         - "calendar.read"
 
 # Connectors are used to authenticate users against upstream identity providers.
 #

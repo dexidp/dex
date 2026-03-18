@@ -182,6 +182,8 @@ const (
 	tokenTypeSAML1   = "urn:ietf:params:oauth:token-type:saml1"
 	tokenTypeSAML2   = "urn:ietf:params:oauth:token-type:saml2"
 	tokenTypeJWT     = "urn:ietf:params:oauth:token-type:jwt"
+	// https://datatracker.ietf.org/doc/draft-ietf-oauth-identity-assertion-authz-grant/
+	tokenTypeIDJAG = "urn:ietf:params:oauth:token-type:id-jag"
 )
 
 const (
@@ -298,6 +300,62 @@ type federatedIDClaims struct {
 
 func (s *Server) newAccessToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, connID string, authTime time.Time) (accessToken string, expiry time.Time, err error) {
 	return s.newIDToken(ctx, clientID, claims, scopes, nonce, storage.NewID(), "", connID, authTime)
+}
+
+// idJAGTyp is the JWT "typ" header value for ID-JAG tokens.
+const idJAGTyp = "oauth-id-jag+jwt"
+
+// idJAGClaims is the JWT payload for an ID-JAG token.
+type idJAGClaims struct {
+	Issuer   string `json:"iss"`
+	Subject  string `json:"sub"`
+	Audience string `json:"aud"`
+	ClientID string `json:"client_id"`
+	JTI      string `json:"jti"`
+	Expiry   int64  `json:"exp"`
+	IssuedAt int64  `json:"iat"`
+
+	Resource string `json:"resource,omitempty"`
+	Scope    string `json:"scope,omitempty"`
+}
+
+// newIDJAG creates an ID-JAG token with the given subject and audience.
+func (s *Server) newIDJAG(
+	ctx context.Context,
+	clientID string,
+	subject string,
+	audience string,
+	resource string,
+	scopes []string,
+) (token string, jti string, expiry time.Time, err error) {
+	issuedAt := s.now()
+	expiry = issuedAt.Add(s.idJAGTokensValidFor)
+
+	jti = storage.NewID()
+	claims := idJAGClaims{
+		Issuer:   s.issuerURL.String(),
+		Subject:  subject,
+		Audience: audience,
+		ClientID: clientID,
+		JTI:      jti,
+		Expiry:   expiry.Unix(),
+		IssuedAt: issuedAt.Unix(),
+		Resource: resource,
+	}
+
+	if len(scopes) > 0 {
+		claims.Scope = strings.Join(scopes, " ")
+	}
+
+	payload, err := json.Marshal(claims)
+	if err != nil {
+		return "", "", expiry, fmt.Errorf("could not serialize ID-JAG claims: %v", err)
+	}
+
+	if token, err = s.signer.SignWithType(ctx, payload, idJAGTyp); err != nil {
+		return "", "", expiry, fmt.Errorf("failed to sign ID-JAG payload: %v", err)
+	}
+	return token, jti, expiry, nil
 }
 
 func getClientID(aud audience, azp string) (string, error) {

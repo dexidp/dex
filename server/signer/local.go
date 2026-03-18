@@ -115,6 +115,24 @@ func (l *localSigner) Sign(ctx context.Context, payload []byte) (string, error) 
 	return signPayload(signingKey, signingAlg, payload)
 }
 
+func (l *localSigner) SignWithType(ctx context.Context, payload []byte, tokenType string) (string, error) {
+	keys, err := l.storage.GetKeys(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get keys: %v", err)
+	}
+
+	signingKey := keys.SigningKey
+	if signingKey == nil {
+		return "", fmt.Errorf("no key to sign payload with")
+	}
+	signingAlg, err := signatureAlgorithm(signingKey)
+	if err != nil {
+		return "", err
+	}
+
+	return signPayloadWithType(signingKey, signingAlg, payload, tokenType)
+}
+
 func (l *localSigner) ValidationKeys(ctx context.Context) ([]*jose.JSONWebKey, error) {
 	keys, err := l.storage.GetKeys(ctx)
 	if err != nil {

@@ -137,6 +137,49 @@ func TestHandleDiscoveryWithES256LocalSigner(t *testing.T) {
 	require.Equal(t, []string{string(jose.ES256)}, res.IDTokenAlgs)
 }
 
+// TestHandleDiscovery_IDJAG verifies OIDC discovery includes ID-JAG metadata when enabled.
+func TestHandleDiscovery_IDJAG(t *testing.T) {
+	httpServer, server := newTestServer(t, func(c *Config) {
+		c.TokenExchange = TokenExchangeConfig{
+			TokenTypes: []string{tokenTypeIDJAG},
+		}
+	})
+	defer httpServer.Close()
+
+	rr := httptest.NewRecorder()
+	server.ServeHTTP(rr, httptest.NewRequest("GET", "/.well-known/openid-configuration", nil))
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var res discovery
+	require.NoError(t, json.NewDecoder(rr.Result().Body).Decode(&res))
+
+	// Section 7: identity_chaining_requested_token_types_supported
+	require.Equal(t, []string{tokenTypeIDJAG}, res.IdentityChainingTokenTypes,
+		"discovery must include identity_chaining_requested_token_types_supported when ID-JAG is enabled")
+
+	// id_jag_signing_alg_values_supported must match ID token signing algs.
+	require.Equal(t, res.IDTokenAlgs, res.IDJAGSigningAlgs,
+		"discovery must include id_jag_signing_alg_values_supported matching ID token algs")
+}
+
+// TestHandleDiscovery_IDJAGDisabled verifies OIDC discovery omits ID-JAG metadata when disabled.
+func TestHandleDiscovery_IDJAGDisabled(t *testing.T) {
+	httpServer, server := newTestServer(t, nil) // ID-JAG not enabled
+	defer httpServer.Close()
+
+	rr := httptest.NewRecorder()
+	server.ServeHTTP(rr, httptest.NewRequest("GET", "/.well-known/openid-configuration", nil))
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var res discovery
+	require.NoError(t, json.NewDecoder(rr.Result().Body).Decode(&res))
+
+	require.Empty(t, res.IdentityChainingTokenTypes,
+		"discovery must NOT include identity_chaining_requested_token_types_supported when ID-JAG is disabled")
+	require.Empty(t, res.IDJAGSigningAlgs,
+		"discovery must NOT include id_jag_signing_alg_values_supported when ID-JAG is disabled")
+}
+
 func TestHandleHealthFailure(t *testing.T) {
 	httpServer, server := newTestServer(t, func(c *Config) {
 		c.HealthChecker = gosundheit.New()
@@ -1759,6 +1802,572 @@ func (m *mockSAMLRefreshConnector) HandlePOST(s connector.Scopes, samlResponse, 
 
 func (m *mockSAMLRefreshConnector) Refresh(ctx context.Context, s connector.Scopes, ident connector.Identity) (connector.Identity, error) {
 	return m.refreshIdentity, nil
+}
+
+// makeTestJWT builds a minimal JWT with the given sub for testing.
+// The audience defaults to "client_1".
+func makeTestJWT(sub string) string {
+	return makeTestJWTWithClaims(sub, "client_1")
+}
+
+// makeTestJWTWithClaims builds a JWT with configurable sub and aud.
+func makeTestJWTWithClaims(sub, aud string) string {
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`))
+	claimsJSON := fmt.Sprintf(`{"sub":"%s","iss":"https://issuer.example","aud":"%s","exp":9999999999}`, sub, aud)
+	payload := base64.RawURLEncoding.EncodeToString([]byte(claimsJSON))
+	return header + "." + payload + ".fakesig"
+}
+
+// decodeJWTPayload decodes the payload section of a compact JWT (without signature verification).
+func decodeJWTPayload(t *testing.T, token string) map[string]interface{} {
+	t.Helper()
+	parts := strings.Split(token, ".")
+	require.Equal(t, 3, len(parts), "expected compact JWT with 3 parts")
+	payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
+	require.NoError(t, err)
+	var claims map[string]interface{}
+	require.NoError(t, json.Unmarshal(payloadBytes, &claims))
+	return claims
+}
+
+// decodeJWTHeader decodes the header section of a compact JWT.
+func decodeJWTHeader(t *testing.T, token string) map[string]interface{} {
+	t.Helper()
+	parts := strings.Split(token, ".")
+	require.Equal(t, 3, len(parts), "expected compact JWT with 3 parts")
+	headerBytes, err := base64.RawURLEncoding.DecodeString(parts[0])
+	require.NoError(t, err)
+	var header map[string]interface{}
+	require.NoError(t, json.Unmarshal(headerBytes, &header))
+	return header
+}
+
+// TestExtractJWTSubAndAud tests extractJWTSubAndAud.
+func TestExtractJWTSubAndAud(t *testing.T) {
+	tests := []struct {
+		name    string
+		token   string
+		wantSub string
+		wantAud []string
+		wantErr bool
+	}{
+		{
+			name:    "valid JWT returns sub and aud",
+			token:   makeTestJWT("user-abc-123"),
+			wantSub: "user-abc-123",
+			wantAud: []string{"client_1"},
+		},
+		{
+			name:    "not a JWT (no dots)",
+			token:   "notajwt",
+			wantErr: true,
+		},
+		{
+			name:    "invalid base64 payload",
+			token:   "aGVhZGVy.!!!.c2ln",
+			wantErr: true,
+		},
+		{
+			name: "valid JWT without sub returns empty string",
+			token: func() string {
+				h := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256"}`))
+				p := base64.RawURLEncoding.EncodeToString([]byte(`{"iss":"https://issuer.example"}`))
+				return h + "." + p + ".sig"
+			}(),
+			wantSub: "",
+			wantAud: nil,
+			wantErr: false,
+		},
+		{
+			name: "aud as array",
+			token: func() string {
+				h := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256"}`))
+				p := base64.RawURLEncoding.EncodeToString([]byte(`{"sub":"u1","aud":["a","b"]}`))
+				return h + "." + p + ".sig"
+			}(),
+			wantSub: "u1",
+			wantAud: []string{"a", "b"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			sub, aud, err := extractJWTSubAndAud(tc.token)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.wantSub, sub)
+			require.Equal(t, tc.wantAud, aud)
+		})
+	}
+}
+
+// TestHandleIDJAGExchange_JWTClaims verifies the issued ID-JAG JWT contains all
+// required claims per the spec (iss, sub, aud, client_id, jti, exp, iat) and
+// uses the correct typ header (oauth-id-jag+jwt).
+func TestHandleIDJAGExchange_JWTClaims(t *testing.T) {
+	subjectToken := makeTestJWT("user-123")
+
+	ctx := t.Context()
+	httpServer, s := newTestServer(t, func(c *Config) {
+		require.NoError(t, c.Storage.CreateClient(ctx, storage.Client{
+			ID:     "client_1",
+			Secret: "secret_1",
+		}))
+		c.TokenExchange = TokenExchangeConfig{
+			TokenTypes: []string{tokenTypeIDJAG},
+		}
+		c.IDJAGPolicies = []TokenExchangePolicy{
+			{ClientID: "client_1", AllowedAudiences: []string{"https://resource-as.example.com"}},
+		}
+	})
+	defer httpServer.Close()
+
+	vals := url.Values{}
+	vals.Set("grant_type", grantTypeTokenExchange)
+	vals.Set("requested_token_type", tokenTypeIDJAG)
+	vals.Set("subject_token_type", tokenTypeID)
+	vals.Set("subject_token", subjectToken)
+	vals.Set("connector_id", "mock")
+	vals.Set("audience", "https://resource-as.example.com")
+	vals.Set("client_id", "client_1")
+	vals.Set("client_secret", "secret_1")
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
+	req.Header.Set("content-type", "application/x-www-form-urlencoded")
+	s.handleToken(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+
+	var res accessTokenResponse
+	require.NoError(t, json.NewDecoder(rr.Result().Body).Decode(&res))
+
+	// Response-level checks.
+	require.Equal(t, "N_A", res.TokenType)
+	require.Equal(t, tokenTypeIDJAG, res.IssuedTokenType)
+	require.NotEmpty(t, res.AccessToken)
+
+	// Verify JWT header.
+	header := decodeJWTHeader(t, res.AccessToken)
+	require.Equal(t, "oauth-id-jag+jwt", header["typ"], "JWT typ header must be oauth-id-jag+jwt")
+	require.Equal(t, "RS256", header["alg"])
+
+	// Verify JWT payload claims.
+	claims := decodeJWTPayload(t, res.AccessToken)
+	require.Equal(t, httpServer.URL, claims["iss"], "iss must match server issuer")
+	require.Equal(t, "user-123", claims["sub"], "sub must be preserved from subject_token")
+	require.Equal(t, "https://resource-as.example.com", claims["aud"], "aud must be the requested audience")
+	require.Equal(t, "client_1", claims["client_id"], "client_id must be the requesting client")
+	require.NotEmpty(t, claims["jti"], "jti must be present")
+	require.NotZero(t, claims["exp"], "exp must be set")
+	require.NotZero(t, claims["iat"], "iat must be set")
+
+	// Verify expires_in is approximately 5 minutes (default).
+	require.InDelta(t, 300, res.ExpiresIn, 5, "expires_in should be ~300s (5m default)")
+}
+
+// TestHandleIDJAGExchange_ResourceAndScope verifies that the resource parameter
+// and scopes are correctly passed through to the JWT claims, and that scope
+// reduction by policy produces the scope field in the response.
+func TestHandleIDJAGExchange_ResourceAndScope(t *testing.T) {
+	subjectToken := makeTestJWT("user-456")
+
+	t.Run("resource parameter appears in JWT", func(t *testing.T) {
+		ctx := t.Context()
+		httpServer, s := newTestServer(t, func(c *Config) {
+			require.NoError(t, c.Storage.CreateClient(ctx, storage.Client{
+				ID:     "client_1",
+				Secret: "secret_1",
+			}))
+			c.TokenExchange = TokenExchangeConfig{TokenTypes: []string{tokenTypeIDJAG}}
+			c.IDJAGPolicies = []TokenExchangePolicy{
+				{ClientID: "client_1", AllowedAudiences: []string{"https://chat.example/"}},
+			}
+		})
+		defer httpServer.Close()
+
+		vals := url.Values{}
+		vals.Set("grant_type", grantTypeTokenExchange)
+		vals.Set("requested_token_type", tokenTypeIDJAG)
+		vals.Set("subject_token_type", tokenTypeID)
+		vals.Set("subject_token", subjectToken)
+		vals.Set("connector_id", "mock")
+		vals.Set("audience", "https://chat.example/")
+		vals.Set("resource", "https://chat.example/api/v1")
+		vals.Set("client_id", "client_1")
+		vals.Set("client_secret", "secret_1")
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
+		req.Header.Set("content-type", "application/x-www-form-urlencoded")
+		s.handleToken(rr, req)
+		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+
+		var res accessTokenResponse
+		require.NoError(t, json.NewDecoder(rr.Result().Body).Decode(&res))
+		claims := decodeJWTPayload(t, res.AccessToken)
+		require.Equal(t, "https://chat.example/api/v1", claims["resource"], "resource claim must match request")
+	})
+
+	t.Run("scope in JWT and response when all scopes allowed", func(t *testing.T) {
+		ctx := t.Context()
+		httpServer, s := newTestServer(t, func(c *Config) {
+			require.NoError(t, c.Storage.CreateClient(ctx, storage.Client{
+				ID:     "client_1",
+				Secret: "secret_1",
+			}))
+			c.TokenExchange = TokenExchangeConfig{TokenTypes: []string{tokenTypeIDJAG}}
+			c.IDJAGPolicies = []TokenExchangePolicy{
+				{ClientID: "client_1", AllowedAudiences: []string{"https://chat.example/"}, AllowedScopes: []string{"chat.read", "chat.write"}},
+			}
+		})
+		defer httpServer.Close()
+
+		vals := url.Values{}
+		vals.Set("grant_type", grantTypeTokenExchange)
+		vals.Set("requested_token_type", tokenTypeIDJAG)
+		vals.Set("subject_token_type", tokenTypeID)
+		vals.Set("subject_token", subjectToken)
+		vals.Set("connector_id", "mock")
+		vals.Set("audience", "https://chat.example/")
+		vals.Set("scope", "chat.read chat.write")
+		vals.Set("client_id", "client_1")
+		vals.Set("client_secret", "secret_1")
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
+		req.Header.Set("content-type", "application/x-www-form-urlencoded")
+		s.handleToken(rr, req)
+		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+
+		var res accessTokenResponse
+		require.NoError(t, json.NewDecoder(rr.Result().Body).Decode(&res))
+
+		claims := decodeJWTPayload(t, res.AccessToken)
+		require.Equal(t, "chat.read chat.write", claims["scope"], "scope claim must contain granted scopes")
+		// When all requested scopes are granted, scope should NOT appear in response.
+		require.Empty(t, res.Scope, "scope in response should be empty when identical to requested")
+	})
+
+	t.Run("policy reduces scopes: scope in response and JWT reflect granted only", func(t *testing.T) {
+		ctx := t.Context()
+		httpServer, s := newTestServer(t, func(c *Config) {
+			require.NoError(t, c.Storage.CreateClient(ctx, storage.Client{
+				ID:     "client_1",
+				Secret: "secret_1",
+			}))
+			c.TokenExchange = TokenExchangeConfig{TokenTypes: []string{tokenTypeIDJAG}}
+			c.IDJAGPolicies = []TokenExchangePolicy{
+				// Policy only allows chat.read, not chat.write.
+				{ClientID: "client_1", AllowedAudiences: []string{"https://chat.example/"}, AllowedScopes: []string{"chat.read"}},
+			}
+		})
+		defer httpServer.Close()
+
+		vals := url.Values{}
+		vals.Set("grant_type", grantTypeTokenExchange)
+		vals.Set("requested_token_type", tokenTypeIDJAG)
+		vals.Set("subject_token_type", tokenTypeID)
+		vals.Set("subject_token", subjectToken)
+		vals.Set("connector_id", "mock")
+		vals.Set("audience", "https://chat.example/")
+		vals.Set("scope", "chat.read chat.write") // request both; only chat.read should be granted
+		vals.Set("client_id", "client_1")
+		vals.Set("client_secret", "secret_1")
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
+		req.Header.Set("content-type", "application/x-www-form-urlencoded")
+		s.handleToken(rr, req)
+		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+
+		var res accessTokenResponse
+		require.NoError(t, json.NewDecoder(rr.Result().Body).Decode(&res))
+
+		// Response must include scope field when granted != requested (Section 4.3.2).
+		require.Equal(t, "chat.read", res.Scope, "response scope must contain only granted scopes")
+
+		claims := decodeJWTPayload(t, res.AccessToken)
+		require.Equal(t, "chat.read", claims["scope"], "JWT scope claim must contain only granted scopes")
+	})
+}
+
+// TestHandleIDJAGExchange_SecurityBoundaries verifies security-critical rejection paths.
+func TestHandleIDJAGExchange_SecurityBoundaries(t *testing.T) {
+	t.Run("public client rejected (Section 8.1)", func(t *testing.T) {
+		ctx := t.Context()
+		httpServer, s := newTestServer(t, func(c *Config) {
+			require.NoError(t, c.Storage.CreateClient(ctx, storage.Client{
+				ID:     "public_client",
+				Public: true,
+			}))
+			c.TokenExchange = TokenExchangeConfig{TokenTypes: []string{tokenTypeIDJAG}}
+			c.IDJAGPolicies = []TokenExchangePolicy{
+				{ClientID: "public_client", AllowedAudiences: []string{"https://resource.example.com"}},
+			}
+		})
+		defer httpServer.Close()
+
+		subjectToken := makeTestJWTWithClaims("user-1", "public_client")
+		vals := url.Values{}
+		vals.Set("grant_type", grantTypeTokenExchange)
+		vals.Set("requested_token_type", tokenTypeIDJAG)
+		vals.Set("subject_token_type", tokenTypeID)
+		vals.Set("subject_token", subjectToken)
+		vals.Set("connector_id", "mock")
+		vals.Set("audience", "https://resource.example.com")
+		vals.Set("client_id", "public_client")
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
+		req.Header.Set("content-type", "application/x-www-form-urlencoded")
+		s.handleToken(rr, req)
+		require.Equal(t, http.StatusBadRequest, rr.Code)
+		require.Contains(t, rr.Body.String(), "unauthorized_client")
+	})
+
+	t.Run("subject_token audience mismatch with client_id", func(t *testing.T) {
+		ctx := t.Context()
+		httpServer, s := newTestServer(t, func(c *Config) {
+			require.NoError(t, c.Storage.CreateClient(ctx, storage.Client{
+				ID:     "client_1",
+				Secret: "secret_1",
+			}))
+			c.TokenExchange = TokenExchangeConfig{TokenTypes: []string{tokenTypeIDJAG}}
+			c.IDJAGPolicies = []TokenExchangePolicy{
+				{ClientID: "client_1", AllowedAudiences: []string{"https://resource.example.com"}},
+			}
+		})
+		defer httpServer.Close()
+
+		// Subject token has aud="other_client", but we authenticate as client_1.
+		subjectToken := makeTestJWTWithClaims("user-1", "other_client")
+		vals := url.Values{}
+		vals.Set("grant_type", grantTypeTokenExchange)
+		vals.Set("requested_token_type", tokenTypeIDJAG)
+		vals.Set("subject_token_type", tokenTypeID)
+		vals.Set("subject_token", subjectToken)
+		vals.Set("connector_id", "mock")
+		vals.Set("audience", "https://resource.example.com")
+		vals.Set("client_id", "client_1")
+		vals.Set("client_secret", "secret_1")
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
+		req.Header.Set("content-type", "application/x-www-form-urlencoded")
+		s.handleToken(rr, req)
+		require.Equal(t, http.StatusBadRequest, rr.Code, "body: %s", rr.Body.String())
+		require.Contains(t, rr.Body.String(), "invalid_request")
+	})
+
+	t.Run("default-deny: no policy configured returns 403", func(t *testing.T) {
+		ctx := t.Context()
+		httpServer, s := newTestServer(t, func(c *Config) {
+			require.NoError(t, c.Storage.CreateClient(ctx, storage.Client{
+				ID:     "client_1",
+				Secret: "secret_1",
+			}))
+			c.TokenExchange = TokenExchangeConfig{TokenTypes: []string{tokenTypeIDJAG}}
+			// No IDJAGPolicies — should be denied.
+		})
+		defer httpServer.Close()
+
+		vals := url.Values{}
+		vals.Set("grant_type", grantTypeTokenExchange)
+		vals.Set("requested_token_type", tokenTypeIDJAG)
+		vals.Set("subject_token_type", tokenTypeID)
+		vals.Set("subject_token", makeTestJWT("user-1"))
+		vals.Set("connector_id", "mock")
+		vals.Set("audience", "https://resource.example.com")
+		vals.Set("client_id", "client_1")
+		vals.Set("client_secret", "secret_1")
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
+		req.Header.Set("content-type", "application/x-www-form-urlencoded")
+		s.handleToken(rr, req)
+		require.Equal(t, http.StatusForbidden, rr.Code)
+	})
+
+	t.Run("policy denies audience", func(t *testing.T) {
+		ctx := t.Context()
+		httpServer, s := newTestServer(t, func(c *Config) {
+			require.NoError(t, c.Storage.CreateClient(ctx, storage.Client{
+				ID:     "client_1",
+				Secret: "secret_1",
+			}))
+			c.TokenExchange = TokenExchangeConfig{TokenTypes: []string{tokenTypeIDJAG}}
+			c.IDJAGPolicies = []TokenExchangePolicy{
+				{ClientID: "client_1", AllowedAudiences: []string{"https://other.example.com"}},
+			}
+		})
+		defer httpServer.Close()
+
+		vals := url.Values{}
+		vals.Set("grant_type", grantTypeTokenExchange)
+		vals.Set("requested_token_type", tokenTypeIDJAG)
+		vals.Set("subject_token_type", tokenTypeID)
+		vals.Set("subject_token", makeTestJWT("user-1"))
+		vals.Set("connector_id", "mock")
+		vals.Set("audience", "https://resource-as.example.com") // not in allowed list
+		vals.Set("client_id", "client_1")
+		vals.Set("client_secret", "secret_1")
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
+		req.Header.Set("content-type", "application/x-www-form-urlencoded")
+		s.handleToken(rr, req)
+		require.Equal(t, http.StatusForbidden, rr.Code)
+	})
+}
+
+// TestHandleIDJAGExchange_ValidationErrors verifies parameter validation.
+func TestHandleIDJAGExchange_ValidationErrors(t *testing.T) {
+	subjectToken := makeTestJWT("user-123")
+
+	tests := []struct {
+		name             string
+		audience         string
+		connectorID      string
+		subjectTokenType string
+		subjectToken     string
+		enableIDJAG      bool
+		wantCode         int
+		wantErrContains  string
+	}{
+		{
+			name:             "missing audience returns 400",
+			audience:         "",
+			connectorID:      "mock",
+			subjectTokenType: tokenTypeID,
+			subjectToken:     subjectToken,
+			enableIDJAG:      true,
+			wantCode:         http.StatusBadRequest,
+		},
+		{
+			name:             "wrong subject_token_type returns 400",
+			audience:         "https://resource.example.com",
+			connectorID:      "mock",
+			subjectTokenType: tokenTypeAccess,
+			subjectToken:     subjectToken,
+			enableIDJAG:      true,
+			wantCode:         http.StatusBadRequest,
+		},
+		{
+			name:             "missing connector_id returns 400",
+			audience:         "https://resource.example.com",
+			connectorID:      "",
+			subjectTokenType: tokenTypeID,
+			subjectToken:     subjectToken,
+			enableIDJAG:      true,
+			wantCode:         http.StatusBadRequest,
+			wantErrContains:  "connector_id",
+		},
+		{
+			name:             "nonexistent connector_id returns 400",
+			audience:         "https://resource.example.com",
+			connectorID:      "nonexistent",
+			subjectTokenType: tokenTypeID,
+			subjectToken:     subjectToken,
+			enableIDJAG:      true,
+			wantCode:         http.StatusBadRequest,
+		},
+		{
+			name:             "ID-JAG disabled returns 400",
+			audience:         "https://resource.example.com",
+			connectorID:      "mock",
+			subjectTokenType: tokenTypeID,
+			subjectToken:     subjectToken,
+			enableIDJAG:      false,
+			wantCode:         http.StatusBadRequest,
+			wantErrContains:  "not enabled",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			httpServer, s := newTestServer(t, func(c *Config) {
+				require.NoError(t, c.Storage.CreateClient(ctx, storage.Client{
+					ID:     "client_1",
+					Secret: "secret_1",
+				}))
+				if tc.enableIDJAG {
+					c.TokenExchange = TokenExchangeConfig{TokenTypes: []string{tokenTypeIDJAG}}
+					c.IDJAGPolicies = []TokenExchangePolicy{
+						{ClientID: "client_1", AllowedAudiences: []string{"https://resource.example.com"}},
+					}
+				}
+			})
+			defer httpServer.Close()
+
+			vals := url.Values{}
+			vals.Set("grant_type", grantTypeTokenExchange)
+			vals.Set("requested_token_type", tokenTypeIDJAG)
+			vals.Set("subject_token_type", tc.subjectTokenType)
+			vals.Set("subject_token", tc.subjectToken)
+			if tc.connectorID != "" {
+				vals.Set("connector_id", tc.connectorID)
+			}
+			if tc.audience != "" {
+				vals.Set("audience", tc.audience)
+			}
+			vals.Set("client_id", "client_1")
+			vals.Set("client_secret", "secret_1")
+
+			rr := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
+			req.Header.Set("content-type", "application/x-www-form-urlencoded")
+			s.handleToken(rr, req)
+
+			require.Equal(t, tc.wantCode, rr.Code, "body: %s", rr.Body.String())
+			if tc.wantErrContains != "" {
+				require.Contains(t, rr.Body.String(), tc.wantErrContains)
+			}
+		})
+	}
+}
+
+// TestHandleIDJAGExchange_CustomExpiry verifies that IDJAGTokensValidFor is honored.
+func TestHandleIDJAGExchange_CustomExpiry(t *testing.T) {
+	subjectToken := makeTestJWT("user-789")
+
+	ctx := t.Context()
+	httpServer, s := newTestServer(t, func(c *Config) {
+		require.NoError(t, c.Storage.CreateClient(ctx, storage.Client{
+			ID:     "client_1",
+			Secret: "secret_1",
+		}))
+		c.TokenExchange = TokenExchangeConfig{TokenTypes: []string{tokenTypeIDJAG}}
+		c.IDJAGPolicies = []TokenExchangePolicy{
+			{ClientID: "client_1", AllowedAudiences: []string{"https://resource.example.com"}},
+		}
+		c.IDJAGTokensValidFor = 10 * time.Minute // custom: 10 minutes instead of default 5
+	})
+	defer httpServer.Close()
+
+	vals := url.Values{}
+	vals.Set("grant_type", grantTypeTokenExchange)
+	vals.Set("requested_token_type", tokenTypeIDJAG)
+	vals.Set("subject_token_type", tokenTypeID)
+	vals.Set("subject_token", subjectToken)
+	vals.Set("connector_id", "mock")
+	vals.Set("audience", "https://resource.example.com")
+	vals.Set("client_id", "client_1")
+	vals.Set("client_secret", "secret_1")
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
+	req.Header.Set("content-type", "application/x-www-form-urlencoded")
+	s.handleToken(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+
+	var res accessTokenResponse
+	require.NoError(t, json.NewDecoder(rr.Result().Body).Decode(&res))
+	require.InDelta(t, 600, res.ExpiresIn, 5, "expires_in should be ~600s (10m custom)")
 }
 
 func TestFilterConnectors(t *testing.T) {
