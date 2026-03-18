@@ -341,7 +341,6 @@ type UserIdentity struct {
 	BlockedUntil time.Time
 }
 
-// ClientAuthState represents the authentication state for a specific client within a session.
 // ClientAuthState represents authentication state for a specific client within an auth session.
 type ClientAuthState struct {
 	Active            bool

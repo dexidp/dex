@@ -1,6 +1,7 @@
 package server
 
 import (
+	"crypto"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -381,5 +382,205 @@ func TestCreateOrUpdateAuthSession(t *testing.T) {
 		err := s.createOrUpdateAuthSession(ctx, r, w, storage.AuthRequest{}, false)
 		assert.NoError(t, err)
 		assert.Empty(t, w.Result().Cookies())
+	})
+}
+
+// setupSessionLoginFixture creates the necessary storage objects for trySessionLogin tests.
+func setupSessionLoginFixture(t *testing.T, s *Server) storage.AuthRequest {
+	t.Helper()
+	ctx := t.Context()
+	now := s.now()
+
+	require.NoError(t, s.storage.CreateAuthSession(ctx, storage.AuthSession{
+		UserID:      "user-1",
+		ConnectorID: "mock",
+		Nonce:       "test-nonce",
+		ClientStates: map[string]*storage.ClientAuthState{
+			"client-1": {
+				Active:       true,
+				ExpiresAt:    now.Add(24 * time.Hour),
+				LastActivity: now.Add(-1 * time.Minute),
+			},
+		},
+		CreatedAt:    now.Add(-30 * time.Minute),
+		LastActivity: now.Add(-1 * time.Minute),
+		IPAddress:    "127.0.0.1",
+		UserAgent:    "test",
+	}))
+
+	require.NoError(t, s.storage.CreateUserIdentity(ctx, storage.UserIdentity{
+		UserID:      "user-1",
+		ConnectorID: "mock",
+		Claims: storage.Claims{
+			UserID:   "user-1",
+			Username: "testuser",
+			Email:    "test@example.com",
+		},
+		Consents:  map[string][]string{"client-1": {"openid", "email"}},
+		CreatedAt: now.Add(-1 * time.Hour),
+		LastLogin: now.Add(-30 * time.Minute),
+	}))
+
+	authReq := storage.AuthRequest{
+		ID:          storage.NewID(),
+		ClientID:    "client-1",
+		ConnectorID: "mock",
+		Scopes:      []string{"openid", "email"},
+		RedirectURI: "http://localhost/callback",
+		HMACKey:     storage.NewHMACKey(crypto.SHA256),
+		Expiry:      now.Add(10 * time.Minute),
+	}
+	require.NoError(t, s.storage.CreateAuthRequest(ctx, authReq))
+	return authReq
+}
+
+func sessionCookieRequest(userID, connectorID, nonce string) *http.Request {
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue(userID, connectorID, nonce)})
+	return r
+}
+
+func TestTrySessionLogin(t *testing.T) {
+	ctx := t.Context()
+
+	t.Run("no session", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		authReq := storage.AuthRequest{ConnectorID: "mock"}
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		w := httptest.NewRecorder()
+
+		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		assert.False(t, ok)
+	})
+
+	t.Run("successful login with skipApproval", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		s.skipApproval = true
+		authReq := setupSessionLoginFixture(t, s)
+
+		r := sessionCookieRequest("user-1", "mock", "test-nonce")
+		w := httptest.NewRecorder()
+
+		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		assert.True(t, ok)
+		// sendCodeResponse deletes the AuthRequest after processing,
+		// so we can't verify it here. The fact that ok=true is sufficient.
+	})
+
+	t.Run("successful login redirects to approval", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		s.skipApproval = false
+		authReq := setupSessionLoginFixture(t, s)
+		authReq.ForceApprovalPrompt = true
+
+		require.NoError(t, s.storage.UpdateAuthRequest(ctx, authReq.ID, func(a storage.AuthRequest) (storage.AuthRequest, error) {
+			a.ForceApprovalPrompt = true
+			return a, nil
+		}))
+
+		r := sessionCookieRequest("user-1", "mock", "test-nonce")
+		w := httptest.NewRecorder()
+
+		redirectURL, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		assert.True(t, ok)
+		assert.Contains(t, redirectURL, "/approval")
+		assert.Contains(t, redirectURL, "req="+authReq.ID)
+	})
+
+	t.Run("skips approval when consent already given", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		s.skipApproval = false
+		authReq := setupSessionLoginFixture(t, s)
+		// Scopes match stored consent: {"client-1": {"openid", "email"}}
+
+		r := sessionCookieRequest("user-1", "mock", "test-nonce")
+		w := httptest.NewRecorder()
+
+		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		assert.True(t, ok)
+	})
+
+	t.Run("connector mismatch returns false", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		authReq := setupSessionLoginFixture(t, s)
+		authReq.ConnectorID = "github"
+
+		r := sessionCookieRequest("user-1", "mock", "test-nonce")
+		w := httptest.NewRecorder()
+
+		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		assert.False(t, ok)
+	})
+
+	t.Run("no client state for requested client", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		authReq := setupSessionLoginFixture(t, s)
+		authReq.ClientID = "unknown-client"
+
+		r := sessionCookieRequest("user-1", "mock", "test-nonce")
+		w := httptest.NewRecorder()
+
+		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		assert.False(t, ok)
+	})
+
+	t.Run("expired client state returns false", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		ctx := t.Context()
+		now := s.now()
+
+		require.NoError(t, s.storage.CreateAuthSession(ctx, storage.AuthSession{
+			UserID:      "user-exp",
+			ConnectorID: "mock",
+			Nonce:       "nonce-exp",
+			ClientStates: map[string]*storage.ClientAuthState{
+				"client-1": {
+					Active:    true,
+					ExpiresAt: now.Add(-1 * time.Hour), // expired
+				},
+			},
+			CreatedAt:    now.Add(-2 * time.Hour),
+			LastActivity: now.Add(-1 * time.Minute),
+		}))
+
+		require.NoError(t, s.storage.CreateUserIdentity(ctx, storage.UserIdentity{
+			UserID:      "user-exp",
+			ConnectorID: "mock",
+			Claims:      storage.Claims{UserID: "user-exp"},
+			Consents:    make(map[string][]string),
+			CreatedAt:   now,
+			LastLogin:   now,
+		}))
+
+		authReq := storage.AuthRequest{
+			ID:          storage.NewID(),
+			ClientID:    "client-1",
+			ConnectorID: "mock",
+			HMACKey:     storage.NewHMACKey(crypto.SHA256),
+			Expiry:      now.Add(10 * time.Minute),
+		}
+		require.NoError(t, s.storage.CreateAuthRequest(ctx, authReq))
+
+		r := sessionCookieRequest("user-exp", "mock", "nonce-exp")
+		w := httptest.NewRecorder()
+
+		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		assert.False(t, ok)
+	})
+
+	t.Run("updates session activity", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		s.skipApproval = true
+		authReq := setupSessionLoginFixture(t, s)
+
+		r := sessionCookieRequest("user-1", "mock", "test-nonce")
+		w := httptest.NewRecorder()
+
+		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		require.True(t, ok)
+
+		session, err := s.storage.GetAuthSession(ctx, "user-1", "mock")
+		require.NoError(t, err)
+		assert.Equal(t, s.now(), session.LastActivity)
 	})
 }

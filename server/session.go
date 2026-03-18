@@ -23,6 +23,14 @@ func (s *Server) rememberMeDefault() *bool {
 	return &v
 }
 
+// remoteIP returns the real IP from context (set by parseRealIP middleware) or falls back to r.RemoteAddr.
+func remoteIP(r *http.Request) string {
+	if ip, ok := r.Context().Value(RequestKeyRemoteIP).(string); ok && ip != "" {
+		return ip
+	}
+	return r.RemoteAddr
+}
+
 // sessionCookieValue encodes session identity into a cookie value.
 // Format: base64url(userID) + "." + base64url(connectorID) + "." + nonce
 // TODO(nabokihms): consider cookie encoding
@@ -52,11 +60,18 @@ func parseSessionCookie(value string) (userID, connectorID, nonce string, err er
 	return string(userIDBytes), string(connectorIDBytes), parts[2], nil
 }
 
+func (s *Server) sessionCookiePath() string {
+	if s.issuerURL.Path == "" {
+		return "/"
+	}
+	return s.issuerURL.Path
+}
+
 func (s *Server) setSessionCookie(w http.ResponseWriter, userID, connectorID, nonce string, rememberMe bool) {
 	cookie := &http.Cookie{
 		Name:     s.sessionConfig.CookieName,
 		Value:    sessionCookieValue(userID, connectorID, nonce),
-		Path:     s.issuerURL.Path,
+		Path:     s.sessionCookiePath(),
 		HttpOnly: true,
 		Secure:   s.issuerURL.Scheme == "https",
 		SameSite: http.SameSiteLaxMode,
@@ -71,7 +86,7 @@ func (s *Server) clearSessionCookie(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     s.sessionConfig.CookieName,
 		Value:    "",
-		Path:     s.issuerURL.Path,
+		Path:     s.sessionCookiePath(),
 		HttpOnly: true,
 		Secure:   s.issuerURL.Scheme == "https",
 		SameSite: http.SameSiteLaxMode,
@@ -122,7 +137,9 @@ func (s *Server) getValidAuthSession(ctx context.Context, w http.ResponseWriter,
 	if now.After(session.CreatedAt.Add(s.sessionConfig.AbsoluteLifetime)) {
 		s.logger.InfoContext(ctx, "auth session expired (absolute lifetime)",
 			"user_id", session.UserID, "connector_id", session.ConnectorID)
-		_ = s.storage.DeleteAuthSession(ctx, session.UserID, session.ConnectorID)
+		if err := s.storage.DeleteAuthSession(ctx, session.UserID, session.ConnectorID); err != nil {
+			s.logger.DebugContext(ctx, "failed to delete expired auth session", "err", err)
+		}
 		s.clearSessionCookie(w)
 		return nil
 	}
@@ -131,7 +148,9 @@ func (s *Server) getValidAuthSession(ctx context.Context, w http.ResponseWriter,
 	if now.After(session.LastActivity.Add(s.sessionConfig.ValidIfNotUsedFor)) {
 		s.logger.InfoContext(ctx, "auth session expired (idle timeout)",
 			"user_id", session.UserID, "connector_id", session.ConnectorID)
-		_ = s.storage.DeleteAuthSession(ctx, session.UserID, session.ConnectorID)
+		if err := s.storage.DeleteAuthSession(ctx, session.UserID, session.ConnectorID); err != nil {
+			s.logger.DebugContext(ctx, "failed to delete expired auth session", "err", err)
+		}
 		s.clearSessionCookie(w)
 		return nil
 	}
@@ -199,7 +218,7 @@ func (s *Server) createOrUpdateAuthSession(ctx context.Context, r *http.Request,
 		},
 		CreatedAt:    now,
 		LastActivity: now,
-		IPAddress:    r.RemoteAddr,
+		IPAddress:    remoteIP(r),
 		UserAgent:    r.UserAgent(),
 	}
 
@@ -276,28 +295,16 @@ func (s *Server) trySessionLogin(ctx context.Context, r *http.Request, w http.Re
 	h.Write([]byte(authReq.ID))
 	mac := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
 
-	// Check if we can skip approval.
-	if s.skipApproval && !authReq.ForceApprovalPrompt {
-		updatedAuthReq, err := s.storage.GetAuthRequest(ctx, authReq.ID)
+	// Skip approval if globally configured or user already consented to the requested scopes.
+	if !authReq.ForceApprovalPrompt && (s.skipApproval || scopesCoveredByConsent(ui.Consents[authReq.ClientID], authReq.Scopes)) {
+		// Re-read to get the updated AuthRequest (LoggedIn, Claims, ConnectorID set above).
+		updated, err := s.storage.GetAuthRequest(ctx, authReq.ID)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "session: failed to get auth request", "err", err)
 			return "", false
 		}
-		s.sendCodeResponse(w, r, updatedAuthReq)
+		s.sendCodeResponse(w, r, updated)
 		return "", true
-	}
-
-	// Check if user already consented.
-	if !authReq.ForceApprovalPrompt {
-		if scopesCoveredByConsent(ui.Consents[authReq.ClientID], authReq.Scopes) {
-			updatedAuthReq, err := s.storage.GetAuthRequest(ctx, authReq.ID)
-			if err != nil {
-				s.logger.ErrorContext(ctx, "session: failed to get auth request", "err", err)
-				return "", false
-			}
-			s.sendCodeResponse(w, r, updatedAuthReq)
-			return "", true
-		}
 	}
 
 	returnURL := path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID + "&hmac=" + mac

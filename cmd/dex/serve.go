@@ -802,5 +802,14 @@ func parseSessionConfig(s *Sessions) (*server.SessionConfig, error) {
 			sc.RememberMeCheckedByDefault = *s.RememberMeCheckedByDefault
 		}
 	}
+	if sc.AbsoluteLifetime <= 0 {
+		return nil, fmt.Errorf("absoluteLifetime must be positive, got %v", sc.AbsoluteLifetime)
+	}
+	if sc.ValidIfNotUsedFor <= 0 {
+		return nil, fmt.Errorf("validIfNotUsedFor must be positive, got %v", sc.ValidIfNotUsedFor)
+	}
+	if sc.ValidIfNotUsedFor > sc.AbsoluteLifetime {
+		return nil, fmt.Errorf("validIfNotUsedFor (%v) must not exceed absoluteLifetime (%v)", sc.ValidIfNotUsedFor, sc.AbsoluteLifetime)
+	}
 	return sc, nil
 }

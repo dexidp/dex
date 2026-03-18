@@ -549,12 +549,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if canSkipApproval {
-			authReq, err = s.storage.GetAuthRequest(ctx, authReq.ID)
-			if err != nil {
-				s.logger.ErrorContext(r.Context(), "failed to get finalized auth request", "err", err)
-				s.renderError(r, w, http.StatusInternalServerError, "Login error.")
-				return
-			}
+			// authReq was already re-read after finalizeLogin above.
 			s.sendCodeResponse(w, r, authReq)
 			return
 		}
@@ -661,17 +656,14 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Connector callbacks don't render the remember_me checkbox, so we use the server default.
+	// The password login handler reads r.FormValue("remember_me") from the submitted form instead.
 	if err := s.createOrUpdateAuthSession(ctx, r, w, authReq, s.sessionConfig != nil && s.sessionConfig.RememberMeCheckedByDefault); err != nil {
 		s.logger.ErrorContext(ctx, "failed to create/update auth session", "err", err)
 	}
 
 	if canSkipApproval {
-		authReq, err = s.storage.GetAuthRequest(ctx, authReq.ID)
-		if err != nil {
-			s.logger.ErrorContext(r.Context(), "failed to get finalized auth request", "err", err)
-			s.renderError(r, w, http.StatusInternalServerError, "Login error.")
-			return
-		}
+		// authReq was already re-read after finalizeLogin above.
 		s.sendCodeResponse(w, r, authReq)
 		return
 	}
