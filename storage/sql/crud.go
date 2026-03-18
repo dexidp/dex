@@ -135,10 +135,11 @@ func (c *conn) CreateAuthRequest(ctx context.Context, a storage.AuthRequest) err
 			expiry,
 			code_challenge, code_challenge_method,
 			hmac_key,
-			mfa_validated
+			mfa_validated,
+			prompt, max_age, auth_time
 		)
 		values (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25
 		);
 	`,
 		a.ID, a.ClientID, encoder(a.ResponseTypes), encoder(a.Scopes), a.RedirectURI, a.Nonce, a.State,
@@ -150,6 +151,7 @@ func (c *conn) CreateAuthRequest(ctx context.Context, a storage.AuthRequest) err
 		a.PKCE.CodeChallenge, a.PKCE.CodeChallengeMethod,
 		a.HMACKey,
 		a.MFAValidated,
+		a.Prompt, a.MaxAge, a.AuthTime,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -183,8 +185,9 @@ func (c *conn) UpdateAuthRequest(ctx context.Context, id string, updater func(a 
 				expiry = $17,
 				code_challenge = $18, code_challenge_method = $19,
 				hmac_key = $20,
-				mfa_validated = $21
-			where id = $22;
+				mfa_validated = $21,
+				prompt = $22, max_age = $23, auth_time = $24
+			where id = $25;
 		`,
 			a.ClientID, encoder(a.ResponseTypes), encoder(a.Scopes), a.RedirectURI, a.Nonce, a.State,
 			a.ForceApprovalPrompt, a.LoggedIn,
@@ -195,6 +198,7 @@ func (c *conn) UpdateAuthRequest(ctx context.Context, id string, updater func(a 
 			a.Expiry,
 			a.PKCE.CodeChallenge, a.PKCE.CodeChallengeMethod, a.HMACKey,
 			a.MFAValidated,
+			a.Prompt, a.MaxAge, a.AuthTime,
 			r.ID,
 		)
 		if err != nil {
@@ -217,7 +221,8 @@ func getAuthRequest(ctx context.Context, q querier, id string) (a storage.AuthRe
 			claims_email, claims_email_verified, claims_groups,
 			connector_id, connector_data, expiry,
 			code_challenge, code_challenge_method, hmac_key,
-			mfa_validated
+			mfa_validated,
+			prompt, max_age, auth_time
 		from auth_request where id = $1;
 	`, id).Scan(
 		&a.ID, &a.ClientID, decoder(&a.ResponseTypes), decoder(&a.Scopes), &a.RedirectURI, &a.Nonce, &a.State,
@@ -228,6 +233,7 @@ func getAuthRequest(ctx context.Context, q querier, id string) (a storage.AuthRe
 		&a.ConnectorID, &a.ConnectorData, &a.Expiry,
 		&a.PKCE.CodeChallenge, &a.PKCE.CodeChallengeMethod, &a.HMACKey,
 		&a.MFAValidated,
+		&a.Prompt, &a.MaxAge, &a.AuthTime,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -246,14 +252,16 @@ func (c *conn) CreateAuthCode(ctx context.Context, a storage.AuthCode) error {
 			claims_email, claims_email_verified, claims_groups,
 			connector_id, connector_data,
 			expiry,
-			code_challenge, code_challenge_method
+			code_challenge, code_challenge_method,
+			auth_time
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17);
 	`,
 		a.ID, a.ClientID, encoder(a.Scopes), a.Nonce, a.RedirectURI, a.Claims.UserID,
 		a.Claims.Username, a.Claims.PreferredUsername, a.Claims.Email, a.Claims.EmailVerified,
 		encoder(a.Claims.Groups), a.ConnectorID, a.ConnectorData, a.Expiry,
 		a.PKCE.CodeChallenge, a.PKCE.CodeChallengeMethod,
+		a.AuthTime,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -272,13 +280,15 @@ func (c *conn) GetAuthCode(ctx context.Context, id string) (a storage.AuthCode, 
 			claims_email, claims_email_verified, claims_groups,
 			connector_id, connector_data,
 			expiry,
-			code_challenge, code_challenge_method
+			code_challenge, code_challenge_method,
+			auth_time
 		from auth_code where id = $1;
 	`, id).Scan(
 		&a.ID, &a.ClientID, decoder(&a.Scopes), &a.Nonce, &a.RedirectURI, &a.Claims.UserID,
 		&a.Claims.Username, &a.Claims.PreferredUsername, &a.Claims.Email, &a.Claims.EmailVerified,
 		decoder(&a.Claims.Groups), &a.ConnectorID, &a.ConnectorData, &a.Expiry,
 		&a.PKCE.CodeChallenge, &a.PKCE.CodeChallengeMethod,
+		&a.AuthTime,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {

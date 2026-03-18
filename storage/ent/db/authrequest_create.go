@@ -178,6 +178,48 @@ func (_c *AuthRequestCreate) SetNillableMfaValidated(v *bool) *AuthRequestCreate
 	return _c
 }
 
+// SetPrompt sets the "prompt" field.
+func (_c *AuthRequestCreate) SetPrompt(v string) *AuthRequestCreate {
+	_c.mutation.SetPrompt(v)
+	return _c
+}
+
+// SetNillablePrompt sets the "prompt" field if the given value is not nil.
+func (_c *AuthRequestCreate) SetNillablePrompt(v *string) *AuthRequestCreate {
+	if v != nil {
+		_c.SetPrompt(*v)
+	}
+	return _c
+}
+
+// SetMaxAge sets the "max_age" field.
+func (_c *AuthRequestCreate) SetMaxAge(v int) *AuthRequestCreate {
+	_c.mutation.SetMaxAge(v)
+	return _c
+}
+
+// SetNillableMaxAge sets the "max_age" field if the given value is not nil.
+func (_c *AuthRequestCreate) SetNillableMaxAge(v *int) *AuthRequestCreate {
+	if v != nil {
+		_c.SetMaxAge(*v)
+	}
+	return _c
+}
+
+// SetAuthTime sets the "auth_time" field.
+func (_c *AuthRequestCreate) SetAuthTime(v time.Time) *AuthRequestCreate {
+	_c.mutation.SetAuthTime(v)
+	return _c
+}
+
+// SetNillableAuthTime sets the "auth_time" field if the given value is not nil.
+func (_c *AuthRequestCreate) SetNillableAuthTime(v *time.Time) *AuthRequestCreate {
+	if v != nil {
+		_c.SetAuthTime(*v)
+	}
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *AuthRequestCreate) SetID(v string) *AuthRequestCreate {
 	_c.mutation.SetID(v)
@@ -235,6 +277,14 @@ func (_c *AuthRequestCreate) defaults() {
 		v := authrequest.DefaultMfaValidated
 		_c.mutation.SetMfaValidated(v)
 	}
+	if _, ok := _c.mutation.Prompt(); !ok {
+		v := authrequest.DefaultPrompt
+		_c.mutation.SetPrompt(v)
+	}
+	if _, ok := _c.mutation.MaxAge(); !ok {
+		v := authrequest.DefaultMaxAge
+		_c.mutation.SetMaxAge(v)
+	}
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -289,6 +339,12 @@ func (_c *AuthRequestCreate) check() error {
 	}
 	if _, ok := _c.mutation.MfaValidated(); !ok {
 		return &ValidationError{Name: "mfa_validated", err: errors.New(`db: missing required field "AuthRequest.mfa_validated"`)}
+	}
+	if _, ok := _c.mutation.Prompt(); !ok {
+		return &ValidationError{Name: "prompt", err: errors.New(`db: missing required field "AuthRequest.prompt"`)}
+	}
+	if _, ok := _c.mutation.MaxAge(); !ok {
+		return &ValidationError{Name: "max_age", err: errors.New(`db: missing required field "AuthRequest.max_age"`)}
 	}
 	if v, ok := _c.mutation.ID(); ok {
 		if err := authrequest.IDValidator(v); err != nil {
@@ -413,6 +469,18 @@ func (_c *AuthRequestCreate) createSpec() (*AuthRequest, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.MfaValidated(); ok {
 		_spec.SetField(authrequest.FieldMfaValidated, field.TypeBool, value)
 		_node.MfaValidated = value
+	}
+	if value, ok := _c.mutation.Prompt(); ok {
+		_spec.SetField(authrequest.FieldPrompt, field.TypeString, value)
+		_node.Prompt = value
+	}
+	if value, ok := _c.mutation.MaxAge(); ok {
+		_spec.SetField(authrequest.FieldMaxAge, field.TypeInt, value)
+		_node.MaxAge = value
+	}
+	if value, ok := _c.mutation.AuthTime(); ok {
+		_spec.SetField(authrequest.FieldAuthTime, field.TypeTime, value)
+		_node.AuthTime = value
 	}
 	return _node, _spec
 }

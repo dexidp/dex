@@ -230,6 +230,20 @@ type AuthRequest struct {
 	// attempts.
 	ForceApprovalPrompt bool
 
+	// OIDC prompt parameter. Controls authentication and consent UI behavior.
+	// Values: "none", "login", "consent", "select_account".
+	Prompt string
+
+	// MaxAge is the OIDC max_age parameter — maximum allowable elapsed time
+	// in seconds since the user last actively authenticated.
+	// -1 means not specified.
+	MaxAge int
+
+	// AuthTime is when the user last actively authenticated (entered credentials).
+	// Set during finalizeLogin (= now) or trySessionLogin (= UserIdentity.LastLogin).
+	// Used in ID token as "auth_time" claim.
+	AuthTime time.Time
+
 	Expiry time.Time
 
 	// Has the user proved their identity through a backing identity provider?
@@ -289,6 +303,10 @@ type AuthCode struct {
 	Claims        Claims
 
 	Expiry time.Time
+
+	// AuthTime is when the user last actively authenticated.
+	// Carried over from AuthRequest to include in ID tokens.
+	AuthTime time.Time
 
 	// PKCE CodeChallenge and CodeChallengeMethod
 	PKCE PKCE

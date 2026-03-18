@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/dexidp/dex/storage"
 )
@@ -258,6 +259,14 @@ func (s *Server) trySessionLogin(ctx context.Context, r *http.Request, w http.Re
 		return "", false
 	}
 
+	// Check max_age: if the user's last authentication is too old, force re-auth.
+	if authReq.MaxAge >= 0 {
+		now := s.now()
+		if now.Sub(ui.LastLogin) > time.Duration(authReq.MaxAge)*time.Second {
+			return "", false
+		}
+	}
+
 	claims := storage.Claims{
 		UserID:            ui.Claims.UserID,
 		Username:          ui.Claims.Username,
@@ -267,11 +276,12 @@ func (s *Server) trySessionLogin(ctx context.Context, r *http.Request, w http.Re
 		Groups:            ui.Claims.Groups,
 	}
 
-	// Update AuthRequest with stored identity (without logging "login successful").
+	// Update AuthRequest with stored identity and auth_time from last login.
 	if err := s.storage.UpdateAuthRequest(ctx, authReq.ID, func(a storage.AuthRequest) (storage.AuthRequest, error) {
 		a.LoggedIn = true
 		a.Claims = claims
 		a.ConnectorID = session.ConnectorID
+		a.AuthTime = ui.LastLogin
 		return a, nil
 	}); err != nil {
 		s.logger.ErrorContext(ctx, "session: failed to update auth request", "err", err)

@@ -436,6 +436,10 @@ var migrations = []migration{
 			`
 			alter table client
 				add column mfa_chain bytea;`,
+			`alter table auth_request add column prompt text not null default '';`,
+			`alter table auth_request add column max_age integer not null default -1;`,
+			`alter table auth_request add column auth_time timestamptz not null default '1970-01-01 00:00:00';`,
+			`alter table auth_code add column auth_time timestamptz not null default '1970-01-01 00:00:00';`,
 		},
 	},
 }

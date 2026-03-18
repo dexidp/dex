@@ -74,6 +74,7 @@ type AuthCodeMutation struct {
 	expiry                    *time.Time
 	code_challenge            *string
 	code_challenge_method     *string
+	auth_time                 *time.Time
 	clearedFields             map[string]struct{}
 	done                      bool
 	oldValue                  func(context.Context) (*AuthCode, error)
@@ -795,6 +796,55 @@ func (m *AuthCodeMutation) ResetCodeChallengeMethod() {
 	m.code_challenge_method = nil
 }
 
+// SetAuthTime sets the "auth_time" field.
+func (m *AuthCodeMutation) SetAuthTime(t time.Time) {
+	m.auth_time = &t
+}
+
+// AuthTime returns the value of the "auth_time" field in the mutation.
+func (m *AuthCodeMutation) AuthTime() (r time.Time, exists bool) {
+	v := m.auth_time
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAuthTime returns the old "auth_time" field's value of the AuthCode entity.
+// If the AuthCode object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AuthCodeMutation) OldAuthTime(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAuthTime is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAuthTime requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAuthTime: %w", err)
+	}
+	return oldValue.AuthTime, nil
+}
+
+// ClearAuthTime clears the value of the "auth_time" field.
+func (m *AuthCodeMutation) ClearAuthTime() {
+	m.auth_time = nil
+	m.clearedFields[authcode.FieldAuthTime] = struct{}{}
+}
+
+// AuthTimeCleared returns if the "auth_time" field was cleared in this mutation.
+func (m *AuthCodeMutation) AuthTimeCleared() bool {
+	_, ok := m.clearedFields[authcode.FieldAuthTime]
+	return ok
+}
+
+// ResetAuthTime resets all changes to the "auth_time" field.
+func (m *AuthCodeMutation) ResetAuthTime() {
+	m.auth_time = nil
+	delete(m.clearedFields, authcode.FieldAuthTime)
+}
+
 // Where appends a list predicates to the AuthCodeMutation builder.
 func (m *AuthCodeMutation) Where(ps ...predicate.AuthCode) {
 	m.predicates = append(m.predicates, ps...)
@@ -829,7 +879,7 @@ func (m *AuthCodeMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AuthCodeMutation) Fields() []string {
-	fields := make([]string, 0, 15)
+	fields := make([]string, 0, 16)
 	if m.client_id != nil {
 		fields = append(fields, authcode.FieldClientID)
 	}
@@ -875,6 +925,9 @@ func (m *AuthCodeMutation) Fields() []string {
 	if m.code_challenge_method != nil {
 		fields = append(fields, authcode.FieldCodeChallengeMethod)
 	}
+	if m.auth_time != nil {
+		fields = append(fields, authcode.FieldAuthTime)
+	}
 	return fields
 }
 
@@ -913,6 +966,8 @@ func (m *AuthCodeMutation) Field(name string) (ent.Value, bool) {
 		return m.CodeChallenge()
 	case authcode.FieldCodeChallengeMethod:
 		return m.CodeChallengeMethod()
+	case authcode.FieldAuthTime:
+		return m.AuthTime()
 	}
 	return nil, false
 }
@@ -952,6 +1007,8 @@ func (m *AuthCodeMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldCodeChallenge(ctx)
 	case authcode.FieldCodeChallengeMethod:
 		return m.OldCodeChallengeMethod(ctx)
+	case authcode.FieldAuthTime:
+		return m.OldAuthTime(ctx)
 	}
 	return nil, fmt.Errorf("unknown AuthCode field %s", name)
 }
@@ -1066,6 +1123,13 @@ func (m *AuthCodeMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetCodeChallengeMethod(v)
 		return nil
+	case authcode.FieldAuthTime:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAuthTime(v)
+		return nil
 	}
 	return fmt.Errorf("unknown AuthCode field %s", name)
 }
@@ -1105,6 +1169,9 @@ func (m *AuthCodeMutation) ClearedFields() []string {
 	if m.FieldCleared(authcode.FieldConnectorData) {
 		fields = append(fields, authcode.FieldConnectorData)
 	}
+	if m.FieldCleared(authcode.FieldAuthTime) {
+		fields = append(fields, authcode.FieldAuthTime)
+	}
 	return fields
 }
 
@@ -1127,6 +1194,9 @@ func (m *AuthCodeMutation) ClearField(name string) error {
 		return nil
 	case authcode.FieldConnectorData:
 		m.ClearConnectorData()
+		return nil
+	case authcode.FieldAuthTime:
+		m.ClearAuthTime()
 		return nil
 	}
 	return fmt.Errorf("unknown AuthCode nullable field %s", name)
@@ -1180,6 +1250,9 @@ func (m *AuthCodeMutation) ResetField(name string) error {
 		return nil
 	case authcode.FieldCodeChallengeMethod:
 		m.ResetCodeChallengeMethod()
+		return nil
+	case authcode.FieldAuthTime:
+		m.ResetAuthTime()
 		return nil
 	}
 	return fmt.Errorf("unknown AuthCode field %s", name)
@@ -1263,6 +1336,10 @@ type AuthRequestMutation struct {
 	code_challenge_method     *string
 	hmac_key                  *[]byte
 	mfa_validated             *bool
+	prompt                    *string
+	max_age                   *int
+	addmax_age                *int
+	auth_time                 *time.Time
 	clearedFields             map[string]struct{}
 	done                      bool
 	oldValue                  func(context.Context) (*AuthRequest, error)
@@ -2229,6 +2306,147 @@ func (m *AuthRequestMutation) ResetMfaValidated() {
 	m.mfa_validated = nil
 }
 
+// SetPrompt sets the "prompt" field.
+func (m *AuthRequestMutation) SetPrompt(s string) {
+	m.prompt = &s
+}
+
+// Prompt returns the value of the "prompt" field in the mutation.
+func (m *AuthRequestMutation) Prompt() (r string, exists bool) {
+	v := m.prompt
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPrompt returns the old "prompt" field's value of the AuthRequest entity.
+// If the AuthRequest object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AuthRequestMutation) OldPrompt(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPrompt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPrompt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPrompt: %w", err)
+	}
+	return oldValue.Prompt, nil
+}
+
+// ResetPrompt resets all changes to the "prompt" field.
+func (m *AuthRequestMutation) ResetPrompt() {
+	m.prompt = nil
+}
+
+// SetMaxAge sets the "max_age" field.
+func (m *AuthRequestMutation) SetMaxAge(i int) {
+	m.max_age = &i
+	m.addmax_age = nil
+}
+
+// MaxAge returns the value of the "max_age" field in the mutation.
+func (m *AuthRequestMutation) MaxAge() (r int, exists bool) {
+	v := m.max_age
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMaxAge returns the old "max_age" field's value of the AuthRequest entity.
+// If the AuthRequest object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AuthRequestMutation) OldMaxAge(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMaxAge is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMaxAge requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMaxAge: %w", err)
+	}
+	return oldValue.MaxAge, nil
+}
+
+// AddMaxAge adds i to the "max_age" field.
+func (m *AuthRequestMutation) AddMaxAge(i int) {
+	if m.addmax_age != nil {
+		*m.addmax_age += i
+	} else {
+		m.addmax_age = &i
+	}
+}
+
+// AddedMaxAge returns the value that was added to the "max_age" field in this mutation.
+func (m *AuthRequestMutation) AddedMaxAge() (r int, exists bool) {
+	v := m.addmax_age
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetMaxAge resets all changes to the "max_age" field.
+func (m *AuthRequestMutation) ResetMaxAge() {
+	m.max_age = nil
+	m.addmax_age = nil
+}
+
+// SetAuthTime sets the "auth_time" field.
+func (m *AuthRequestMutation) SetAuthTime(t time.Time) {
+	m.auth_time = &t
+}
+
+// AuthTime returns the value of the "auth_time" field in the mutation.
+func (m *AuthRequestMutation) AuthTime() (r time.Time, exists bool) {
+	v := m.auth_time
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAuthTime returns the old "auth_time" field's value of the AuthRequest entity.
+// If the AuthRequest object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AuthRequestMutation) OldAuthTime(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAuthTime is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAuthTime requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAuthTime: %w", err)
+	}
+	return oldValue.AuthTime, nil
+}
+
+// ClearAuthTime clears the value of the "auth_time" field.
+func (m *AuthRequestMutation) ClearAuthTime() {
+	m.auth_time = nil
+	m.clearedFields[authrequest.FieldAuthTime] = struct{}{}
+}
+
+// AuthTimeCleared returns if the "auth_time" field was cleared in this mutation.
+func (m *AuthRequestMutation) AuthTimeCleared() bool {
+	_, ok := m.clearedFields[authrequest.FieldAuthTime]
+	return ok
+}
+
+// ResetAuthTime resets all changes to the "auth_time" field.
+func (m *AuthRequestMutation) ResetAuthTime() {
+	m.auth_time = nil
+	delete(m.clearedFields, authrequest.FieldAuthTime)
+}
+
 // Where appends a list predicates to the AuthRequestMutation builder.
 func (m *AuthRequestMutation) Where(ps ...predicate.AuthRequest) {
 	m.predicates = append(m.predicates, ps...)
@@ -2263,7 +2481,7 @@ func (m *AuthRequestMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AuthRequestMutation) Fields() []string {
-	fields := make([]string, 0, 21)
+	fields := make([]string, 0, 24)
 	if m.client_id != nil {
 		fields = append(fields, authrequest.FieldClientID)
 	}
@@ -2327,6 +2545,15 @@ func (m *AuthRequestMutation) Fields() []string {
 	if m.mfa_validated != nil {
 		fields = append(fields, authrequest.FieldMfaValidated)
 	}
+	if m.prompt != nil {
+		fields = append(fields, authrequest.FieldPrompt)
+	}
+	if m.max_age != nil {
+		fields = append(fields, authrequest.FieldMaxAge)
+	}
+	if m.auth_time != nil {
+		fields = append(fields, authrequest.FieldAuthTime)
+	}
 	return fields
 }
 
@@ -2377,6 +2604,12 @@ func (m *AuthRequestMutation) Field(name string) (ent.Value, bool) {
 		return m.HmacKey()
 	case authrequest.FieldMfaValidated:
 		return m.MfaValidated()
+	case authrequest.FieldPrompt:
+		return m.Prompt()
+	case authrequest.FieldMaxAge:
+		return m.MaxAge()
+	case authrequest.FieldAuthTime:
+		return m.AuthTime()
 	}
 	return nil, false
 }
@@ -2428,6 +2661,12 @@ func (m *AuthRequestMutation) OldField(ctx context.Context, name string) (ent.Va
 		return m.OldHmacKey(ctx)
 	case authrequest.FieldMfaValidated:
 		return m.OldMfaValidated(ctx)
+	case authrequest.FieldPrompt:
+		return m.OldPrompt(ctx)
+	case authrequest.FieldMaxAge:
+		return m.OldMaxAge(ctx)
+	case authrequest.FieldAuthTime:
+		return m.OldAuthTime(ctx)
 	}
 	return nil, fmt.Errorf("unknown AuthRequest field %s", name)
 }
@@ -2584,6 +2823,27 @@ func (m *AuthRequestMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetMfaValidated(v)
 		return nil
+	case authrequest.FieldPrompt:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPrompt(v)
+		return nil
+	case authrequest.FieldMaxAge:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMaxAge(v)
+		return nil
+	case authrequest.FieldAuthTime:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAuthTime(v)
+		return nil
 	}
 	return fmt.Errorf("unknown AuthRequest field %s", name)
 }
@@ -2591,13 +2851,21 @@ func (m *AuthRequestMutation) SetField(name string, value ent.Value) error {
 // AddedFields returns all numeric fields that were incremented/decremented during
 // this mutation.
 func (m *AuthRequestMutation) AddedFields() []string {
-	return nil
+	var fields []string
+	if m.addmax_age != nil {
+		fields = append(fields, authrequest.FieldMaxAge)
+	}
+	return fields
 }
 
 // AddedField returns the numeric value that was incremented/decremented on a field
 // with the given name. The second boolean return value indicates that this field
 // was not set, or was not defined in the schema.
 func (m *AuthRequestMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case authrequest.FieldMaxAge:
+		return m.AddedMaxAge()
+	}
 	return nil, false
 }
 
@@ -2606,6 +2874,13 @@ func (m *AuthRequestMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *AuthRequestMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case authrequest.FieldMaxAge:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMaxAge(v)
+		return nil
 	}
 	return fmt.Errorf("unknown AuthRequest numeric field %s", name)
 }
@@ -2625,6 +2900,9 @@ func (m *AuthRequestMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(authrequest.FieldConnectorData) {
 		fields = append(fields, authrequest.FieldConnectorData)
+	}
+	if m.FieldCleared(authrequest.FieldAuthTime) {
+		fields = append(fields, authrequest.FieldAuthTime)
 	}
 	return fields
 }
@@ -2651,6 +2929,9 @@ func (m *AuthRequestMutation) ClearField(name string) error {
 		return nil
 	case authrequest.FieldConnectorData:
 		m.ClearConnectorData()
+		return nil
+	case authrequest.FieldAuthTime:
+		m.ClearAuthTime()
 		return nil
 	}
 	return fmt.Errorf("unknown AuthRequest nullable field %s", name)
@@ -2722,6 +3003,15 @@ func (m *AuthRequestMutation) ResetField(name string) error {
 		return nil
 	case authrequest.FieldMfaValidated:
 		m.ResetMfaValidated()
+		return nil
+	case authrequest.FieldPrompt:
+		m.ResetPrompt()
+		return nil
+	case authrequest.FieldMaxAge:
+		m.ResetMaxAge()
+		return nil
+	case authrequest.FieldAuthTime:
+		m.ResetAuthTime()
 		return nil
 	}
 	return fmt.Errorf("unknown AuthRequest field %s", name)

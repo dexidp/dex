@@ -33,6 +33,9 @@ func (d *Database) CreateAuthRequest(ctx context.Context, authRequest storage.Au
 		SetConnectorData(authRequest.ConnectorData).
 		SetHmacKey(authRequest.HMACKey).
 		SetMfaValidated(authRequest.MFAValidated).
+		SetPrompt(authRequest.Prompt).
+		SetMaxAge(authRequest.MaxAge).
+		SetAuthTime(authRequest.AuthTime).
 		Save(ctx)
 	if err != nil {
 		return convertDBError("create auth request: %w", err)
@@ -98,6 +101,9 @@ func (d *Database) UpdateAuthRequest(ctx context.Context, id string, updater fun
 		SetConnectorData(newAuthRequest.ConnectorData).
 		SetHmacKey(newAuthRequest.HMACKey).
 		SetMfaValidated(newAuthRequest.MFAValidated).
+		SetPrompt(newAuthRequest.Prompt).
+		SetMaxAge(newAuthRequest.MaxAge).
+		SetAuthTime(newAuthRequest.AuthTime).
 		Save(context.TODO())
 	if err != nil {
 		return rollback(tx, "update auth request uploading: %w", err)

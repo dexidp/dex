@@ -47,6 +47,9 @@ func toStorageAuthRequest(a *db.AuthRequest) storage.AuthRequest {
 		},
 		HMACKey:      a.HmacKey,
 		MFAValidated: a.MfaValidated,
+		Prompt:       a.Prompt,
+		MaxAge:       a.MaxAge,
+		AuthTime:     a.AuthTime,
 	}
 }
 
@@ -72,6 +75,7 @@ func toStorageAuthCode(a *db.AuthCode) storage.AuthCode {
 			CodeChallenge:       a.CodeChallenge,
 			CodeChallengeMethod: a.CodeChallengeMethod,
 		},
+		AuthTime: a.AuthTime,
 	}
 }
 
