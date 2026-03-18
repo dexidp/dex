@@ -971,6 +971,9 @@ type AuthSession struct {
 	k8sapi.TypeMeta   `json:",inline"`
 	k8sapi.ObjectMeta `json:"metadata,omitempty"`
 
+	UserID       string                              `json:"userID,omitempty"`
+	ConnectorID  string                              `json:"connectorID,omitempty"`
+	Nonce        string                              `json:"nonce,omitempty"`
 	ClientStates map[string]*storage.ClientAuthState `json:"clientStates,omitempty"`
 	CreatedAt    time.Time                           `json:"createdAt,omitempty"`
 	LastActivity time.Time                           `json:"lastActivity,omitempty"`
@@ -992,9 +995,12 @@ func (cli *client) fromStorageAuthSession(s storage.AuthSession) AuthSession {
 			APIVersion: cli.apiVersion,
 		},
 		ObjectMeta: k8sapi.ObjectMeta{
-			Name:      s.ID,
+			Name:      offlineTokenName(s.UserID, s.ConnectorID, cli.hash),
 			Namespace: cli.namespace,
 		},
+		UserID:       s.UserID,
+		ConnectorID:  s.ConnectorID,
+		Nonce:        s.Nonce,
 		ClientStates: s.ClientStates,
 		CreatedAt:    s.CreatedAt,
 		LastActivity: s.LastActivity,
@@ -1005,7 +1011,9 @@ func (cli *client) fromStorageAuthSession(s storage.AuthSession) AuthSession {
 
 func toStorageAuthSession(s AuthSession) storage.AuthSession {
 	result := storage.AuthSession{
-		ID:           s.ObjectMeta.Name,
+		UserID:       s.UserID,
+		ConnectorID:  s.ConnectorID,
+		Nonce:        s.Nonce,
 		ClientStates: s.ClientStates,
 		CreatedAt:    s.CreatedAt,
 		LastActivity: s.LastActivity,

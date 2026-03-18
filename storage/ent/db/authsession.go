@@ -17,6 +17,12 @@ type AuthSession struct {
 	config `json:"-"`
 	// ID of the ent.
 	ID string `json:"id,omitempty"`
+	// UserID holds the value of the "user_id" field.
+	UserID string `json:"user_id,omitempty"`
+	// ConnectorID holds the value of the "connector_id" field.
+	ConnectorID string `json:"connector_id,omitempty"`
+	// Nonce holds the value of the "nonce" field.
+	Nonce string `json:"nonce,omitempty"`
 	// ClientStates holds the value of the "client_states" field.
 	ClientStates []byte `json:"client_states,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
@@ -37,7 +43,7 @@ func (*AuthSession) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case authsession.FieldClientStates:
 			values[i] = new([]byte)
-		case authsession.FieldID, authsession.FieldIPAddress, authsession.FieldUserAgent:
+		case authsession.FieldID, authsession.FieldUserID, authsession.FieldConnectorID, authsession.FieldNonce, authsession.FieldIPAddress, authsession.FieldUserAgent:
 			values[i] = new(sql.NullString)
 		case authsession.FieldCreatedAt, authsession.FieldLastActivity:
 			values[i] = new(sql.NullTime)
@@ -61,6 +67,24 @@ func (_m *AuthSession) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field id", values[i])
 			} else if value.Valid {
 				_m.ID = value.String
+			}
+		case authsession.FieldUserID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field user_id", values[i])
+			} else if value.Valid {
+				_m.UserID = value.String
+			}
+		case authsession.FieldConnectorID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field connector_id", values[i])
+			} else if value.Valid {
+				_m.ConnectorID = value.String
+			}
+		case authsession.FieldNonce:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field nonce", values[i])
+			} else if value.Valid {
+				_m.Nonce = value.String
 			}
 		case authsession.FieldClientStates:
 			if value, ok := values[i].(*[]byte); !ok {
@@ -128,6 +152,15 @@ func (_m *AuthSession) String() string {
 	var builder strings.Builder
 	builder.WriteString("AuthSession(")
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
+	builder.WriteString("user_id=")
+	builder.WriteString(_m.UserID)
+	builder.WriteString(", ")
+	builder.WriteString("connector_id=")
+	builder.WriteString(_m.ConnectorID)
+	builder.WriteString(", ")
+	builder.WriteString("nonce=")
+	builder.WriteString(_m.Nonce)
+	builder.WriteString(", ")
 	builder.WriteString("client_states=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ClientStates))
 	builder.WriteString(", ")

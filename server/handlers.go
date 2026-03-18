@@ -365,6 +365,16 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if there's a valid session that can skip login for this client.
+	if s.sessionConfig != nil {
+		if redirectURL, ok := s.trySessionLogin(ctx, r, w, authReq); ok {
+			if redirectURL != "" {
+				http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+			}
+			return
+		}
+	}
+
 	scopes := parseScopes(authReq.Scopes)
 
 	// Work out where the "Select another login method" link should go.
@@ -493,9 +503,11 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	rememberMe := s.rememberMeDefault()
+
 	switch r.Method {
 	case http.MethodGet:
-		if err := s.templates.password(r, w, r.URL.String(), "", usernamePrompt(pwConn), false, backLink); err != nil {
+		if err := s.templates.password(r, w, r.URL.String(), "", usernamePrompt(pwConn), false, backLink, rememberMe); err != nil {
 			s.logger.ErrorContext(r.Context(), "server template error", "err", err)
 		}
 	case http.MethodPost:
@@ -510,7 +522,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !ok {
-			if err := s.templates.password(r, w, r.URL.String(), username, usernamePrompt(pwConn), true, backLink); err != nil {
+			if err := s.templates.password(r, w, r.URL.String(), username, usernamePrompt(pwConn), true, backLink, rememberMe); err != nil {
 				s.logger.ErrorContext(r.Context(), "server template error", "err", err)
 			}
 			s.logger.ErrorContext(r.Context(), "failed login attempt: Invalid credentials.", "user", username)
@@ -523,13 +535,21 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Re-read auth request after finalizeLogin populated Claims.
+		authReq, err = s.storage.GetAuthRequest(ctx, authReq.ID)
+		if err != nil {
+			s.logger.ErrorContext(r.Context(), "failed to get finalized auth request", "err", err)
+			s.renderError(r, w, http.StatusInternalServerError, "Login error.")
+			return
+		}
+
+		rememberMe := r.FormValue("remember_me") == "on"
+		if err := s.createOrUpdateAuthSession(ctx, r, w, authReq, rememberMe); err != nil {
+			s.logger.ErrorContext(ctx, "failed to create/update auth session", "err", err)
+		}
+
 		if canSkipApproval {
-			authReq, err = s.storage.GetAuthRequest(ctx, authReq.ID)
-			if err != nil {
-				s.logger.ErrorContext(r.Context(), "failed to get finalized auth request", "err", err)
-				s.renderError(r, w, http.StatusInternalServerError, "Login error.")
-				return
-			}
+			// authReq was already re-read after finalizeLogin above.
 			s.sendCodeResponse(w, r, authReq)
 			return
 		}
@@ -628,13 +648,22 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Re-read auth request after finalizeLogin populated Claims.
+	authReq, err = s.storage.GetAuthRequest(ctx, authReq.ID)
+	if err != nil {
+		s.logger.ErrorContext(r.Context(), "failed to get finalized auth request", "err", err)
+		s.renderError(r, w, http.StatusInternalServerError, "Login error.")
+		return
+	}
+
+	// Connector callbacks don't render the remember_me checkbox, so we use the server default.
+	// The password login handler reads r.FormValue("remember_me") from the submitted form instead.
+	if err := s.createOrUpdateAuthSession(ctx, r, w, authReq, s.sessionConfig != nil && s.sessionConfig.RememberMeCheckedByDefault); err != nil {
+		s.logger.ErrorContext(ctx, "failed to create/update auth session", "err", err)
+	}
+
 	if canSkipApproval {
-		authReq, err = s.storage.GetAuthRequest(ctx, authReq.ID)
-		if err != nil {
-			s.logger.ErrorContext(r.Context(), "failed to get finalized auth request", "err", err)
-			s.renderError(r, w, http.StatusInternalServerError, "Login error.")
-			return
-		}
+		// authReq was already re-read after finalizeLogin above.
 		s.sendCodeResponse(w, r, authReq)
 		return
 	}
@@ -854,6 +883,8 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authReq storage.AuthRequest) {
+	s.updateSessionTokenIssuedAt(r, authReq.ClientID)
+
 	ctx := r.Context()
 	if s.now().After(authReq.Expiry) {
 		s.renderError(r, w, http.StatusBadRequest, "User session has expired.")

@@ -2727,6 +2727,9 @@ type AuthSessionMutation struct {
 	op            Op
 	typ           string
 	id            *string
+	user_id       *string
+	connector_id  *string
+	nonce         *string
 	client_states *[]byte
 	created_at    *time.Time
 	last_activity *time.Time
@@ -2840,6 +2843,114 @@ func (m *AuthSessionMutation) IDs(ctx context.Context) ([]string, error) {
 	default:
 		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
 	}
+}
+
+// SetUserID sets the "user_id" field.
+func (m *AuthSessionMutation) SetUserID(s string) {
+	m.user_id = &s
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *AuthSessionMutation) UserID() (r string, exists bool) {
+	v := m.user_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the AuthSession entity.
+// If the AuthSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AuthSessionMutation) OldUserID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *AuthSessionMutation) ResetUserID() {
+	m.user_id = nil
+}
+
+// SetConnectorID sets the "connector_id" field.
+func (m *AuthSessionMutation) SetConnectorID(s string) {
+	m.connector_id = &s
+}
+
+// ConnectorID returns the value of the "connector_id" field in the mutation.
+func (m *AuthSessionMutation) ConnectorID() (r string, exists bool) {
+	v := m.connector_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldConnectorID returns the old "connector_id" field's value of the AuthSession entity.
+// If the AuthSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AuthSessionMutation) OldConnectorID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldConnectorID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldConnectorID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldConnectorID: %w", err)
+	}
+	return oldValue.ConnectorID, nil
+}
+
+// ResetConnectorID resets all changes to the "connector_id" field.
+func (m *AuthSessionMutation) ResetConnectorID() {
+	m.connector_id = nil
+}
+
+// SetNonce sets the "nonce" field.
+func (m *AuthSessionMutation) SetNonce(s string) {
+	m.nonce = &s
+}
+
+// Nonce returns the value of the "nonce" field in the mutation.
+func (m *AuthSessionMutation) Nonce() (r string, exists bool) {
+	v := m.nonce
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldNonce returns the old "nonce" field's value of the AuthSession entity.
+// If the AuthSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AuthSessionMutation) OldNonce(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldNonce is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldNonce requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldNonce: %w", err)
+	}
+	return oldValue.Nonce, nil
+}
+
+// ResetNonce resets all changes to the "nonce" field.
+func (m *AuthSessionMutation) ResetNonce() {
+	m.nonce = nil
 }
 
 // SetClientStates sets the "client_states" field.
@@ -3056,7 +3167,16 @@ func (m *AuthSessionMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AuthSessionMutation) Fields() []string {
-	fields := make([]string, 0, 5)
+	fields := make([]string, 0, 8)
+	if m.user_id != nil {
+		fields = append(fields, authsession.FieldUserID)
+	}
+	if m.connector_id != nil {
+		fields = append(fields, authsession.FieldConnectorID)
+	}
+	if m.nonce != nil {
+		fields = append(fields, authsession.FieldNonce)
+	}
 	if m.client_states != nil {
 		fields = append(fields, authsession.FieldClientStates)
 	}
@@ -3080,6 +3200,12 @@ func (m *AuthSessionMutation) Fields() []string {
 // schema.
 func (m *AuthSessionMutation) Field(name string) (ent.Value, bool) {
 	switch name {
+	case authsession.FieldUserID:
+		return m.UserID()
+	case authsession.FieldConnectorID:
+		return m.ConnectorID()
+	case authsession.FieldNonce:
+		return m.Nonce()
 	case authsession.FieldClientStates:
 		return m.ClientStates()
 	case authsession.FieldCreatedAt:
@@ -3099,6 +3225,12 @@ func (m *AuthSessionMutation) Field(name string) (ent.Value, bool) {
 // database failed.
 func (m *AuthSessionMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
 	switch name {
+	case authsession.FieldUserID:
+		return m.OldUserID(ctx)
+	case authsession.FieldConnectorID:
+		return m.OldConnectorID(ctx)
+	case authsession.FieldNonce:
+		return m.OldNonce(ctx)
 	case authsession.FieldClientStates:
 		return m.OldClientStates(ctx)
 	case authsession.FieldCreatedAt:
@@ -3118,6 +3250,27 @@ func (m *AuthSessionMutation) OldField(ctx context.Context, name string) (ent.Va
 // type.
 func (m *AuthSessionMutation) SetField(name string, value ent.Value) error {
 	switch name {
+	case authsession.FieldUserID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case authsession.FieldConnectorID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetConnectorID(v)
+		return nil
+	case authsession.FieldNonce:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetNonce(v)
+		return nil
 	case authsession.FieldClientStates:
 		v, ok := value.([]byte)
 		if !ok {
@@ -3202,6 +3355,15 @@ func (m *AuthSessionMutation) ClearField(name string) error {
 // It returns an error if the field is not defined in the schema.
 func (m *AuthSessionMutation) ResetField(name string) error {
 	switch name {
+	case authsession.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case authsession.FieldConnectorID:
+		m.ResetConnectorID()
+		return nil
+	case authsession.FieldNonce:
+		m.ResetNonce()
+		return nil
 	case authsession.FieldClientStates:
 		m.ResetClientStates()
 		return nil

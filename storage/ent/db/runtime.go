@@ -90,12 +90,24 @@ func init() {
 	authrequest.IDValidator = authrequestDescID.Validators[0].(func(string) error)
 	authsessionFields := schema.AuthSession{}.Fields()
 	_ = authsessionFields
+	// authsessionDescUserID is the schema descriptor for user_id field.
+	authsessionDescUserID := authsessionFields[1].Descriptor()
+	// authsession.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
+	authsession.UserIDValidator = authsessionDescUserID.Validators[0].(func(string) error)
+	// authsessionDescConnectorID is the schema descriptor for connector_id field.
+	authsessionDescConnectorID := authsessionFields[2].Descriptor()
+	// authsession.ConnectorIDValidator is a validator for the "connector_id" field. It is called by the builders before save.
+	authsession.ConnectorIDValidator = authsessionDescConnectorID.Validators[0].(func(string) error)
+	// authsessionDescNonce is the schema descriptor for nonce field.
+	authsessionDescNonce := authsessionFields[3].Descriptor()
+	// authsession.NonceValidator is a validator for the "nonce" field. It is called by the builders before save.
+	authsession.NonceValidator = authsessionDescNonce.Validators[0].(func(string) error)
 	// authsessionDescIPAddress is the schema descriptor for ip_address field.
-	authsessionDescIPAddress := authsessionFields[4].Descriptor()
+	authsessionDescIPAddress := authsessionFields[7].Descriptor()
 	// authsession.DefaultIPAddress holds the default value on creation for the ip_address field.
 	authsession.DefaultIPAddress = authsessionDescIPAddress.Default.(string)
 	// authsessionDescUserAgent is the schema descriptor for user_agent field.
-	authsessionDescUserAgent := authsessionFields[5].Descriptor()
+	authsessionDescUserAgent := authsessionFields[8].Descriptor()
 	// authsession.DefaultUserAgent holds the default value on creation for the user_agent field.
 	authsession.DefaultUserAgent = authsessionDescUserAgent.Default.(string)
 	// authsessionDescID is the schema descriptor for id field.

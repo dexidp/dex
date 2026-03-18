@@ -929,13 +929,15 @@ func (c *conn) DeleteUserIdentity(ctx context.Context, userID, connectorID strin
 func (c *conn) CreateAuthSession(ctx context.Context, s storage.AuthSession) error {
 	_, err := c.Exec(`
 		insert into auth_session (
-			id, client_states,
+			user_id, connector_id, nonce,
+			client_states,
 			created_at, last_activity,
 			ip_address, user_agent
 		)
-		values ($1, $2, $3, $4, $5, $6);
+		values ($1, $2, $3, $4, $5, $6, $7, $8);
 	`,
-		s.ID, encoder(s.ClientStates),
+		s.UserID, s.ConnectorID, s.Nonce,
+		encoder(s.ClientStates),
 		s.CreatedAt, s.LastActivity,
 		s.IPAddress, s.UserAgent,
 	)
@@ -948,9 +950,9 @@ func (c *conn) CreateAuthSession(ctx context.Context, s storage.AuthSession) err
 	return nil
 }
 
-func (c *conn) UpdateAuthSession(ctx context.Context, sessionID string, updater func(s storage.AuthSession) (storage.AuthSession, error)) error {
+func (c *conn) UpdateAuthSession(ctx context.Context, userID, connectorID string, updater func(s storage.AuthSession) (storage.AuthSession, error)) error {
 	return c.ExecTx(func(tx *trans) error {
-		s, err := getAuthSession(ctx, tx, sessionID)
+		s, err := getAuthSession(ctx, tx, userID, connectorID)
 		if err != nil {
 			return err
 		}
@@ -966,12 +968,12 @@ func (c *conn) UpdateAuthSession(ctx context.Context, sessionID string, updater 
 				last_activity = $2,
 				ip_address = $3,
 				user_agent = $4
-			where id = $5;
+			where user_id = $5 AND connector_id = $6;
 		`,
 			encoder(newSession.ClientStates),
 			newSession.LastActivity,
 			newSession.IPAddress, newSession.UserAgent,
-			sessionID,
+			userID, connectorID,
 		)
 		if err != nil {
 			return fmt.Errorf("update auth session: %v", err)
@@ -980,24 +982,26 @@ func (c *conn) UpdateAuthSession(ctx context.Context, sessionID string, updater 
 	})
 }
 
-func (c *conn) GetAuthSession(ctx context.Context, sessionID string) (storage.AuthSession, error) {
-	return getAuthSession(ctx, c, sessionID)
+func (c *conn) GetAuthSession(ctx context.Context, userID, connectorID string) (storage.AuthSession, error) {
+	return getAuthSession(ctx, c, userID, connectorID)
 }
 
-func getAuthSession(ctx context.Context, q querier, sessionID string) (storage.AuthSession, error) {
+func getAuthSession(ctx context.Context, q querier, userID, connectorID string) (storage.AuthSession, error) {
 	return scanAuthSession(q.QueryRow(`
 		select
-			id, client_states,
+			user_id, connector_id, nonce,
+			client_states,
 			created_at, last_activity,
 			ip_address, user_agent
 		from auth_session
-		where id = $1;
-	`, sessionID))
+		where user_id = $1 AND connector_id = $2;
+	`, userID, connectorID))
 }
 
 func scanAuthSession(s scanner) (session storage.AuthSession, err error) {
 	err = s.Scan(
-		&session.ID, decoder(&session.ClientStates),
+		&session.UserID, &session.ConnectorID, &session.Nonce,
+		decoder(&session.ClientStates),
 		&session.CreatedAt, &session.LastActivity,
 		&session.IPAddress, &session.UserAgent,
 	)
@@ -1016,7 +1020,8 @@ func scanAuthSession(s scanner) (session storage.AuthSession, err error) {
 func (c *conn) ListAuthSessions(ctx context.Context) ([]storage.AuthSession, error) {
 	rows, err := c.Query(`
 		select
-			id, client_states,
+			user_id, connector_id, nonce,
+			client_states,
 			created_at, last_activity,
 			ip_address, user_agent
 		from auth_session;
@@ -1040,10 +1045,10 @@ func (c *conn) ListAuthSessions(ctx context.Context) ([]storage.AuthSession, err
 	return sessions, nil
 }
 
-func (c *conn) DeleteAuthSession(ctx context.Context, sessionID string) error {
-	result, err := c.Exec(`delete from auth_session where id = $1`, sessionID)
+func (c *conn) DeleteAuthSession(ctx context.Context, userID, connectorID string) error {
+	result, err := c.Exec(`delete from auth_session where user_id = $1 AND connector_id = $2`, userID, connectorID)
 	if err != nil {
-		return fmt.Errorf("delete auth_session: id = %s: %w", sessionID, err)
+		return fmt.Errorf("delete auth_session: user_id = %s, connector_id = %s: %w", userID, connectorID, err)
 	}
 
 	n, err := result.RowsAffected()

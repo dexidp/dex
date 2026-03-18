@@ -17,6 +17,15 @@ func (AuthSession) Fields() []ent.Field {
 			SchemaType(textSchema).
 			NotEmpty().
 			Unique(),
+		field.Text("user_id").
+			SchemaType(textSchema).
+			NotEmpty(),
+		field.Text("connector_id").
+			SchemaType(textSchema).
+			NotEmpty(),
+		field.Text("nonce").
+			SchemaType(textSchema).
+			NotEmpty(),
 		field.Bytes("client_states"),
 		field.Time("created_at").
 			SchemaType(timeSchema),

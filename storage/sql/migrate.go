@@ -413,12 +413,15 @@ var migrations = []migration{
 		stmts: []string{
 			`
 			create table auth_session (
-				id text not null primary key,
+				user_id text not null,
+				connector_id text not null,
+				nonce text not null default '',
 				client_states bytea not null,
 				created_at timestamptz not null,
 				last_activity timestamptz not null,
 				ip_address text not null default '',
-				user_agent text not null default ''
+				user_agent text not null default '',
+				PRIMARY KEY (user_id, connector_id)
 			);`,
 		},
 	},

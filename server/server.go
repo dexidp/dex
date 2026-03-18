@@ -137,6 +137,17 @@ type Config struct {
 	// If enabled, the server will continue starting even if some connectors fail to initialize.
 	// This allows the server to operate with a subset of connectors if some are misconfigured.
 	ContinueOnConnectorFailure bool
+
+	// SessionConfig holds session settings. Nil when sessions are disabled.
+	SessionConfig *SessionConfig
+}
+
+// SessionConfig holds resolved session configuration.
+type SessionConfig struct {
+	CookieName                 string
+	AbsoluteLifetime           time.Duration
+	ValidIfNotUsedFor          time.Duration
+	RememberMeCheckedByDefault bool
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
@@ -226,6 +237,8 @@ type Server struct {
 	logger *slog.Logger
 
 	signer signer.Signer
+
+	sessionConfig *SessionConfig
 }
 
 // NewServer constructs a server from the provided config.
@@ -349,6 +362,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		passwordConnector:      c.PasswordConnector,
 		logger:                 c.Logger,
 		signer:                 c.Signer,
+		sessionConfig:          c.SessionConfig,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors

@@ -815,18 +815,27 @@ func (cli *client) CreateAuthSession(ctx context.Context, s storage.AuthSession)
 	return cli.post(resourceAuthSession, cli.fromStorageAuthSession(s))
 }
 
-func (cli *client) GetAuthSession(ctx context.Context, sessionID string) (storage.AuthSession, error) {
+func (cli *client) getAuthSession(userID, connectorID string) (AuthSession, error) {
 	var s AuthSession
-	if err := cli.get(resourceAuthSession, sessionID, &s); err != nil {
+	name := offlineTokenName(userID, connectorID, cli.hash)
+	if err := cli.get(resourceAuthSession, name, &s); err != nil {
+		return AuthSession{}, err
+	}
+	return s, nil
+}
+
+func (cli *client) GetAuthSession(ctx context.Context, userID, connectorID string) (storage.AuthSession, error) {
+	s, err := cli.getAuthSession(userID, connectorID)
+	if err != nil {
 		return storage.AuthSession{}, err
 	}
 	return toStorageAuthSession(s), nil
 }
 
-func (cli *client) UpdateAuthSession(ctx context.Context, sessionID string, updater func(old storage.AuthSession) (storage.AuthSession, error)) error {
+func (cli *client) UpdateAuthSession(ctx context.Context, userID, connectorID string, updater func(old storage.AuthSession) (storage.AuthSession, error)) error {
 	return retryOnConflict(ctx, func() error {
-		var s AuthSession
-		if err := cli.get(resourceAuthSession, sessionID, &s); err != nil {
+		s, err := cli.getAuthSession(userID, connectorID)
+		if err != nil {
 			return err
 		}
 
@@ -837,7 +846,7 @@ func (cli *client) UpdateAuthSession(ctx context.Context, sessionID string, upda
 
 		newSession := cli.fromStorageAuthSession(updated)
 		newSession.ObjectMeta = s.ObjectMeta
-		return cli.put(resourceAuthSession, sessionID, newSession)
+		return cli.put(resourceAuthSession, s.ObjectMeta.Name, newSession)
 	})
 }
 
@@ -855,8 +864,12 @@ func (cli *client) ListAuthSessions(ctx context.Context) ([]storage.AuthSession,
 	return sessions, nil
 }
 
-func (cli *client) DeleteAuthSession(ctx context.Context, sessionID string) error {
-	return cli.delete(resourceAuthSession, sessionID)
+func (cli *client) DeleteAuthSession(ctx context.Context, userID, connectorID string) error {
+	s, err := cli.getAuthSession(userID, connectorID)
+	if err != nil {
+		return err
+	}
+	return cli.delete(resourceAuthSession, s.ObjectMeta.Name)
 }
 
 func isKubernetesAPIConflictError(err error) bool {

@@ -415,6 +415,19 @@ func runServe(options serveOptions) error {
 
 	serverConfig.RefreshTokenPolicy = refreshTokenPolicy
 
+	if featureflags.SessionsEnabled.Enabled() {
+		sessionConfig, err := parseSessionConfig(c.Sessions)
+		if err != nil {
+			return fmt.Errorf("invalid session config: %v", err)
+		}
+		serverConfig.SessionConfig = sessionConfig
+		logger.Info("config sessions",
+			"cookie_name", sessionConfig.CookieName,
+			"absolute_lifetime", sessionConfig.AbsoluteLifetime,
+			"valid_if_not_used_for", sessionConfig.ValidIfNotUsedFor,
+		)
+	}
+
 	serverConfig.RealIPHeader = c.Web.ClientRemoteIP.Header
 	serverConfig.TrustedRealIPCIDRs, err = c.Web.ClientRemoteIP.ParseTrustedProxies()
 	if err != nil {
@@ -758,4 +771,45 @@ func loadTLSConfig(certFile, keyFile, caFile string, baseConfig *tls.Config) (*t
 // recordBuildInfo publishes information about Dex version and runtime info through an info metric (gauge).
 func recordBuildInfo() {
 	buildInfo.WithLabelValues(version, runtime.Version(), fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)).Set(1)
+}
+
+func parseSessionConfig(s *Sessions) (*server.SessionConfig, error) {
+	sc := &server.SessionConfig{
+		CookieName:                 "dex_session",
+		AbsoluteLifetime:           24 * time.Hour,
+		ValidIfNotUsedFor:          1 * time.Hour,
+		RememberMeCheckedByDefault: true,
+	}
+	if s != nil {
+		if s.CookieName != "" {
+			sc.CookieName = s.CookieName
+		}
+		if s.AbsoluteLifetime != "" {
+			d, err := time.ParseDuration(s.AbsoluteLifetime)
+			if err != nil {
+				return nil, fmt.Errorf("invalid absoluteLifetime %q: %v", s.AbsoluteLifetime, err)
+			}
+			sc.AbsoluteLifetime = d
+		}
+		if s.ValidIfNotUsedFor != "" {
+			d, err := time.ParseDuration(s.ValidIfNotUsedFor)
+			if err != nil {
+				return nil, fmt.Errorf("invalid validIfNotUsedFor %q: %v", s.ValidIfNotUsedFor, err)
+			}
+			sc.ValidIfNotUsedFor = d
+		}
+		if s.RememberMeCheckedByDefault != nil {
+			sc.RememberMeCheckedByDefault = *s.RememberMeCheckedByDefault
+		}
+	}
+	if sc.AbsoluteLifetime <= 0 {
+		return nil, fmt.Errorf("absoluteLifetime must be positive, got %v", sc.AbsoluteLifetime)
+	}
+	if sc.ValidIfNotUsedFor <= 0 {
+		return nil, fmt.Errorf("validIfNotUsedFor must be positive, got %v", sc.ValidIfNotUsedFor)
+	}
+	if sc.ValidIfNotUsedFor > sc.AbsoluteLifetime {
+		return nil, fmt.Errorf("validIfNotUsedFor (%v) must not exceed absoluteLifetime (%v)", sc.ValidIfNotUsedFor, sc.AbsoluteLifetime)
+	}
+	return sc, nil
 }

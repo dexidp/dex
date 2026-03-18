@@ -298,7 +298,9 @@ func toStorageUserIdentity(u UserIdentity) storage.UserIdentity {
 
 // AuthSession is a mirrored struct from storage with JSON struct tags.
 type AuthSession struct {
-	ID           string                              `json:"id,omitempty"`
+	UserID       string                              `json:"user_id,omitempty"`
+	ConnectorID  string                              `json:"connector_id,omitempty"`
+	Nonce        string                              `json:"nonce,omitempty"`
 	ClientStates map[string]*storage.ClientAuthState `json:"client_states,omitempty"`
 	CreatedAt    time.Time                           `json:"created_at"`
 	LastActivity time.Time                           `json:"last_activity"`
@@ -308,7 +310,9 @@ type AuthSession struct {
 
 func fromStorageAuthSession(s storage.AuthSession) AuthSession {
 	return AuthSession{
-		ID:           s.ID,
+		UserID:       s.UserID,
+		ConnectorID:  s.ConnectorID,
+		Nonce:        s.Nonce,
 		ClientStates: s.ClientStates,
 		CreatedAt:    s.CreatedAt,
 		LastActivity: s.LastActivity,
@@ -319,7 +323,9 @@ func fromStorageAuthSession(s storage.AuthSession) AuthSession {
 
 func toStorageAuthSession(s AuthSession) storage.AuthSession {
 	result := storage.AuthSession{
-		ID:           s.ID,
+		UserID:       s.UserID,
+		ConnectorID:  s.ConnectorID,
+		Nonce:        s.Nonce,
 		ClientStates: s.ClientStates,
 		CreatedAt:    s.CreatedAt,
 		LastActivity: s.LastActivity,

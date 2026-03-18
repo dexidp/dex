@@ -95,6 +95,14 @@ telemetry:
 #     validIfNotUsedFor: "2160h" # 90 days
 #     absoluteLifetime: "3960h" # 165 days
 
+# Authentication sessions configuration.
+# Requires DEX_SESSIONS_ENABLED=true feature flag.
+# sessions:
+#   cookieName: "dex_session"
+#   absoluteLifetime: "24h"
+#   validIfNotUsedFor: "1h"
+#   rememberMeCheckedByDefault: false
+
 # Options for controlling the logger.
 # logger:
 #   level: "debug"

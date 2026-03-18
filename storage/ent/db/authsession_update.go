@@ -28,6 +28,48 @@ func (_u *AuthSessionUpdate) Where(ps ...predicate.AuthSession) *AuthSessionUpda
 	return _u
 }
 
+// SetUserID sets the "user_id" field.
+func (_u *AuthSessionUpdate) SetUserID(v string) *AuthSessionUpdate {
+	_u.mutation.SetUserID(v)
+	return _u
+}
+
+// SetNillableUserID sets the "user_id" field if the given value is not nil.
+func (_u *AuthSessionUpdate) SetNillableUserID(v *string) *AuthSessionUpdate {
+	if v != nil {
+		_u.SetUserID(*v)
+	}
+	return _u
+}
+
+// SetConnectorID sets the "connector_id" field.
+func (_u *AuthSessionUpdate) SetConnectorID(v string) *AuthSessionUpdate {
+	_u.mutation.SetConnectorID(v)
+	return _u
+}
+
+// SetNillableConnectorID sets the "connector_id" field if the given value is not nil.
+func (_u *AuthSessionUpdate) SetNillableConnectorID(v *string) *AuthSessionUpdate {
+	if v != nil {
+		_u.SetConnectorID(*v)
+	}
+	return _u
+}
+
+// SetNonce sets the "nonce" field.
+func (_u *AuthSessionUpdate) SetNonce(v string) *AuthSessionUpdate {
+	_u.mutation.SetNonce(v)
+	return _u
+}
+
+// SetNillableNonce sets the "nonce" field if the given value is not nil.
+func (_u *AuthSessionUpdate) SetNillableNonce(v *string) *AuthSessionUpdate {
+	if v != nil {
+		_u.SetNonce(*v)
+	}
+	return _u
+}
+
 // SetClientStates sets the "client_states" field.
 func (_u *AuthSessionUpdate) SetClientStates(v []byte) *AuthSessionUpdate {
 	_u.mutation.SetClientStates(v)
@@ -122,7 +164,30 @@ func (_u *AuthSessionUpdate) ExecX(ctx context.Context) {
 	}
 }
 
+// check runs all checks and user-defined validators on the builder.
+func (_u *AuthSessionUpdate) check() error {
+	if v, ok := _u.mutation.UserID(); ok {
+		if err := authsession.UserIDValidator(v); err != nil {
+			return &ValidationError{Name: "user_id", err: fmt.Errorf(`db: validator failed for field "AuthSession.user_id": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.ConnectorID(); ok {
+		if err := authsession.ConnectorIDValidator(v); err != nil {
+			return &ValidationError{Name: "connector_id", err: fmt.Errorf(`db: validator failed for field "AuthSession.connector_id": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.Nonce(); ok {
+		if err := authsession.NonceValidator(v); err != nil {
+			return &ValidationError{Name: "nonce", err: fmt.Errorf(`db: validator failed for field "AuthSession.nonce": %w`, err)}
+		}
+	}
+	return nil
+}
+
 func (_u *AuthSessionUpdate) sqlSave(ctx context.Context) (_node int, err error) {
+	if err := _u.check(); err != nil {
+		return _node, err
+	}
 	_spec := sqlgraph.NewUpdateSpec(authsession.Table, authsession.Columns, sqlgraph.NewFieldSpec(authsession.FieldID, field.TypeString))
 	if ps := _u.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
@@ -130,6 +195,15 @@ func (_u *AuthSessionUpdate) sqlSave(ctx context.Context) (_node int, err error)
 				ps[i](selector)
 			}
 		}
+	}
+	if value, ok := _u.mutation.UserID(); ok {
+		_spec.SetField(authsession.FieldUserID, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ConnectorID(); ok {
+		_spec.SetField(authsession.FieldConnectorID, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Nonce(); ok {
+		_spec.SetField(authsession.FieldNonce, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.ClientStates(); ok {
 		_spec.SetField(authsession.FieldClientStates, field.TypeBytes, value)
@@ -164,6 +238,48 @@ type AuthSessionUpdateOne struct {
 	fields   []string
 	hooks    []Hook
 	mutation *AuthSessionMutation
+}
+
+// SetUserID sets the "user_id" field.
+func (_u *AuthSessionUpdateOne) SetUserID(v string) *AuthSessionUpdateOne {
+	_u.mutation.SetUserID(v)
+	return _u
+}
+
+// SetNillableUserID sets the "user_id" field if the given value is not nil.
+func (_u *AuthSessionUpdateOne) SetNillableUserID(v *string) *AuthSessionUpdateOne {
+	if v != nil {
+		_u.SetUserID(*v)
+	}
+	return _u
+}
+
+// SetConnectorID sets the "connector_id" field.
+func (_u *AuthSessionUpdateOne) SetConnectorID(v string) *AuthSessionUpdateOne {
+	_u.mutation.SetConnectorID(v)
+	return _u
+}
+
+// SetNillableConnectorID sets the "connector_id" field if the given value is not nil.
+func (_u *AuthSessionUpdateOne) SetNillableConnectorID(v *string) *AuthSessionUpdateOne {
+	if v != nil {
+		_u.SetConnectorID(*v)
+	}
+	return _u
+}
+
+// SetNonce sets the "nonce" field.
+func (_u *AuthSessionUpdateOne) SetNonce(v string) *AuthSessionUpdateOne {
+	_u.mutation.SetNonce(v)
+	return _u
+}
+
+// SetNillableNonce sets the "nonce" field if the given value is not nil.
+func (_u *AuthSessionUpdateOne) SetNillableNonce(v *string) *AuthSessionUpdateOne {
+	if v != nil {
+		_u.SetNonce(*v)
+	}
+	return _u
 }
 
 // SetClientStates sets the "client_states" field.
@@ -273,7 +389,30 @@ func (_u *AuthSessionUpdateOne) ExecX(ctx context.Context) {
 	}
 }
 
+// check runs all checks and user-defined validators on the builder.
+func (_u *AuthSessionUpdateOne) check() error {
+	if v, ok := _u.mutation.UserID(); ok {
+		if err := authsession.UserIDValidator(v); err != nil {
+			return &ValidationError{Name: "user_id", err: fmt.Errorf(`db: validator failed for field "AuthSession.user_id": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.ConnectorID(); ok {
+		if err := authsession.ConnectorIDValidator(v); err != nil {
+			return &ValidationError{Name: "connector_id", err: fmt.Errorf(`db: validator failed for field "AuthSession.connector_id": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.Nonce(); ok {
+		if err := authsession.NonceValidator(v); err != nil {
+			return &ValidationError{Name: "nonce", err: fmt.Errorf(`db: validator failed for field "AuthSession.nonce": %w`, err)}
+		}
+	}
+	return nil
+}
+
 func (_u *AuthSessionUpdateOne) sqlSave(ctx context.Context) (_node *AuthSession, err error) {
+	if err := _u.check(); err != nil {
+		return _node, err
+	}
 	_spec := sqlgraph.NewUpdateSpec(authsession.Table, authsession.Columns, sqlgraph.NewFieldSpec(authsession.FieldID, field.TypeString))
 	id, ok := _u.mutation.ID()
 	if !ok {
@@ -298,6 +437,15 @@ func (_u *AuthSessionUpdateOne) sqlSave(ctx context.Context) (_node *AuthSession
 				ps[i](selector)
 			}
 		}
+	}
+	if value, ok := _u.mutation.UserID(); ok {
+		_spec.SetField(authsession.FieldUserID, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ConnectorID(); ok {
+		_spec.SetField(authsession.FieldConnectorID, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Nonce(); ok {
+		_spec.SetField(authsession.FieldNonce, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.ClientStates(); ok {
 		_spec.SetField(authsession.FieldClientStates, field.TypeBytes, value)

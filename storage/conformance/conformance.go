@@ -1174,11 +1174,11 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 	now := time.Now().UTC().Round(time.Millisecond)
 
 	session := storage.AuthSession{
-		ID: storage.NewID(),
+		UserID:      "user1",
+		ConnectorID: "conn1",
+		Nonce:       storage.NewID(),
 		ClientStates: map[string]*storage.ClientAuthState{
 			"client1": {
-				UserID:            "user1",
-				ConnectorID:       "conn1",
 				Active:            true,
 				ExpiresAt:         now.Add(24 * time.Hour),
 				LastActivity:      now,
@@ -1201,7 +1201,7 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 	mustBeErrAlreadyExists(t, "auth session", err)
 
 	// Get and compare.
-	got, err := s.GetAuthSession(ctx, session.ID)
+	got, err := s.GetAuthSession(ctx, session.UserID, session.ConnectorID)
 	if err != nil {
 		t.Fatalf("get auth session: %v", err)
 	}
@@ -1219,10 +1219,8 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 
 	// Update: add a new client state.
 	newNow := now.Add(time.Minute)
-	if err := s.UpdateAuthSession(ctx, session.ID, func(old storage.AuthSession) (storage.AuthSession, error) {
+	if err := s.UpdateAuthSession(ctx, session.UserID, session.ConnectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
 		old.ClientStates["client2"] = &storage.ClientAuthState{
-			UserID:       "user2",
-			ConnectorID:  "conn2",
 			Active:       true,
 			ExpiresAt:    newNow.Add(24 * time.Hour),
 			LastActivity: newNow,
@@ -1234,7 +1232,7 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 	}
 
 	// Get and verify update.
-	got, err = s.GetAuthSession(ctx, session.ID)
+	got, err = s.GetAuthSession(ctx, session.UserID, session.ConnectorID)
 	if err != nil {
 		t.Fatalf("get auth session after update: %v", err)
 	}
@@ -1243,9 +1241,6 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 	}
 	if got.ClientStates["client2"] == nil {
 		t.Fatal("expected client2 state to exist")
-	}
-	if got.ClientStates["client2"].UserID != "user2" {
-		t.Errorf("expected client2 user_id to be user2, got %s", got.ClientStates["client2"].UserID)
 	}
 
 	// List and verify.
@@ -1258,11 +1253,11 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 	}
 
 	// Delete.
-	if err := s.DeleteAuthSession(ctx, session.ID); err != nil {
+	if err := s.DeleteAuthSession(ctx, session.UserID, session.ConnectorID); err != nil {
 		t.Fatalf("delete auth session: %v", err)
 	}
 
 	// Get deleted should return ErrNotFound.
-	_, err = s.GetAuthSession(ctx, session.ID)
+	_, err = s.GetAuthSession(ctx, session.UserID, session.ConnectorID)
 	mustBeErrNotFound(t, "auth session", err)
 }
