@@ -75,8 +75,11 @@ type Config struct {
 	InsecureSkipEmailVerified bool `json:"insecureSkipEmailVerified"`
 
 	// InsecureEnableGroups enables groups claims. This is disabled by default until https://github.com/dexidp/dex/issues/1065 is resolved
-	InsecureEnableGroups bool     `json:"insecureEnableGroups"`
-	AllowedGroups        []string `json:"allowedGroups"`
+	InsecureEnableGroups bool `json:"insecureEnableGroups"`
+	// Restricts login to users that are members of at least one of the specified groups. This is only effective if groups claims are enabled.
+	AllowedGroups []string `json:"allowedGroups"`
+	// ForwardAllGroups, if true, will forward all groups from the IdP instead of only the allowed groups when AllowedGroups is set. This is only effective if groups claims are enabled.
+	ForwardAllGroups bool `json:"forwardAllGroups"`
 
 	// AcrValues (Authentication Context Class Reference Values) that specifies the Authentication Context Class Values
 	// within the Authentication Request that the Authorization Server is being requested to use for
@@ -361,6 +364,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		insecureSkipEmailVerified: c.InsecureSkipEmailVerified,
 		insecureEnableGroups:      c.InsecureEnableGroups,
 		allowedGroups:             c.AllowedGroups,
+		forwardAllGroups:          c.ForwardAllGroups,
 		acrValues:                 c.AcrValues,
 		getUserInfo:               c.GetUserInfo,
 		promptType:                promptType,
@@ -395,6 +399,7 @@ type oidcConnector struct {
 	insecureSkipEmailVerified bool
 	insecureEnableGroups      bool
 	allowedGroups             []string
+	forwardAllGroups          bool
 	acrValues                 []string
 	getUserInfo               bool
 	promptType                string
@@ -675,7 +680,10 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 				return identity, fmt.Errorf("user not a member of allowed groups")
 			}
 
-			groups = groupMatches
+			// By default only the `allowedGroups` are sent in the token
+			if !c.forwardAllGroups {
+				groups = groupMatches
+			}
 		}
 	}
 
