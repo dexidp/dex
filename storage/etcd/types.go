@@ -24,6 +24,8 @@ type AuthCode struct {
 
 	CodeChallenge       string `json:"code_challenge,omitempty"`
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
+
+	AuthTime time.Time `json:"auth_time"`
 }
 
 func toStorageAuthCode(a AuthCode) storage.AuthCode {
@@ -41,6 +43,7 @@ func toStorageAuthCode(a AuthCode) storage.AuthCode {
 			CodeChallenge:       a.CodeChallenge,
 			CodeChallengeMethod: a.CodeChallengeMethod,
 		},
+		AuthTime: a.AuthTime,
 	}
 }
 
@@ -57,6 +60,7 @@ func fromStorageAuthCode(a storage.AuthCode) AuthCode {
 		Expiry:              a.Expiry,
 		CodeChallenge:       a.PKCE.CodeChallenge,
 		CodeChallengeMethod: a.PKCE.CodeChallengeMethod,
+		AuthTime:            a.AuthTime,
 	}
 }
 
@@ -88,6 +92,10 @@ type AuthRequest struct {
 	HMACKey []byte `json:"hmac_key"`
 
 	MFAValidated bool `json:"mfa_validated"`
+
+	Prompt   string    `json:"prompt,omitempty"`
+	MaxAge   int       `json:"max_age"`
+	AuthTime time.Time `json:"auth_time"`
 }
 
 func fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
@@ -109,6 +117,9 @@ func fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		CodeChallengeMethod: a.PKCE.CodeChallengeMethod,
 		HMACKey:             a.HMACKey,
 		MFAValidated:        a.MFAValidated,
+		Prompt:              a.Prompt,
+		MaxAge:              a.MaxAge,
+		AuthTime:            a.AuthTime,
 	}
 }
 
@@ -133,6 +144,9 @@ func toStorageAuthRequest(a AuthRequest) storage.AuthRequest {
 		},
 		HMACKey:      a.HMACKey,
 		MFAValidated: a.MFAValidated,
+		Prompt:       a.Prompt,
+		MaxAge:       a.MaxAge,
+		AuthTime:     a.AuthTime,
 	}
 }
 

@@ -152,7 +152,7 @@ func TestGetTokenFromRequestSuccess(t *testing.T) {
 	accessToken, _, err := s.newIDToken(ctx, "test", storage.Claims{
 		UserID:   "1",
 		Username: "jane",
-	}, []string{"openid"}, "nonce", "", "", "test")
+	}, []string{"openid"}, "nonce", "", "", "test", time.Time{})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -270,7 +270,7 @@ func TestHandleIntrospect(t *testing.T) {
 		Email:         "jane.doe@example.com",
 		EmailVerified: true,
 		Groups:        []string{"a", "b"},
-	}, []string{"openid", "email", "profile", "groups"}, "foo", "", "", "test")
+	}, []string{"openid", "email", "profile", "groups"}, "foo", "", "", "test", time.Time{})
 	require.NoError(t, err)
 
 	activeRefreshToken, err := internal.Marshal(&internal.RefreshToken{RefreshId: "test", Token: "bar"})

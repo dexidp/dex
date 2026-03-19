@@ -402,6 +402,10 @@ type AuthRequest struct {
 	HMACKey []byte `json:"hmac_key"`
 
 	MFAValidated bool `json:"mfa_validated"`
+
+	Prompt   string    `json:"prompt,omitempty"`
+	MaxAge   int       `json:"maxAge"`
+	AuthTime time.Time `json:"authTime,omitempty"`
 }
 
 // AuthRequestList is a list of AuthRequests.
@@ -432,6 +436,9 @@ func toStorageAuthRequest(req AuthRequest) storage.AuthRequest {
 		},
 		HMACKey:      req.HMACKey,
 		MFAValidated: req.MFAValidated,
+		Prompt:       req.Prompt,
+		MaxAge:       req.MaxAge,
+		AuthTime:     req.AuthTime,
 	}
 	return a
 }
@@ -462,6 +469,9 @@ func (cli *client) fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		CodeChallengeMethod: a.PKCE.CodeChallengeMethod,
 		HMACKey:             a.HMACKey,
 		MFAValidated:        a.MFAValidated,
+		Prompt:              a.Prompt,
+		MaxAge:              a.MaxAge,
+		AuthTime:            a.AuthTime,
 	}
 	return req
 }
@@ -550,6 +560,8 @@ type AuthCode struct {
 
 	CodeChallenge       string `json:"code_challenge,omitempty"`
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
+
+	AuthTime time.Time `json:"authTime,omitempty"`
 }
 
 // AuthCodeList is a list of AuthCodes.
@@ -579,6 +591,7 @@ func (cli *client) fromStorageAuthCode(a storage.AuthCode) AuthCode {
 		Expiry:              a.Expiry,
 		CodeChallenge:       a.PKCE.CodeChallenge,
 		CodeChallengeMethod: a.PKCE.CodeChallengeMethod,
+		AuthTime:            a.AuthTime,
 	}
 }
 
@@ -597,6 +610,7 @@ func toStorageAuthCode(a AuthCode) storage.AuthCode {
 			CodeChallenge:       a.CodeChallenge,
 			CodeChallengeMethod: a.CodeChallengeMethod,
 		},
+		AuthTime: a.AuthTime,
 	}
 }
 

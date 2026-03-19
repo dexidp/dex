@@ -45,6 +45,18 @@ func newDisplayedErr(status int, format string, a ...interface{}) *displayedAuth
 	return &displayedAuthErr{status, fmt.Sprintf(format, a...)}
 }
 
+// redirectWithError redirects back to the client with an OAuth2 error response.
+// Used for prompt=none when login or consent is required.
+func (s *Server) redirectWithError(w http.ResponseWriter, r *http.Request, authReq *storage.AuthRequest, errType, description string) {
+	err := &redirectedAuthErr{
+		State:       authReq.State,
+		RedirectURI: authReq.RedirectURI,
+		Type:        errType,
+		Description: description,
+	}
+	err.Handler().ServeHTTP(w, r)
+}
+
 // redirectedAuthErr is an error that should be reported back to the client by 302 redirect
 type redirectedAuthErr struct {
 	State       string
@@ -117,6 +129,9 @@ const (
 	errInvalidGrant            = "invalid_grant"
 	errInvalidClient           = "invalid_client"
 	errInactiveToken           = "inactive_token"
+	errLoginRequired           = "login_required"
+	errInteractionRequired     = "interaction_required"
+	errConsentRequired         = "consent_required"
 )
 
 const (
@@ -257,6 +272,7 @@ type idTokenClaims struct {
 	IssuedAt         int64    `json:"iat"`
 	AuthorizingParty string   `json:"azp,omitempty"`
 	Nonce            string   `json:"nonce,omitempty"`
+	AuthTime         int64    `json:"auth_time,omitempty"`
 
 	AccessTokenHash string `json:"at_hash,omitempty"`
 	CodeHash        string `json:"c_hash,omitempty"`
@@ -277,8 +293,8 @@ type federatedIDClaims struct {
 	UserID      string `json:"user_id,omitempty"`
 }
 
-func (s *Server) newAccessToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, connID string) (accessToken string, expiry time.Time, err error) {
-	return s.newIDToken(ctx, clientID, claims, scopes, nonce, storage.NewID(), "", connID)
+func (s *Server) newAccessToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, connID string, authTime time.Time) (accessToken string, expiry time.Time, err error) {
+	return s.newIDToken(ctx, clientID, claims, scopes, nonce, storage.NewID(), "", connID, authTime)
 }
 
 func getClientID(aud audience, azp string) (string, error) {
@@ -324,7 +340,7 @@ func genSubject(userID string, connID string) (string, error) {
 	return internal.Marshal(sub)
 }
 
-func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string) (idToken string, expiry time.Time, err error) {
+func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string, authTime time.Time) (idToken string, expiry time.Time, err error) {
 	issuedAt := s.now()
 	expiry = issuedAt.Add(s.idTokensValidFor)
 
@@ -340,6 +356,11 @@ func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage
 		Nonce:    nonce,
 		Expiry:   expiry.Unix(),
 		IssuedAt: issuedAt.Unix(),
+	}
+
+	// Include auth_time when sessions are enabled and the value is available.
+	if !authTime.IsZero() {
+		tok.AuthTime = authTime.Unix()
 	}
 
 	// Determine signing algorithm from signer
@@ -583,12 +604,32 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		}
 	}
 
+	prompt, err := ParsePrompt(q.Get("prompt"))
+	if err != nil {
+		return nil, newRedirectedErr(errInvalidRequest, "Invalid prompt parameter: %v", err)
+	}
+
+	// Parse max_age: -1 means not specified.
+	maxAge := -1
+	if maxAgeStr := q.Get("max_age"); maxAgeStr != "" {
+		v, err := strconv.Atoi(maxAgeStr)
+		if err != nil || v < 0 {
+			return nil, newRedirectedErr(errInvalidRequest, "Invalid max_age value %q", maxAgeStr)
+		}
+		maxAge = v
+	}
+
+	// OIDC prompt=consent implies force approval.
+	forceApproval := q.Get("approval_prompt") == "force" || prompt.Consent()
+
 	return &storage.AuthRequest{
 		ID:                  storage.NewID(),
 		ClientID:            client.ID,
 		State:               state,
 		Nonce:               nonce,
-		ForceApprovalPrompt: q.Get("approval_prompt") == "force",
+		ForceApprovalPrompt: forceApproval,
+		Prompt:              prompt.String(),
+		MaxAge:              maxAge,
 		Scopes:              scopes,
 		RedirectURI:         redirectURI,
 		ResponseTypes:       responseTypes,

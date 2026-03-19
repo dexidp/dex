@@ -134,6 +134,20 @@ func (_c *AuthCodeCreate) SetNillableCodeChallengeMethod(v *string) *AuthCodeCre
 	return _c
 }
 
+// SetAuthTime sets the "auth_time" field.
+func (_c *AuthCodeCreate) SetAuthTime(v time.Time) *AuthCodeCreate {
+	_c.mutation.SetAuthTime(v)
+	return _c
+}
+
+// SetNillableAuthTime sets the "auth_time" field if the given value is not nil.
+func (_c *AuthCodeCreate) SetNillableAuthTime(v *time.Time) *AuthCodeCreate {
+	if v != nil {
+		_c.SetAuthTime(*v)
+	}
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *AuthCodeCreate) SetID(v string) *AuthCodeCreate {
 	_c.mutation.SetID(v)
@@ -361,6 +375,10 @@ func (_c *AuthCodeCreate) createSpec() (*AuthCode, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.CodeChallengeMethod(); ok {
 		_spec.SetField(authcode.FieldCodeChallengeMethod, field.TypeString, value)
 		_node.CodeChallengeMethod = value
+	}
+	if value, ok := _c.mutation.AuthTime(); ok {
+		_spec.SetField(authcode.FieldAuthTime, field.TypeTime, value)
+		_node.AuthTime = value
 	}
 	return _node, _spec
 }

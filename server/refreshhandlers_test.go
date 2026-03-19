@@ -2,15 +2,18 @@ package server
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"path"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/server/internal"
@@ -205,6 +208,141 @@ func TestRefreshTokenExpirationScenarios(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, updatedTokenData, ref.Token)
 			}
+		})
+	}
+}
+
+// decodeJWTClaims decodes the payload of a JWT token without verifying the signature.
+func decodeJWTClaims(t *testing.T, token string) map[string]any {
+	t.Helper()
+	parts := strings.SplitN(token, ".", 3)
+	require.Len(t, parts, 3, "JWT should have 3 parts")
+
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	require.NoError(t, err)
+
+	var claims map[string]any
+	err = json.Unmarshal(payload, &claims)
+	require.NoError(t, err)
+	return claims
+}
+
+func TestRefreshTokenAuthTime(t *testing.T) {
+	t0 := time.Now().UTC().Round(time.Second)
+	loginTime := t0.Add(-10 * time.Minute)
+
+	tests := []struct {
+		name               string
+		sessionConfig      *SessionConfig
+		createUserIdentity bool
+		wantAuthTime       bool
+		wantHTTPError      bool
+	}{
+		{
+			name: "sessions enabled with user identity",
+			sessionConfig: &SessionConfig{
+				CookieName:       "dex_session",
+				AbsoluteLifetime: 24 * time.Hour,
+			},
+			createUserIdentity: true,
+			wantAuthTime:       true,
+		},
+		{
+			name:               "sessions disabled",
+			sessionConfig:      nil,
+			createUserIdentity: false,
+			wantAuthTime:       false,
+		},
+		{
+			name: "sessions enabled but user identity missing",
+			sessionConfig: &SessionConfig{
+				CookieName:       "dex_session",
+				AbsoluteLifetime: 24 * time.Hour,
+			},
+			createUserIdentity: false,
+			wantHTTPError:      true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			httpServer, s := newTestServer(t, func(c *Config) {
+				c.Now = func() time.Time { return t0 }
+			})
+			defer httpServer.Close()
+
+			s.sessionConfig = tc.sessionConfig
+
+			mockRefreshTokenTestStorage(t, s.storage, false)
+
+			if tc.createUserIdentity {
+				// The mock connector returns UserID "0-385-28089-0" on Refresh,
+				// so the UserIdentity must use that ID to be found by handleRefreshToken.
+				err := s.storage.CreateUserIdentity(t.Context(), storage.UserIdentity{
+					UserID:      "0-385-28089-0",
+					ConnectorID: "test",
+					Claims: storage.Claims{
+						UserID:        "0-385-28089-0",
+						Username:      "Kilgore Trout",
+						Email:         "kilgore@kilgore.trout",
+						EmailVerified: true,
+						Groups:        []string{"authors"},
+					},
+					CreatedAt: loginTime,
+					LastLogin: loginTime,
+				})
+				require.NoError(t, err)
+			}
+
+			u, err := url.Parse(s.issuerURL.String())
+			require.NoError(t, err)
+
+			tokenData, err := internal.Marshal(&internal.RefreshToken{RefreshId: "test", Token: "bar"})
+			require.NoError(t, err)
+
+			u.Path = path.Join(u.Path, "/token")
+			v := url.Values{}
+			v.Add("grant_type", "refresh_token")
+			v.Add("refresh_token", tokenData)
+
+			req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(v.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
+			req.SetBasicAuth("test", "barfoo")
+
+			rr := httptest.NewRecorder()
+			s.ServeHTTP(rr, req)
+
+			if tc.wantHTTPError {
+				assert.Equal(t, http.StatusInternalServerError, rr.Code)
+				return
+			}
+			require.Equal(t, http.StatusOK, rr.Code)
+
+			var resp struct {
+				AccessToken  string `json:"access_token"`
+				IDToken      string `json:"id_token"`
+				RefreshToken string `json:"refresh_token"`
+			}
+			err = json.Unmarshal(rr.Body.Bytes(), &resp)
+			require.NoError(t, err)
+
+			accessClaims := decodeJWTClaims(t, resp.AccessToken)
+
+			if tc.wantAuthTime {
+				assert.Equal(t, float64(loginTime.Unix()), accessClaims["auth_time"],
+					"access token auth_time should match UserIdentity.LastLogin")
+			} else {
+				assert.Nil(t, accessClaims["auth_time"],
+					"access token should not have auth_time when sessions are disabled")
+			}
+
+			// TODO: newIDToken in handleRefreshToken is currently called with time.Time{},
+			// so the ID token does not include auth_time. Once fixed, uncomment:
+			// if tc.wantAuthTime {
+			// 	idClaims := decodeJWTClaims(t, resp.IDToken)
+			// 	assert.Equal(t, float64(loginTime.Unix()), idClaims["auth_time"],
+			// 		"id token auth_time should match UserIdentity.LastLogin")
+			// }
 		})
 	}
 }

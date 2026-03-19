@@ -427,6 +427,7 @@ func setupSessionLoginFixture(t *testing.T, s *Server) storage.AuthRequest {
 		ConnectorID: "mock",
 		Scopes:      []string{"openid", "email"},
 		RedirectURI: "http://localhost/callback",
+		MaxAge:      -1,
 		HMACKey:     storage.NewHMACKey(crypto.SHA256),
 		Expiry:      now.Add(10 * time.Minute),
 	}
@@ -463,8 +464,6 @@ func TestTrySessionLogin(t *testing.T) {
 
 		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
 		assert.True(t, ok)
-		// sendCodeResponse deletes the AuthRequest after processing,
-		// so we can't verify it here. The fact that ok=true is sufficient.
 	})
 
 	t.Run("successful login redirects to approval", func(t *testing.T) {
@@ -491,7 +490,6 @@ func TestTrySessionLogin(t *testing.T) {
 		s := newTestSessionServer(t)
 		s.skipApproval = false
 		authReq := setupSessionLoginFixture(t, s)
-		// Scopes match stored consent: {"client-1": {"openid", "email"}}
 
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
@@ -526,24 +524,23 @@ func TestTrySessionLogin(t *testing.T) {
 
 	t.Run("expired client state returns false", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		ctx := t.Context()
 		now := s.now()
 
-		require.NoError(t, s.storage.CreateAuthSession(ctx, storage.AuthSession{
+		require.NoError(t, s.storage.CreateAuthSession(t.Context(), storage.AuthSession{
 			UserID:      "user-exp",
 			ConnectorID: "mock",
 			Nonce:       "nonce-exp",
 			ClientStates: map[string]*storage.ClientAuthState{
 				"client-1": {
 					Active:    true,
-					ExpiresAt: now.Add(-1 * time.Hour), // expired
+					ExpiresAt: now.Add(-1 * time.Hour),
 				},
 			},
 			CreatedAt:    now.Add(-2 * time.Hour),
 			LastActivity: now.Add(-1 * time.Minute),
 		}))
 
-		require.NoError(t, s.storage.CreateUserIdentity(ctx, storage.UserIdentity{
+		require.NoError(t, s.storage.CreateUserIdentity(t.Context(), storage.UserIdentity{
 			UserID:      "user-exp",
 			ConnectorID: "mock",
 			Claims:      storage.Claims{UserID: "user-exp"},
@@ -556,10 +553,11 @@ func TestTrySessionLogin(t *testing.T) {
 			ID:          storage.NewID(),
 			ClientID:    "client-1",
 			ConnectorID: "mock",
+			MaxAge:      -1,
 			HMACKey:     storage.NewHMACKey(crypto.SHA256),
 			Expiry:      now.Add(10 * time.Minute),
 		}
-		require.NoError(t, s.storage.CreateAuthRequest(ctx, authReq))
+		require.NoError(t, s.storage.CreateAuthRequest(t.Context(), authReq))
 
 		r := sessionCookieRequest("user-exp", "mock", "nonce-exp")
 		w := httptest.NewRecorder()
@@ -582,5 +580,172 @@ func TestTrySessionLogin(t *testing.T) {
 		session, err := s.storage.GetAuthSession(ctx, "user-1", "mock")
 		require.NoError(t, err)
 		assert.Equal(t, s.now(), session.LastActivity)
+	})
+}
+
+// setupSessionWithIdentity creates an AuthSession, UserIdentity, and AuthRequest in storage
+// for use in trySessionLogin tests. Returns the authReq.
+func setupSessionWithIdentity(t *testing.T, s *Server, now time.Time, lastLogin time.Time) storage.AuthRequest {
+	t.Helper()
+	ctx := t.Context()
+	nonce := "test-nonce"
+
+	session := storage.AuthSession{
+		UserID:      "user-1",
+		ConnectorID: "mock",
+		Nonce:       nonce,
+		ClientStates: map[string]*storage.ClientAuthState{
+			"client-1": {
+				Active:       true,
+				ExpiresAt:    now.Add(24 * time.Hour),
+				LastActivity: now.Add(-1 * time.Minute),
+			},
+		},
+		CreatedAt:    now.Add(-30 * time.Minute),
+		LastActivity: now.Add(-1 * time.Minute),
+		IPAddress:    "127.0.0.1",
+		UserAgent:    "test",
+	}
+	require.NoError(t, s.storage.CreateAuthSession(ctx, session))
+
+	ui := storage.UserIdentity{
+		UserID:      "user-1",
+		ConnectorID: "mock",
+		Claims: storage.Claims{
+			UserID:   "user-1",
+			Username: "testuser",
+			Email:    "test@example.com",
+		},
+		Consents:  make(map[string][]string),
+		CreatedAt: now.Add(-1 * time.Hour),
+		LastLogin: lastLogin,
+	}
+	require.NoError(t, s.storage.CreateUserIdentity(ctx, ui))
+
+	authReq := storage.AuthRequest{
+		ID:          storage.NewID(),
+		ClientID:    "client-1",
+		ConnectorID: "mock",
+		Scopes:      []string{"openid"},
+		RedirectURI: "http://localhost/callback",
+		MaxAge:      -1,
+		HMACKey:     storage.NewHMACKey(crypto.SHA256),
+		Expiry:      now.Add(10 * time.Minute),
+	}
+	require.NoError(t, s.storage.CreateAuthRequest(ctx, authReq))
+
+	return authReq
+}
+
+func TestTrySessionLogin_MaxAge(t *testing.T) {
+	ctx := t.Context()
+
+	t.Run("max_age not specified, session reused", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		now := s.now()
+
+		authReq := setupSessionWithIdentity(t, s, now, now.Add(-2*time.Hour))
+		authReq.MaxAge = -1 // not specified
+
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user-1", "mock", "test-nonce")})
+		w := httptest.NewRecorder()
+
+		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		assert.True(t, ok, "session should be reused when max_age is not specified")
+	})
+
+	t.Run("max_age satisfied, session reused", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		now := s.now()
+
+		// User logged in 10 minutes ago, max_age=3600 (1 hour)
+		authReq := setupSessionWithIdentity(t, s, now, now.Add(-10*time.Minute))
+		authReq.MaxAge = 3600
+
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user-1", "mock", "test-nonce")})
+		w := httptest.NewRecorder()
+
+		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		assert.True(t, ok, "session should be reused when max_age is satisfied")
+	})
+
+	t.Run("max_age exceeded, force re-auth", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		now := s.now()
+
+		// User logged in 2 hours ago, max_age=3600 (1 hour)
+		authReq := setupSessionWithIdentity(t, s, now, now.Add(-2*time.Hour))
+		authReq.MaxAge = 3600
+
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user-1", "mock", "test-nonce")})
+		w := httptest.NewRecorder()
+
+		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		assert.False(t, ok, "session should NOT be reused when max_age is exceeded")
+	})
+
+	t.Run("max_age=0, always force re-auth", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		now := s.now()
+
+		// User logged in 1 second ago, max_age=0
+		authReq := setupSessionWithIdentity(t, s, now, now.Add(-1*time.Second))
+		authReq.MaxAge = 0
+
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user-1", "mock", "test-nonce")})
+		w := httptest.NewRecorder()
+
+		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		assert.False(t, ok, "max_age=0 should always force re-authentication")
+	})
+
+	t.Run("auth_time is set from UserIdentity.LastLogin", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		s.skipApproval = false
+		now := s.now()
+		lastLogin := now.Add(-10 * time.Minute)
+
+		authReq := setupSessionWithIdentity(t, s, now, lastLogin)
+		authReq.ForceApprovalPrompt = true // force approval so AuthRequest is not deleted
+
+		require.NoError(t, s.storage.UpdateAuthRequest(ctx, authReq.ID, func(a storage.AuthRequest) (storage.AuthRequest, error) {
+			a.ForceApprovalPrompt = true
+			return a, nil
+		}))
+
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user-1", "mock", "test-nonce")})
+		w := httptest.NewRecorder()
+
+		redirectURL, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		require.True(t, ok)
+		assert.Contains(t, redirectURL, "/approval")
+
+		// Verify AuthTime was set on the auth request.
+		updated, err := s.storage.GetAuthRequest(ctx, authReq.ID)
+		require.NoError(t, err)
+		assert.Equal(t, lastLogin.Unix(), updated.AuthTime.Unix())
+	})
+}
+
+func TestParseAuthRequest_PromptAndMaxAge(t *testing.T) {
+	t.Run("prompt=consent sets ForceApprovalPrompt", func(t *testing.T) {
+		authReq := storage.AuthRequest{
+			Prompt:              "consent",
+			ForceApprovalPrompt: true,
+		}
+		assert.True(t, authReq.ForceApprovalPrompt)
+		assert.Equal(t, "consent", authReq.Prompt)
+	})
+
+	t.Run("max_age default is -1", func(t *testing.T) {
+		authReq := storage.AuthRequest{
+			MaxAge: -1,
+		}
+		assert.Equal(t, -1, authReq.MaxAge)
 	})
 }

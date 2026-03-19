@@ -365,13 +365,38 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if there's a valid session that can skip login for this client.
+	// Handle OIDC prompt parameter and session-based login.
+	prompt, err := ParsePrompt(authReq.Prompt)
+	if err != nil {
+		// Server error because authReq was validated before saving it to database.
+		s.redirectWithError(w, r, authReq, errServerError, "Invalid authentication request")
+		return
+	}
+	// handle prompt only if sessions are enabled
 	if s.sessionConfig != nil {
-		if redirectURL, ok := s.trySessionLogin(ctx, r, w, authReq); ok {
+		// prompt=none: no UI allowed.
+		if prompt.None() {
+			redirectURL, ok := s.trySessionLogin(ctx, r, w, authReq)
+			if !ok {
+				s.redirectWithError(w, r, authReq, errLoginRequired, "User not authenticated")
+				return
+			}
 			if redirectURL != "" {
-				http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+				// Session found but consent required — no UI allowed.
+				s.redirectWithError(w, r, authReq, errInteractionRequired, "Consent required")
+				return
 			}
 			return
+		}
+
+		if !prompt.Login() {
+			// Normal flow: try session-based login (skip if prompt=login forces re-auth).
+			if redirectURL, ok := s.trySessionLogin(ctx, r, w, authReq); ok {
+				if redirectURL != "" {
+					http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+				}
+				return
+			}
 		}
 	}
 
@@ -687,6 +712,7 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 		a.LoggedIn = true
 		a.Claims = claims
 		a.ConnectorData = identity.ConnectorData
+		a.AuthTime = s.now()
 		return a, nil
 	}
 	if err := s.storage.UpdateAuthRequest(ctx, authReq.ID, updater); err != nil {
@@ -769,11 +795,8 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 			}
 		case err == nil:
 			if err := s.storage.UpdateUserIdentity(ctx, identity.UserID, authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
-				if len(identity.ConnectorData) > 0 {
-					old.Claims = claims
-					old.LastLogin = now
-					return old, nil
-				}
+				old.Claims = claims
+				old.LastLogin = now
 				return old, nil
 			}); err != nil {
 				s.logger.ErrorContext(ctx, "failed to update user identity", "err", err)
@@ -988,6 +1011,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 				RedirectURI:   authReq.RedirectURI,
 				ConnectorData: authReq.ConnectorData,
 				PKCE:          authReq.PKCE,
+				AuthTime:      authReq.AuthTime,
 			}
 			if err := s.storage.CreateAuthCode(ctx, code); err != nil {
 				s.logger.ErrorContext(r.Context(), "Failed to create auth code", "err", err)
@@ -1007,7 +1031,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 			implicitOrHybrid = true
 			var err error
 
-			accessToken, _, err = s.newAccessToken(r.Context(), authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, authReq.ConnectorID)
+			accessToken, _, err = s.newAccessToken(r.Context(), authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, authReq.ConnectorID, authReq.AuthTime)
 			if err != nil {
 				s.logger.ErrorContext(r.Context(), "failed to create new access token", "err", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -1017,7 +1041,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 			implicitOrHybrid = true
 			var err error
 
-			idToken, idTokenExpiry, err = s.newIDToken(r.Context(), authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, accessToken, code.ID, authReq.ConnectorID)
+			idToken, idTokenExpiry, err = s.newIDToken(r.Context(), authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, accessToken, code.ID, authReq.ConnectorID, authReq.AuthTime)
 			if err != nil {
 				s.logger.ErrorContext(r.Context(), "failed to create ID token", "err", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -1251,14 +1275,14 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 }
 
 func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, authCode storage.AuthCode, client storage.Client) (*accessTokenResponse, error) {
-	accessToken, _, err := s.newAccessToken(ctx, client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, authCode.ConnectorID)
+	accessToken, _, err := s.newAccessToken(ctx, client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, authCode.ConnectorID, authCode.AuthTime)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to create new access token", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		return nil, err
 	}
 
-	idToken, expiry, err := s.newIDToken(ctx, client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, accessToken, authCode.ID, authCode.ConnectorID)
+	idToken, expiry, err := s.newIDToken(ctx, client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, accessToken, authCode.ID, authCode.ConnectorID, authCode.AuthTime)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to create ID token", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -1539,14 +1563,14 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 		Groups:            identity.Groups,
 	}
 
-	accessToken, _, err := s.newAccessToken(ctx, client.ID, claims, scopes, nonce, connID)
+	accessToken, _, err := s.newAccessToken(ctx, client.ID, claims, scopes, nonce, connID, time.Time{})
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "password grant failed to create new access token", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		return
 	}
 
-	idToken, expiry, err := s.newIDToken(ctx, client.ID, claims, scopes, nonce, accessToken, "", connID)
+	idToken, expiry, err := s.newIDToken(ctx, client.ID, claims, scopes, nonce, accessToken, "", connID, time.Time{})
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "password grant failed to create new ID token", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -1752,9 +1776,9 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 	var expiry time.Time
 	switch requestedTokenType {
 	case tokenTypeID:
-		resp.AccessToken, expiry, err = s.newIDToken(r.Context(), client.ID, claims, scopes, "", "", "", connID)
+		resp.AccessToken, expiry, err = s.newIDToken(r.Context(), client.ID, claims, scopes, "", "", "", connID, time.Time{})
 	case tokenTypeAccess:
-		resp.AccessToken, expiry, err = s.newAccessToken(r.Context(), client.ID, claims, scopes, "", connID)
+		resp.AccessToken, expiry, err = s.newAccessToken(r.Context(), client.ID, claims, scopes, "", connID, time.Time{})
 	default:
 		s.tokenErrHelper(w, errRequestNotSupported, "Invalid requested_token_type.", http.StatusBadRequest)
 		return
@@ -1854,7 +1878,7 @@ func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Req
 	// Creating connectors with an empty ID with the config and API is prohibited
 	connID := ""
 
-	accessToken, expiry, err := s.newAccessToken(ctx, client.ID, claims, scopes, nonce, connID)
+	accessToken, expiry, err := s.newAccessToken(ctx, client.ID, claims, scopes, nonce, connID, time.Time{})
 	if err != nil {
 		s.logger.ErrorContext(ctx, "client_credentials grant failed to create new access token", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -1863,7 +1887,7 @@ func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Req
 
 	var idToken string
 	if hasOpenIDScope {
-		idToken, expiry, err = s.newIDToken(ctx, client.ID, claims, scopes, nonce, accessToken, "", connID)
+		idToken, expiry, err = s.newIDToken(ctx, client.ID, claims, scopes, nonce, accessToken, "", connID, time.Time{})
 		if err != nil {
 			s.logger.ErrorContext(ctx, "client_credentials grant failed to create new ID token", "err", err)
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)

@@ -82,6 +82,7 @@ func testAuthRequestConcurrentUpdate(t *testing.T, s storage.Storage) {
 		ForceApprovalPrompt: true,
 		LoggedIn:            true,
 		Expiry:              neverExpire,
+		AuthTime:            defaultAuthTime,
 		ConnectorID:         "ldap",
 		ConnectorData:       []byte(`{"some":"data"}`),
 		Claims: storage.Claims{

@@ -53,6 +53,12 @@ const (
 	FieldHmacKey = "hmac_key"
 	// FieldMfaValidated holds the string denoting the mfa_validated field in the database.
 	FieldMfaValidated = "mfa_validated"
+	// FieldPrompt holds the string denoting the prompt field in the database.
+	FieldPrompt = "prompt"
+	// FieldMaxAge holds the string denoting the max_age field in the database.
+	FieldMaxAge = "max_age"
+	// FieldAuthTime holds the string denoting the auth_time field in the database.
+	FieldAuthTime = "auth_time"
 	// Table holds the table name of the authrequest in the database.
 	Table = "auth_requests"
 )
@@ -81,6 +87,9 @@ var Columns = []string{
 	FieldCodeChallengeMethod,
 	FieldHmacKey,
 	FieldMfaValidated,
+	FieldPrompt,
+	FieldMaxAge,
+	FieldAuthTime,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -102,6 +111,10 @@ var (
 	DefaultCodeChallengeMethod string
 	// DefaultMfaValidated holds the default value on creation for the "mfa_validated" field.
 	DefaultMfaValidated bool
+	// DefaultPrompt holds the default value on creation for the "prompt" field.
+	DefaultPrompt string
+	// DefaultMaxAge holds the default value on creation for the "max_age" field.
+	DefaultMaxAge int
 	// IDValidator is a validator for the "id" field. It is called by the builders before save.
 	IDValidator func(string) error
 )
@@ -192,4 +205,19 @@ func ByCodeChallengeMethod(opts ...sql.OrderTermOption) OrderOption {
 // ByMfaValidated orders the results by the mfa_validated field.
 func ByMfaValidated(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldMfaValidated, opts...).ToFunc()
+}
+
+// ByPrompt orders the results by the prompt field.
+func ByPrompt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPrompt, opts...).ToFunc()
+}
+
+// ByMaxAge orders the results by the max_age field.
+func ByMaxAge(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMaxAge, opts...).ToFunc()
+}
+
+// ByAuthTime orders the results by the auth_time field.
+func ByAuthTime(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAuthTime, opts...).ToFunc()
 }

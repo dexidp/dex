@@ -26,6 +26,7 @@ var (
 		{Name: "expiry", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)", "postgres": "timestamptz", "sqlite3": "timestamp"}},
 		{Name: "code_challenge", Type: field.TypeString, Size: 2147483647, Default: "", SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "code_challenge_method", Type: field.TypeString, Size: 2147483647, Default: "", SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
+		{Name: "auth_time", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(3)", "postgres": "timestamptz", "sqlite3": "timestamp"}},
 	}
 	// AuthCodesTable holds the schema information for the "auth_codes" table.
 	AuthCodesTable = &schema.Table{
@@ -57,6 +58,9 @@ var (
 		{Name: "code_challenge_method", Type: field.TypeString, Size: 2147483647, Default: "", SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "hmac_key", Type: field.TypeBytes},
 		{Name: "mfa_validated", Type: field.TypeBool, Default: false},
+		{Name: "prompt", Type: field.TypeString, Size: 2147483647, Default: "", SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
+		{Name: "max_age", Type: field.TypeInt, Default: -1},
+		{Name: "auth_time", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(3)", "postgres": "timestamptz", "sqlite3": "timestamp"}},
 	}
 	// AuthRequestsTable holds the schema information for the "auth_requests" table.
 	AuthRequestsTable = &schema.Table{

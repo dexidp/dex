@@ -19,6 +19,10 @@ import (
 // ensure that values being tested on never expire.
 var neverExpire = time.Now().UTC().Add(time.Hour * 24 * 365 * 100)
 
+// defaultAuthTime is a non-zero time used as AuthTime default in tests.
+// MySQL rejects Go's zero time (0001-01-01), so all test fixtures must use a real value.
+var defaultAuthTime = time.Now().UTC()
+
 type subTest struct {
 	name string
 	run  func(t *testing.T, s storage.Storage)
@@ -100,6 +104,7 @@ func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
 		ForceApprovalPrompt: true,
 		LoggedIn:            true,
 		Expiry:              neverExpire,
+		AuthTime:            defaultAuthTime,
 		ConnectorID:         "ldap",
 		ConnectorData:       []byte(`{"some":"data"}`),
 		Claims: storage.Claims{
@@ -134,6 +139,7 @@ func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
 		ForceApprovalPrompt: true,
 		LoggedIn:            true,
 		Expiry:              neverExpire,
+		AuthTime:            defaultAuthTime,
 		ConnectorID:         "ldap",
 		ConnectorData:       []byte(`{"some":"data"}`),
 		Claims: storage.Claims{
@@ -191,6 +197,7 @@ func testAuthCodeCRUD(t *testing.T, s storage.Storage) {
 		Nonce:         "foobar",
 		Scopes:        []string{"openid", "email"},
 		Expiry:        neverExpire,
+		AuthTime:      defaultAuthTime,
 		ConnectorID:   "ldap",
 		ConnectorData: []byte(`{"some":"data"}`),
 		PKCE: storage.PKCE{
@@ -217,6 +224,7 @@ func testAuthCodeCRUD(t *testing.T, s storage.Storage) {
 		Nonce:         "foobar",
 		Scopes:        []string{"openid", "email"},
 		Expiry:        neverExpire,
+		AuthTime:      defaultAuthTime,
 		ConnectorID:   "ldap",
 		ConnectorData: []byte(`{"some":"data"}`),
 		Claims: storage.Claims{
@@ -243,7 +251,8 @@ func testAuthCodeCRUD(t *testing.T, s storage.Storage) {
 	if a1.Expiry.Unix() != got.Expiry.Unix() {
 		t.Errorf("auth code expiry did not match want=%s vs got=%s", a1.Expiry, got.Expiry)
 	}
-	got.Expiry = a1.Expiry // time fields do not compare well
+	got.Expiry = a1.Expiry     // time fields do not compare well
+	got.AuthTime = a1.AuthTime // time fields do not compare well
 	if diff := pretty.Compare(a1, got); diff != "" {
 		t.Errorf("auth code retrieved from storage did not match: %s", diff)
 	}
@@ -790,6 +799,7 @@ func testGC(t *testing.T, s storage.Storage) {
 		Nonce:         "foobar",
 		Scopes:        []string{"openid", "email"},
 		Expiry:        expiry,
+		AuthTime:      defaultAuthTime,
 		ConnectorID:   "ldap",
 		ConnectorData: []byte(`{"some":"data"}`),
 		Claims: storage.Claims{
@@ -840,6 +850,7 @@ func testGC(t *testing.T, s storage.Storage) {
 		ForceApprovalPrompt: true,
 		LoggedIn:            true,
 		Expiry:              expiry,
+		AuthTime:            defaultAuthTime,
 		ConnectorID:         "ldap",
 		ConnectorData:       []byte(`{"some":"data"}`),
 		Claims: storage.Claims{
@@ -976,6 +987,7 @@ func testTimezones(t *testing.T, s storage.Storage) {
 		Nonce:         "foobar",
 		Scopes:        []string{"openid", "email"},
 		Expiry:        expiry,
+		AuthTime:      defaultAuthTime,
 		ConnectorID:   "ldap",
 		ConnectorData: []byte(`{"some":"data"}`),
 		Claims: storage.Claims{

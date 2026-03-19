@@ -325,6 +325,61 @@ func (_u *AuthRequestUpdate) SetNillableMfaValidated(v *bool) *AuthRequestUpdate
 	return _u
 }
 
+// SetPrompt sets the "prompt" field.
+func (_u *AuthRequestUpdate) SetPrompt(v string) *AuthRequestUpdate {
+	_u.mutation.SetPrompt(v)
+	return _u
+}
+
+// SetNillablePrompt sets the "prompt" field if the given value is not nil.
+func (_u *AuthRequestUpdate) SetNillablePrompt(v *string) *AuthRequestUpdate {
+	if v != nil {
+		_u.SetPrompt(*v)
+	}
+	return _u
+}
+
+// SetMaxAge sets the "max_age" field.
+func (_u *AuthRequestUpdate) SetMaxAge(v int) *AuthRequestUpdate {
+	_u.mutation.ResetMaxAge()
+	_u.mutation.SetMaxAge(v)
+	return _u
+}
+
+// SetNillableMaxAge sets the "max_age" field if the given value is not nil.
+func (_u *AuthRequestUpdate) SetNillableMaxAge(v *int) *AuthRequestUpdate {
+	if v != nil {
+		_u.SetMaxAge(*v)
+	}
+	return _u
+}
+
+// AddMaxAge adds value to the "max_age" field.
+func (_u *AuthRequestUpdate) AddMaxAge(v int) *AuthRequestUpdate {
+	_u.mutation.AddMaxAge(v)
+	return _u
+}
+
+// SetAuthTime sets the "auth_time" field.
+func (_u *AuthRequestUpdate) SetAuthTime(v time.Time) *AuthRequestUpdate {
+	_u.mutation.SetAuthTime(v)
+	return _u
+}
+
+// SetNillableAuthTime sets the "auth_time" field if the given value is not nil.
+func (_u *AuthRequestUpdate) SetNillableAuthTime(v *time.Time) *AuthRequestUpdate {
+	if v != nil {
+		_u.SetAuthTime(*v)
+	}
+	return _u
+}
+
+// ClearAuthTime clears the value of the "auth_time" field.
+func (_u *AuthRequestUpdate) ClearAuthTime() *AuthRequestUpdate {
+	_u.mutation.ClearAuthTime()
+	return _u
+}
+
 // Mutation returns the AuthRequestMutation object of the builder.
 func (_u *AuthRequestUpdate) Mutation() *AuthRequestMutation {
 	return _u.mutation
@@ -455,6 +510,21 @@ func (_u *AuthRequestUpdate) sqlSave(ctx context.Context) (_node int, err error)
 	}
 	if value, ok := _u.mutation.MfaValidated(); ok {
 		_spec.SetField(authrequest.FieldMfaValidated, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.Prompt(); ok {
+		_spec.SetField(authrequest.FieldPrompt, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.MaxAge(); ok {
+		_spec.SetField(authrequest.FieldMaxAge, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedMaxAge(); ok {
+		_spec.AddField(authrequest.FieldMaxAge, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AuthTime(); ok {
+		_spec.SetField(authrequest.FieldAuthTime, field.TypeTime, value)
+	}
+	if _u.mutation.AuthTimeCleared() {
+		_spec.ClearField(authrequest.FieldAuthTime, field.TypeTime)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -772,6 +842,61 @@ func (_u *AuthRequestUpdateOne) SetNillableMfaValidated(v *bool) *AuthRequestUpd
 	return _u
 }
 
+// SetPrompt sets the "prompt" field.
+func (_u *AuthRequestUpdateOne) SetPrompt(v string) *AuthRequestUpdateOne {
+	_u.mutation.SetPrompt(v)
+	return _u
+}
+
+// SetNillablePrompt sets the "prompt" field if the given value is not nil.
+func (_u *AuthRequestUpdateOne) SetNillablePrompt(v *string) *AuthRequestUpdateOne {
+	if v != nil {
+		_u.SetPrompt(*v)
+	}
+	return _u
+}
+
+// SetMaxAge sets the "max_age" field.
+func (_u *AuthRequestUpdateOne) SetMaxAge(v int) *AuthRequestUpdateOne {
+	_u.mutation.ResetMaxAge()
+	_u.mutation.SetMaxAge(v)
+	return _u
+}
+
+// SetNillableMaxAge sets the "max_age" field if the given value is not nil.
+func (_u *AuthRequestUpdateOne) SetNillableMaxAge(v *int) *AuthRequestUpdateOne {
+	if v != nil {
+		_u.SetMaxAge(*v)
+	}
+	return _u
+}
+
+// AddMaxAge adds value to the "max_age" field.
+func (_u *AuthRequestUpdateOne) AddMaxAge(v int) *AuthRequestUpdateOne {
+	_u.mutation.AddMaxAge(v)
+	return _u
+}
+
+// SetAuthTime sets the "auth_time" field.
+func (_u *AuthRequestUpdateOne) SetAuthTime(v time.Time) *AuthRequestUpdateOne {
+	_u.mutation.SetAuthTime(v)
+	return _u
+}
+
+// SetNillableAuthTime sets the "auth_time" field if the given value is not nil.
+func (_u *AuthRequestUpdateOne) SetNillableAuthTime(v *time.Time) *AuthRequestUpdateOne {
+	if v != nil {
+		_u.SetAuthTime(*v)
+	}
+	return _u
+}
+
+// ClearAuthTime clears the value of the "auth_time" field.
+func (_u *AuthRequestUpdateOne) ClearAuthTime() *AuthRequestUpdateOne {
+	_u.mutation.ClearAuthTime()
+	return _u
+}
+
 // Mutation returns the AuthRequestMutation object of the builder.
 func (_u *AuthRequestUpdateOne) Mutation() *AuthRequestMutation {
 	return _u.mutation
@@ -932,6 +1057,21 @@ func (_u *AuthRequestUpdateOne) sqlSave(ctx context.Context) (_node *AuthRequest
 	}
 	if value, ok := _u.mutation.MfaValidated(); ok {
 		_spec.SetField(authrequest.FieldMfaValidated, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.Prompt(); ok {
+		_spec.SetField(authrequest.FieldPrompt, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.MaxAge(); ok {
+		_spec.SetField(authrequest.FieldMaxAge, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedMaxAge(); ok {
+		_spec.AddField(authrequest.FieldMaxAge, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AuthTime(); ok {
+		_spec.SetField(authrequest.FieldAuthTime, field.TypeTime, value)
+	}
+	if _u.mutation.AuthTimeCleared() {
+		_spec.ClearField(authrequest.FieldAuthTime, field.TypeTime)
 	}
 	_node = &AuthRequest{config: _u.config}
 	_spec.Assign = _node.assignValues
