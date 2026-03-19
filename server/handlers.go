@@ -366,22 +366,31 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Handle OIDC prompt parameter and session-based login.
+	prompt, err := ParsePrompt(authReq.Prompt)
+	if err != nil {
+		// Server error because authReq was validated before saving it to database.
+		s.redirectWithError(w, r, authReq, errServerError, "Invalid authentication request")
+		return
+	}
+	// handle prompt only if sessions are enabled
 	if s.sessionConfig != nil {
-		switch authReq.Prompt {
-		case "none":
-			// prompt=none: no UI allowed. If session exists, use it; otherwise error.
-			if redirectURL, ok := s.trySessionLogin(ctx, r, w, authReq); ok {
-				if redirectURL != "" {
-					http.Redirect(w, r, redirectURL, http.StatusSeeOther)
-				}
+		// prompt=none: no UI allowed.
+		if prompt.None() {
+			redirectURL, ok := s.trySessionLogin(ctx, r, w, authReq)
+			if !ok {
+				s.redirectWithError(w, r, authReq, errLoginRequired, "User not authenticated")
 				return
 			}
-			s.redirectWithError(w, r, authReq, errLoginRequired, "User not authenticated")
+			if redirectURL != "" {
+				// Session found but consent required — no UI allowed.
+				s.redirectWithError(w, r, authReq, errInteractionRequired, "Consent required")
+				return
+			}
 			return
-		case "login":
-			// prompt=login: force re-authentication, skip session check.
-		default:
-			// Normal flow: try session-based login.
+		}
+
+		if !prompt.Login() {
+			// Normal flow: try session-based login (skip if prompt=login forces re-auth).
 			if redirectURL, ok := s.trySessionLogin(ctx, r, w, authReq); ok {
 				if redirectURL != "" {
 					http.Redirect(w, r, redirectURL, http.StatusSeeOther)

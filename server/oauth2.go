@@ -130,6 +130,7 @@ const (
 	errInvalidClient           = "invalid_client"
 	errInactiveToken           = "inactive_token"
 	errLoginRequired           = "login_required"
+	errInteractionRequired     = "interaction_required"
 	errConsentRequired         = "consent_required"
 )
 
@@ -603,7 +604,10 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		}
 	}
 
-	prompt := q.Get("prompt")
+	prompt, err := ParsePrompt(q.Get("prompt"))
+	if err != nil {
+		return nil, newRedirectedErr(errInvalidRequest, "Invalid prompt parameter: %v", err)
+	}
 
 	// Parse max_age: -1 means not specified.
 	maxAge := -1
@@ -616,7 +620,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	}
 
 	// OIDC prompt=consent implies force approval.
-	forceApproval := q.Get("approval_prompt") == "force" || prompt == "consent"
+	forceApproval := q.Get("approval_prompt") == "force" || prompt.Consent()
 
 	return &storage.AuthRequest{
 		ID:                  storage.NewID(),
@@ -624,7 +628,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		State:               state,
 		Nonce:               nonce,
 		ForceApprovalPrompt: forceApproval,
-		Prompt:              prompt,
+		Prompt:              prompt.String(),
 		MaxAge:              maxAge,
 		Scopes:              scopes,
 		RedirectURI:         redirectURI,
