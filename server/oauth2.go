@@ -509,8 +509,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	}
 
 	if codeChallenge != "" && !slices.Contains(s.pkce.CodeChallengeMethodsSupported, codeChallengeMethod) {
-		description := fmt.Sprintf("Unsupported PKCE challenge method (%q).", codeChallengeMethod)
-		return nil, newRedirectedErr(errInvalidRequest, description)
+		return nil, newRedirectedErr(errInvalidRequest, "Unsupported PKCE challenge method (%q).", codeChallengeMethod)
 	}
 
 	// Enforce PKCE if configured.
@@ -599,8 +598,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	}
 	if rt.token {
 		if redirectURI == redirectURIOOB {
-			err := fmt.Sprintf("Cannot use response type 'token' with redirect_uri '%s'.", redirectURIOOB)
-			return nil, newRedirectedErr(errInvalidRequest, err)
+			return nil, newRedirectedErr(errInvalidRequest, "Cannot use response type 'token' with redirect_uri '%s'.", redirectURIOOB)
 		}
 	}
 
