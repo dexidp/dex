@@ -261,7 +261,6 @@ func (s *Server) trySessionLogin(ctx context.Context, r *http.Request, w http.Re
 
 	// Check max_age: if the user's last authentication is too old, force re-auth.
 	if authReq.MaxAge >= 0 {
-		now := s.now()
 		if now.Sub(ui.LastLogin) > time.Duration(authReq.MaxAge)*time.Second {
 			return "", false
 		}

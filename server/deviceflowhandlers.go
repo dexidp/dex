@@ -344,7 +344,7 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		resp, err := s.exchangeAuthCode(ctx, w, authCode, client, authCode.AuthTime)
+		resp, err := s.exchangeAuthCode(ctx, w, authCode, client)
 		if err != nil {
 			s.logger.ErrorContext(r.Context(), "could not exchange auth code for clien", "client_id", deviceReq.ClientID, "err", err)
 			s.renderError(r, w, http.StatusInternalServerError, "Failed to exchange auth code.")
