@@ -3,13 +3,17 @@ package server
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-jose/go-jose/v4"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/server/signer"
@@ -432,7 +436,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				req = httptest.NewRequest("GET", httpServer.URL+"/auth?"+params.Encode(), nil)
 			}
 
-			_, err := server.parseAuthorizationRequest(req)
+			_, _, err := server.parseAuthorizationRequest(req)
 			if tc.expectedError == nil {
 				if err != nil {
 					t.Errorf("%s: expected no error", tc.name)
@@ -882,4 +886,189 @@ func TestRedirectedAuthErrHandler(t *testing.T) {
 			}
 		})
 	}
+}
+
+// signTestIDToken creates a signed JWT with the given claims using the test key.
+func signTestIDToken(t *testing.T, claims interface{}) string {
+	t.Helper()
+	payload, err := json.Marshal(claims)
+	require.NoError(t, err)
+
+	joseSigner, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: testKey}, nil)
+	require.NoError(t, err)
+
+	jws, err := joseSigner.Sign(payload)
+	require.NoError(t, err)
+
+	token, err := jws.CompactSerialize()
+	require.NoError(t, err)
+	return token
+}
+
+func TestValidateIDTokenHint(t *testing.T) {
+	sig, err := signer.NewMockSigner(testKey)
+	require.NoError(t, err)
+
+	issuerURL, err := url.Parse("https://issuer.example.com")
+	require.NoError(t, err)
+
+	s := &Server{
+		signer:    sig,
+		issuerURL: *issuerURL,
+		logger:    slog.Default(),
+	}
+
+	now := time.Now()
+
+	t.Run("valid hint (not expired)", func(t *testing.T) {
+		token := signTestIDToken(t, idTokenClaims{
+			Issuer:  "https://issuer.example.com",
+			Subject: "CgNmb28SA2Jhcg",
+			Expiry:  now.Add(1 * time.Hour).Unix(),
+		})
+		sub, err := s.validateIDTokenHint(t.Context(), token)
+		require.NoError(t, err)
+		assert.Equal(t, "CgNmb28SA2Jhcg", sub)
+	})
+
+	t.Run("valid hint (expired)", func(t *testing.T) {
+		token := signTestIDToken(t, idTokenClaims{
+			Issuer:  "https://issuer.example.com",
+			Subject: "CgNmb28SA2Jhcg",
+			Expiry:  now.Add(-1 * time.Hour).Unix(),
+		})
+		sub, err := s.validateIDTokenHint(t.Context(), token)
+		require.NoError(t, err)
+		assert.Equal(t, "CgNmb28SA2Jhcg", sub)
+	})
+
+	t.Run("invalid signature", func(t *testing.T) {
+		otherKey, err := rsa.GenerateKey(rand.Reader, 2048)
+		require.NoError(t, err)
+
+		payload, err := json.Marshal(idTokenClaims{
+			Issuer:  "https://issuer.example.com",
+			Subject: "CgNmb28SA2Jhcg",
+			Expiry:  now.Add(1 * time.Hour).Unix(),
+		})
+		require.NoError(t, err)
+
+		joseSigner, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: otherKey}, nil)
+		require.NoError(t, err)
+		jws, err := joseSigner.Sign(payload)
+		require.NoError(t, err)
+		token, err := jws.CompactSerialize()
+		require.NoError(t, err)
+
+		_, err = s.validateIDTokenHint(t.Context(), token)
+		assert.Error(t, err)
+	})
+
+	t.Run("wrong issuer", func(t *testing.T) {
+		token := signTestIDToken(t, idTokenClaims{
+			Issuer:  "https://wrong-issuer.example.com",
+			Subject: "CgNmb28SA2Jhcg",
+			Expiry:  now.Add(1 * time.Hour).Unix(),
+		})
+		_, err := s.validateIDTokenHint(t.Context(), token)
+		assert.Error(t, err)
+	})
+
+	t.Run("malformed token", func(t *testing.T) {
+		_, err := s.validateIDTokenHint(t.Context(), "not-a-valid-jwt")
+		assert.Error(t, err)
+	})
+}
+
+func TestSessionMatchesHint(t *testing.T) {
+	// genSubject("foo", "bar") == "CgNmb28SA2Jhcg" (from TestGetSubject)
+	assert.True(t, sessionMatchesHint(&storage.AuthSession{UserID: "foo", ConnectorID: "bar"}, "CgNmb28SA2Jhcg"))
+	assert.False(t, sessionMatchesHint(&storage.AuthSession{UserID: "other", ConnectorID: "bar"}, "CgNmb28SA2Jhcg"))
+	assert.False(t, sessionMatchesHint(&storage.AuthSession{UserID: "foo", ConnectorID: "other"}, "CgNmb28SA2Jhcg"))
+	assert.False(t, sessionMatchesHint(nil, "CgNmb28SA2Jhcg"))
+}
+
+func TestParseAuthorizationRequest_IDTokenHint(t *testing.T) {
+	sig, err := signer.NewMockSigner(testKey)
+	require.NoError(t, err)
+
+	now := time.Now()
+
+	t.Run("valid id_token_hint populates subject", func(t *testing.T) {
+		httpServer, server := newTestServerMultipleConnectors(t, func(c *Config) {
+			c.SupportedResponseTypes = []string{"code"}
+			c.Storage = storage.WithStaticClients(c.Storage, []storage.Client{
+				{ID: "foo", RedirectURIs: []string{"https://example.com/foo"}},
+			})
+			c.Signer = sig
+		})
+		defer httpServer.Close()
+
+		token := signTestIDToken(t, idTokenClaims{
+			Issuer:  httpServer.URL,
+			Subject: "CgNmb28SA2Jhcg",
+			Expiry:  now.Add(1 * time.Hour).Unix(),
+		})
+
+		params := url.Values{
+			"client_id":     {"foo"},
+			"redirect_uri":  {"https://example.com/foo"},
+			"response_type": {"code"},
+			"scope":         {"openid"},
+			"id_token_hint": {token},
+		}
+		req := httptest.NewRequest("GET", httpServer.URL+"/auth?"+params.Encode(), nil)
+
+		_, hintSubject, err := server.parseAuthorizationRequest(req)
+		require.NoError(t, err)
+		assert.Equal(t, "CgNmb28SA2Jhcg", hintSubject)
+	})
+
+	t.Run("invalid id_token_hint returns error", func(t *testing.T) {
+		httpServer, server := newTestServerMultipleConnectors(t, func(c *Config) {
+			c.SupportedResponseTypes = []string{"code"}
+			c.Storage = storage.WithStaticClients(c.Storage, []storage.Client{
+				{ID: "foo", RedirectURIs: []string{"https://example.com/foo"}},
+			})
+			c.Signer = sig
+		})
+		defer httpServer.Close()
+
+		params := url.Values{
+			"client_id":     {"foo"},
+			"redirect_uri":  {"https://example.com/foo"},
+			"response_type": {"code"},
+			"scope":         {"openid"},
+			"id_token_hint": {"invalid-token"},
+		}
+		req := httptest.NewRequest("GET", httpServer.URL+"/auth?"+params.Encode(), nil)
+
+		_, _, err := server.parseAuthorizationRequest(req)
+		require.Error(t, err)
+		redirectErr, ok := err.(*redirectedAuthErr)
+		require.True(t, ok)
+		assert.Equal(t, errInvalidRequest, redirectErr.Type)
+	})
+
+	t.Run("no id_token_hint leaves subject empty", func(t *testing.T) {
+		httpServer, server := newTestServerMultipleConnectors(t, func(c *Config) {
+			c.SupportedResponseTypes = []string{"code"}
+			c.Storage = storage.WithStaticClients(c.Storage, []storage.Client{
+				{ID: "foo", RedirectURIs: []string{"https://example.com/foo"}},
+			})
+		})
+		defer httpServer.Close()
+
+		params := url.Values{
+			"client_id":     {"foo"},
+			"redirect_uri":  {"https://example.com/foo"},
+			"response_type": {"code"},
+			"scope":         {"openid"},
+		}
+		req := httptest.NewRequest("GET", httpServer.URL+"/auth?"+params.Encode(), nil)
+
+		_, hintSubject, err := server.parseAuthorizationRequest(req)
+		require.NoError(t, err)
+		assert.Equal(t, "", hintSubject)
+	})
 }
