@@ -2,10 +2,13 @@ name: Release
 
 on:
   push:
-    tags: [ "v[0-9]+.[0-9]+.[0-9]+" ]
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
 
 permissions:
-  contents: read
+  contents: write
+  packages: write
+  attestations: write
+  id-token: write
 
 jobs:
   artifacts:
@@ -13,12 +16,26 @@ jobs:
     uses: ./.github/workflows/artifacts.yaml
     with:
       publish: true
-    secrets:
-      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
     permissions:
       attestations: write
       contents: read
       packages: write
       id-token: write
-      security-events: write
+
+  github-release:
+    name: GitHub Release
+    runs-on: ubuntu-latest
+    needs: artifacts
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
+        with:
+          generate_release_notes: true

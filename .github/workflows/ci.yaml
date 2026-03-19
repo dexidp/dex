@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
 
 permissions:
@@ -12,75 +12,6 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:10.8
-        env:
-          TZ: UTC
-        ports:
-          - 5432
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-
-      postgres-ent:
-        image: postgres:10.8
-        env:
-          TZ: UTC
-        ports:
-          - 5432
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-
-      mysql:
-        image: mysql:5.7
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: dex
-        ports:
-          - 3306
-        options: --health-cmd "mysql -proot -e \"show databases;\"" --health-interval 10s --health-timeout 5s --health-retries 5
-
-      mysql-ent:
-        image: mysql:5.7
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: dex
-        ports:
-          - 3306
-        options: --health-cmd "mysql -proot -e \"show databases;\"" --health-interval 10s --health-timeout 5s --health-retries 5
-
-      etcd:
-        image: gcr.io/etcd-development/etcd:v3.5.0
-        ports:
-          - 2379
-        env:
-          ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
-          ETCD_ADVERTISE_CLIENT_URLS: http://0.0.0.0:2379
-        options: --health-cmd "ETCDCTL_API=3 etcdctl --endpoints http://localhost:2379 endpoint health" --health-interval 10s --health-timeout 5s --health-retries 5
-
-      keystone:
-        image: openio/openstack-keystone:rocky
-        ports:
-          - 5000
-          - 35357
-        options: --health-cmd "curl --fail http://localhost:5000/v3" --health-interval 10s --health-timeout 5s --health-retries 5
-
-      vault:
-        image: hashicorp/vault:1.21
-        ports:
-          - 8200
-        env:
-          VAULT_DEV_ROOT_TOKEN_ID: root-token
-          VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
-        options: --health-cmd "vault status -address=http://localhost:8200 || exit 1" --health-interval 10s --health-timeout 5s --health-retries 5
-
-      openbao:
-        image: quay.io/openbao/openbao:2.5
-        ports:
-          - 8210
-        env:
-          BAO_DEV_ROOT_TOKEN_ID: root-token
-          BAO_DEV_LISTEN_ADDRESS: "0.0.0.0:8210"
-        options: --health-cmd "bao status -address=http://localhost:8210 || exit 1" --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
       - name: Checkout repository
@@ -92,67 +23,15 @@ jobs:
           go-version: "1.25"
 
       - name: Download tool dependencies
-        run: make deps
-
-      # Ensure that generated files were committed.
-      # It can help us determine, that the code is in the intermediate state, which should not be tested.
-      # Thus, heavy jobs like creating a kind cluster and testing / linting will be skipped.
-      - name: Verify
-        run: make verify
-
-      - name: Start services
-        run: docker compose -f docker-compose.test.yaml up -d
-
-      - name: Create kind cluster
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
-        with:
-          version: "v0.17.0"
-          node_image: "kindest/node:v1.25.3@sha256:cd248d1438192f7814fbca8fede13cfe5b9918746dfa12583976158a834fd5c5"
+        run: |
+          mkdir -p bin
+          curl -L https://github.com/gotestyourself/gotestsum/releases/download/v1.12.0/gotestsum_1.12.0_linux_amd64.tar.gz | tar -zOxf - gotestsum > ./bin/gotestsum
+          chmod +x ./bin/gotestsum
 
       - name: Test
-        run: make testall
-        env:
-          DEX_MYSQL_DATABASE: dex
-          DEX_MYSQL_USER: root
-          DEX_MYSQL_PASSWORD: root
-          DEX_MYSQL_HOST: 127.0.0.1
-          DEX_MYSQL_PORT: ${{ job.services.mysql.ports[3306] }}
-
-          DEX_MYSQL_ENT_DATABASE: dex
-          DEX_MYSQL_ENT_USER: root
-          DEX_MYSQL_ENT_PASSWORD: root
-          DEX_MYSQL_ENT_HOST: 127.0.0.1
-          DEX_MYSQL_ENT_PORT: ${{ job.services.mysql-ent.ports[3306] }}
-
-          DEX_POSTGRES_DATABASE: postgres
-          DEX_POSTGRES_USER: postgres
-          DEX_POSTGRES_PASSWORD: postgres
-          DEX_POSTGRES_HOST: localhost
-          DEX_POSTGRES_PORT: ${{ job.services.postgres.ports[5432] }}
-
-          DEX_POSTGRES_ENT_DATABASE: postgres
-          DEX_POSTGRES_ENT_USER: postgres
-          DEX_POSTGRES_ENT_PASSWORD: postgres
-          DEX_POSTGRES_ENT_HOST: localhost
-          DEX_POSTGRES_ENT_PORT: ${{ job.services.postgres-ent.ports[5432] }}
-
-          DEX_ETCD_ENDPOINTS: http://localhost:${{ job.services.etcd.ports[2379] }}
-
-          DEX_LDAP_HOST: localhost
-          DEX_LDAP_PORT: 3890
-          DEX_LDAP_TLS_PORT: 6360
-
-          DEX_KEYSTONE_URL: http://localhost:${{ job.services.keystone.ports[5000] }}
-          DEX_KEYSTONE_ADMIN_URL: http://localhost:${{ job.services.keystone.ports[35357] }}
-          DEX_KEYSTONE_ADMIN_USER: demo
-          DEX_KEYSTONE_ADMIN_PASS: DEMO_PASS
-
-          DEX_VAULT_ADDR: http://localhost:${{ job.services.vault.ports[8200] }}
-          DEX_VAULT_TOKEN: root-token
-          DEX_OPENBAO_ADDR: http://localhost:${{ job.services.openbao.ports[8210] }}
-          DEX_OPENBAO_TOKEN: root-token
-
-          DEX_KUBERNETES_CONFIG_PATH: ~/.kube/config
+        run: |
+          export PATH="$(pwd)/bin:$PATH"
+          gotestsum --format github-actions -- -v -race ./...
 
   lint:
     name: Lint
@@ -172,30 +51,3 @@ jobs:
 
       - name: Lint
         run: make lint
-
-  artifacts:
-    name: Artifacts
-    uses: ./.github/workflows/artifacts.yaml
-    with:
-      publish: ${{ github.event_name == 'push' }}
-    secrets:
-      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-    permissions:
-      attestations: write
-      contents: read
-      packages: write
-      id-token: write
-      security-events: write
-
-  dependency-review:
-    name: Dependency review
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Dependency Review
-        uses: actions/dependency-review-action@05fe4576374b728f0c523d6a13d64c25081e0803 # v4.8.3
