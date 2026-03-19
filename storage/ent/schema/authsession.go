@@ -37,6 +37,10 @@ func (AuthSession) Fields() []ent.Field {
 		field.Text("user_agent").
 			SchemaType(textSchema).
 			Default(""),
+		field.Time("absolute_expiry").
+			SchemaType(timeSchema),
+		field.Time("idle_expiry").
+			SchemaType(timeSchema),
 	}
 }
 

@@ -132,6 +132,34 @@ func (_u *AuthSessionUpdate) SetNillableUserAgent(v *string) *AuthSessionUpdate 
 	return _u
 }
 
+// SetAbsoluteExpiry sets the "absolute_expiry" field.
+func (_u *AuthSessionUpdate) SetAbsoluteExpiry(v time.Time) *AuthSessionUpdate {
+	_u.mutation.SetAbsoluteExpiry(v)
+	return _u
+}
+
+// SetNillableAbsoluteExpiry sets the "absolute_expiry" field if the given value is not nil.
+func (_u *AuthSessionUpdate) SetNillableAbsoluteExpiry(v *time.Time) *AuthSessionUpdate {
+	if v != nil {
+		_u.SetAbsoluteExpiry(*v)
+	}
+	return _u
+}
+
+// SetIdleExpiry sets the "idle_expiry" field.
+func (_u *AuthSessionUpdate) SetIdleExpiry(v time.Time) *AuthSessionUpdate {
+	_u.mutation.SetIdleExpiry(v)
+	return _u
+}
+
+// SetNillableIdleExpiry sets the "idle_expiry" field if the given value is not nil.
+func (_u *AuthSessionUpdate) SetNillableIdleExpiry(v *time.Time) *AuthSessionUpdate {
+	if v != nil {
+		_u.SetIdleExpiry(*v)
+	}
+	return _u
+}
+
 // Mutation returns the AuthSessionMutation object of the builder.
 func (_u *AuthSessionUpdate) Mutation() *AuthSessionMutation {
 	return _u.mutation
@@ -219,6 +247,12 @@ func (_u *AuthSessionUpdate) sqlSave(ctx context.Context) (_node int, err error)
 	}
 	if value, ok := _u.mutation.UserAgent(); ok {
 		_spec.SetField(authsession.FieldUserAgent, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.AbsoluteExpiry(); ok {
+		_spec.SetField(authsession.FieldAbsoluteExpiry, field.TypeTime, value)
+	}
+	if value, ok := _u.mutation.IdleExpiry(); ok {
+		_spec.SetField(authsession.FieldIdleExpiry, field.TypeTime, value)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -344,6 +378,34 @@ func (_u *AuthSessionUpdateOne) SetNillableUserAgent(v *string) *AuthSessionUpda
 	return _u
 }
 
+// SetAbsoluteExpiry sets the "absolute_expiry" field.
+func (_u *AuthSessionUpdateOne) SetAbsoluteExpiry(v time.Time) *AuthSessionUpdateOne {
+	_u.mutation.SetAbsoluteExpiry(v)
+	return _u
+}
+
+// SetNillableAbsoluteExpiry sets the "absolute_expiry" field if the given value is not nil.
+func (_u *AuthSessionUpdateOne) SetNillableAbsoluteExpiry(v *time.Time) *AuthSessionUpdateOne {
+	if v != nil {
+		_u.SetAbsoluteExpiry(*v)
+	}
+	return _u
+}
+
+// SetIdleExpiry sets the "idle_expiry" field.
+func (_u *AuthSessionUpdateOne) SetIdleExpiry(v time.Time) *AuthSessionUpdateOne {
+	_u.mutation.SetIdleExpiry(v)
+	return _u
+}
+
+// SetNillableIdleExpiry sets the "idle_expiry" field if the given value is not nil.
+func (_u *AuthSessionUpdateOne) SetNillableIdleExpiry(v *time.Time) *AuthSessionUpdateOne {
+	if v != nil {
+		_u.SetIdleExpiry(*v)
+	}
+	return _u
+}
+
 // Mutation returns the AuthSessionMutation object of the builder.
 func (_u *AuthSessionUpdateOne) Mutation() *AuthSessionMutation {
 	return _u.mutation
@@ -461,6 +523,12 @@ func (_u *AuthSessionUpdateOne) sqlSave(ctx context.Context) (_node *AuthSession
 	}
 	if value, ok := _u.mutation.UserAgent(); ok {
 		_spec.SetField(authsession.FieldUserAgent, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.AbsoluteExpiry(); ok {
+		_spec.SetField(authsession.FieldAbsoluteExpiry, field.TypeTime, value)
+	}
+	if value, ok := _u.mutation.IdleExpiry(); ok {
+		_spec.SetField(authsession.FieldIdleExpiry, field.TypeTime, value)
 	}
 	_node = &AuthSession{config: _u.config}
 	_spec.Assign = _node.assignValues

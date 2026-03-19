@@ -982,14 +982,16 @@ type AuthSession struct {
 	k8sapi.TypeMeta   `json:",inline"`
 	k8sapi.ObjectMeta `json:"metadata,omitempty"`
 
-	UserID       string                              `json:"userID,omitempty"`
-	ConnectorID  string                              `json:"connectorID,omitempty"`
-	Nonce        string                              `json:"nonce,omitempty"`
-	ClientStates map[string]*storage.ClientAuthState `json:"clientStates,omitempty"`
-	CreatedAt    time.Time                           `json:"createdAt,omitempty"`
-	LastActivity time.Time                           `json:"lastActivity,omitempty"`
-	IPAddress    string                              `json:"ipAddress,omitempty"`
-	UserAgent    string                              `json:"userAgent,omitempty"`
+	UserID         string                              `json:"userID,omitempty"`
+	ConnectorID    string                              `json:"connectorID,omitempty"`
+	Nonce          string                              `json:"nonce,omitempty"`
+	ClientStates   map[string]*storage.ClientAuthState `json:"clientStates,omitempty"`
+	CreatedAt      time.Time                           `json:"createdAt,omitempty"`
+	LastActivity   time.Time                           `json:"lastActivity,omitempty"`
+	IPAddress      string                              `json:"ipAddress,omitempty"`
+	UserAgent      string                              `json:"userAgent,omitempty"`
+	AbsoluteExpiry time.Time                           `json:"absoluteExpiry,omitempty"`
+	IdleExpiry     time.Time                           `json:"idleExpiry,omitempty"`
 }
 
 // AuthSessionList is a list of AuthSessions.
@@ -1009,27 +1011,31 @@ func (cli *client) fromStorageAuthSession(s storage.AuthSession) AuthSession {
 			Name:      offlineTokenName(s.UserID, s.ConnectorID, cli.hash),
 			Namespace: cli.namespace,
 		},
-		UserID:       s.UserID,
-		ConnectorID:  s.ConnectorID,
-		Nonce:        s.Nonce,
-		ClientStates: s.ClientStates,
-		CreatedAt:    s.CreatedAt,
-		LastActivity: s.LastActivity,
-		IPAddress:    s.IPAddress,
-		UserAgent:    s.UserAgent,
+		UserID:         s.UserID,
+		ConnectorID:    s.ConnectorID,
+		Nonce:          s.Nonce,
+		ClientStates:   s.ClientStates,
+		CreatedAt:      s.CreatedAt,
+		LastActivity:   s.LastActivity,
+		IPAddress:      s.IPAddress,
+		UserAgent:      s.UserAgent,
+		AbsoluteExpiry: s.AbsoluteExpiry,
+		IdleExpiry:     s.IdleExpiry,
 	}
 }
 
 func toStorageAuthSession(s AuthSession) storage.AuthSession {
 	result := storage.AuthSession{
-		UserID:       s.UserID,
-		ConnectorID:  s.ConnectorID,
-		Nonce:        s.Nonce,
-		ClientStates: s.ClientStates,
-		CreatedAt:    s.CreatedAt,
-		LastActivity: s.LastActivity,
-		IPAddress:    s.IPAddress,
-		UserAgent:    s.UserAgent,
+		UserID:         s.UserID,
+		ConnectorID:    s.ConnectorID,
+		Nonce:          s.Nonce,
+		ClientStates:   s.ClientStates,
+		CreatedAt:      s.CreatedAt,
+		LastActivity:   s.LastActivity,
+		IPAddress:      s.IPAddress,
+		UserAgent:      s.UserAgent,
+		AbsoluteExpiry: s.AbsoluteExpiry,
+		IdleExpiry:     s.IdleExpiry,
 	}
 	if result.ClientStates == nil {
 		result.ClientStates = make(map[string]*storage.ClientAuthState)

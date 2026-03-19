@@ -212,13 +212,15 @@ func toStorageUserIdentity(u *db.UserIdentity) storage.UserIdentity {
 
 func toStorageAuthSession(s *db.AuthSession) storage.AuthSession {
 	result := storage.AuthSession{
-		UserID:       s.UserID,
-		ConnectorID:  s.ConnectorID,
-		Nonce:        s.Nonce,
-		CreatedAt:    s.CreatedAt,
-		LastActivity: s.LastActivity,
-		IPAddress:    s.IPAddress,
-		UserAgent:    s.UserAgent,
+		UserID:         s.UserID,
+		ConnectorID:    s.ConnectorID,
+		Nonce:          s.Nonce,
+		CreatedAt:      s.CreatedAt,
+		LastActivity:   s.LastActivity,
+		IPAddress:      s.IPAddress,
+		UserAgent:      s.UserAgent,
+		AbsoluteExpiry: s.AbsoluteExpiry,
+		IdleExpiry:     s.IdleExpiry,
 	}
 
 	if s.ClientStates != nil {

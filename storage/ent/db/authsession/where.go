@@ -104,6 +104,16 @@ func UserAgent(v string) predicate.AuthSession {
 	return predicate.AuthSession(sql.FieldEQ(FieldUserAgent, v))
 }
 
+// AbsoluteExpiry applies equality check predicate on the "absolute_expiry" field. It's identical to AbsoluteExpiryEQ.
+func AbsoluteExpiry(v time.Time) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldEQ(FieldAbsoluteExpiry, v))
+}
+
+// IdleExpiry applies equality check predicate on the "idle_expiry" field. It's identical to IdleExpiryEQ.
+func IdleExpiry(v time.Time) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldEQ(FieldIdleExpiry, v))
+}
+
 // UserIDEQ applies the EQ predicate on the "user_id" field.
 func UserIDEQ(v string) predicate.AuthSession {
 	return predicate.AuthSession(sql.FieldEQ(FieldUserID, v))
@@ -547,6 +557,86 @@ func UserAgentEqualFold(v string) predicate.AuthSession {
 // UserAgentContainsFold applies the ContainsFold predicate on the "user_agent" field.
 func UserAgentContainsFold(v string) predicate.AuthSession {
 	return predicate.AuthSession(sql.FieldContainsFold(FieldUserAgent, v))
+}
+
+// AbsoluteExpiryEQ applies the EQ predicate on the "absolute_expiry" field.
+func AbsoluteExpiryEQ(v time.Time) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldEQ(FieldAbsoluteExpiry, v))
+}
+
+// AbsoluteExpiryNEQ applies the NEQ predicate on the "absolute_expiry" field.
+func AbsoluteExpiryNEQ(v time.Time) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldNEQ(FieldAbsoluteExpiry, v))
+}
+
+// AbsoluteExpiryIn applies the In predicate on the "absolute_expiry" field.
+func AbsoluteExpiryIn(vs ...time.Time) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldIn(FieldAbsoluteExpiry, vs...))
+}
+
+// AbsoluteExpiryNotIn applies the NotIn predicate on the "absolute_expiry" field.
+func AbsoluteExpiryNotIn(vs ...time.Time) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldNotIn(FieldAbsoluteExpiry, vs...))
+}
+
+// AbsoluteExpiryGT applies the GT predicate on the "absolute_expiry" field.
+func AbsoluteExpiryGT(v time.Time) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldGT(FieldAbsoluteExpiry, v))
+}
+
+// AbsoluteExpiryGTE applies the GTE predicate on the "absolute_expiry" field.
+func AbsoluteExpiryGTE(v time.Time) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldGTE(FieldAbsoluteExpiry, v))
+}
+
+// AbsoluteExpiryLT applies the LT predicate on the "absolute_expiry" field.
+func AbsoluteExpiryLT(v time.Time) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldLT(FieldAbsoluteExpiry, v))
+}
+
+// AbsoluteExpiryLTE applies the LTE predicate on the "absolute_expiry" field.
+func AbsoluteExpiryLTE(v time.Time) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldLTE(FieldAbsoluteExpiry, v))
+}
+
+// IdleExpiryEQ applies the EQ predicate on the "idle_expiry" field.
+func IdleExpiryEQ(v time.Time) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldEQ(FieldIdleExpiry, v))
+}
+
+// IdleExpiryNEQ applies the NEQ predicate on the "idle_expiry" field.
+func IdleExpiryNEQ(v time.Time) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldNEQ(FieldIdleExpiry, v))
+}
+
+// IdleExpiryIn applies the In predicate on the "idle_expiry" field.
+func IdleExpiryIn(vs ...time.Time) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldIn(FieldIdleExpiry, vs...))
+}
+
+// IdleExpiryNotIn applies the NotIn predicate on the "idle_expiry" field.
+func IdleExpiryNotIn(vs ...time.Time) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldNotIn(FieldIdleExpiry, vs...))
+}
+
+// IdleExpiryGT applies the GT predicate on the "idle_expiry" field.
+func IdleExpiryGT(v time.Time) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldGT(FieldIdleExpiry, v))
+}
+
+// IdleExpiryGTE applies the GTE predicate on the "idle_expiry" field.
+func IdleExpiryGTE(v time.Time) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldGTE(FieldIdleExpiry, v))
+}
+
+// IdleExpiryLT applies the LT predicate on the "idle_expiry" field.
+func IdleExpiryLT(v time.Time) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldLT(FieldIdleExpiry, v))
+}
+
+// IdleExpiryLTE applies the LTE predicate on the "idle_expiry" field.
+func IdleExpiryLTE(v time.Time) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldLTE(FieldIdleExpiry, v))
 }
 
 // And groups predicates with the AND operator between them.

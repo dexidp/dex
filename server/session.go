@@ -190,6 +190,7 @@ func (s *Server) createOrUpdateAuthSession(ctx context.Context, r *http.Request,
 
 		if err := s.storage.UpdateAuthSession(ctx, userID, connectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
 			old.LastActivity = now
+			old.IdleExpiry = now.Add(s.sessionConfig.ValidIfNotUsedFor)
 			if old.ClientStates == nil {
 				old.ClientStates = make(map[string]*storage.ClientAuthState)
 			}
@@ -216,10 +217,12 @@ func (s *Server) createOrUpdateAuthSession(ctx context.Context, r *http.Request,
 		ClientStates: map[string]*storage.ClientAuthState{
 			authReq.ClientID: clientState,
 		},
-		CreatedAt:    now,
-		LastActivity: now,
-		IPAddress:    remoteIP(r),
-		UserAgent:    r.UserAgent(),
+		CreatedAt:      now,
+		LastActivity:   now,
+		IPAddress:      remoteIP(r),
+		UserAgent:      r.UserAgent(),
+		AbsoluteExpiry: now.Add(s.sessionConfig.AbsoluteLifetime),
+		IdleExpiry:     now.Add(s.sessionConfig.ValidIfNotUsedFor),
 	}
 
 	if err := s.storage.CreateAuthSession(ctx, newSession); err != nil {
@@ -284,6 +287,7 @@ func (s *Server) trySessionLogin(ctx context.Context, r *http.Request, w http.Re
 	// Update session activity.
 	_ = s.storage.UpdateAuthSession(ctx, session.UserID, session.ConnectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
 		old.LastActivity = now
+		old.IdleExpiry = now.Add(s.sessionConfig.ValidIfNotUsedFor)
 		if cs, ok := old.ClientStates[authReq.ClientID]; ok {
 			cs.LastActivity = now
 		}
@@ -330,6 +334,7 @@ func (s *Server) updateSessionTokenIssuedAt(r *http.Request, clientID string) {
 	now := s.now()
 	_ = s.storage.UpdateAuthSession(r.Context(), userID, connectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
 		old.LastActivity = now
+		old.IdleExpiry = now.Add(s.sessionConfig.ValidIfNotUsedFor)
 		if cs, ok := old.ClientStates[clientID]; ok {
 			cs.LastTokenIssuedAt = now
 			cs.LastActivity = now

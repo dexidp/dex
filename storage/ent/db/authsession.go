@@ -32,7 +32,11 @@ type AuthSession struct {
 	// IPAddress holds the value of the "ip_address" field.
 	IPAddress string `json:"ip_address,omitempty"`
 	// UserAgent holds the value of the "user_agent" field.
-	UserAgent    string `json:"user_agent,omitempty"`
+	UserAgent string `json:"user_agent,omitempty"`
+	// AbsoluteExpiry holds the value of the "absolute_expiry" field.
+	AbsoluteExpiry time.Time `json:"absolute_expiry,omitempty"`
+	// IdleExpiry holds the value of the "idle_expiry" field.
+	IdleExpiry   time.Time `json:"idle_expiry,omitempty"`
 	selectValues sql.SelectValues
 }
 
@@ -45,7 +49,7 @@ func (*AuthSession) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case authsession.FieldID, authsession.FieldUserID, authsession.FieldConnectorID, authsession.FieldNonce, authsession.FieldIPAddress, authsession.FieldUserAgent:
 			values[i] = new(sql.NullString)
-		case authsession.FieldCreatedAt, authsession.FieldLastActivity:
+		case authsession.FieldCreatedAt, authsession.FieldLastActivity, authsession.FieldAbsoluteExpiry, authsession.FieldIdleExpiry:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -116,6 +120,18 @@ func (_m *AuthSession) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.UserAgent = value.String
 			}
+		case authsession.FieldAbsoluteExpiry:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field absolute_expiry", values[i])
+			} else if value.Valid {
+				_m.AbsoluteExpiry = value.Time
+			}
+		case authsession.FieldIdleExpiry:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field idle_expiry", values[i])
+			} else if value.Valid {
+				_m.IdleExpiry = value.Time
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -175,6 +191,12 @@ func (_m *AuthSession) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("user_agent=")
 	builder.WriteString(_m.UserAgent)
+	builder.WriteString(", ")
+	builder.WriteString("absolute_expiry=")
+	builder.WriteString(_m.AbsoluteExpiry.Format(time.ANSIC))
+	builder.WriteString(", ")
+	builder.WriteString("idle_expiry=")
+	builder.WriteString(_m.IdleExpiry.Format(time.ANSIC))
 	builder.WriteByte(')')
 	return builder.String()
 }

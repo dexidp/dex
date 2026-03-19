@@ -121,6 +121,14 @@ func (c *conn) GarbageCollect(ctc context.Context, now time.Time) (storage.GCRes
 		result.DeviceTokens = n
 	}
 
+	r, err = c.Exec(`delete from auth_session where absolute_expiry < $1 OR idle_expiry < $2`, now, now)
+	if err != nil {
+		return result, fmt.Errorf("gc auth_session: %v", err)
+	}
+	if n, err := r.RowsAffected(); err == nil {
+		result.AuthSessions = n
+	}
+
 	return result, err
 }
 
@@ -952,14 +960,16 @@ func (c *conn) CreateAuthSession(ctx context.Context, s storage.AuthSession) err
 			user_id, connector_id, nonce,
 			client_states,
 			created_at, last_activity,
-			ip_address, user_agent
+			ip_address, user_agent,
+			absolute_expiry, idle_expiry
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
 	`,
 		s.UserID, s.ConnectorID, s.Nonce,
 		encoder(s.ClientStates),
 		s.CreatedAt, s.LastActivity,
 		s.IPAddress, s.UserAgent,
+		s.AbsoluteExpiry, s.IdleExpiry,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -987,12 +997,15 @@ func (c *conn) UpdateAuthSession(ctx context.Context, userID, connectorID string
 				client_states = $1,
 				last_activity = $2,
 				ip_address = $3,
-				user_agent = $4
-			where user_id = $5 AND connector_id = $6;
+				user_agent = $4,
+				absolute_expiry = $5,
+				idle_expiry = $6
+			where user_id = $7 AND connector_id = $8;
 		`,
 			encoder(newSession.ClientStates),
 			newSession.LastActivity,
 			newSession.IPAddress, newSession.UserAgent,
+			newSession.AbsoluteExpiry, newSession.IdleExpiry,
 			userID, connectorID,
 		)
 		if err != nil {
@@ -1012,7 +1025,8 @@ func getAuthSession(ctx context.Context, q querier, userID, connectorID string) 
 			user_id, connector_id, nonce,
 			client_states,
 			created_at, last_activity,
-			ip_address, user_agent
+			ip_address, user_agent,
+			absolute_expiry, idle_expiry
 		from auth_session
 		where user_id = $1 AND connector_id = $2;
 	`, userID, connectorID))
@@ -1024,6 +1038,7 @@ func scanAuthSession(s scanner) (session storage.AuthSession, err error) {
 		decoder(&session.ClientStates),
 		&session.CreatedAt, &session.LastActivity,
 		&session.IPAddress, &session.UserAgent,
+		&session.AbsoluteExpiry, &session.IdleExpiry,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -1043,7 +1058,8 @@ func (c *conn) ListAuthSessions(ctx context.Context) ([]storage.AuthSession, err
 			user_id, connector_id, nonce,
 			client_states,
 			created_at, last_activity,
-			ip_address, user_agent
+			ip_address, user_agent,
+			absolute_expiry, idle_expiry
 		from auth_session;
 	`)
 	if err != nil {

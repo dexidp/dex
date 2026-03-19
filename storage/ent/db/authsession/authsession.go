@@ -27,6 +27,10 @@ const (
 	FieldIPAddress = "ip_address"
 	// FieldUserAgent holds the string denoting the user_agent field in the database.
 	FieldUserAgent = "user_agent"
+	// FieldAbsoluteExpiry holds the string denoting the absolute_expiry field in the database.
+	FieldAbsoluteExpiry = "absolute_expiry"
+	// FieldIdleExpiry holds the string denoting the idle_expiry field in the database.
+	FieldIdleExpiry = "idle_expiry"
 	// Table holds the table name of the authsession in the database.
 	Table = "auth_sessions"
 )
@@ -42,6 +46,8 @@ var Columns = []string{
 	FieldLastActivity,
 	FieldIPAddress,
 	FieldUserAgent,
+	FieldAbsoluteExpiry,
+	FieldIdleExpiry,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -110,4 +116,14 @@ func ByIPAddress(opts ...sql.OrderTermOption) OrderOption {
 // ByUserAgent orders the results by the user_agent field.
 func ByUserAgent(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUserAgent, opts...).ToFunc()
+}
+
+// ByAbsoluteExpiry orders the results by the absolute_expiry field.
+func ByAbsoluteExpiry(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAbsoluteExpiry, opts...).ToFunc()
+}
+
+// ByIdleExpiry orders the results by the idle_expiry field.
+func ByIdleExpiry(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldIdleExpiry, opts...).ToFunc()
 }

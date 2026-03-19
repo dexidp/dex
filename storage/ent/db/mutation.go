@@ -2778,21 +2778,23 @@ func (m *AuthRequestMutation) ResetEdge(name string) error {
 // AuthSessionMutation represents an operation that mutates the AuthSession nodes in the graph.
 type AuthSessionMutation struct {
 	config
-	op            Op
-	typ           string
-	id            *string
-	user_id       *string
-	connector_id  *string
-	nonce         *string
-	client_states *[]byte
-	created_at    *time.Time
-	last_activity *time.Time
-	ip_address    *string
-	user_agent    *string
-	clearedFields map[string]struct{}
-	done          bool
-	oldValue      func(context.Context) (*AuthSession, error)
-	predicates    []predicate.AuthSession
+	op              Op
+	typ             string
+	id              *string
+	user_id         *string
+	connector_id    *string
+	nonce           *string
+	client_states   *[]byte
+	created_at      *time.Time
+	last_activity   *time.Time
+	ip_address      *string
+	user_agent      *string
+	absolute_expiry *time.Time
+	idle_expiry     *time.Time
+	clearedFields   map[string]struct{}
+	done            bool
+	oldValue        func(context.Context) (*AuthSession, error)
+	predicates      []predicate.AuthSession
 }
 
 var _ ent.Mutation = (*AuthSessionMutation)(nil)
@@ -3187,6 +3189,78 @@ func (m *AuthSessionMutation) ResetUserAgent() {
 	m.user_agent = nil
 }
 
+// SetAbsoluteExpiry sets the "absolute_expiry" field.
+func (m *AuthSessionMutation) SetAbsoluteExpiry(t time.Time) {
+	m.absolute_expiry = &t
+}
+
+// AbsoluteExpiry returns the value of the "absolute_expiry" field in the mutation.
+func (m *AuthSessionMutation) AbsoluteExpiry() (r time.Time, exists bool) {
+	v := m.absolute_expiry
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAbsoluteExpiry returns the old "absolute_expiry" field's value of the AuthSession entity.
+// If the AuthSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AuthSessionMutation) OldAbsoluteExpiry(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAbsoluteExpiry is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAbsoluteExpiry requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAbsoluteExpiry: %w", err)
+	}
+	return oldValue.AbsoluteExpiry, nil
+}
+
+// ResetAbsoluteExpiry resets all changes to the "absolute_expiry" field.
+func (m *AuthSessionMutation) ResetAbsoluteExpiry() {
+	m.absolute_expiry = nil
+}
+
+// SetIdleExpiry sets the "idle_expiry" field.
+func (m *AuthSessionMutation) SetIdleExpiry(t time.Time) {
+	m.idle_expiry = &t
+}
+
+// IdleExpiry returns the value of the "idle_expiry" field in the mutation.
+func (m *AuthSessionMutation) IdleExpiry() (r time.Time, exists bool) {
+	v := m.idle_expiry
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIdleExpiry returns the old "idle_expiry" field's value of the AuthSession entity.
+// If the AuthSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AuthSessionMutation) OldIdleExpiry(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIdleExpiry is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIdleExpiry requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIdleExpiry: %w", err)
+	}
+	return oldValue.IdleExpiry, nil
+}
+
+// ResetIdleExpiry resets all changes to the "idle_expiry" field.
+func (m *AuthSessionMutation) ResetIdleExpiry() {
+	m.idle_expiry = nil
+}
+
 // Where appends a list predicates to the AuthSessionMutation builder.
 func (m *AuthSessionMutation) Where(ps ...predicate.AuthSession) {
 	m.predicates = append(m.predicates, ps...)
@@ -3221,7 +3295,7 @@ func (m *AuthSessionMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AuthSessionMutation) Fields() []string {
-	fields := make([]string, 0, 8)
+	fields := make([]string, 0, 10)
 	if m.user_id != nil {
 		fields = append(fields, authsession.FieldUserID)
 	}
@@ -3245,6 +3319,12 @@ func (m *AuthSessionMutation) Fields() []string {
 	}
 	if m.user_agent != nil {
 		fields = append(fields, authsession.FieldUserAgent)
+	}
+	if m.absolute_expiry != nil {
+		fields = append(fields, authsession.FieldAbsoluteExpiry)
+	}
+	if m.idle_expiry != nil {
+		fields = append(fields, authsession.FieldIdleExpiry)
 	}
 	return fields
 }
@@ -3270,6 +3350,10 @@ func (m *AuthSessionMutation) Field(name string) (ent.Value, bool) {
 		return m.IPAddress()
 	case authsession.FieldUserAgent:
 		return m.UserAgent()
+	case authsession.FieldAbsoluteExpiry:
+		return m.AbsoluteExpiry()
+	case authsession.FieldIdleExpiry:
+		return m.IdleExpiry()
 	}
 	return nil, false
 }
@@ -3295,6 +3379,10 @@ func (m *AuthSessionMutation) OldField(ctx context.Context, name string) (ent.Va
 		return m.OldIPAddress(ctx)
 	case authsession.FieldUserAgent:
 		return m.OldUserAgent(ctx)
+	case authsession.FieldAbsoluteExpiry:
+		return m.OldAbsoluteExpiry(ctx)
+	case authsession.FieldIdleExpiry:
+		return m.OldIdleExpiry(ctx)
 	}
 	return nil, fmt.Errorf("unknown AuthSession field %s", name)
 }
@@ -3359,6 +3447,20 @@ func (m *AuthSessionMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetUserAgent(v)
+		return nil
+	case authsession.FieldAbsoluteExpiry:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAbsoluteExpiry(v)
+		return nil
+	case authsession.FieldIdleExpiry:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIdleExpiry(v)
 		return nil
 	}
 	return fmt.Errorf("unknown AuthSession field %s", name)
@@ -3432,6 +3534,12 @@ func (m *AuthSessionMutation) ResetField(name string) error {
 		return nil
 	case authsession.FieldUserAgent:
 		m.ResetUserAgent()
+		return nil
+	case authsession.FieldAbsoluteExpiry:
+		m.ResetAbsoluteExpiry()
+		return nil
+	case authsession.FieldIdleExpiry:
+		m.ResetIdleExpiry()
 		return nil
 	}
 	return fmt.Errorf("unknown AuthSession field %s", name)

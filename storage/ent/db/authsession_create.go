@@ -84,6 +84,18 @@ func (_c *AuthSessionCreate) SetNillableUserAgent(v *string) *AuthSessionCreate 
 	return _c
 }
 
+// SetAbsoluteExpiry sets the "absolute_expiry" field.
+func (_c *AuthSessionCreate) SetAbsoluteExpiry(v time.Time) *AuthSessionCreate {
+	_c.mutation.SetAbsoluteExpiry(v)
+	return _c
+}
+
+// SetIdleExpiry sets the "idle_expiry" field.
+func (_c *AuthSessionCreate) SetIdleExpiry(v time.Time) *AuthSessionCreate {
+	_c.mutation.SetIdleExpiry(v)
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *AuthSessionCreate) SetID(v string) *AuthSessionCreate {
 	_c.mutation.SetID(v)
@@ -176,6 +188,12 @@ func (_c *AuthSessionCreate) check() error {
 	if _, ok := _c.mutation.UserAgent(); !ok {
 		return &ValidationError{Name: "user_agent", err: errors.New(`db: missing required field "AuthSession.user_agent"`)}
 	}
+	if _, ok := _c.mutation.AbsoluteExpiry(); !ok {
+		return &ValidationError{Name: "absolute_expiry", err: errors.New(`db: missing required field "AuthSession.absolute_expiry"`)}
+	}
+	if _, ok := _c.mutation.IdleExpiry(); !ok {
+		return &ValidationError{Name: "idle_expiry", err: errors.New(`db: missing required field "AuthSession.idle_expiry"`)}
+	}
 	if v, ok := _c.mutation.ID(); ok {
 		if err := authsession.IDValidator(v); err != nil {
 			return &ValidationError{Name: "id", err: fmt.Errorf(`db: validator failed for field "AuthSession.id": %w`, err)}
@@ -247,6 +265,14 @@ func (_c *AuthSessionCreate) createSpec() (*AuthSession, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.UserAgent(); ok {
 		_spec.SetField(authsession.FieldUserAgent, field.TypeString, value)
 		_node.UserAgent = value
+	}
+	if value, ok := _c.mutation.AbsoluteExpiry(); ok {
+		_spec.SetField(authsession.FieldAbsoluteExpiry, field.TypeTime, value)
+		_node.AbsoluteExpiry = value
+	}
+	if value, ok := _c.mutation.IdleExpiry(); ok {
+		_spec.SetField(authsession.FieldIdleExpiry, field.TypeTime, value)
+		_node.IdleExpiry = value
 	}
 	return _node, _spec
 }
