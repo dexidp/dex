@@ -29,7 +29,6 @@ while [[ $# -gt 0 ]]; do
         --tunnel)  TUNNEL_TYPE="$2"; shift 2 ;;
         --url)     PUBLIC_URL="$2"; shift 2 ;;
         --alias)   ALIAS="$2"; shift 2 ;;
-        --port)    DEX_PORT="$2"; shift 2 ;;
         -h|--help)
             sed -n '2,/^$/p' "$0" | sed 's/^# \?//'
             exit 0
@@ -55,7 +54,7 @@ cleanup() {
     echo ""
     echo "Shutting down..."
     kill "${TUNNEL_PID:-}" "${DEX_PID:-}" 2>/dev/null || true
-    rm -f "$CONFIG_FILE"
+    rm -f "${CONFIG_FILE:-}"
     wait 2>/dev/null
 }
 trap cleanup EXIT
@@ -105,6 +104,7 @@ if [[ -z "$PUBLIC_URL" ]]; then
     esac
 fi
 
+PUBLIC_URL="${PUBLIC_URL%/}"
 echo "Public URL: $PUBLIC_URL"
 
 # Generate config from template.
