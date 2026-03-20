@@ -450,6 +450,7 @@ var migrations = []migration{
 			`
 			alter table auth_session
 				add column idle_expiry timestamptz not null default '1970-01-01 00:00:00';`,
+			`alter table client add column post_logout_redirect_uris bytea;`,
 		},
 	},
 }

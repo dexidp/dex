@@ -952,9 +952,9 @@ func TestValidateIDTokenHint(t *testing.T) {
 			Subject: "CgNmb28SA2Jhcg",
 			Expiry:  now.Add(1 * time.Hour).Unix(),
 		})
-		sub, err := s.validateIDTokenHint(t.Context(), token)
+		idToken, err := s.validateIDTokenHint(t.Context(), token)
 		require.NoError(t, err)
-		assert.Equal(t, "CgNmb28SA2Jhcg", sub)
+		assert.Equal(t, "CgNmb28SA2Jhcg", idToken.Subject)
 	})
 
 	t.Run("valid hint (expired)", func(t *testing.T) {
@@ -963,9 +963,9 @@ func TestValidateIDTokenHint(t *testing.T) {
 			Subject: "CgNmb28SA2Jhcg",
 			Expiry:  now.Add(-1 * time.Hour).Unix(),
 		})
-		sub, err := s.validateIDTokenHint(t.Context(), token)
+		idToken, err := s.validateIDTokenHint(t.Context(), token)
 		require.NoError(t, err)
-		assert.Equal(t, "CgNmb28SA2Jhcg", sub)
+		assert.Equal(t, "CgNmb28SA2Jhcg", idToken.Subject)
 	})
 
 	t.Run("invalid signature", func(t *testing.T) {

@@ -136,10 +136,13 @@ type ProviderDiscoveryOverrides struct {
 	// JWKSURL provides a way to user overwrite the JWKS URL
 	// from the .well-known/openid-configuration jwks_uri
 	JWKSURL string `json:"jwksURL"`
+	// EndSessionURL provides a way to override the end_session_endpoint
+	// from the .well-known/openid-configuration
+	EndSessionURL string `json:"endSessionURL"`
 }
 
 func (o *ProviderDiscoveryOverrides) Empty() bool {
-	return o.TokenURL == "" && o.AuthURL == "" && o.JWKSURL == ""
+	return o.TokenURL == "" && o.AuthURL == "" && o.JWKSURL == "" && o.EndSessionURL == ""
 }
 
 func getProvider(ctx context.Context, issuer string, overrides ProviderDiscoveryOverrides) (*oidc.Provider, error) {
@@ -319,9 +322,10 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		}
 	}
 
-	// Obtain CodeChallengeMethodsSupported from the provider
+	// Obtain metadata from the provider
 	var metadata struct {
 		CodeChallengeMethodsSupported []string `json:"code_challenge_methods_supported"`
+		EndSessionEndpoint            string   `json:"end_session_endpoint"`
 	}
 	if err := provider.Claims(&metadata); err != nil {
 		logger.Warn("failed to parse provider metadata")
@@ -338,6 +342,11 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		if !contains(metadata.CodeChallengeMethodsSupported, c.PKCEChallenge) {
 			logger.Warn("provided PKCEChallenge method not supported by the connector")
 		}
+	}
+
+	endSessionURL := metadata.EndSessionEndpoint
+	if c.ProviderDiscoveryOverrides.EndSessionURL != "" {
+		endSessionURL = c.ProviderDiscoveryOverrides.EndSessionURL
 	}
 
 	clientID := c.ClientID
@@ -375,13 +384,15 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		groupsPrefix:              c.ClaimMutations.ModifyGroupNames.Prefix,
 		groupsSuffix:              c.ClaimMutations.ModifyGroupNames.Suffix,
 		pkceChallenge:             c.PKCEChallenge,
+		endSessionURL:             endSessionURL,
 	}, nil
 }
 
 var (
-	_ connector.CallbackConnector      = (*oidcConnector)(nil)
-	_ connector.RefreshConnector       = (*oidcConnector)(nil)
-	_ connector.TokenIdentityConnector = (*oidcConnector)(nil)
+	_ connector.CallbackConnector       = (*oidcConnector)(nil)
+	_ connector.RefreshConnector        = (*oidcConnector)(nil)
+	_ connector.TokenIdentityConnector  = (*oidcConnector)(nil)
+	_ connector.LogoutCallbackConnector = (*oidcConnector)(nil)
 )
 
 type oidcConnector struct {
@@ -409,6 +420,7 @@ type oidcConnector struct {
 	groupsPrefix              string
 	groupsSuffix              string
 	pkceChallenge             string
+	endSessionURL             string
 }
 
 func (c *oidcConnector) Close() error {
@@ -738,4 +750,33 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	}
 
 	return identity, nil
+}
+
+// LogoutURL returns the upstream OIDC provider's end_session_endpoint URL.
+// Per the OIDC RP-Initiated Logout spec, the post_logout_redirect_uri parameter
+// tells the upstream where to redirect after logout.
+func (c *oidcConnector) LogoutURL(_ context.Context, _ []byte, postLogoutRedirectURI string) (string, error) {
+	if c.endSessionURL == "" {
+		return "", nil
+	}
+
+	u, err := url.Parse(c.endSessionURL)
+	if err != nil {
+		return "", fmt.Errorf("oidc: failed to parse end_session_endpoint: %v", err)
+	}
+
+	q := u.Query()
+	if postLogoutRedirectURI != "" {
+		q.Set("post_logout_redirect_uri", postLogoutRedirectURI)
+		q.Set("client_id", c.oauth2Config.ClientID)
+	}
+	u.RawQuery = q.Encode()
+
+	return u.String(), nil
+}
+
+// HandleLogoutCallback is a no-op for OIDC. The end_session_endpoint simply
+// redirects back without a structured response to validate.
+func (c *oidcConnector) HandleLogoutCallback(_ context.Context, _ *http.Request) error {
+	return nil
 }

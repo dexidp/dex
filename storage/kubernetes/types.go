@@ -289,6 +289,8 @@ type Client struct {
 	AllowedConnectors []string `json:"allowedConnectors,omitempty"`
 
 	MFAChain []string `json:"mfaChain,omitempty"`
+
+	PostLogoutRedirectURIs []string `json:"postLogoutRedirectURIs,omitempty"`
 }
 
 // ClientList is a list of Clients.
@@ -308,29 +310,31 @@ func (cli *client) fromStorageClient(c storage.Client) Client {
 			Name:      cli.idToName(c.ID),
 			Namespace: cli.namespace,
 		},
-		ID:                c.ID,
-		Secret:            c.Secret,
-		RedirectURIs:      c.RedirectURIs,
-		TrustedPeers:      c.TrustedPeers,
-		Public:            c.Public,
-		Name:              c.Name,
-		LogoURL:           c.LogoURL,
-		AllowedConnectors: c.AllowedConnectors,
-		MFAChain:          c.MFAChain,
+		ID:                     c.ID,
+		Secret:                 c.Secret,
+		RedirectURIs:           c.RedirectURIs,
+		TrustedPeers:           c.TrustedPeers,
+		Public:                 c.Public,
+		Name:                   c.Name,
+		LogoURL:                c.LogoURL,
+		AllowedConnectors:      c.AllowedConnectors,
+		MFAChain:               c.MFAChain,
+		PostLogoutRedirectURIs: c.PostLogoutRedirectURIs,
 	}
 }
 
 func toStorageClient(c Client) storage.Client {
 	return storage.Client{
-		ID:                c.ID,
-		Secret:            c.Secret,
-		RedirectURIs:      c.RedirectURIs,
-		TrustedPeers:      c.TrustedPeers,
-		Public:            c.Public,
-		Name:              c.Name,
-		LogoURL:           c.LogoURL,
-		AllowedConnectors: c.AllowedConnectors,
-		MFAChain:          c.MFAChain,
+		ID:                     c.ID,
+		Secret:                 c.Secret,
+		RedirectURIs:           c.RedirectURIs,
+		TrustedPeers:           c.TrustedPeers,
+		Public:                 c.Public,
+		Name:                   c.Name,
+		LogoURL:                c.LogoURL,
+		AllowedConnectors:      c.AllowedConnectors,
+		MFAChain:               c.MFAChain,
+		PostLogoutRedirectURIs: c.PostLogoutRedirectURIs,
 	}
 }
 

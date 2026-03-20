@@ -170,6 +170,11 @@ type Client struct {
 	// requested to redirect to MUST match one of these values, unless the client is "public".
 	RedirectURIs []string `json:"redirectURIs"`
 
+	// PostLogoutRedirectURIs is a registered set of URIs that the client can redirect to
+	// after logout. Per OIDC RP-Initiated Logout Section 2, the post_logout_redirect_uri
+	// parameter MUST match one of these values.
+	PostLogoutRedirectURIs []string `json:"postLogoutRedirectURIs"`
+
 	// TrustedPeers are a list of peers which can issue tokens on this client's behalf using
 	// the dynamic "oauth2:server:client_id:(client_id)" scope. If a peer makes such a request,
 	// this client's ID will appear as the ID Token's audience.

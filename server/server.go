@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -248,6 +249,11 @@ type Server struct {
 
 	sessionConfig *SessionConfig
 
+	// logoutHMACKey is used to sign/verify the state parameter in the logout callback.
+	// Generated at server startup, so it does not survive restarts — which is fine
+	// because logout state is short-lived (the upstream redirect happens immediately).
+	logoutHMACKey []byte
+
 	mfaProviders    map[string]MFAProvider
 	defaultMFAChain []string
 }
@@ -374,6 +380,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		logger:                 c.Logger,
 		signer:                 c.Signer,
 		sessionConfig:          c.SessionConfig,
+		logoutHMACKey:          storage.NewHMACKey(crypto.SHA256),
 		mfaProviders:           c.MFAProviders,
 		defaultMFAChain:        c.DefaultMFAChain,
 	}
@@ -551,6 +558,10 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	// "authproxy" connector.
 	handleFunc("/callback/{connector}", s.handleConnectorCallback)
 	handleFunc("/approval", s.handleApproval)
+	if c.SessionConfig != nil {
+		handleFunc("/logout", s.handleLogout)
+		handleFunc("/logout/callback", s.handleLogoutCallback)
+	}
 	handleFunc("/mfa/verify", s.handleMFAVerify)
 	handle("/healthz", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !c.HealthChecker.IsHealthy() {

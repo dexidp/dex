@@ -20,6 +20,7 @@ import (
 
 	"github.com/go-jose/go-jose/v4"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
 )
@@ -975,4 +976,109 @@ func expectEquals(t *testing.T, a interface{}, b interface{}) {
 	if !reflect.DeepEqual(a, b) {
 		t.Errorf("Expected %+v to equal %+v", a, b)
 	}
+}
+
+func TestLogoutURL(t *testing.T) {
+	tests := []struct {
+		name                  string
+		endSessionURL         string
+		postLogoutRedirectURI string
+		wantURL               string
+		wantEmpty             bool
+	}{
+		{
+			name:          "no end_session_endpoint",
+			endSessionURL: "",
+			wantEmpty:     true,
+		},
+		{
+			name:          "with end_session_endpoint, no redirect",
+			endSessionURL: "https://provider.example.com/logout",
+			wantURL:       "https://provider.example.com/logout",
+		},
+		{
+			name:                  "with end_session_endpoint and redirect",
+			endSessionURL:         "https://provider.example.com/logout",
+			postLogoutRedirectURI: "https://dex.example.com/logout/callback",
+			wantURL:               "https://provider.example.com/logout?client_id=clientID&post_logout_redirect_uri=https%3A%2F%2Fdex.example.com%2Flogout%2Fcallback",
+		},
+		{
+			name:                  "with existing query params",
+			endSessionURL:         "https://provider.example.com/logout?existing=param",
+			postLogoutRedirectURI: "https://dex.example.com/callback",
+			wantURL:               "https://provider.example.com/logout?client_id=clientID&existing=param&post_logout_redirect_uri=https%3A%2F%2Fdex.example.com%2Fcallback",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			conn := &oidcConnector{
+				endSessionURL: tc.endSessionURL,
+				oauth2Config: &oauth2.Config{
+					ClientID: "clientID",
+				},
+			}
+
+			got, err := conn.LogoutURL(context.Background(), nil, tc.postLogoutRedirectURI)
+			require.NoError(t, err)
+
+			if tc.wantEmpty {
+				require.Empty(t, got)
+				return
+			}
+
+			require.Equal(t, tc.wantURL, got)
+		})
+	}
+}
+
+func TestEndSessionURLDiscovery(t *testing.T) {
+	// Setup a server that advertises end_session_endpoint in discovery.
+	key, err := rsa.GenerateKey(rand.Reader, 1024)
+	require.NoError(t, err)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/keys", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(&map[string]interface{}{
+			"keys": []map[string]interface{}{},
+		})
+	})
+
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
+		url := fmt.Sprintf("http://%s", r.Host)
+		json.NewEncoder(w).Encode(&map[string]string{
+			"issuer":                 url,
+			"token_endpoint":         fmt.Sprintf("%s/token", url),
+			"authorization_endpoint": fmt.Sprintf("%s/authorize", url),
+			"jwks_uri":               fmt.Sprintf("%s/keys", url),
+			"end_session_endpoint":   fmt.Sprintf("%s/logout", url),
+		})
+	})
+
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+	_ = key // We only need the server for discovery.
+
+	conn, err := newConnector(Config{
+		Issuer: ts.URL,
+		Scopes: []string{"openid"},
+	})
+	require.NoError(t, err)
+	require.Equal(t, fmt.Sprintf("%s/logout", ts.URL), conn.endSessionURL)
+}
+
+func TestEndSessionURLOverride(t *testing.T) {
+	testServer, err := setupServer(nil, true)
+	require.NoError(t, err)
+	defer testServer.Close()
+
+	conn, err := newConnector(Config{
+		Issuer: testServer.URL,
+		Scopes: []string{"openid"},
+		ProviderDiscoveryOverrides: ProviderDiscoveryOverrides{
+			EndSessionURL: "https://custom.example.com/logout",
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "https://custom.example.com/logout", conn.endSessionURL)
 }
