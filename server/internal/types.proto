@@ -17,3 +17,10 @@ message IDTokenSubject {
   string user_id = 1;
   string conn_id = 2;
 }
+
+// SessionCookie holds session identity encoded into the session cookie value.
+message SessionCookie {
+  string user_id = 1;
+  string connector_id = 2;
+  string nonce = 3;
+}

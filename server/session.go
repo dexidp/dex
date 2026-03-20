@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"net/http"
 	"path"
-	"strings"
 	"time"
 
+	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -32,33 +32,27 @@ func remoteIP(r *http.Request) string {
 	return r.RemoteAddr
 }
 
-// sessionCookieValue encodes session identity into a cookie value.
-// Format: base64url(userID) + "." + base64url(connectorID) + "." + nonce
-// TODO(nabokihms): consider cookie encoding
+// sessionCookieValue encodes session identity into a cookie value using protobuf.
 func sessionCookieValue(userID, connectorID, nonce string) string {
-	return base64.RawURLEncoding.EncodeToString([]byte(userID)) +
-		"." + base64.RawURLEncoding.EncodeToString([]byte(connectorID)) +
-		"." + nonce
+	val, err := internal.Marshal(&internal.SessionCookie{
+		UserId:      userID,
+		ConnectorId: connectorID,
+		Nonce:       nonce,
+	})
+	if err != nil {
+		// Should never happen with valid string inputs.
+		panic(fmt.Sprintf("marshal session cookie: %v", err))
+	}
+	return val
 }
 
-// parseSessionCookie decodes a session cookie value into its components.
+// parseSessionCookie decodes a protobuf-encoded session cookie value.
 func parseSessionCookie(value string) (userID, connectorID, nonce string, err error) {
-	parts := strings.SplitN(value, ".", 3)
-	if len(parts) != 3 {
-		return "", "", "", fmt.Errorf("invalid session cookie format")
+	var cookie internal.SessionCookie
+	if err := internal.Unmarshal(value, &cookie); err != nil {
+		return "", "", "", fmt.Errorf("decode session cookie: %w", err)
 	}
-
-	userIDBytes, err := base64.RawURLEncoding.DecodeString(parts[0])
-	if err != nil {
-		return "", "", "", fmt.Errorf("decode userID: %w", err)
-	}
-
-	connectorIDBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return "", "", "", fmt.Errorf("decode connectorID: %w", err)
-	}
-
-	return string(userIDBytes), string(connectorIDBytes), parts[2], nil
+	return cookie.UserId, cookie.ConnectorId, cookie.Nonce, nil
 }
 
 func (s *Server) sessionCookiePath() string {
