@@ -27,6 +27,8 @@ const (
 	FieldAllowedConnectors = "allowed_connectors"
 	// FieldMfaChain holds the string denoting the mfa_chain field in the database.
 	FieldMfaChain = "mfa_chain"
+	// FieldPostLogoutRedirectUris holds the string denoting the post_logout_redirect_uris field in the database.
+	FieldPostLogoutRedirectUris = "post_logout_redirect_uris"
 	// Table holds the table name of the oauth2client in the database.
 	Table = "oauth2clients"
 )
@@ -42,6 +44,7 @@ var Columns = []string{
 	FieldLogoURL,
 	FieldAllowedConnectors,
 	FieldMfaChain,
+	FieldPostLogoutRedirectUris,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).

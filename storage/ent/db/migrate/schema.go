@@ -162,6 +162,7 @@ var (
 		{Name: "logo_url", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "allowed_connectors", Type: field.TypeJSON, Nullable: true},
 		{Name: "mfa_chain", Type: field.TypeJSON, Nullable: true},
+		{Name: "post_logout_redirect_uris", Type: field.TypeJSON, Nullable: true},
 	}
 	// Oauth2clientsTable holds the schema information for the "oauth2clients" table.
 	Oauth2clientsTable = &schema.Table{

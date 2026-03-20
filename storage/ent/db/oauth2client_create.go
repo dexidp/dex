@@ -67,6 +67,12 @@ func (_c *OAuth2ClientCreate) SetMfaChain(v []string) *OAuth2ClientCreate {
 	return _c
 }
 
+// SetPostLogoutRedirectUris sets the "post_logout_redirect_uris" field.
+func (_c *OAuth2ClientCreate) SetPostLogoutRedirectUris(v []string) *OAuth2ClientCreate {
+	_c.mutation.SetPostLogoutRedirectUris(v)
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *OAuth2ClientCreate) SetID(v string) *OAuth2ClientCreate {
 	_c.mutation.SetID(v)
@@ -205,6 +211,10 @@ func (_c *OAuth2ClientCreate) createSpec() (*OAuth2Client, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.MfaChain(); ok {
 		_spec.SetField(oauth2client.FieldMfaChain, field.TypeJSON, value)
 		_node.MfaChain = value
+	}
+	if value, ok := _c.mutation.PostLogoutRedirectUris(); ok {
+		_spec.SetField(oauth2client.FieldPostLogoutRedirectUris, field.TypeJSON, value)
+		_node.PostLogoutRedirectUris = value
 	}
 	return _node, _spec
 }

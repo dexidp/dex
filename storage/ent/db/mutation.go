@@ -6380,25 +6380,27 @@ func (m *KeysMutation) ResetEdge(name string) error {
 // OAuth2ClientMutation represents an operation that mutates the OAuth2Client nodes in the graph.
 type OAuth2ClientMutation struct {
 	config
-	op                       Op
-	typ                      string
-	id                       *string
-	secret                   *string
-	redirect_uris            *[]string
-	appendredirect_uris      []string
-	trusted_peers            *[]string
-	appendtrusted_peers      []string
-	public                   *bool
-	name                     *string
-	logo_url                 *string
-	allowed_connectors       *[]string
-	appendallowed_connectors []string
-	mfa_chain                *[]string
-	appendmfa_chain          []string
-	clearedFields            map[string]struct{}
-	done                     bool
-	oldValue                 func(context.Context) (*OAuth2Client, error)
-	predicates               []predicate.OAuth2Client
+	op                              Op
+	typ                             string
+	id                              *string
+	secret                          *string
+	redirect_uris                   *[]string
+	appendredirect_uris             []string
+	trusted_peers                   *[]string
+	appendtrusted_peers             []string
+	public                          *bool
+	name                            *string
+	logo_url                        *string
+	allowed_connectors              *[]string
+	appendallowed_connectors        []string
+	mfa_chain                       *[]string
+	appendmfa_chain                 []string
+	post_logout_redirect_uris       *[]string
+	appendpost_logout_redirect_uris []string
+	clearedFields                   map[string]struct{}
+	done                            bool
+	oldValue                        func(context.Context) (*OAuth2Client, error)
+	predicates                      []predicate.OAuth2Client
 }
 
 var _ ent.Mutation = (*OAuth2ClientMutation)(nil)
@@ -6909,6 +6911,71 @@ func (m *OAuth2ClientMutation) ResetMfaChain() {
 	delete(m.clearedFields, oauth2client.FieldMfaChain)
 }
 
+// SetPostLogoutRedirectUris sets the "post_logout_redirect_uris" field.
+func (m *OAuth2ClientMutation) SetPostLogoutRedirectUris(s []string) {
+	m.post_logout_redirect_uris = &s
+	m.appendpost_logout_redirect_uris = nil
+}
+
+// PostLogoutRedirectUris returns the value of the "post_logout_redirect_uris" field in the mutation.
+func (m *OAuth2ClientMutation) PostLogoutRedirectUris() (r []string, exists bool) {
+	v := m.post_logout_redirect_uris
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPostLogoutRedirectUris returns the old "post_logout_redirect_uris" field's value of the OAuth2Client entity.
+// If the OAuth2Client object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuth2ClientMutation) OldPostLogoutRedirectUris(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPostLogoutRedirectUris is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPostLogoutRedirectUris requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPostLogoutRedirectUris: %w", err)
+	}
+	return oldValue.PostLogoutRedirectUris, nil
+}
+
+// AppendPostLogoutRedirectUris adds s to the "post_logout_redirect_uris" field.
+func (m *OAuth2ClientMutation) AppendPostLogoutRedirectUris(s []string) {
+	m.appendpost_logout_redirect_uris = append(m.appendpost_logout_redirect_uris, s...)
+}
+
+// AppendedPostLogoutRedirectUris returns the list of values that were appended to the "post_logout_redirect_uris" field in this mutation.
+func (m *OAuth2ClientMutation) AppendedPostLogoutRedirectUris() ([]string, bool) {
+	if len(m.appendpost_logout_redirect_uris) == 0 {
+		return nil, false
+	}
+	return m.appendpost_logout_redirect_uris, true
+}
+
+// ClearPostLogoutRedirectUris clears the value of the "post_logout_redirect_uris" field.
+func (m *OAuth2ClientMutation) ClearPostLogoutRedirectUris() {
+	m.post_logout_redirect_uris = nil
+	m.appendpost_logout_redirect_uris = nil
+	m.clearedFields[oauth2client.FieldPostLogoutRedirectUris] = struct{}{}
+}
+
+// PostLogoutRedirectUrisCleared returns if the "post_logout_redirect_uris" field was cleared in this mutation.
+func (m *OAuth2ClientMutation) PostLogoutRedirectUrisCleared() bool {
+	_, ok := m.clearedFields[oauth2client.FieldPostLogoutRedirectUris]
+	return ok
+}
+
+// ResetPostLogoutRedirectUris resets all changes to the "post_logout_redirect_uris" field.
+func (m *OAuth2ClientMutation) ResetPostLogoutRedirectUris() {
+	m.post_logout_redirect_uris = nil
+	m.appendpost_logout_redirect_uris = nil
+	delete(m.clearedFields, oauth2client.FieldPostLogoutRedirectUris)
+}
+
 // Where appends a list predicates to the OAuth2ClientMutation builder.
 func (m *OAuth2ClientMutation) Where(ps ...predicate.OAuth2Client) {
 	m.predicates = append(m.predicates, ps...)
@@ -6943,7 +7010,7 @@ func (m *OAuth2ClientMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *OAuth2ClientMutation) Fields() []string {
-	fields := make([]string, 0, 8)
+	fields := make([]string, 0, 9)
 	if m.secret != nil {
 		fields = append(fields, oauth2client.FieldSecret)
 	}
@@ -6967,6 +7034,9 @@ func (m *OAuth2ClientMutation) Fields() []string {
 	}
 	if m.mfa_chain != nil {
 		fields = append(fields, oauth2client.FieldMfaChain)
+	}
+	if m.post_logout_redirect_uris != nil {
+		fields = append(fields, oauth2client.FieldPostLogoutRedirectUris)
 	}
 	return fields
 }
@@ -6992,6 +7062,8 @@ func (m *OAuth2ClientMutation) Field(name string) (ent.Value, bool) {
 		return m.AllowedConnectors()
 	case oauth2client.FieldMfaChain:
 		return m.MfaChain()
+	case oauth2client.FieldPostLogoutRedirectUris:
+		return m.PostLogoutRedirectUris()
 	}
 	return nil, false
 }
@@ -7017,6 +7089,8 @@ func (m *OAuth2ClientMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldAllowedConnectors(ctx)
 	case oauth2client.FieldMfaChain:
 		return m.OldMfaChain(ctx)
+	case oauth2client.FieldPostLogoutRedirectUris:
+		return m.OldPostLogoutRedirectUris(ctx)
 	}
 	return nil, fmt.Errorf("unknown OAuth2Client field %s", name)
 }
@@ -7082,6 +7156,13 @@ func (m *OAuth2ClientMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetMfaChain(v)
 		return nil
+	case oauth2client.FieldPostLogoutRedirectUris:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPostLogoutRedirectUris(v)
+		return nil
 	}
 	return fmt.Errorf("unknown OAuth2Client field %s", name)
 }
@@ -7124,6 +7205,9 @@ func (m *OAuth2ClientMutation) ClearedFields() []string {
 	if m.FieldCleared(oauth2client.FieldMfaChain) {
 		fields = append(fields, oauth2client.FieldMfaChain)
 	}
+	if m.FieldCleared(oauth2client.FieldPostLogoutRedirectUris) {
+		fields = append(fields, oauth2client.FieldPostLogoutRedirectUris)
+	}
 	return fields
 }
 
@@ -7149,6 +7233,9 @@ func (m *OAuth2ClientMutation) ClearField(name string) error {
 		return nil
 	case oauth2client.FieldMfaChain:
 		m.ClearMfaChain()
+		return nil
+	case oauth2client.FieldPostLogoutRedirectUris:
+		m.ClearPostLogoutRedirectUris()
 		return nil
 	}
 	return fmt.Errorf("unknown OAuth2Client nullable field %s", name)
@@ -7181,6 +7268,9 @@ func (m *OAuth2ClientMutation) ResetField(name string) error {
 		return nil
 	case oauth2client.FieldMfaChain:
 		m.ResetMfaChain()
+		return nil
+	case oauth2client.FieldPostLogoutRedirectUris:
+		m.ResetPostLogoutRedirectUris()
 		return nil
 	}
 	return fmt.Errorf("unknown OAuth2Client field %s", name)
