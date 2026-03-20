@@ -60,6 +60,7 @@ type GCResult struct {
 	AuthCodes      int64
 	DeviceRequests int64
 	DeviceTokens   int64
+	AuthSessions   int64
 }
 
 // IsEmpty returns whether the garbage collection result is empty or not.
@@ -67,7 +68,8 @@ func (g *GCResult) IsEmpty() bool {
 	return g.AuthRequests == 0 &&
 		g.AuthCodes == 0 &&
 		g.DeviceRequests == 0 &&
-		g.DeviceTokens == 0
+		g.DeviceTokens == 0 &&
+		g.AuthSessions == 0
 }
 
 // Storage is the storage interface used by the server. Implementations are
@@ -402,6 +404,11 @@ type AuthSession struct {
 	LastActivity time.Time
 	IPAddress    string
 	UserAgent    string
+
+	// AbsoluteExpiry is CreatedAt + AbsoluteLifetime, set once at creation.
+	AbsoluteExpiry time.Time
+	// IdleExpiry is LastActivity + ValidIfNotUsedFor, updated on every activity.
+	IdleExpiry time.Time
 }
 
 // OfflineSessions objects are sessions pertaining to users with refresh tokens.

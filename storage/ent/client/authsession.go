@@ -29,6 +29,8 @@ func (d *Database) CreateAuthSession(ctx context.Context, session storage.AuthSe
 		SetLastActivity(session.LastActivity).
 		SetIPAddress(session.IPAddress).
 		SetUserAgent(session.UserAgent).
+		SetAbsoluteExpiry(session.AbsoluteExpiry.UTC()).
+		SetIdleExpiry(session.IdleExpiry.UTC()).
 		Save(ctx)
 	if err != nil {
 		return convertDBError("create auth session: %w", err)
@@ -102,6 +104,8 @@ func (d *Database) UpdateAuthSession(ctx context.Context, userID, connectorID st
 		SetLastActivity(newSession.LastActivity).
 		SetIPAddress(newSession.IPAddress).
 		SetUserAgent(newSession.UserAgent).
+		SetAbsoluteExpiry(newSession.AbsoluteExpiry.UTC()).
+		SetIdleExpiry(newSession.IdleExpiry.UTC()).
 		Save(ctx)
 	if err != nil {
 		return rollback(tx, "update auth session updating: %w", err)

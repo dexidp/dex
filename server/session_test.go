@@ -155,14 +155,16 @@ func TestGetValidAuthSession(t *testing.T) {
 		nonce := "test-nonce"
 
 		session := storage.AuthSession{
-			UserID:       "user1",
-			ConnectorID:  "conn1",
-			Nonce:        nonce,
-			ClientStates: map[string]*storage.ClientAuthState{},
-			CreatedAt:    now.Add(-30 * time.Minute),
-			LastActivity: now.Add(-5 * time.Minute),
-			IPAddress:    "127.0.0.1",
-			UserAgent:    "test",
+			UserID:         "user1",
+			ConnectorID:    "conn1",
+			Nonce:          nonce,
+			ClientStates:   map[string]*storage.ClientAuthState{},
+			CreatedAt:      now.Add(-30 * time.Minute),
+			LastActivity:   now.Add(-5 * time.Minute),
+			IPAddress:      "127.0.0.1",
+			UserAgent:      "test",
+			AbsoluteExpiry: now.Add(24 * time.Hour),
+			IdleExpiry:     now.Add(1 * time.Hour),
 		}
 		require.NoError(t, s.storage.CreateAuthSession(ctx, session))
 
@@ -181,14 +183,16 @@ func TestGetValidAuthSession(t *testing.T) {
 		nonce := "test-nonce-conn"
 
 		session := storage.AuthSession{
-			UserID:       "user1",
-			ConnectorID:  "ldap",
-			Nonce:        nonce,
-			ClientStates: map[string]*storage.ClientAuthState{},
-			CreatedAt:    now.Add(-30 * time.Minute),
-			LastActivity: now.Add(-5 * time.Minute),
-			IPAddress:    "127.0.0.1",
-			UserAgent:    "test",
+			UserID:         "user1",
+			ConnectorID:    "ldap",
+			Nonce:          nonce,
+			ClientStates:   map[string]*storage.ClientAuthState{},
+			CreatedAt:      now.Add(-30 * time.Minute),
+			LastActivity:   now.Add(-5 * time.Minute),
+			IPAddress:      "127.0.0.1",
+			UserAgent:      "test",
+			AbsoluteExpiry: now.Add(24 * time.Hour),
+			IdleExpiry:     now.Add(1 * time.Hour),
 		}
 		require.NoError(t, s.storage.CreateAuthSession(ctx, session))
 
@@ -204,14 +208,16 @@ func TestGetValidAuthSession(t *testing.T) {
 		now := s.now()
 
 		session := storage.AuthSession{
-			UserID:       "user2",
-			ConnectorID:  "conn2",
-			Nonce:        "correct-nonce",
-			ClientStates: map[string]*storage.ClientAuthState{},
-			CreatedAt:    now.Add(-30 * time.Minute),
-			LastActivity: now.Add(-5 * time.Minute),
-			IPAddress:    "127.0.0.1",
-			UserAgent:    "test",
+			UserID:         "user2",
+			ConnectorID:    "conn2",
+			Nonce:          "correct-nonce",
+			ClientStates:   map[string]*storage.ClientAuthState{},
+			CreatedAt:      now.Add(-30 * time.Minute),
+			LastActivity:   now.Add(-5 * time.Minute),
+			IPAddress:      "127.0.0.1",
+			UserAgent:      "test",
+			AbsoluteExpiry: now.Add(24 * time.Hour),
+			IdleExpiry:     now.Add(1 * time.Hour),
 		}
 		require.NoError(t, s.storage.CreateAuthSession(ctx, session))
 
@@ -230,14 +236,16 @@ func TestGetValidAuthSession(t *testing.T) {
 		nonce := "expired-nonce"
 
 		session := storage.AuthSession{
-			UserID:       "user3",
-			ConnectorID:  "conn3",
-			Nonce:        nonce,
-			ClientStates: map[string]*storage.ClientAuthState{},
-			CreatedAt:    now.Add(-25 * time.Hour),
-			LastActivity: now.Add(-1 * time.Minute),
-			IPAddress:    "127.0.0.1",
-			UserAgent:    "test",
+			UserID:         "user3",
+			ConnectorID:    "conn3",
+			Nonce:          nonce,
+			ClientStates:   map[string]*storage.ClientAuthState{},
+			CreatedAt:      now.Add(-25 * time.Hour),
+			LastActivity:   now.Add(-1 * time.Minute),
+			IPAddress:      "127.0.0.1",
+			UserAgent:      "test",
+			AbsoluteExpiry: now.Add(-1 * time.Hour),
+			IdleExpiry:     now.Add(1 * time.Hour),
 		}
 		require.NoError(t, s.storage.CreateAuthSession(ctx, session))
 
@@ -260,14 +268,16 @@ func TestGetValidAuthSession(t *testing.T) {
 		nonce := "idle-nonce"
 
 		session := storage.AuthSession{
-			UserID:       "user4",
-			ConnectorID:  "conn4",
-			Nonce:        nonce,
-			ClientStates: map[string]*storage.ClientAuthState{},
-			CreatedAt:    now.Add(-2 * time.Hour),
-			LastActivity: now.Add(-2 * time.Hour),
-			IPAddress:    "127.0.0.1",
-			UserAgent:    "test",
+			UserID:         "user4",
+			ConnectorID:    "conn4",
+			Nonce:          nonce,
+			ClientStates:   map[string]*storage.ClientAuthState{},
+			CreatedAt:      now.Add(-2 * time.Hour),
+			LastActivity:   now.Add(-2 * time.Hour),
+			IPAddress:      "127.0.0.1",
+			UserAgent:      "test",
+			AbsoluteExpiry: now.Add(22 * time.Hour),
+			IdleExpiry:     now.Add(-1 * time.Hour),
 		}
 		require.NoError(t, s.storage.CreateAuthSession(ctx, session))
 
@@ -338,10 +348,12 @@ func TestCreateOrUpdateAuthSession(t *testing.T) {
 					LastActivity: now.Add(-10 * time.Minute),
 				},
 			},
-			CreatedAt:    now.Add(-30 * time.Minute),
-			LastActivity: now.Add(-10 * time.Minute),
-			IPAddress:    "127.0.0.1",
-			UserAgent:    "test",
+			CreatedAt:      now.Add(-30 * time.Minute),
+			LastActivity:   now.Add(-10 * time.Minute),
+			IPAddress:      "127.0.0.1",
+			UserAgent:      "test",
+			AbsoluteExpiry: now.Add(24 * time.Hour),
+			IdleExpiry:     now.Add(50 * time.Minute),
 		}
 		require.NoError(t, s.storage.CreateAuthSession(ctx, existingSession))
 
@@ -402,10 +414,12 @@ func setupSessionLoginFixture(t *testing.T, s *Server) storage.AuthRequest {
 				LastActivity: now.Add(-1 * time.Minute),
 			},
 		},
-		CreatedAt:    now.Add(-30 * time.Minute),
-		LastActivity: now.Add(-1 * time.Minute),
-		IPAddress:    "127.0.0.1",
-		UserAgent:    "test",
+		CreatedAt:      now.Add(-30 * time.Minute),
+		LastActivity:   now.Add(-1 * time.Minute),
+		IPAddress:      "127.0.0.1",
+		UserAgent:      "test",
+		AbsoluteExpiry: now.Add(24 * time.Hour),
+		IdleExpiry:     now.Add(59 * time.Minute),
 	}))
 
 	require.NoError(t, s.storage.CreateUserIdentity(ctx, storage.UserIdentity{
@@ -536,8 +550,10 @@ func TestTrySessionLogin(t *testing.T) {
 					ExpiresAt: now.Add(-1 * time.Hour),
 				},
 			},
-			CreatedAt:    now.Add(-2 * time.Hour),
-			LastActivity: now.Add(-1 * time.Minute),
+			CreatedAt:      now.Add(-2 * time.Hour),
+			LastActivity:   now.Add(-1 * time.Minute),
+			AbsoluteExpiry: now.Add(22 * time.Hour),
+			IdleExpiry:     now.Add(59 * time.Minute),
 		}))
 
 		require.NoError(t, s.storage.CreateUserIdentity(t.Context(), storage.UserIdentity{

@@ -101,6 +101,12 @@ func (s *memStorage) GarbageCollect(ctx context.Context, now time.Time) (result 
 				result.DeviceTokens++
 			}
 		}
+		for id, a := range s.authSessions {
+			if now.After(a.AbsoluteExpiry) || now.After(a.IdleExpiry) {
+				delete(s.authSessions, id)
+				result.AuthSessions++
+			}
+		}
 	})
 	return result, nil
 }

@@ -108,6 +108,23 @@ func (c *conn) GarbageCollect(ctx context.Context, now time.Time) (result storag
 			result.DeviceTokens++
 		}
 	}
+
+	authSessions, err := c.listAuthSessionsInternal(ctx)
+	if err != nil {
+		return result, err
+	}
+
+	for _, authSession := range authSessions {
+		if now.After(authSession.AbsoluteExpiry) || now.After(authSession.IdleExpiry) {
+			if err := c.deleteKey(ctx, keyAuthSession(authSession.UserID, authSession.ConnectorID)); err != nil {
+				c.logger.Error("failed to delete auth session", "err", err)
+				delErr = fmt.Errorf("failed to delete auth session: %v", err)
+			} else {
+				result.AuthSessions++
+			}
+		}
+	}
+
 	return result, delErr
 }
 
@@ -458,16 +475,13 @@ func (c *conn) UpdateAuthSession(ctx context.Context, userID, connectorID string
 func (c *conn) ListAuthSessions(ctx context.Context) (sessions []storage.AuthSession, err error) {
 	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
 	defer cancel()
-	res, err := c.db.Get(ctx, authSessionPrefix, clientv3.WithPrefix())
+
+	res, err := c.listAuthSessionsInternal(ctx)
 	if err != nil {
 		return sessions, err
 	}
-	for _, v := range res.Kvs {
-		var s AuthSession
-		if err = json.Unmarshal(v.Value, &s); err != nil {
-			return sessions, err
-		}
-		sessions = append(sessions, toStorageAuthSession(s))
+	for _, v := range res {
+		sessions = append(sessions, toStorageAuthSession(v))
 	}
 	return sessions, nil
 }
@@ -611,6 +625,21 @@ func (c *conn) listAuthCodes(ctx context.Context) (codes []AuthCode, err error) 
 		codes = append(codes, c)
 	}
 	return codes, nil
+}
+
+func (c *conn) listAuthSessionsInternal(ctx context.Context) (sessions []AuthSession, err error) {
+	res, err := c.db.Get(ctx, authSessionPrefix, clientv3.WithPrefix())
+	if err != nil {
+		return sessions, err
+	}
+	for _, v := range res.Kvs {
+		var s AuthSession
+		if err = json.Unmarshal(v.Value, &s); err != nil {
+			return sessions, err
+		}
+		sessions = append(sessions, s)
+	}
+	return sessions, nil
 }
 
 func (c *conn) txnCreate(ctx context.Context, key string, value interface{}) error {

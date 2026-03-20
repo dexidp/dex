@@ -134,8 +134,8 @@ func (s *Server) getValidAuthSession(ctx context.Context, w http.ResponseWriter,
 
 	now := s.now()
 
-	// Check absolute lifetime.
-	if now.After(session.CreatedAt.Add(s.sessionConfig.AbsoluteLifetime)) {
+	// Check absolute lifetime using the stored expiry (set once at creation).
+	if !session.AbsoluteExpiry.IsZero() && now.After(session.AbsoluteExpiry) {
 		s.logger.InfoContext(ctx, "auth session expired (absolute lifetime)",
 			"user_id", session.UserID, "connector_id", session.ConnectorID)
 		if err := s.storage.DeleteAuthSession(ctx, session.UserID, session.ConnectorID); err != nil {
@@ -145,8 +145,8 @@ func (s *Server) getValidAuthSession(ctx context.Context, w http.ResponseWriter,
 		return nil
 	}
 
-	// Check idle timeout.
-	if now.After(session.LastActivity.Add(s.sessionConfig.ValidIfNotUsedFor)) {
+	// Check idle timeout using the stored expiry (updated on every activity).
+	if !session.IdleExpiry.IsZero() && now.After(session.IdleExpiry) {
 		s.logger.InfoContext(ctx, "auth session expired (idle timeout)",
 			"user_id", session.UserID, "connector_id", session.ConnectorID)
 		if err := s.storage.DeleteAuthSession(ctx, session.UserID, session.ConnectorID); err != nil {
@@ -191,6 +191,7 @@ func (s *Server) createOrUpdateAuthSession(ctx context.Context, r *http.Request,
 
 		if err := s.storage.UpdateAuthSession(ctx, userID, connectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
 			old.LastActivity = now
+			old.IdleExpiry = now.Add(s.sessionConfig.ValidIfNotUsedFor)
 			if old.ClientStates == nil {
 				old.ClientStates = make(map[string]*storage.ClientAuthState)
 			}
@@ -217,10 +218,12 @@ func (s *Server) createOrUpdateAuthSession(ctx context.Context, r *http.Request,
 		ClientStates: map[string]*storage.ClientAuthState{
 			authReq.ClientID: clientState,
 		},
-		CreatedAt:    now,
-		LastActivity: now,
-		IPAddress:    remoteIP(r),
-		UserAgent:    r.UserAgent(),
+		CreatedAt:      now,
+		LastActivity:   now,
+		IPAddress:      remoteIP(r),
+		UserAgent:      r.UserAgent(),
+		AbsoluteExpiry: now.Add(s.sessionConfig.AbsoluteLifetime),
+		IdleExpiry:     now.Add(s.sessionConfig.ValidIfNotUsedFor),
 	}
 
 	if err := s.storage.CreateAuthSession(ctx, newSession); err != nil {
@@ -300,6 +303,7 @@ func (s *Server) trySessionLoginWithSession(ctx context.Context, r *http.Request
 	// Update session activity.
 	_ = s.storage.UpdateAuthSession(ctx, session.UserID, session.ConnectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
 		old.LastActivity = now
+		old.IdleExpiry = now.Add(s.sessionConfig.ValidIfNotUsedFor)
 		if cs, ok := old.ClientStates[authReq.ClientID]; ok {
 			cs.LastActivity = now
 		}
@@ -346,6 +350,7 @@ func (s *Server) updateSessionTokenIssuedAt(r *http.Request, clientID string) {
 	now := s.now()
 	_ = s.storage.UpdateAuthSession(r.Context(), userID, connectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
 		old.LastActivity = now
+		old.IdleExpiry = now.Add(s.sessionConfig.ValidIfNotUsedFor)
 		if cs, ok := old.ClientStates[clientID]; ok {
 			cs.LastTokenIssuedAt = now
 			cs.LastActivity = now

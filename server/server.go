@@ -728,7 +728,8 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 				} else if !r.IsEmpty() {
 					s.logger.InfoContext(ctx, "garbage collection run, delete auth",
 						"requests", r.AuthRequests, "auth_codes", r.AuthCodes,
-						"device_requests", r.DeviceRequests, "device_tokens", r.DeviceTokens)
+						"device_requests", r.DeviceRequests, "device_tokens", r.DeviceTokens,
+						"auth_sessions", r.AuthSessions)
 				}
 			}
 		}

@@ -121,7 +121,15 @@ func (c *conn) GarbageCollect(ctc context.Context, now time.Time) (storage.GCRes
 		result.DeviceTokens = n
 	}
 
-	return result, err
+	r, err = c.Exec(`delete from auth_session where absolute_expiry < $1 OR idle_expiry < $2`, now, now)
+	if err != nil {
+		return result, fmt.Errorf("gc auth_session: %v", err)
+	}
+	if n, err := r.RowsAffected(); err == nil {
+		result.AuthSessions = n
+	}
+
+	return result, nil
 }
 
 func (c *conn) CreateAuthRequest(ctx context.Context, a storage.AuthRequest) error {
@@ -962,14 +970,16 @@ func (c *conn) CreateAuthSession(ctx context.Context, s storage.AuthSession) err
 			user_id, connector_id, nonce,
 			client_states,
 			created_at, last_activity,
-			ip_address, user_agent
+			ip_address, user_agent,
+			absolute_expiry, idle_expiry
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
 	`,
 		s.UserID, s.ConnectorID, s.Nonce,
 		encoder(s.ClientStates),
 		s.CreatedAt, s.LastActivity,
 		s.IPAddress, s.UserAgent,
+		s.AbsoluteExpiry, s.IdleExpiry,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -1022,7 +1032,8 @@ func getAuthSession(ctx context.Context, q querier, userID, connectorID string) 
 			user_id, connector_id, nonce,
 			client_states,
 			created_at, last_activity,
-			ip_address, user_agent
+			ip_address, user_agent,
+			absolute_expiry, idle_expiry
 		from auth_session
 		where user_id = $1 AND connector_id = $2;
 	`, userID, connectorID))
@@ -1034,6 +1045,7 @@ func scanAuthSession(s scanner) (session storage.AuthSession, err error) {
 		decoder(&session.ClientStates),
 		&session.CreatedAt, &session.LastActivity,
 		&session.IPAddress, &session.UserAgent,
+		&session.AbsoluteExpiry, &session.IdleExpiry,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -1053,7 +1065,8 @@ func (c *conn) ListAuthSessions(ctx context.Context) ([]storage.AuthSession, err
 			user_id, connector_id, nonce,
 			client_states,
 			created_at, last_activity,
-			ip_address, user_agent
+			ip_address, user_agent,
+			absolute_expiry, idle_expiry
 		from auth_session;
 	`)
 	if err != nil {

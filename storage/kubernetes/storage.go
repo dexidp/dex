@@ -694,6 +694,22 @@ func (cli *client) GarbageCollect(ctx context.Context, now time.Time) (result st
 		}
 	}
 
+	var authSessions AuthSessionList
+	if err := cli.listN(resourceAuthSession, &authSessions, gcResultLimit); err != nil {
+		return result, fmt.Errorf("failed to list auth sessions: %v", err)
+	}
+
+	for _, authSession := range authSessions.AuthSessions {
+		if now.After(authSession.AbsoluteExpiry) || now.After(authSession.IdleExpiry) {
+			if err := cli.delete(resourceAuthSession, authSession.ObjectMeta.Name); err != nil {
+				cli.logger.Error("failed to delete auth session", "err", err)
+				delErr = fmt.Errorf("failed to delete auth session: %v", err)
+			} else {
+				result.AuthSessions++
+			}
+		}
+	}
+
 	if delErr != nil {
 		return result, delErr
 	}

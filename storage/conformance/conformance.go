@@ -966,6 +966,100 @@ func testGC(t *testing.T, s storage.Storage) {
 	} else if err != storage.ErrNotFound {
 		t.Errorf("expected storage.ErrNotFound, got %v", err)
 	}
+
+	// Test auth session GC.
+	authSession := storage.AuthSession{
+		UserID:      "gc-user",
+		ConnectorID: "gc-conn",
+		Nonce:       storage.NewID(),
+		ClientStates: map[string]*storage.ClientAuthState{
+			"client1": {Active: true, ExpiresAt: expiry.Add(time.Hour), LastActivity: expiry},
+		},
+		CreatedAt:      expiry.Add(-time.Hour),
+		LastActivity:   expiry.Add(-time.Hour),
+		AbsoluteExpiry: expiry,
+		IdleExpiry:     expiry,
+	}
+
+	if err := s.CreateAuthSession(ctx, authSession); err != nil {
+		t.Fatalf("failed creating auth session: %v", err)
+	}
+
+	// GC before expiry should not delete.
+	for _, tz := range []*time.Location{time.UTC, est, pst} {
+		result, err := s.GarbageCollect(ctx, expiry.Add(-time.Hour).In(tz))
+		if err != nil {
+			t.Errorf("garbage collection failed: %v", err)
+		} else if result.AuthSessions != 0 {
+			t.Errorf("expected no auth session garbage collection results, got %#v", result)
+		}
+		if _, err := s.GetAuthSession(ctx, authSession.UserID, authSession.ConnectorID); err != nil {
+			t.Errorf("expected to be able to get auth session after GC: %v", err)
+		}
+	}
+
+	// GC after expiry should delete.
+	if r, err := s.GarbageCollect(ctx, expiry.Add(time.Hour)); err != nil {
+		t.Errorf("garbage collection failed: %v", err)
+	} else if r.AuthSessions != 1 {
+		t.Errorf("expected to garbage collect 1 auth session, got %d", r.AuthSessions)
+	}
+
+	if _, err := s.GetAuthSession(ctx, authSession.UserID, authSession.ConnectorID); err == nil {
+		t.Errorf("expected auth session to be GC'd")
+	} else if err != storage.ErrNotFound {
+		t.Errorf("expected storage.ErrNotFound, got %v", err)
+	}
+
+	// Test auth session GC: absolute expired, idle still valid.
+	absExpiredSession := storage.AuthSession{
+		UserID:      "gc-abs-expired",
+		ConnectorID: "gc-conn",
+		Nonce:       storage.NewID(),
+		ClientStates: map[string]*storage.ClientAuthState{
+			"client1": {Active: true, ExpiresAt: expiry.Add(time.Hour), LastActivity: expiry},
+		},
+		CreatedAt:      expiry.Add(-25 * time.Hour),
+		LastActivity:   expiry.Add(-time.Minute),
+		AbsoluteExpiry: expiry.Add(-time.Hour), // expired
+		IdleExpiry:     expiry.Add(time.Hour),  // still valid
+	}
+	if err := s.CreateAuthSession(ctx, absExpiredSession); err != nil {
+		t.Fatalf("failed creating abs-expired auth session: %v", err)
+	}
+	if r, err := s.GarbageCollect(ctx, expiry); err != nil {
+		t.Errorf("garbage collection failed: %v", err)
+	} else if r.AuthSessions != 1 {
+		t.Errorf("expected to garbage collect 1 auth session (absolute expired), got %d", r.AuthSessions)
+	}
+	if _, err := s.GetAuthSession(ctx, absExpiredSession.UserID, absExpiredSession.ConnectorID); err == nil {
+		t.Errorf("expected abs-expired auth session to be GC'd")
+	}
+
+	// Test auth session GC: absolute still valid, idle expired.
+	idleExpiredSession := storage.AuthSession{
+		UserID:      "gc-idle-expired",
+		ConnectorID: "gc-conn",
+		Nonce:       storage.NewID(),
+		ClientStates: map[string]*storage.ClientAuthState{
+			"client1": {Active: true, ExpiresAt: expiry.Add(time.Hour), LastActivity: expiry},
+		},
+		CreatedAt:      expiry.Add(-time.Hour),
+		LastActivity:   expiry.Add(-2 * time.Hour),
+		AbsoluteExpiry: expiry.Add(23 * time.Hour), // still valid
+		IdleExpiry:     expiry.Add(-time.Hour),     // expired
+	}
+	if err := s.CreateAuthSession(ctx, idleExpiredSession); err != nil {
+		t.Fatalf("failed creating idle-expired auth session: %v", err)
+	}
+	if r, err := s.GarbageCollect(ctx, expiry); err != nil {
+		t.Errorf("garbage collection failed: %v", err)
+	} else if r.AuthSessions != 1 {
+		t.Errorf("expected to garbage collect 1 auth session (idle expired), got %d", r.AuthSessions)
+	}
+	if _, err := s.GetAuthSession(ctx, idleExpiredSession.UserID, idleExpiredSession.ConnectorID); err == nil {
+		t.Errorf("expected idle-expired auth session to be GC'd")
+	}
 }
 
 // testTimezones tests that backends either fully support timezones or
@@ -1197,10 +1291,12 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 				LastTokenIssuedAt: now,
 			},
 		},
-		CreatedAt:    now,
-		LastActivity: now,
-		IPAddress:    "192.168.1.1",
-		UserAgent:    "TestBrowser/1.0",
+		CreatedAt:      now,
+		LastActivity:   now,
+		IPAddress:      "192.168.1.1",
+		UserAgent:      "TestBrowser/1.0",
+		AbsoluteExpiry: now.Add(24 * time.Hour),
+		IdleExpiry:     now.Add(1 * time.Hour),
 	}
 
 	// Create.
@@ -1220,6 +1316,8 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 
 	got.CreatedAt = got.CreatedAt.UTC().Round(time.Millisecond)
 	got.LastActivity = got.LastActivity.UTC().Round(time.Millisecond)
+	got.AbsoluteExpiry = got.AbsoluteExpiry.UTC().Round(time.Millisecond)
+	got.IdleExpiry = got.IdleExpiry.UTC().Round(time.Millisecond)
 	for _, cs := range got.ClientStates {
 		cs.ExpiresAt = cs.ExpiresAt.UTC().Round(time.Millisecond)
 		cs.LastActivity = cs.LastActivity.UTC().Round(time.Millisecond)
