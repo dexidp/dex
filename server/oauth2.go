@@ -442,8 +442,6 @@ func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage
 // validateIDTokenHint verifies the signature and issuer of an id_token_hint.
 // Expired tokens are accepted per OIDC Core 1.0 §3.1.2.1.
 // Returns the raw subject claim from the token.
-//
-
 func (s *Server) validateIDTokenHint(ctx context.Context, hint string) (string, error) {
 	verifier := oidc.NewVerifier(s.issuerURL.String(), &signerKeySet{s.signer}, &oidc.Config{
 		SkipExpiryCheck: true,
