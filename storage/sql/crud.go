@@ -129,7 +129,7 @@ func (c *conn) GarbageCollect(ctc context.Context, now time.Time) (storage.GCRes
 		result.AuthSessions = n
 	}
 
-	return result, err
+	return result, nil
 }
 
 func (c *conn) CreateAuthRequest(ctx context.Context, a storage.AuthRequest) error {
@@ -997,15 +997,12 @@ func (c *conn) UpdateAuthSession(ctx context.Context, userID, connectorID string
 				client_states = $1,
 				last_activity = $2,
 				ip_address = $3,
-				user_agent = $4,
-				absolute_expiry = $5,
-				idle_expiry = $6
-			where user_id = $7 AND connector_id = $8;
+				user_agent = $4
+			where user_id = $5 AND connector_id = $6;
 		`,
 			encoder(newSession.ClientStates),
 			newSession.LastActivity,
 			newSession.IPAddress, newSession.UserAgent,
-			newSession.AbsoluteExpiry, newSession.IdleExpiry,
 			userID, connectorID,
 		)
 		if err != nil {

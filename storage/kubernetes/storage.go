@@ -704,8 +704,9 @@ func (cli *client) GarbageCollect(ctx context.Context, now time.Time) (result st
 			if err := cli.delete(resourceAuthSession, authSession.ObjectMeta.Name); err != nil {
 				cli.logger.Error("failed to delete auth session", "err", err)
 				delErr = fmt.Errorf("failed to delete auth session: %v", err)
+			} else {
+				result.AuthSessions++
 			}
-			result.AuthSessions++
 		}
 	}
 

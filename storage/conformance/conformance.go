@@ -999,6 +999,56 @@ func testGC(t *testing.T, s storage.Storage) {
 	} else if err != storage.ErrNotFound {
 		t.Errorf("expected storage.ErrNotFound, got %v", err)
 	}
+
+	// Test auth session GC: absolute expired, idle still valid.
+	absExpiredSession := storage.AuthSession{
+		UserID:      "gc-abs-expired",
+		ConnectorID: "gc-conn",
+		Nonce:       storage.NewID(),
+		ClientStates: map[string]*storage.ClientAuthState{
+			"client1": {Active: true, ExpiresAt: expiry.Add(time.Hour), LastActivity: expiry},
+		},
+		CreatedAt:      expiry.Add(-25 * time.Hour),
+		LastActivity:   expiry.Add(-time.Minute),
+		AbsoluteExpiry: expiry.Add(-time.Hour), // expired
+		IdleExpiry:     expiry.Add(time.Hour),  // still valid
+	}
+	if err := s.CreateAuthSession(ctx, absExpiredSession); err != nil {
+		t.Fatalf("failed creating abs-expired auth session: %v", err)
+	}
+	if r, err := s.GarbageCollect(ctx, expiry); err != nil {
+		t.Errorf("garbage collection failed: %v", err)
+	} else if r.AuthSessions != 1 {
+		t.Errorf("expected to garbage collect 1 auth session (absolute expired), got %d", r.AuthSessions)
+	}
+	if _, err := s.GetAuthSession(ctx, absExpiredSession.UserID, absExpiredSession.ConnectorID); err == nil {
+		t.Errorf("expected abs-expired auth session to be GC'd")
+	}
+
+	// Test auth session GC: absolute still valid, idle expired.
+	idleExpiredSession := storage.AuthSession{
+		UserID:      "gc-idle-expired",
+		ConnectorID: "gc-conn",
+		Nonce:       storage.NewID(),
+		ClientStates: map[string]*storage.ClientAuthState{
+			"client1": {Active: true, ExpiresAt: expiry.Add(time.Hour), LastActivity: expiry},
+		},
+		CreatedAt:      expiry.Add(-time.Hour),
+		LastActivity:   expiry.Add(-2 * time.Hour),
+		AbsoluteExpiry: expiry.Add(23 * time.Hour), // still valid
+		IdleExpiry:     expiry.Add(-time.Hour),     // expired
+	}
+	if err := s.CreateAuthSession(ctx, idleExpiredSession); err != nil {
+		t.Fatalf("failed creating idle-expired auth session: %v", err)
+	}
+	if r, err := s.GarbageCollect(ctx, expiry); err != nil {
+		t.Errorf("garbage collection failed: %v", err)
+	} else if r.AuthSessions != 1 {
+		t.Errorf("expected to garbage collect 1 auth session (idle expired), got %d", r.AuthSessions)
+	}
+	if _, err := s.GetAuthSession(ctx, idleExpiredSession.UserID, idleExpiredSession.ConnectorID); err == nil {
+		t.Errorf("expected idle-expired auth session to be GC'd")
+	}
 }
 
 // testTimezones tests that backends either fully support timezones or

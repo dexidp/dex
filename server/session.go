@@ -133,8 +133,8 @@ func (s *Server) getValidAuthSession(ctx context.Context, w http.ResponseWriter,
 
 	now := s.now()
 
-	// Check absolute lifetime.
-	if now.After(session.CreatedAt.Add(s.sessionConfig.AbsoluteLifetime)) {
+	// Check absolute lifetime using the stored expiry (set once at creation).
+	if !session.AbsoluteExpiry.IsZero() && now.After(session.AbsoluteExpiry) {
 		s.logger.InfoContext(ctx, "auth session expired (absolute lifetime)",
 			"user_id", session.UserID, "connector_id", session.ConnectorID)
 		if err := s.storage.DeleteAuthSession(ctx, session.UserID, session.ConnectorID); err != nil {
@@ -144,8 +144,8 @@ func (s *Server) getValidAuthSession(ctx context.Context, w http.ResponseWriter,
 		return nil
 	}
 
-	// Check idle timeout.
-	if now.After(session.LastActivity.Add(s.sessionConfig.ValidIfNotUsedFor)) {
+	// Check idle timeout using the stored expiry (updated on every activity).
+	if !session.IdleExpiry.IsZero() && now.After(session.IdleExpiry) {
 		s.logger.InfoContext(ctx, "auth session expired (idle timeout)",
 			"user_id", session.UserID, "connector_id", session.ConnectorID)
 		if err := s.storage.DeleteAuthSession(ctx, session.UserID, session.ConnectorID); err != nil {
