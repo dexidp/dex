@@ -442,10 +442,17 @@ func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage
 // validateIDTokenHint verifies the signature and issuer of an id_token_hint.
 // Expired tokens are accepted per OIDC Core 1.0 §3.1.2.1.
 // Returns the raw subject claim from the token.
+//
+
 func (s *Server) validateIDTokenHint(ctx context.Context, hint string) (string, error) {
 	verifier := oidc.NewVerifier(s.issuerURL.String(), &signerKeySet{s.signer}, &oidc.Config{
+		SkipExpiryCheck: true,
+		// SkipClientIDCheck is set because the hint may originate from any client that
+		// Dex issued a token to — the caller does not know the expected audience in advance.
+		// The signature verification via signerKeySet already guarantees the token was
+		// issued by this server, which is sufficient for a hint.
+		// Dex does the client id check later in the scope of the session validation.
 		SkipClientIDCheck: true,
-		SkipExpiryCheck:   true,
 	})
 	idToken, err := verifier.Verify(ctx, hint)
 	if err != nil {
