@@ -732,6 +732,83 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 	})
 }
 
+func TestTrySessionLoginWithSession_IDTokenHint(t *testing.T) {
+	ctx := t.Context()
+
+	// genSubject("user-1", "mock") produces a deterministic subject string.
+	hintSubjectForUser1Mock, err := genSubject("user-1", "mock")
+	require.NoError(t, err)
+
+	hintSubjectOther, err := genSubject("other-user", "mock")
+	require.NoError(t, err)
+
+	t.Run("hint matches session user - session login succeeds", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		s.skipApproval = true
+		authReq := setupSessionLoginFixture(t, s)
+
+		session := s.getValidAuthSession(ctx, httptest.NewRecorder(), sessionCookieRequest("user-1", "mock", "test-nonce"), &authReq)
+		require.NotNil(t, session)
+
+		// Verify hint matches.
+		assert.True(t, sessionMatchesHint(session, hintSubjectForUser1Mock))
+
+		r := sessionCookieRequest("user-1", "mock", "test-nonce")
+		w := httptest.NewRecorder()
+
+		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		assert.True(t, ok)
+	})
+
+	t.Run("hint does not match session user - session invalidated", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		s.skipApproval = true
+		authReq := setupSessionLoginFixture(t, s)
+
+		session := s.getValidAuthSession(ctx, httptest.NewRecorder(), sessionCookieRequest("user-1", "mock", "test-nonce"), &authReq)
+		require.NotNil(t, session)
+
+		// Verify hint does NOT match.
+		assert.False(t, sessionMatchesHint(session, hintSubjectOther))
+
+		// Simulating the hint mismatch logic from handleConnectorLogin:
+		// when hint doesn't match and prompt is not none, session is set to nil.
+		var nilSession *storage.AuthSession
+		r := sessionCookieRequest("user-1", "mock", "test-nonce")
+		w := httptest.NewRecorder()
+
+		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, nilSession)
+		assert.False(t, ok, "session login should fail when session is invalidated due to hint mismatch")
+	})
+
+	t.Run("hint with no session - trySessionLoginWithSession returns false", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		s.skipApproval = true
+		authReq := setupSessionLoginFixture(t, s)
+
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		w := httptest.NewRecorder()
+
+		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, nil)
+		assert.False(t, ok)
+	})
+
+	t.Run("no hint - unchanged behavior", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		s.skipApproval = true
+		authReq := setupSessionLoginFixture(t, s)
+
+		session := s.getValidAuthSession(ctx, httptest.NewRecorder(), sessionCookieRequest("user-1", "mock", "test-nonce"), &authReq)
+		require.NotNil(t, session)
+
+		r := sessionCookieRequest("user-1", "mock", "test-nonce")
+		w := httptest.NewRecorder()
+
+		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		assert.True(t, ok)
+	})
+}
+
 func TestParseAuthRequest_PromptAndMaxAge(t *testing.T) {
 	t.Run("prompt=consent sets ForceApprovalPrompt", func(t *testing.T) {
 		authReq := storage.AuthRequest{

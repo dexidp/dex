@@ -238,6 +238,13 @@ func (s *Server) createOrUpdateAuthSession(ctx context.Context, r *http.Request,
 // Returns ("", false) if session-based login is not possible.
 func (s *Server) trySessionLogin(ctx context.Context, r *http.Request, w http.ResponseWriter, authReq *storage.AuthRequest) (string, bool) {
 	session := s.getValidAuthSession(ctx, w, r, authReq)
+	return s.trySessionLoginWithSession(ctx, r, w, authReq, session)
+}
+
+// trySessionLoginWithSession is like trySessionLogin but accepts a pre-retrieved session.
+// This allows callers to inspect the session (e.g., for id_token_hint comparison) before
+// attempting session-based login.
+func (s *Server) trySessionLoginWithSession(ctx context.Context, r *http.Request, w http.ResponseWriter, authReq *storage.AuthRequest, session *storage.AuthSession) (string, bool) {
 	if session == nil {
 		return "", false
 	}

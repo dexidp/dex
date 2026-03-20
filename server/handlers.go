@@ -295,7 +295,7 @@ func (s *Server) getClientWithAuthError(ctx context.Context, clientID string) (s
 
 func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	authReq, err := s.parseAuthorizationRequest(r)
+	authReq, hintSubject, err := s.parseAuthorizationRequest(r)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to parse authorization request", "err", err)
 
@@ -374,9 +374,26 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	// handle prompt only if sessions are enabled
 	if s.sessionConfig != nil {
+		// Retrieve the session once for use in both hint and prompt logic.
+		session := s.getValidAuthSession(ctx, w, r, authReq)
+
+		// id_token_hint logic (OIDC Core 1.0 3.1.2.1):
+		// When a hint is provided, verify that the session user matches.
+		if hintSubject != "" {
+			if !sessionMatchesHint(session, hintSubject) {
+				// Clear the session if the user is different from the hint.
+				session = nil
+			}
+			if session == nil && prompt.None() {
+				// Cannot authenticate silently with prompt=none.
+				s.redirectWithError(w, r, authReq, errLoginRequired, "id_token_hint does not match authenticated user")
+				return
+			}
+		}
+
 		// prompt=none: no UI allowed.
 		if prompt.None() {
-			redirectURL, ok := s.trySessionLogin(ctx, r, w, authReq)
+			redirectURL, ok := s.trySessionLoginWithSession(ctx, r, w, authReq, session)
 			if !ok {
 				s.redirectWithError(w, r, authReq, errLoginRequired, "User not authenticated")
 				return
@@ -391,7 +408,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 
 		if !prompt.Login() {
 			// Normal flow: try session-based login (skip if prompt=login forces re-auth).
-			if redirectURL, ok := s.trySessionLogin(ctx, r, w, authReq); ok {
+			if redirectURL, ok := s.trySessionLoginWithSession(ctx, r, w, authReq, session); ok {
 				if redirectURL != "" {
 					http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 				}
