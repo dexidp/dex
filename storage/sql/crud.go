@@ -978,15 +978,17 @@ func (c *conn) CreateAuthSession(ctx context.Context, s storage.AuthSession) err
 			client_states,
 			created_at, last_activity,
 			ip_address, user_agent,
-			absolute_expiry, idle_expiry
+			absolute_expiry, idle_expiry,
+			logout_state
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
 	`,
 		s.UserID, s.ConnectorID, s.Nonce,
 		encoder(s.ClientStates),
 		s.CreatedAt, s.LastActivity,
 		s.IPAddress, s.UserAgent,
 		s.AbsoluteExpiry, s.IdleExpiry,
+		encoder(s.LogoutState),
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -1014,12 +1016,14 @@ func (c *conn) UpdateAuthSession(ctx context.Context, userID, connectorID string
 				client_states = $1,
 				last_activity = $2,
 				ip_address = $3,
-				user_agent = $4
-			where user_id = $5 AND connector_id = $6;
+				user_agent = $4,
+				logout_state = $5
+			where user_id = $6 AND connector_id = $7;
 		`,
 			encoder(newSession.ClientStates),
 			newSession.LastActivity,
 			newSession.IPAddress, newSession.UserAgent,
+			encoder(newSession.LogoutState),
 			userID, connectorID,
 		)
 		if err != nil {
@@ -1033,26 +1037,32 @@ func (c *conn) GetAuthSession(ctx context.Context, userID, connectorID string) (
 	return getAuthSession(ctx, c, userID, connectorID)
 }
 
+const authSessionColumns = `
+	user_id, connector_id, nonce,
+	client_states,
+	created_at, last_activity,
+	ip_address, user_agent,
+	absolute_expiry, idle_expiry,
+	logout_state
+`
+
 func getAuthSession(ctx context.Context, q querier, userID, connectorID string) (storage.AuthSession, error) {
 	return scanAuthSession(q.QueryRow(`
-		select
-			user_id, connector_id, nonce,
-			client_states,
-			created_at, last_activity,
-			ip_address, user_agent,
-			absolute_expiry, idle_expiry
+		select `+authSessionColumns+`
 		from auth_session
 		where user_id = $1 AND connector_id = $2;
 	`, userID, connectorID))
 }
 
 func scanAuthSession(s scanner) (session storage.AuthSession, err error) {
+	var logoutState []byte
 	err = s.Scan(
 		&session.UserID, &session.ConnectorID, &session.Nonce,
 		decoder(&session.ClientStates),
 		&session.CreatedAt, &session.LastActivity,
 		&session.IPAddress, &session.UserAgent,
 		&session.AbsoluteExpiry, &session.IdleExpiry,
+		&logoutState,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -1063,19 +1073,17 @@ func scanAuthSession(s scanner) (session storage.AuthSession, err error) {
 	if session.ClientStates == nil {
 		session.ClientStates = make(map[string]*storage.ClientAuthState)
 	}
+	if len(logoutState) > 0 && string(logoutState) != "null" {
+		session.LogoutState = new(storage.LogoutState)
+		if err := json.Unmarshal(logoutState, session.LogoutState); err != nil {
+			return session, fmt.Errorf("unmarshal auth session logout state: %v", err)
+		}
+	}
 	return session, nil
 }
 
 func (c *conn) ListAuthSessions(ctx context.Context) ([]storage.AuthSession, error) {
-	rows, err := c.Query(`
-		select
-			user_id, connector_id, nonce,
-			client_states,
-			created_at, last_activity,
-			ip_address, user_agent,
-			absolute_expiry, idle_expiry
-		from auth_session;
-	`)
+	rows, err := c.Query(`select ` + authSessionColumns + ` from auth_session;`)
 	if err != nil {
 		return nil, fmt.Errorf("query: %v", err)
 	}
