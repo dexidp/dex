@@ -23,6 +23,7 @@ const (
 	tmplDevice        = "device.html"
 	tmplDeviceSuccess = "device_success.html"
 	tmplTOTPVerify    = "totp_verify.html"
+	tmplHome          = "home.html"
 )
 
 var requiredTmpls = []string{
@@ -44,6 +45,7 @@ type templates struct {
 	deviceTmpl        *template.Template
 	deviceSuccessTmpl *template.Template
 	totpVerifyTmpl    *template.Template
+	homeTmpl          *template.Template
 }
 
 type webConfig struct {
@@ -172,6 +174,7 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 		deviceTmpl:        tmpls.Lookup(tmplDevice),
 		deviceSuccessTmpl: tmpls.Lookup(tmplDeviceSuccess),
 		totpVerifyTmpl:    tmpls.Lookup(tmplTOTPVerify),
+		homeTmpl:          tmpls.Lookup(tmplHome),
 	}, nil
 }
 
@@ -227,6 +230,13 @@ func relativeURL(serverPath, reqPath, assetPath string) string {
 
 	// Remove common prefix of request path with server path
 	_, req = stripCommonParts(server, req)
+
+	// When the request is at the server root (e.g., reqPath == "/dex"),
+	// the browser treats the last path segment as a file, not a directory.
+	// Prepend the server path so relative URLs resolve correctly.
+	if len(req) == 0 && len(server) > 0 {
+		asset = append(server, asset...)
+	}
 
 	// Remove common prefix of request path with asset path
 	asset, req = stripCommonParts(asset, req)
@@ -354,6 +364,26 @@ func (t *templates) totpVerify(r *http.Request, w http.ResponseWriter, postURL, 
 		ReqPath   string
 	}{postURL, lastWasInvalid, issuer, connector, qrCode, r.URL.Path}
 	return renderTemplate(w, t.totpVerifyTmpl, data)
+}
+
+type homeData struct {
+	LoggedIn       bool
+	Username       string
+	Email          string
+	EmailVerified  bool
+	Groups         []string
+	ConnectorName  string
+	LastLoginEpoch int64
+	IPAddress      string
+	UserAgent      string
+	LogoutURL      string
+	DiscoveryURL   string
+	ReqPath        string
+}
+
+func (t *templates) home(r *http.Request, w http.ResponseWriter, data homeData) error {
+	data.ReqPath = r.URL.Path
+	return renderTemplate(w, t.homeTmpl, data)
 }
 
 func (t *templates) oob(r *http.Request, w http.ResponseWriter, code string) error {
