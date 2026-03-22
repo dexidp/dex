@@ -47,7 +47,7 @@ func TestSetSessionCookie(t *testing.T) {
 
 	c := cookies[0]
 	assert.Equal(t, "dex_session", c.Name)
-	assert.Equal(t, sessionCookieValue("user1", "conn1", "nonce123"), c.Value)
+	assert.Equal(t, sessionCookieValue("user1", "conn1", "nonce123", nil), c.Value)
 	assert.Equal(t, "/dex", c.Path)
 	assert.True(t, c.HttpOnly)
 	assert.True(t, c.Secure)
@@ -93,8 +93,8 @@ func TestSessionCookieValueRoundtrip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			value := sessionCookieValue(tt.userID, tt.connectorID, tt.nonce)
-			gotUser, gotConn, gotNonce, err := parseSessionCookie(value)
+			value := sessionCookieValue(tt.userID, tt.connectorID, tt.nonce, nil)
+			gotUser, gotConn, gotNonce, err := parseSessionCookie(value, nil)
 			require.NoError(t, err)
 			assert.Equal(t, tt.userID, gotUser)
 			assert.Equal(t, tt.connectorID, gotConn)
@@ -103,12 +103,39 @@ func TestSessionCookieValueRoundtrip(t *testing.T) {
 	}
 }
 
+func TestSessionCookieValueEncryptedRoundtrip(t *testing.T) {
+	key := []byte("0123456789abcdef") // 16 bytes = AES-128
+
+	value := sessionCookieValue("user1", "ldap", "nonce1", key)
+	// Encrypted value must differ from unencrypted.
+	unencrypted := sessionCookieValue("user1", "ldap", "nonce1", nil)
+	assert.NotEqual(t, unencrypted, value)
+
+	// Must decrypt correctly.
+	gotUser, gotConn, gotNonce, err := parseSessionCookie(value, key)
+	require.NoError(t, err)
+	assert.Equal(t, "user1", gotUser)
+	assert.Equal(t, "ldap", gotConn)
+	assert.Equal(t, "nonce1", gotNonce)
+
+	// Wrong key must fail.
+	wrongKey := []byte("abcdef0123456789")
+	//nolint:dogsled // only for tests
+	_, _, _, err = parseSessionCookie(value, wrongKey)
+	assert.Error(t, err)
+
+	// No key must fail (encrypted value isn't valid protobuf).
+	//nolint:dogsled // only for tests
+	_, _, _, err = parseSessionCookie(value, nil)
+	assert.Error(t, err)
+}
+
 func TestParseSessionCookie_Invalid(t *testing.T) {
 	//nolint:dogsled // only for tests
-	_, _, _, err := parseSessionCookie("invalid")
+	_, _, _, err := parseSessionCookie("invalid", nil)
 	assert.Error(t, err)
 	//nolint:dogsled // only for tests
-	_, _, _, err = parseSessionCookie("a.b")
+	_, _, _, err = parseSessionCookie("a.b", nil)
 	assert.Error(t, err)
 }
 
@@ -142,7 +169,7 @@ func TestGetValidAuthSession(t *testing.T) {
 	t.Run("session not found", func(t *testing.T) {
 		s := newTestSessionServer(t)
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("nouser", "noconn", "nonce")})
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("nouser", "noconn", "nonce", nil)})
 		w := httptest.NewRecorder()
 		assert.Nil(t, s.getValidAuthSession(ctx, w, r, authReq))
 		// Cookie should be cleared.
@@ -169,7 +196,7 @@ func TestGetValidAuthSession(t *testing.T) {
 		require.NoError(t, s.storage.CreateAuthSession(ctx, session))
 
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user1", "conn1", nonce)})
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user1", "conn1", nonce, nil)})
 
 		result := s.getValidAuthSession(ctx, httptest.NewRecorder(), r, authReq)
 		require.NotNil(t, result)
@@ -197,7 +224,7 @@ func TestGetValidAuthSession(t *testing.T) {
 		require.NoError(t, s.storage.CreateAuthSession(ctx, session))
 
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user1", "ldap", nonce)})
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user1", "ldap", nonce, nil)})
 
 		githubReq := &storage.AuthRequest{ConnectorID: "github"}
 		assert.Nil(t, s.getValidAuthSession(ctx, httptest.NewRecorder(), r, githubReq))
@@ -222,7 +249,7 @@ func TestGetValidAuthSession(t *testing.T) {
 		require.NoError(t, s.storage.CreateAuthSession(ctx, session))
 
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user2", "conn2", "wrong-nonce")})
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user2", "conn2", "wrong-nonce", nil)})
 
 		conn2Req := &storage.AuthRequest{ConnectorID: "conn2"}
 		w := httptest.NewRecorder()
@@ -250,7 +277,7 @@ func TestGetValidAuthSession(t *testing.T) {
 		require.NoError(t, s.storage.CreateAuthSession(ctx, session))
 
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user3", "conn3", nonce)})
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user3", "conn3", nonce, nil)})
 
 		conn3Req := &storage.AuthRequest{ConnectorID: "conn3"}
 		w := httptest.NewRecorder()
@@ -282,7 +309,7 @@ func TestGetValidAuthSession(t *testing.T) {
 		require.NoError(t, s.storage.CreateAuthSession(ctx, session))
 
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user4", "conn4", nonce)})
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user4", "conn4", nonce, nil)})
 
 		conn4Req := &storage.AuthRequest{ConnectorID: "conn4"}
 		w := httptest.NewRecorder()
@@ -317,7 +344,7 @@ func TestCreateOrUpdateAuthSession(t *testing.T) {
 		cookies := w.Result().Cookies()
 		require.Len(t, cookies, 1)
 
-		userID, connectorID, nonce, err := parseSessionCookie(cookies[0].Value)
+		userID, connectorID, nonce, err := parseSessionCookie(cookies[0].Value, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "user-1", userID)
 		assert.Equal(t, "mock", connectorID)
@@ -373,7 +400,7 @@ func TestCreateOrUpdateAuthSession(t *testing.T) {
 		// Cookie should be set with existing nonce.
 		cookies := w.Result().Cookies()
 		require.Len(t, cookies, 1)
-		_, _, gotNonce, err := parseSessionCookie(cookies[0].Value)
+		_, _, gotNonce, err := parseSessionCookie(cookies[0].Value, nil)
 		require.NoError(t, err)
 		assert.Equal(t, nonce, gotNonce)
 
@@ -451,7 +478,7 @@ func setupSessionLoginFixture(t *testing.T, s *Server) storage.AuthRequest {
 
 func sessionCookieRequest(userID, connectorID, nonce string) *http.Request {
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
-	r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue(userID, connectorID, nonce)})
+	r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue(userID, connectorID, nonce, nil)})
 	return r
 }
 
@@ -664,7 +691,7 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 		authReq.MaxAge = -1 // not specified
 
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user-1", "mock", "test-nonce")})
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user-1", "mock", "test-nonce", nil)})
 		w := httptest.NewRecorder()
 
 		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
@@ -680,7 +707,7 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 		authReq.MaxAge = 3600
 
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user-1", "mock", "test-nonce")})
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user-1", "mock", "test-nonce", nil)})
 		w := httptest.NewRecorder()
 
 		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
@@ -696,7 +723,7 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 		authReq.MaxAge = 3600
 
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user-1", "mock", "test-nonce")})
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user-1", "mock", "test-nonce", nil)})
 		w := httptest.NewRecorder()
 
 		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
@@ -712,7 +739,7 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 		authReq.MaxAge = 0
 
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user-1", "mock", "test-nonce")})
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user-1", "mock", "test-nonce", nil)})
 		w := httptest.NewRecorder()
 
 		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
@@ -734,7 +761,7 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 		}))
 
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user-1", "mock", "test-nonce")})
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user-1", "mock", "test-nonce", nil)})
 		w := httptest.NewRecorder()
 
 		redirectURL, ok := s.trySessionLogin(ctx, r, w, &authReq)

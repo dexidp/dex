@@ -804,6 +804,9 @@ func parseSessionConfig(s *Sessions) (*server.SessionConfig, error) {
 		if s.RememberMeCheckedByDefault != nil {
 			sc.RememberMeCheckedByDefault = *s.RememberMeCheckedByDefault
 		}
+		if s.CookieEncryptionKey != "" {
+			sc.CookieEncryptionKey = []byte(s.CookieEncryptionKey)
+		}
 	}
 	if sc.AbsoluteLifetime <= 0 {
 		return nil, fmt.Errorf("absoluteLifetime must be positive, got %v", sc.AbsoluteLifetime)
@@ -813,6 +816,9 @@ func parseSessionConfig(s *Sessions) (*server.SessionConfig, error) {
 	}
 	if sc.ValidIfNotUsedFor > sc.AbsoluteLifetime {
 		return nil, fmt.Errorf("validIfNotUsedFor (%v) must not exceed absoluteLifetime (%v)", sc.ValidIfNotUsedFor, sc.AbsoluteLifetime)
+	}
+	if k := len(sc.CookieEncryptionKey); k > 0 && k != 16 && k != 24 && k != 32 {
+		return nil, fmt.Errorf("cookieEncryptionKey must be 16, 24, or 32 bytes (AES-128/192/256), got %d", k)
 	}
 	return sc, nil
 }

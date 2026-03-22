@@ -152,6 +152,7 @@ type Config struct {
 // SessionConfig holds resolved session configuration.
 type SessionConfig struct {
 	CookieName                 string
+	CookieEncryptionKey        []byte
 	AbsoluteLifetime           time.Duration
 	ValidIfNotUsedFor          time.Duration
 	RememberMeCheckedByDefault bool
