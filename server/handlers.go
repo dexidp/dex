@@ -229,7 +229,26 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 
 	// Skip connector selection if a valid session exists, unless prompt=select_account or alwaysShowLogin.
 	if s.sessionConfig != nil {
-		prompt, _ := ParsePrompt(r.Form.Get("prompt"))
+		authReq, _, err := s.parseAuthorizationRequest(r)
+		if err != nil {
+			s.logger.ErrorContext(r.Context(), "failed to parse authorization request", "err", err)
+
+			switch authErr := err.(type) {
+			case *redirectedAuthErr:
+				authErr.Handler().ServeHTTP(w, r)
+			case *displayedAuthErr:
+				s.renderError(r, w, authErr.Status, err.Error())
+			default:
+				panic("unsupported error type")
+			}
+		}
+		prompt, err := ParsePrompt(authReq.Prompt)
+		if err != nil {
+			// Server error because authReq was validated before saving it to database.
+			s.redirectWithError(w, r, authReq, errServerError, "Invalid authentication request")
+			return
+		}
+
 		// Invalid prompts will be validated and properly redirected later
 		if !s.alwaysShowLogin && !prompt.SelectAccount() {
 			session := s.getValidSession(ctx, w, r)
@@ -243,6 +262,11 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			}
+		}
+		if prompt.None() {
+			// Cannot authenticate silently with prompt=none.
+			s.redirectWithError(w, r, authReq, errLoginRequired, "id_token_hint does not match authenticated user")
+			return
 		}
 	}
 
