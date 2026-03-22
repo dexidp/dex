@@ -224,6 +224,26 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	if len(connectors) == 1 && !s.alwaysShowLogin {
 		connURL.Path = s.absPath("/auth", url.PathEscape(connectors[0].ID))
 		http.Redirect(w, r, connURL.String(), http.StatusFound)
+		return
+	}
+
+	// Skip connector selection if a valid session exists, unless prompt=select_account or alwaysShowLogin.
+	if s.sessionConfig != nil {
+		prompt, _ := ParsePrompt(r.Form.Get("prompt"))
+		// Invalid prompts will be validated and properly redirected later
+		if !s.alwaysShowLogin && !prompt.SelectAccount() {
+			session := s.getValidSession(ctx, w, r)
+			if session != nil {
+				for _, c := range connectors {
+					if c.ID != session.ConnectorID {
+						continue
+					}
+					connURL.Path = s.absPath("/auth", url.PathEscape(session.ConnectorID))
+					http.Redirect(w, r, connURL.String(), http.StatusFound)
+					return
+				}
+			}
+		}
 	}
 
 	connectorInfos := make([]connectorInfo, 0, len(connectors))

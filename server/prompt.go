@@ -9,9 +9,10 @@ import (
 // The parameter is space-separated and may contain: "none", "login", "consent", "select_account".
 // "none" must not be combined with any other value.
 type Prompt struct {
-	none    bool
-	login   bool
-	consent bool
+	none          bool
+	login         bool
+	consent       bool
+	selectAccount bool
 }
 
 // ParsePrompt parses and validates the raw prompt query parameter.
@@ -39,13 +40,13 @@ func ParsePrompt(raw string) (Prompt, error) {
 		case "consent":
 			p.consent = true
 		case "select_account":
-			// Dex does not support account selection; ignore per spec recommendation.
+			p.selectAccount = true
 		default:
 			return Prompt{}, fmt.Errorf("invalid prompt value %q", v)
 		}
 	}
 
-	if p.none && (p.login || p.consent) {
+	if p.none && (p.login || p.consent || p.selectAccount) {
 		return Prompt{}, fmt.Errorf("prompt=none must not be combined with other values")
 	}
 
@@ -61,6 +62,9 @@ func (p Prompt) Login() bool { return p.login }
 // Consent returns true if the caller requested forced consent screen.
 func (p Prompt) Consent() bool { return p.consent }
 
+// SelectAccount returns true if the caller requested account/connector selection.
+func (p Prompt) SelectAccount() bool { return p.selectAccount }
+
 // String returns the canonical space-separated representation stored in the database.
 func (p Prompt) String() string {
 	var parts []string
@@ -72,6 +76,9 @@ func (p Prompt) String() string {
 	}
 	if p.consent {
 		parts = append(parts, "consent")
+	}
+	if p.selectAccount {
+		parts = append(parts, "select_account")
 	}
 	return strings.Join(parts, " ")
 }

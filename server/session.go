@@ -89,11 +89,11 @@ func (s *Server) clearSessionCookie(w http.ResponseWriter) {
 	})
 }
 
-// getValidAuthSession returns a valid, non-expired session or nil.
+// getValidSession returns a valid, non-expired session or nil.
 // It parses the session cookie to extract (userID, connectorID, nonce),
 // looks up the session by composite key, and verifies the nonce.
 // Invalid or expired session cookies are cleared automatically.
-func (s *Server) getValidAuthSession(ctx context.Context, w http.ResponseWriter, r *http.Request, authReq *storage.AuthRequest) *storage.AuthSession {
+func (s *Server) getValidSession(ctx context.Context, w http.ResponseWriter, r *http.Request) *storage.AuthSession {
 	if s.sessionConfig == nil {
 		return nil
 	}
@@ -150,12 +150,22 @@ func (s *Server) getValidAuthSession(ctx context.Context, w http.ResponseWriter,
 		return nil
 	}
 
+	return &session
+}
+
+// getValidAuthSession returns a valid session matching the auth request's connector, or nil.
+func (s *Server) getValidAuthSession(ctx context.Context, w http.ResponseWriter, r *http.Request, authReq *storage.AuthRequest) *storage.AuthSession {
+	session := s.getValidSession(ctx, w, r)
+	if session == nil {
+		return nil
+	}
+
 	// Only reuse sessions from the same connector.
 	if session.ConnectorID != authReq.ConnectorID {
 		return nil
 	}
 
-	return &session
+	return session
 }
 
 // createOrUpdateAuthSession creates a new session or updates an existing one
