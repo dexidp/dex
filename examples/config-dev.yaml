@@ -68,6 +68,7 @@ web:
 #   issuer: dex
 #   logoURL: theme/logo.png
 #   dir: web/
+#   Allowed values: light, dark
 #   theme: light
 
 # Configuration for telemetry
@@ -94,6 +95,14 @@ telemetry:
 #     validIfNotUsedFor: "2160h" # 90 days
 #     absoluteLifetime: "3960h" # 165 days
 
+# Authentication sessions configuration.
+# Requires DEX_SESSIONS_ENABLED=true feature flag.
+# sessions:
+#   cookieName: "dex_session"
+#   absoluteLifetime: "24h"
+#   validIfNotUsedFor: "1h"
+#   rememberMeCheckedByDefault: false
+
 # Options for controlling the logger.
 # logger:
 #   level: "debug"
@@ -101,26 +110,52 @@ telemetry:
 
 # Default values shown below
 # oauth2:
-    # grantTypes determines the allowed set of authorization flows.
+#   # grantTypes determines the allowed set of authorization flows.
 #   grantTypes:
 #     - "authorization_code"
+#     - "client_credentials"
 #     - "refresh_token"
 #     - "implicit"
 #     - "password"
 #     - "urn:ietf:params:oauth:grant-type:device_code"
 #     - "urn:ietf:params:oauth:grant-type:token-exchange"
-    # responseTypes determines the allowed response contents of a successful authorization flow.
-    # use ["code", "token", "id_token"] to enable implicit flow for web-only clients.
+#   # responseTypes determines the allowed response contents of a successful authorization flow.
+#   # use ["code", "token", "id_token"] to enable implicit flow for web-only clients.
 #   responseTypes: [ "code" ] # also allowed are "token" and "id_token"
-    # By default, Dex will ask for approval to share data with application
-    # (approval for sharing data from connected IdP to Dex is separate process on IdP)
+#   # By default, Dex will ask for approval to share data with application
+#   # (approval for sharing data from connected IdP to Dex is separate process on IdP)
 #   skipApprovalScreen: false
-    # If only one authentication method is enabled, the default behavior is to
-    # go directly to it. For connected IdPs, this redirects the browser away
-    # from application to upstream provider such as the Google login page
+#   # If only one authentication method is enabled, the default behavior is to
+#   # go directly to it. For connected IdPs, this redirects the browser away
+#   # from application to upstream provider such as the Google login page
 #   alwaysShowLoginScreen: false
-    # Uncomment the passwordConnector to use a specific connector for password grants
+#   # Uncomment the passwordConnector to use a specific connector for password grants
 #   passwordConnector: local
+#   # PKCE (Proof Key for Code Exchange) configuration
+#   pkce:
+#     # If true, PKCE is required for all authorization code flows (OAuth 2.1).
+#     enforce: false
+#     # Supported code challenge methods. Defaults to ["S256", "plain"].
+#     codeChallengeMethodsSupported: ["S256", "plain"]
+
+# Multi-factor authentication configuration.
+# Requires DEX_SESSIONS_ENABLED=true feature flag.
+# mfa:
+#   authenticators:
+#   - id: totp-1
+#     type: TOTP
+#     config:
+#       issuer: "dex-1"
+#     # Optional: limit this authenticator to specific connector types (e.g., ldap, oidc, saml).
+#     # If omitted or empty, applies to all connector types.
+#     # It is recommended to use this option to prevent MFA from being used for connectors
+#     # with their own MFA mechanisms, e.g., OIDC, Google, etc. (but technically, it is possible).
+#     connectorTypes:
+#     - mockCallback
+#   # Default MFA chain applied to clients that don't specify their own mfaChain.
+#   # If omitted or empty, no MFA is required by default.
+#   defaultMFAChain:
+#   - totp-1
 
 # Instead of reading from an external storage, use this list of clients.
 #
@@ -132,6 +167,15 @@ staticClients:
   - '/dex/device/callback'
   name: 'Example App'
   secret: ZXhhbXBsZS1hcHAtc2VjcmV0
+  # Optional: restrict which connectors this client can use for authentication.
+  # If omitted or empty, all connectors are allowed.
+  # allowedConnectors:
+  # - mock
+  # Optional: ordered list of MFA authenticator IDs the user must complete during login.
+  # References authenticator IDs from mfa.authenticators.
+  # If omitted, mfa.defaultMFAChain is used.
+  # mfaChain:
+  # - totp-1
 
 # Example using environment variables
 # Set DEX_CLIENT_ID and DEX_SECURE_CLIENT_SECRET before starting Dex
@@ -146,10 +190,23 @@ staticClients:
 #      - /device/callback
 #    name: 'Static Client for Device Flow'
 #    public: true
+
 connectors:
 - type: mockCallback
   id: mock
   name: Example
+  # grantTypes restricts which grant types can use this connector.
+  # If not specified, all grant types are allowed.
+  # Supported values:
+  #   - "authorization_code"
+  #   - "implicit"
+  #   - "refresh_token"
+  #   - "password"
+  #   - "urn:ietf:params:oauth:grant-type:device_code"
+  #   - "urn:ietf:params:oauth:grant-type:token-exchange"
+#  grantTypes:
+#  - "authorization_code"
+#  - "refresh_token"
 # - type: google
 #   id: google
 #   name: Google

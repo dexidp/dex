@@ -149,6 +149,26 @@ func HmacKey(v []byte) predicate.AuthRequest {
 	return predicate.AuthRequest(sql.FieldEQ(FieldHmacKey, v))
 }
 
+// MfaValidated applies equality check predicate on the "mfa_validated" field. It's identical to MfaValidatedEQ.
+func MfaValidated(v bool) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldEQ(FieldMfaValidated, v))
+}
+
+// Prompt applies equality check predicate on the "prompt" field. It's identical to PromptEQ.
+func Prompt(v string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldEQ(FieldPrompt, v))
+}
+
+// MaxAge applies equality check predicate on the "max_age" field. It's identical to MaxAgeEQ.
+func MaxAge(v int) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldEQ(FieldMaxAge, v))
+}
+
+// AuthTime applies equality check predicate on the "auth_time" field. It's identical to AuthTimeEQ.
+func AuthTime(v time.Time) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldEQ(FieldAuthTime, v))
+}
+
 // ClientIDEQ applies the EQ predicate on the "client_id" field.
 func ClientIDEQ(v string) predicate.AuthRequest {
 	return predicate.AuthRequest(sql.FieldEQ(FieldClientID, v))
@@ -1052,6 +1072,171 @@ func HmacKeyLT(v []byte) predicate.AuthRequest {
 // HmacKeyLTE applies the LTE predicate on the "hmac_key" field.
 func HmacKeyLTE(v []byte) predicate.AuthRequest {
 	return predicate.AuthRequest(sql.FieldLTE(FieldHmacKey, v))
+}
+
+// MfaValidatedEQ applies the EQ predicate on the "mfa_validated" field.
+func MfaValidatedEQ(v bool) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldEQ(FieldMfaValidated, v))
+}
+
+// MfaValidatedNEQ applies the NEQ predicate on the "mfa_validated" field.
+func MfaValidatedNEQ(v bool) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldNEQ(FieldMfaValidated, v))
+}
+
+// PromptEQ applies the EQ predicate on the "prompt" field.
+func PromptEQ(v string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldEQ(FieldPrompt, v))
+}
+
+// PromptNEQ applies the NEQ predicate on the "prompt" field.
+func PromptNEQ(v string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldNEQ(FieldPrompt, v))
+}
+
+// PromptIn applies the In predicate on the "prompt" field.
+func PromptIn(vs ...string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldIn(FieldPrompt, vs...))
+}
+
+// PromptNotIn applies the NotIn predicate on the "prompt" field.
+func PromptNotIn(vs ...string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldNotIn(FieldPrompt, vs...))
+}
+
+// PromptGT applies the GT predicate on the "prompt" field.
+func PromptGT(v string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldGT(FieldPrompt, v))
+}
+
+// PromptGTE applies the GTE predicate on the "prompt" field.
+func PromptGTE(v string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldGTE(FieldPrompt, v))
+}
+
+// PromptLT applies the LT predicate on the "prompt" field.
+func PromptLT(v string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldLT(FieldPrompt, v))
+}
+
+// PromptLTE applies the LTE predicate on the "prompt" field.
+func PromptLTE(v string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldLTE(FieldPrompt, v))
+}
+
+// PromptContains applies the Contains predicate on the "prompt" field.
+func PromptContains(v string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldContains(FieldPrompt, v))
+}
+
+// PromptHasPrefix applies the HasPrefix predicate on the "prompt" field.
+func PromptHasPrefix(v string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldHasPrefix(FieldPrompt, v))
+}
+
+// PromptHasSuffix applies the HasSuffix predicate on the "prompt" field.
+func PromptHasSuffix(v string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldHasSuffix(FieldPrompt, v))
+}
+
+// PromptEqualFold applies the EqualFold predicate on the "prompt" field.
+func PromptEqualFold(v string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldEqualFold(FieldPrompt, v))
+}
+
+// PromptContainsFold applies the ContainsFold predicate on the "prompt" field.
+func PromptContainsFold(v string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldContainsFold(FieldPrompt, v))
+}
+
+// MaxAgeEQ applies the EQ predicate on the "max_age" field.
+func MaxAgeEQ(v int) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldEQ(FieldMaxAge, v))
+}
+
+// MaxAgeNEQ applies the NEQ predicate on the "max_age" field.
+func MaxAgeNEQ(v int) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldNEQ(FieldMaxAge, v))
+}
+
+// MaxAgeIn applies the In predicate on the "max_age" field.
+func MaxAgeIn(vs ...int) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldIn(FieldMaxAge, vs...))
+}
+
+// MaxAgeNotIn applies the NotIn predicate on the "max_age" field.
+func MaxAgeNotIn(vs ...int) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldNotIn(FieldMaxAge, vs...))
+}
+
+// MaxAgeGT applies the GT predicate on the "max_age" field.
+func MaxAgeGT(v int) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldGT(FieldMaxAge, v))
+}
+
+// MaxAgeGTE applies the GTE predicate on the "max_age" field.
+func MaxAgeGTE(v int) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldGTE(FieldMaxAge, v))
+}
+
+// MaxAgeLT applies the LT predicate on the "max_age" field.
+func MaxAgeLT(v int) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldLT(FieldMaxAge, v))
+}
+
+// MaxAgeLTE applies the LTE predicate on the "max_age" field.
+func MaxAgeLTE(v int) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldLTE(FieldMaxAge, v))
+}
+
+// AuthTimeEQ applies the EQ predicate on the "auth_time" field.
+func AuthTimeEQ(v time.Time) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldEQ(FieldAuthTime, v))
+}
+
+// AuthTimeNEQ applies the NEQ predicate on the "auth_time" field.
+func AuthTimeNEQ(v time.Time) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldNEQ(FieldAuthTime, v))
+}
+
+// AuthTimeIn applies the In predicate on the "auth_time" field.
+func AuthTimeIn(vs ...time.Time) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldIn(FieldAuthTime, vs...))
+}
+
+// AuthTimeNotIn applies the NotIn predicate on the "auth_time" field.
+func AuthTimeNotIn(vs ...time.Time) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldNotIn(FieldAuthTime, vs...))
+}
+
+// AuthTimeGT applies the GT predicate on the "auth_time" field.
+func AuthTimeGT(v time.Time) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldGT(FieldAuthTime, v))
+}
+
+// AuthTimeGTE applies the GTE predicate on the "auth_time" field.
+func AuthTimeGTE(v time.Time) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldGTE(FieldAuthTime, v))
+}
+
+// AuthTimeLT applies the LT predicate on the "auth_time" field.
+func AuthTimeLT(v time.Time) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldLT(FieldAuthTime, v))
+}
+
+// AuthTimeLTE applies the LTE predicate on the "auth_time" field.
+func AuthTimeLTE(v time.Time) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldLTE(FieldAuthTime, v))
+}
+
+// AuthTimeIsNil applies the IsNil predicate on the "auth_time" field.
+func AuthTimeIsNil() predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldIsNull(FieldAuthTime))
+}
+
+// AuthTimeNotNil applies the NotNil predicate on the "auth_time" field.
+func AuthTimeNotNil() predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldNotNull(FieldAuthTime))
 }
 
 // And groups predicates with the AND operator between them.

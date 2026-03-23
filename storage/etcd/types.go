@@ -24,6 +24,8 @@ type AuthCode struct {
 
 	CodeChallenge       string `json:"code_challenge,omitempty"`
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
+
+	AuthTime time.Time `json:"auth_time"`
 }
 
 func toStorageAuthCode(a AuthCode) storage.AuthCode {
@@ -41,6 +43,7 @@ func toStorageAuthCode(a AuthCode) storage.AuthCode {
 			CodeChallenge:       a.CodeChallenge,
 			CodeChallengeMethod: a.CodeChallengeMethod,
 		},
+		AuthTime: a.AuthTime,
 	}
 }
 
@@ -57,6 +60,7 @@ func fromStorageAuthCode(a storage.AuthCode) AuthCode {
 		Expiry:              a.Expiry,
 		CodeChallenge:       a.PKCE.CodeChallenge,
 		CodeChallengeMethod: a.PKCE.CodeChallengeMethod,
+		AuthTime:            a.AuthTime,
 	}
 }
 
@@ -86,6 +90,12 @@ type AuthRequest struct {
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
 
 	HMACKey []byte `json:"hmac_key"`
+
+	MFAValidated bool `json:"mfa_validated"`
+
+	Prompt   string    `json:"prompt,omitempty"`
+	MaxAge   int       `json:"max_age"`
+	AuthTime time.Time `json:"auth_time"`
 }
 
 func fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
@@ -106,6 +116,10 @@ func fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		CodeChallenge:       a.PKCE.CodeChallenge,
 		CodeChallengeMethod: a.PKCE.CodeChallengeMethod,
 		HMACKey:             a.HMACKey,
+		MFAValidated:        a.MFAValidated,
+		Prompt:              a.Prompt,
+		MaxAge:              a.MaxAge,
+		AuthTime:            a.AuthTime,
 	}
 }
 
@@ -128,7 +142,11 @@ func toStorageAuthRequest(a AuthRequest) storage.AuthRequest {
 			CodeChallenge:       a.CodeChallenge,
 			CodeChallengeMethod: a.CodeChallengeMethod,
 		},
-		HMACKey: a.HMACKey,
+		HMACKey:      a.HMACKey,
+		MFAValidated: a.MFAValidated,
+		Prompt:       a.Prompt,
+		MaxAge:       a.MaxAge,
+		AuthTime:     a.AuthTime,
 	}
 }
 
@@ -254,6 +272,97 @@ func toStorageOfflineSessions(o OfflineSessions) storage.OfflineSessions {
 		s.Refresh = make(map[string]*storage.RefreshTokenRef)
 	}
 	return s
+}
+
+// UserIdentity is a mirrored struct from storage with JSON struct tags
+type UserIdentity struct {
+	UserID       string                        `json:"user_id,omitempty"`
+	ConnectorID  string                        `json:"connector_id,omitempty"`
+	Claims       Claims                        `json:"claims,omitempty"`
+	Consents     map[string][]string           `json:"consents,omitempty"`
+	MFASecrets   map[string]*storage.MFASecret `json:"mfa_secrets,omitempty"`
+	CreatedAt    time.Time                     `json:"created_at"`
+	LastLogin    time.Time                     `json:"last_login"`
+	BlockedUntil time.Time                     `json:"blocked_until"`
+}
+
+func fromStorageUserIdentity(u storage.UserIdentity) UserIdentity {
+	return UserIdentity{
+		UserID:       u.UserID,
+		ConnectorID:  u.ConnectorID,
+		Claims:       fromStorageClaims(u.Claims),
+		Consents:     u.Consents,
+		MFASecrets:   u.MFASecrets,
+		CreatedAt:    u.CreatedAt,
+		LastLogin:    u.LastLogin,
+		BlockedUntil: u.BlockedUntil,
+	}
+}
+
+func toStorageUserIdentity(u UserIdentity) storage.UserIdentity {
+	s := storage.UserIdentity{
+		UserID:       u.UserID,
+		ConnectorID:  u.ConnectorID,
+		Claims:       toStorageClaims(u.Claims),
+		Consents:     u.Consents,
+		MFASecrets:   u.MFASecrets,
+		CreatedAt:    u.CreatedAt,
+		LastLogin:    u.LastLogin,
+		BlockedUntil: u.BlockedUntil,
+	}
+	if s.Consents == nil {
+		// Server code assumes this will be non-nil.
+		s.Consents = make(map[string][]string)
+	}
+	return s
+}
+
+// AuthSession is a mirrored struct from storage with JSON struct tags.
+type AuthSession struct {
+	UserID         string                              `json:"user_id,omitempty"`
+	ConnectorID    string                              `json:"connector_id,omitempty"`
+	Nonce          string                              `json:"nonce,omitempty"`
+	ClientStates   map[string]*storage.ClientAuthState `json:"client_states,omitempty"`
+	CreatedAt      time.Time                           `json:"created_at"`
+	LastActivity   time.Time                           `json:"last_activity"`
+	IPAddress      string                              `json:"ip_address,omitempty"`
+	UserAgent      string                              `json:"user_agent,omitempty"`
+	AbsoluteExpiry time.Time                           `json:"absolute_expiry"`
+	IdleExpiry     time.Time                           `json:"idle_expiry"`
+}
+
+func fromStorageAuthSession(s storage.AuthSession) AuthSession {
+	return AuthSession{
+		UserID:         s.UserID,
+		ConnectorID:    s.ConnectorID,
+		Nonce:          s.Nonce,
+		ClientStates:   s.ClientStates,
+		CreatedAt:      s.CreatedAt,
+		LastActivity:   s.LastActivity,
+		IPAddress:      s.IPAddress,
+		UserAgent:      s.UserAgent,
+		AbsoluteExpiry: s.AbsoluteExpiry,
+		IdleExpiry:     s.IdleExpiry,
+	}
+}
+
+func toStorageAuthSession(s AuthSession) storage.AuthSession {
+	result := storage.AuthSession{
+		UserID:         s.UserID,
+		ConnectorID:    s.ConnectorID,
+		Nonce:          s.Nonce,
+		ClientStates:   s.ClientStates,
+		CreatedAt:      s.CreatedAt,
+		LastActivity:   s.LastActivity,
+		IPAddress:      s.IPAddress,
+		UserAgent:      s.UserAgent,
+		AbsoluteExpiry: s.AbsoluteExpiry,
+		IdleExpiry:     s.IdleExpiry,
+	}
+	if result.ClientStates == nil {
+		result.ClientStates = make(map[string]*storage.ClientAuthState)
+	}
+	return result
 }
 
 // DeviceRequest is a mirrored struct from storage with JSON struct tags

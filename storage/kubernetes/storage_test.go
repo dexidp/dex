@@ -85,6 +85,7 @@ func (s *StorageTestSuite) TestStorage() {
 	}
 
 	conformance.RunTests(s.T(), newStorage)
+	conformance.RunConcurrencyTests(s.T(), newStorage)
 	conformance.RunTransactionTests(s.T(), newStorage)
 }
 

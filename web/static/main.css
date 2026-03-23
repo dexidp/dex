@@ -8,28 +8,29 @@ body {
 
 .dex-container {
   color: #333;
-  margin: 45px auto;
-  max-width: 500px;
+  margin: 60px auto;
+  max-width: 480px;
   min-width: 320px;
+  padding: 0 16px;
   text-align: center;
 }
 
 .dex-btn {
-  border-radius: 4px;
+  border-radius: 8px;
   border: 0;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 1px 2px rgba(0, 0, 0, 0.25), 0 0 1px rgba(0, 0, 0, 0.25);
   cursor: pointer;
-  font-size: 16px;
+  font-size: 15px;
   padding: 0;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
 }
 
-.dex-btn:focus {
-  outline: none;
+.dex-btn:focus-visible {
+  outline: 2px solid #4A90D9;
+  outline-offset: 2px;
 }
 
 .dex-btn:active {
-  box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.125);
-  outline: none;
+  transform: scale(0.98);
 }
 
 .dex-btn:disabled {
@@ -40,17 +41,17 @@ body {
 .dex-btn-icon {
   background-position: center;
   background-repeat: no-repeat;
-  background-size: 24px;
-  border-radius: 4px 0 0 4px;
+  background-size: 20px;
+  border-radius: 8px 0 0 8px;
   float: left;
-  height: 36px;
-  margin-right: 5px;
-  width: 36px;
+  height: 40px;
+  margin-right: 4px;
+  width: 40px;
 }
 
 .dex-btn-icon--google {
   background-color: #FFFFFF;
-  background-image: url(../static/img/google-icon.svg);;
+  background-image: url(../static/img/google-icon.svg);
 }
 
 .dex-btn-icon--local {
@@ -115,39 +116,43 @@ body {
   background-image: url(../static/img/microsoft-icon.svg);
 }
 
+.dex-btn-icon--mockCallback,
+.dex-btn-icon--mockPassword {
+  background-color: #6c5ce7;
+  background-image: url(../static/img/mock-icon.svg);
+}
+
 .dex-btn-text {
   font-weight: 600;
-  line-height: 36px;
-  padding: 6px 12px;
+  line-height: 40px;
+  padding: 6px 14px;
   text-align: center;
 }
 
 .dex-subtle-text {
-  color: #999;
-  font-size: 12px;
+  color: #888;
+  font-size: 13px;
 }
 
 .dex-separator {
-  color: #999;
+  color: #aaa;
 }
 
 .dex-list {
-  color: #999;
+  color: #888;
   display: inline-block;
-  font-size: 12px;
+  font-size: 13px;
   list-style: circle;
   text-align: left;
 }
 
 .dex-error-box {
-  background-color: #DD1327;
+  background-color: #e5383b;
+  border-radius: 6px;
   color: #fff;
   font-size: 14px;
   font-weight: normal;
-  max-width: 320px;
-  padding: 4px 0;
-}
-
-.dex-error-box {
   margin: 20px auto;
+  max-width: 320px;
+  padding: 8px 12px;
 }

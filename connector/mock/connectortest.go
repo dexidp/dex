@@ -29,10 +29,9 @@ func NewCallbackConnector(logger *slog.Logger) connector.Connector {
 }
 
 var (
-	_ connector.CallbackConnector = &Callback{}
-
-	_ connector.PasswordConnector = passwordConnector{}
-	_ connector.RefreshConnector  = passwordConnector{}
+	_ connector.CallbackConnector      = &Callback{}
+	_ connector.RefreshConnector       = &Callback{}
+	_ connector.TokenIdentityConnector = &Callback{}
 )
 
 // Callback is a connector that requires no user interaction and always returns the same identity.
@@ -96,6 +95,11 @@ func (c *PasswordConfig) Open(id string, logger *slog.Logger) (connector.Connect
 	}
 	return &passwordConnector{c.Username, c.Password, logger}, nil
 }
+
+var (
+	_ connector.PasswordConnector = passwordConnector{}
+	_ connector.RefreshConnector  = passwordConnector{}
+)
 
 type passwordConnector struct {
 	username string

@@ -28,7 +28,11 @@ type OAuth2Client struct {
 	// Name holds the value of the "name" field.
 	Name string `json:"name,omitempty"`
 	// LogoURL holds the value of the "logo_url" field.
-	LogoURL      string `json:"logo_url,omitempty"`
+	LogoURL string `json:"logo_url,omitempty"`
+	// AllowedConnectors holds the value of the "allowed_connectors" field.
+	AllowedConnectors []string `json:"allowed_connectors,omitempty"`
+	// MfaChain holds the value of the "mfa_chain" field.
+	MfaChain     []string `json:"mfa_chain,omitempty"`
 	selectValues sql.SelectValues
 }
 
@@ -37,7 +41,7 @@ func (*OAuth2Client) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case oauth2client.FieldRedirectUris, oauth2client.FieldTrustedPeers:
+		case oauth2client.FieldRedirectUris, oauth2client.FieldTrustedPeers, oauth2client.FieldAllowedConnectors, oauth2client.FieldMfaChain:
 			values[i] = new([]byte)
 		case oauth2client.FieldPublic:
 			values[i] = new(sql.NullBool)
@@ -104,6 +108,22 @@ func (_m *OAuth2Client) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.LogoURL = value.String
 			}
+		case oauth2client.FieldAllowedConnectors:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field allowed_connectors", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.AllowedConnectors); err != nil {
+					return fmt.Errorf("unmarshal field allowed_connectors: %w", err)
+				}
+			}
+		case oauth2client.FieldMfaChain:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field mfa_chain", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.MfaChain); err != nil {
+					return fmt.Errorf("unmarshal field mfa_chain: %w", err)
+				}
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -157,6 +177,12 @@ func (_m *OAuth2Client) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("logo_url=")
 	builder.WriteString(_m.LogoURL)
+	builder.WriteString(", ")
+	builder.WriteString("allowed_connectors=")
+	builder.WriteString(fmt.Sprintf("%v", _m.AllowedConnectors))
+	builder.WriteString(", ")
+	builder.WriteString("mfa_chain=")
+	builder.WriteString(fmt.Sprintf("%v", _m.MfaChain))
 	builder.WriteByte(')')
 	return builder.String()
 }

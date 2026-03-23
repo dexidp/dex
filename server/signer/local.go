@@ -105,13 +105,8 @@ func (l *localSigner) ValidationKeys(ctx context.Context) ([]*jose.JSONWebKey, e
 	return jwks, nil
 }
 
-func (l *localSigner) Algorithm(ctx context.Context) (jose.SignatureAlgorithm, error) {
-	keys, err := l.storage.GetKeys(ctx)
-	if err != nil {
-		return "", fmt.Errorf("failed to get keys: %v", err)
-	}
-	if keys.SigningKey == nil {
-		return "", fmt.Errorf("no signing key found")
-	}
-	return signatureAlgorithm(keys.SigningKey)
+func (l *localSigner) Algorithm(_ context.Context) (jose.SignatureAlgorithm, error) {
+	// Local signer always uses RSA keys (see rotationStrategy.key).
+	// TODO(nabokihms): add support for other key types and algorithms in the future.
+	return jose.RS256, nil
 }

@@ -152,7 +152,7 @@ func TestGetTokenFromRequestSuccess(t *testing.T) {
 	accessToken, _, err := s.newIDToken(ctx, "test", storage.Claims{
 		UserID:   "1",
 		Username: "jane",
-	}, []string{"openid"}, "nonce", "", "", "test")
+	}, []string{"openid"}, "nonce", "", "", "test", time.Time{})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -270,7 +270,7 @@ func TestHandleIntrospect(t *testing.T) {
 		Email:         "jane.doe@example.com",
 		EmailVerified: true,
 		Groups:        []string{"a", "b"},
-	}, []string{"openid", "email", "profile", "groups"}, "foo", "", "", "test")
+	}, []string{"openid", "email", "profile", "groups"}, "foo", "", "", "test", time.Time{})
 	require.NoError(t, err)
 
 	activeRefreshToken, err := internal.Marshal(&internal.RefreshToken{RefreshId: "test", Token: "bar"})
@@ -298,7 +298,7 @@ func TestHandleIntrospect(t *testing.T) {
 		{
 			testName:           "Access Token: active",
 			token:              activeAccessToken,
-			response:           toJSON(getIntrospectionValue(s.issuerURL, time.Now(), expiry, "access_token")),
+			response:           toJSON(getIntrospectionValue(s.issuerURL, t0, expiry, "access_token")),
 			responseStatusCode: 200,
 		},
 		{
@@ -311,7 +311,7 @@ func TestHandleIntrospect(t *testing.T) {
 		{
 			testName:           "Refresh Token: active",
 			token:              activeRefreshToken,
-			response:           toJSON(getIntrospectionValue(s.issuerURL, time.Now(), time.Now().Add(s.refreshTokenPolicy.absoluteLifetime), "refresh_token")),
+			response:           toJSON(getIntrospectionValue(s.issuerURL, t0, t0.Add(s.refreshTokenPolicy.absoluteLifetime), "refresh_token")),
 			responseStatusCode: 200,
 		},
 		{

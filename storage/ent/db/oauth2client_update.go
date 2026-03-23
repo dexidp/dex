@@ -120,6 +120,42 @@ func (_u *OAuth2ClientUpdate) SetNillableLogoURL(v *string) *OAuth2ClientUpdate 
 	return _u
 }
 
+// SetAllowedConnectors sets the "allowed_connectors" field.
+func (_u *OAuth2ClientUpdate) SetAllowedConnectors(v []string) *OAuth2ClientUpdate {
+	_u.mutation.SetAllowedConnectors(v)
+	return _u
+}
+
+// AppendAllowedConnectors appends value to the "allowed_connectors" field.
+func (_u *OAuth2ClientUpdate) AppendAllowedConnectors(v []string) *OAuth2ClientUpdate {
+	_u.mutation.AppendAllowedConnectors(v)
+	return _u
+}
+
+// ClearAllowedConnectors clears the value of the "allowed_connectors" field.
+func (_u *OAuth2ClientUpdate) ClearAllowedConnectors() *OAuth2ClientUpdate {
+	_u.mutation.ClearAllowedConnectors()
+	return _u
+}
+
+// SetMfaChain sets the "mfa_chain" field.
+func (_u *OAuth2ClientUpdate) SetMfaChain(v []string) *OAuth2ClientUpdate {
+	_u.mutation.SetMfaChain(v)
+	return _u
+}
+
+// AppendMfaChain appends value to the "mfa_chain" field.
+func (_u *OAuth2ClientUpdate) AppendMfaChain(v []string) *OAuth2ClientUpdate {
+	_u.mutation.AppendMfaChain(v)
+	return _u
+}
+
+// ClearMfaChain clears the value of the "mfa_chain" field.
+func (_u *OAuth2ClientUpdate) ClearMfaChain() *OAuth2ClientUpdate {
+	_u.mutation.ClearMfaChain()
+	return _u
+}
+
 // Mutation returns the OAuth2ClientMutation object of the builder.
 func (_u *OAuth2ClientUpdate) Mutation() *OAuth2ClientMutation {
 	return _u.mutation
@@ -217,6 +253,28 @@ func (_u *OAuth2ClientUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if value, ok := _u.mutation.LogoURL(); ok {
 		_spec.SetField(oauth2client.FieldLogoURL, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.AllowedConnectors(); ok {
+		_spec.SetField(oauth2client.FieldAllowedConnectors, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedAllowedConnectors(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, oauth2client.FieldAllowedConnectors, value)
+		})
+	}
+	if _u.mutation.AllowedConnectorsCleared() {
+		_spec.ClearField(oauth2client.FieldAllowedConnectors, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.MfaChain(); ok {
+		_spec.SetField(oauth2client.FieldMfaChain, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedMfaChain(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, oauth2client.FieldMfaChain, value)
+		})
+	}
+	if _u.mutation.MfaChainCleared() {
+		_spec.ClearField(oauth2client.FieldMfaChain, field.TypeJSON)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -327,6 +385,42 @@ func (_u *OAuth2ClientUpdateOne) SetNillableLogoURL(v *string) *OAuth2ClientUpda
 	if v != nil {
 		_u.SetLogoURL(*v)
 	}
+	return _u
+}
+
+// SetAllowedConnectors sets the "allowed_connectors" field.
+func (_u *OAuth2ClientUpdateOne) SetAllowedConnectors(v []string) *OAuth2ClientUpdateOne {
+	_u.mutation.SetAllowedConnectors(v)
+	return _u
+}
+
+// AppendAllowedConnectors appends value to the "allowed_connectors" field.
+func (_u *OAuth2ClientUpdateOne) AppendAllowedConnectors(v []string) *OAuth2ClientUpdateOne {
+	_u.mutation.AppendAllowedConnectors(v)
+	return _u
+}
+
+// ClearAllowedConnectors clears the value of the "allowed_connectors" field.
+func (_u *OAuth2ClientUpdateOne) ClearAllowedConnectors() *OAuth2ClientUpdateOne {
+	_u.mutation.ClearAllowedConnectors()
+	return _u
+}
+
+// SetMfaChain sets the "mfa_chain" field.
+func (_u *OAuth2ClientUpdateOne) SetMfaChain(v []string) *OAuth2ClientUpdateOne {
+	_u.mutation.SetMfaChain(v)
+	return _u
+}
+
+// AppendMfaChain appends value to the "mfa_chain" field.
+func (_u *OAuth2ClientUpdateOne) AppendMfaChain(v []string) *OAuth2ClientUpdateOne {
+	_u.mutation.AppendMfaChain(v)
+	return _u
+}
+
+// ClearMfaChain clears the value of the "mfa_chain" field.
+func (_u *OAuth2ClientUpdateOne) ClearMfaChain() *OAuth2ClientUpdateOne {
+	_u.mutation.ClearMfaChain()
 	return _u
 }
 
@@ -457,6 +551,28 @@ func (_u *OAuth2ClientUpdateOne) sqlSave(ctx context.Context) (_node *OAuth2Clie
 	}
 	if value, ok := _u.mutation.LogoURL(); ok {
 		_spec.SetField(oauth2client.FieldLogoURL, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.AllowedConnectors(); ok {
+		_spec.SetField(oauth2client.FieldAllowedConnectors, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedAllowedConnectors(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, oauth2client.FieldAllowedConnectors, value)
+		})
+	}
+	if _u.mutation.AllowedConnectorsCleared() {
+		_spec.ClearField(oauth2client.FieldAllowedConnectors, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.MfaChain(); ok {
+		_spec.SetField(oauth2client.FieldMfaChain, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedMfaChain(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, oauth2client.FieldMfaChain, value)
+		})
+	}
+	if _u.mutation.MfaChainCleared() {
+		_spec.ClearField(oauth2client.FieldMfaChain, field.TypeJSON)
 	}
 	_node = &OAuth2Client{config: _u.config}
 	_spec.Assign = _node.assignValues

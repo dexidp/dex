@@ -45,7 +45,7 @@ func TestQuery(t *testing.T) {
 	c.UserSearch.NameAttr = "cn"
 	c.UserSearch.EmailAttr = "mail"
 	c.UserSearch.IDAttr = "DN"
-	c.UserSearch.Username = "cn"
+	c.UserSearch.Username = UsernameAttributes{"cn"}
 
 	tests := []subtest{
 		{
@@ -105,7 +105,7 @@ func TestQueryWithEmailSuffix(t *testing.T) {
 	c.UserSearch.NameAttr = "cn"
 	c.UserSearch.EmailSuffix = "test.example.com"
 	c.UserSearch.IDAttr = "DN"
-	c.UserSearch.Username = "cn"
+	c.UserSearch.Username = UsernameAttributes{"cn"}
 
 	tests := []subtest{
 		{
@@ -141,7 +141,7 @@ func TestUserFilter(t *testing.T) {
 	c.UserSearch.NameAttr = "cn"
 	c.UserSearch.EmailAttr = "mail"
 	c.UserSearch.IDAttr = "DN"
-	c.UserSearch.Username = "cn"
+	c.UserSearch.Username = UsernameAttributes{"cn"}
 	c.UserSearch.Filter = "(ou:dn:=Seattle)"
 
 	tests := []subtest{
@@ -184,13 +184,50 @@ func TestUserFilter(t *testing.T) {
 	runTests(t, connectLDAP, c, tests)
 }
 
+func TestUsernameWithMultipleAttributes(t *testing.T) {
+	c := &Config{}
+	c.UserSearch.BaseDN = "ou=TestUsernameWithMultipleAttributes,dc=example,dc=org"
+	c.UserSearch.NameAttr = "cn"
+	c.UserSearch.EmailAttr = "mail"
+	c.UserSearch.IDAttr = "DN"
+	c.UserSearch.Username = UsernameAttributes{"cn", "mail"}
+	c.UserSearch.Filter = "(ou:dn:=Seattle)"
+
+	tests := []subtest{
+		{
+			name:     "cn",
+			username: "jane",
+			password: "foo",
+			want: connector.Identity{
+				UserID:        "cn=jane,ou=People,ou=Seattle,ou=TestUsernameWithMultipleAttributes,dc=example,dc=org",
+				Username:      "jane",
+				Email:         "janedoe@example.com",
+				EmailVerified: true,
+			},
+		},
+		{
+			name:     "mail",
+			username: "janedoe@example.com",
+			password: "foo",
+			want: connector.Identity{
+				UserID:        "cn=jane,ou=People,ou=Seattle,ou=TestUsernameWithMultipleAttributes,dc=example,dc=org",
+				Username:      "jane",
+				Email:         "janedoe@example.com",
+				EmailVerified: true,
+			},
+		},
+	}
+
+	runTests(t, connectLDAP, c, tests)
+}
+
 func TestGroupQuery(t *testing.T) {
 	c := &Config{}
 	c.UserSearch.BaseDN = "ou=People,ou=TestGroupQuery,dc=example,dc=org"
 	c.UserSearch.NameAttr = "cn"
 	c.UserSearch.EmailAttr = "mail"
 	c.UserSearch.IDAttr = "DN"
-	c.UserSearch.Username = "cn"
+	c.UserSearch.Username = UsernameAttributes{"cn"}
 	c.GroupSearch.BaseDN = "ou=Groups,ou=TestGroupQuery,dc=example,dc=org"
 	c.GroupSearch.UserMatchers = []UserMatcher{
 		{
@@ -238,7 +275,7 @@ func TestGroupsOnUserEntity(t *testing.T) {
 	c.UserSearch.NameAttr = "cn"
 	c.UserSearch.EmailAttr = "mail"
 	c.UserSearch.IDAttr = "DN"
-	c.UserSearch.Username = "cn"
+	c.UserSearch.Username = UsernameAttributes{"cn"}
 	c.GroupSearch.BaseDN = "ou=Groups,ou=TestGroupsOnUserEntity,dc=example,dc=org"
 	c.GroupSearch.UserMatchers = []UserMatcher{
 		{
@@ -284,7 +321,7 @@ func TestGroupFilter(t *testing.T) {
 	c.UserSearch.NameAttr = "cn"
 	c.UserSearch.EmailAttr = "mail"
 	c.UserSearch.IDAttr = "DN"
-	c.UserSearch.Username = "cn"
+	c.UserSearch.Username = UsernameAttributes{"cn"}
 	c.GroupSearch.BaseDN = "ou=TestGroupFilter,dc=example,dc=org"
 	c.GroupSearch.UserMatchers = []UserMatcher{
 		{
@@ -333,7 +370,7 @@ func TestGroupToUserMatchers(t *testing.T) {
 	c.UserSearch.NameAttr = "cn"
 	c.UserSearch.EmailAttr = "mail"
 	c.UserSearch.IDAttr = "DN"
-	c.UserSearch.Username = "cn"
+	c.UserSearch.Username = UsernameAttributes{"cn"}
 	c.GroupSearch.BaseDN = "ou=TestGroupToUserMatchers,dc=example,dc=org"
 	c.GroupSearch.UserMatchers = []UserMatcher{
 		{
@@ -389,7 +426,7 @@ func TestDeprecatedGroupToUserMatcher(t *testing.T) {
 	c.UserSearch.NameAttr = "cn"
 	c.UserSearch.EmailAttr = "mail"
 	c.UserSearch.IDAttr = "DN"
-	c.UserSearch.Username = "cn"
+	c.UserSearch.Username = UsernameAttributes{"cn"}
 	c.GroupSearch.BaseDN = "ou=TestDeprecatedGroupToUserMatcher,dc=example,dc=org"
 	c.GroupSearch.UserAttr = "DN"
 	c.GroupSearch.GroupAttr = "member"
@@ -434,7 +471,7 @@ func TestStartTLS(t *testing.T) {
 	c.UserSearch.NameAttr = "cn"
 	c.UserSearch.EmailAttr = "mail"
 	c.UserSearch.IDAttr = "DN"
-	c.UserSearch.Username = "cn"
+	c.UserSearch.Username = UsernameAttributes{"cn"}
 
 	tests := []subtest{
 		{
@@ -458,7 +495,7 @@ func TestInsecureSkipVerify(t *testing.T) {
 	c.UserSearch.NameAttr = "cn"
 	c.UserSearch.EmailAttr = "mail"
 	c.UserSearch.IDAttr = "DN"
-	c.UserSearch.Username = "cn"
+	c.UserSearch.Username = UsernameAttributes{"cn"}
 
 	tests := []subtest{
 		{
@@ -482,7 +519,7 @@ func TestLDAPS(t *testing.T) {
 	c.UserSearch.NameAttr = "cn"
 	c.UserSearch.EmailAttr = "mail"
 	c.UserSearch.IDAttr = "DN"
-	c.UserSearch.Username = "cn"
+	c.UserSearch.Username = UsernameAttributes{"cn"}
 
 	tests := []subtest{
 		{
@@ -525,13 +562,43 @@ func TestUsernamePrompt(t *testing.T) {
 	}
 }
 
+func TestUsernameAttributesUnmarshal(t *testing.T) {
+	tests := []struct {
+		name    string
+		json    string
+		want    UsernameAttributes
+		wantErr bool
+	}{
+		{name: "single string", json: `"uid"`, want: UsernameAttributes{"uid"}},
+		{name: "array of strings", json: `["uid","mail"]`, want: UsernameAttributes{"uid", "mail"}},
+		{name: "single element array", json: `["cn"]`, want: UsernameAttributes{"cn"}},
+		{name: "empty string", json: `""`, want: nil},
+		{name: "invalid type", json: `123`, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got UsernameAttributes
+			err := got.UnmarshalJSON([]byte(tt.json))
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("UnmarshalJSON() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !tt.wantErr {
+				if diff := pretty.Compare(tt.want, got); diff != "" {
+					t.Errorf("unexpected result: %s", diff)
+				}
+			}
+		})
+	}
+}
+
 func TestNestedGroups(t *testing.T) {
 	c := &Config{}
 	c.UserSearch.BaseDN = "ou=People,ou=TestNestedGroups,dc=example,dc=org"
 	c.UserSearch.NameAttr = "cn"
 	c.UserSearch.EmailAttr = "mail"
 	c.UserSearch.IDAttr = "DN"
-	c.UserSearch.Username = "cn"
+	c.UserSearch.Username = UsernameAttributes{"cn"}
 
 	c.GroupSearch.BaseDN = "ou=TestNestedGroups,dc=example,dc=org"
 	c.GroupSearch.UserMatchers = []UserMatcher{

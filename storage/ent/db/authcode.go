@@ -48,7 +48,9 @@ type AuthCode struct {
 	CodeChallenge string `json:"code_challenge,omitempty"`
 	// CodeChallengeMethod holds the value of the "code_challenge_method" field.
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
-	selectValues        sql.SelectValues
+	// AuthTime holds the value of the "auth_time" field.
+	AuthTime     time.Time `json:"auth_time,omitempty"`
+	selectValues sql.SelectValues
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -62,7 +64,7 @@ func (*AuthCode) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case authcode.FieldID, authcode.FieldClientID, authcode.FieldNonce, authcode.FieldRedirectURI, authcode.FieldClaimsUserID, authcode.FieldClaimsUsername, authcode.FieldClaimsEmail, authcode.FieldClaimsPreferredUsername, authcode.FieldConnectorID, authcode.FieldCodeChallenge, authcode.FieldCodeChallengeMethod:
 			values[i] = new(sql.NullString)
-		case authcode.FieldExpiry:
+		case authcode.FieldExpiry, authcode.FieldAuthTime:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -179,6 +181,12 @@ func (_m *AuthCode) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.CodeChallengeMethod = value.String
 			}
+		case authcode.FieldAuthTime:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field auth_time", values[i])
+			} else if value.Valid {
+				_m.AuthTime = value.Time
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -261,6 +269,9 @@ func (_m *AuthCode) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("code_challenge_method=")
 	builder.WriteString(_m.CodeChallengeMethod)
+	builder.WriteString(", ")
+	builder.WriteString("auth_time=")
+	builder.WriteString(_m.AuthTime.Format(time.ANSIC))
 	builder.WriteByte(')')
 	return builder.String()
 }

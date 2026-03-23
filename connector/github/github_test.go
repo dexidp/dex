@@ -485,6 +485,21 @@ func Test_Open_PreferredDomainConfig(t *testing.T) {
 	}
 }
 
+func TestGetSendsAPIVersionHeader(t *testing.T) {
+	var gotHeader string
+	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotHeader = r.Header.Get("X-GitHub-Api-Version")
+		w.Header().Add("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]org{})
+	}))
+	defer s.Close()
+
+	var result []org
+	_, err := get(context.Background(), newClient(), s.URL+"/user/orgs", &result)
+	expectNil(t, err)
+	expectEquals(t, gotHeader, githubAPIVersion)
+}
+
 func newTestServer(responses map[string]testResponse) *httptest.Server {
 	var s *httptest.Server
 	s = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

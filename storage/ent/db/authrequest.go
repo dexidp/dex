@@ -57,7 +57,15 @@ type AuthRequest struct {
 	// CodeChallengeMethod holds the value of the "code_challenge_method" field.
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
 	// HmacKey holds the value of the "hmac_key" field.
-	HmacKey      []byte `json:"hmac_key,omitempty"`
+	HmacKey []byte `json:"hmac_key,omitempty"`
+	// MfaValidated holds the value of the "mfa_validated" field.
+	MfaValidated bool `json:"mfa_validated,omitempty"`
+	// Prompt holds the value of the "prompt" field.
+	Prompt string `json:"prompt,omitempty"`
+	// MaxAge holds the value of the "max_age" field.
+	MaxAge int `json:"max_age,omitempty"`
+	// AuthTime holds the value of the "auth_time" field.
+	AuthTime     time.Time `json:"auth_time,omitempty"`
 	selectValues sql.SelectValues
 }
 
@@ -68,11 +76,13 @@ func (*AuthRequest) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case authrequest.FieldScopes, authrequest.FieldResponseTypes, authrequest.FieldClaimsGroups, authrequest.FieldConnectorData, authrequest.FieldHmacKey:
 			values[i] = new([]byte)
-		case authrequest.FieldForceApprovalPrompt, authrequest.FieldLoggedIn, authrequest.FieldClaimsEmailVerified:
+		case authrequest.FieldForceApprovalPrompt, authrequest.FieldLoggedIn, authrequest.FieldClaimsEmailVerified, authrequest.FieldMfaValidated:
 			values[i] = new(sql.NullBool)
-		case authrequest.FieldID, authrequest.FieldClientID, authrequest.FieldRedirectURI, authrequest.FieldNonce, authrequest.FieldState, authrequest.FieldClaimsUserID, authrequest.FieldClaimsUsername, authrequest.FieldClaimsEmail, authrequest.FieldClaimsPreferredUsername, authrequest.FieldConnectorID, authrequest.FieldCodeChallenge, authrequest.FieldCodeChallengeMethod:
+		case authrequest.FieldMaxAge:
+			values[i] = new(sql.NullInt64)
+		case authrequest.FieldID, authrequest.FieldClientID, authrequest.FieldRedirectURI, authrequest.FieldNonce, authrequest.FieldState, authrequest.FieldClaimsUserID, authrequest.FieldClaimsUsername, authrequest.FieldClaimsEmail, authrequest.FieldClaimsPreferredUsername, authrequest.FieldConnectorID, authrequest.FieldCodeChallenge, authrequest.FieldCodeChallengeMethod, authrequest.FieldPrompt:
 			values[i] = new(sql.NullString)
-		case authrequest.FieldExpiry:
+		case authrequest.FieldExpiry, authrequest.FieldAuthTime:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -221,6 +231,30 @@ func (_m *AuthRequest) assignValues(columns []string, values []any) error {
 			} else if value != nil {
 				_m.HmacKey = *value
 			}
+		case authrequest.FieldMfaValidated:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field mfa_validated", values[i])
+			} else if value.Valid {
+				_m.MfaValidated = value.Bool
+			}
+		case authrequest.FieldPrompt:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field prompt", values[i])
+			} else if value.Valid {
+				_m.Prompt = value.String
+			}
+		case authrequest.FieldMaxAge:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field max_age", values[i])
+			} else if value.Valid {
+				_m.MaxAge = int(value.Int64)
+			}
+		case authrequest.FieldAuthTime:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field auth_time", values[i])
+			} else if value.Valid {
+				_m.AuthTime = value.Time
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -318,6 +352,18 @@ func (_m *AuthRequest) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("hmac_key=")
 	builder.WriteString(fmt.Sprintf("%v", _m.HmacKey))
+	builder.WriteString(", ")
+	builder.WriteString("mfa_validated=")
+	builder.WriteString(fmt.Sprintf("%v", _m.MfaValidated))
+	builder.WriteString(", ")
+	builder.WriteString("prompt=")
+	builder.WriteString(_m.Prompt)
+	builder.WriteString(", ")
+	builder.WriteString("max_age=")
+	builder.WriteString(fmt.Sprintf("%v", _m.MaxAge))
+	builder.WriteString(", ")
+	builder.WriteString("auth_time=")
+	builder.WriteString(_m.AuthTime.Format(time.ANSIC))
 	builder.WriteByte(')')
 	return builder.String()
 }

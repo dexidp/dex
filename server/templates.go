@@ -22,6 +22,7 @@ const (
 	tmplError         = "error.html"
 	tmplDevice        = "device.html"
 	tmplDeviceSuccess = "device_success.html"
+	tmplTOTPVerify    = "totp_verify.html"
 )
 
 var requiredTmpls = []string{
@@ -42,6 +43,7 @@ type templates struct {
 	errorTmpl         *template.Template
 	deviceTmpl        *template.Template
 	deviceSuccessTmpl *template.Template
+	totpVerifyTmpl    *template.Template
 }
 
 type webConfig struct {
@@ -169,6 +171,7 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 		errorTmpl:         tmpls.Lookup(tmplError),
 		deviceTmpl:        tmpls.Lookup(tmplDevice),
 		deviceSuccessTmpl: tmpls.Lookup(tmplDeviceSuccess),
+		totpVerifyTmpl:    tmpls.Lookup(tmplTOTPVerify),
 	}, nil
 }
 
@@ -291,18 +294,31 @@ func (t *templates) login(r *http.Request, w http.ResponseWriter, connectors []c
 	return renderTemplate(w, t.loginTmpl, data)
 }
 
-func (t *templates) password(r *http.Request, w http.ResponseWriter, postURL, lastUsername, usernamePrompt string, lastWasInvalid bool, backLink string) error {
+func (t *templates) password(r *http.Request, w http.ResponseWriter, postURL, lastUsername, usernamePrompt string, lastWasInvalid bool, backLink string, rememberMe *bool) error {
 	if lastWasInvalid {
 		w.WriteHeader(http.StatusUnauthorized)
 	}
 	data := struct {
-		PostURL        string
-		BackLink       string
-		Username       string
-		UsernamePrompt string
-		Invalid        bool
-		ReqPath        string
-	}{postURL, backLink, lastUsername, usernamePrompt, lastWasInvalid, r.URL.Path}
+		PostURL           string
+		BackLink          string
+		Username          string
+		UsernamePrompt    string
+		Invalid           bool
+		ReqPath           string
+		ShowRememberMe    bool
+		RememberMeChecked bool
+	}{
+		PostURL:        postURL,
+		BackLink:       backLink,
+		Username:       lastUsername,
+		UsernamePrompt: usernamePrompt,
+		Invalid:        lastWasInvalid,
+		ReqPath:        r.URL.Path,
+		ShowRememberMe: rememberMe != nil,
+	}
+	if rememberMe != nil {
+		data.RememberMeChecked = *rememberMe
+	}
 	return renderTemplate(w, t.passwordTmpl, data)
 }
 
@@ -323,6 +339,21 @@ func (t *templates) approval(r *http.Request, w http.ResponseWriter, authReqID, 
 		ReqPath   string
 	}{username, clientName, authReqID, accesses, r.URL.Path}
 	return renderTemplate(w, t.approvalTmpl, data)
+}
+
+func (t *templates) totpVerify(r *http.Request, w http.ResponseWriter, postURL, issuer, connector, qrCode string, lastWasInvalid bool) error {
+	if lastWasInvalid {
+		w.WriteHeader(http.StatusUnauthorized)
+	}
+	data := struct {
+		PostURL   string
+		Invalid   bool
+		Issuer    string
+		Connector string
+		QRCode    string
+		ReqPath   string
+	}{postURL, lastWasInvalid, issuer, connector, qrCode, r.URL.Path}
+	return renderTemplate(w, t.totpVerifyTmpl, data)
 }
 
 func (t *templates) oob(r *http.Request, w http.ResponseWriter, code string) error {

@@ -16,6 +16,8 @@ import (
 	"github.com/dexidp/dex/pkg/httpclient"
 )
 
+var _ connector.CallbackConnector = (*oauthConnector)(nil)
+
 type oauthConnector struct {
 	clientID             string
 	clientSecret         string

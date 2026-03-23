@@ -45,7 +45,11 @@ func toStorageAuthRequest(a *db.AuthRequest) storage.AuthRequest {
 			CodeChallenge:       a.CodeChallenge,
 			CodeChallengeMethod: a.CodeChallengeMethod,
 		},
-		HMACKey: a.HmacKey,
+		HMACKey:      a.HmacKey,
+		MFAValidated: a.MfaValidated,
+		Prompt:       a.Prompt,
+		MaxAge:       a.MaxAge,
+		AuthTime:     a.AuthTime,
 	}
 }
 
@@ -71,27 +75,31 @@ func toStorageAuthCode(a *db.AuthCode) storage.AuthCode {
 			CodeChallenge:       a.CodeChallenge,
 			CodeChallengeMethod: a.CodeChallengeMethod,
 		},
+		AuthTime: a.AuthTime,
 	}
 }
 
 func toStorageClient(c *db.OAuth2Client) storage.Client {
 	return storage.Client{
-		ID:           c.ID,
-		Secret:       c.Secret,
-		RedirectURIs: c.RedirectUris,
-		TrustedPeers: c.TrustedPeers,
-		Public:       c.Public,
-		Name:         c.Name,
-		LogoURL:      c.LogoURL,
+		ID:                c.ID,
+		Secret:            c.Secret,
+		RedirectURIs:      c.RedirectUris,
+		TrustedPeers:      c.TrustedPeers,
+		Public:            c.Public,
+		Name:              c.Name,
+		LogoURL:           c.LogoURL,
+		AllowedConnectors: c.AllowedConnectors,
+		MFAChain:          c.MfaChain,
 	}
 }
 
 func toStorageConnector(c *db.Connector) storage.Connector {
 	return storage.Connector{
-		ID:     c.ID,
-		Type:   c.Type,
-		Name:   c.Name,
-		Config: c.Config,
+		ID:         c.ID,
+		Type:       c.Type,
+		Name:       c.Name,
+		Config:     c.Config,
+		GrantTypes: c.GrantTypes,
 	}
 }
 
@@ -159,6 +167,77 @@ func toStorageDeviceRequest(r *db.DeviceRequest) storage.DeviceRequest {
 		Scopes:       r.Scopes,
 		Expiry:       r.Expiry,
 	}
+}
+
+func toStorageUserIdentity(u *db.UserIdentity) storage.UserIdentity {
+	s := storage.UserIdentity{
+		UserID:      u.UserID,
+		ConnectorID: u.ConnectorID,
+		Claims: storage.Claims{
+			UserID:            u.ClaimsUserID,
+			Username:          u.ClaimsUsername,
+			PreferredUsername: u.ClaimsPreferredUsername,
+			Email:             u.ClaimsEmail,
+			EmailVerified:     u.ClaimsEmailVerified,
+			Groups:            u.ClaimsGroups,
+		},
+		CreatedAt:    u.CreatedAt,
+		LastLogin:    u.LastLogin,
+		BlockedUntil: u.BlockedUntil,
+	}
+
+	if u.Consents != nil {
+		if err := json.Unmarshal(u.Consents, &s.Consents); err != nil {
+			// Correctness of json structure is guaranteed on uploading
+			panic(err)
+		}
+		if s.Consents == nil {
+			// Ensure Consents is non-nil even if JSON was "null".
+			s.Consents = make(map[string][]string)
+		}
+	} else {
+		// Server code assumes this will be non-nil.
+		s.Consents = make(map[string][]string)
+	}
+
+	if u.MfaSecrets != nil {
+		if err := json.Unmarshal(*u.MfaSecrets, &s.MFASecrets); err != nil {
+			// Correctness of json structure is guaranteed on uploading
+			panic(err)
+		}
+		if s.MFASecrets == nil {
+			s.MFASecrets = make(map[string]*storage.MFASecret)
+		}
+	} else {
+		s.MFASecrets = make(map[string]*storage.MFASecret)
+	}
+	return s
+}
+
+func toStorageAuthSession(s *db.AuthSession) storage.AuthSession {
+	result := storage.AuthSession{
+		UserID:         s.UserID,
+		ConnectorID:    s.ConnectorID,
+		Nonce:          s.Nonce,
+		CreatedAt:      s.CreatedAt,
+		LastActivity:   s.LastActivity,
+		IPAddress:      s.IPAddress,
+		UserAgent:      s.UserAgent,
+		AbsoluteExpiry: s.AbsoluteExpiry,
+		IdleExpiry:     s.IdleExpiry,
+	}
+
+	if s.ClientStates != nil {
+		if err := json.Unmarshal(s.ClientStates, &result.ClientStates); err != nil {
+			panic(err)
+		}
+		if result.ClientStates == nil {
+			result.ClientStates = make(map[string]*storage.ClientAuthState)
+		}
+	} else {
+		result.ClientStates = make(map[string]*storage.ClientAuthState)
+	}
+	return result
 }
 
 func toStorageDeviceToken(t *db.DeviceToken) storage.DeviceToken {

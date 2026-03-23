@@ -49,17 +49,15 @@ type connectorData struct {
 	AccessToken string `json:"accessToken"`
 }
 
-type linkedInConnector struct {
-	oauth2Config *oauth2.Config
-	logger       *slog.Logger
-}
-
-// LinkedIn doesn't provide refresh tokens, so refresh tokens issued by Dex
-// will expire in 60 days (default LinkedIn token lifetime).
 var (
 	_ connector.CallbackConnector = (*linkedInConnector)(nil)
 	_ connector.RefreshConnector  = (*linkedInConnector)(nil)
 )
+
+type linkedInConnector struct {
+	oauth2Config *oauth2.Config
+	logger       *slog.Logger
+}
 
 // LoginURL returns an access token request URL
 func (c *linkedInConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (string, []byte, error) {

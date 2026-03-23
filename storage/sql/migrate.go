@@ -374,4 +374,82 @@ var migrations = []migration{
 		},
 		flavor: &flavorMySQL,
 	},
+	{
+		stmts: []string{
+			`
+			alter table connector
+				add column grant_types bytea;`,
+		},
+	},
+	// Migration for adding allowed_connectors to client table
+	{
+		stmts: []string{
+			`
+			alter table client
+				add column allowed_connectors bytea;`,
+		},
+	},
+	{
+		stmts: []string{
+			`
+			create table user_identity (
+				user_id text not null,
+				connector_id text not null,
+				claims_user_id text not null,
+				claims_username text not null,
+				claims_preferred_username text not null default '',
+				claims_email text not null,
+				claims_email_verified boolean not null,
+				claims_groups bytea not null,
+				consents bytea not null,
+				created_at timestamptz not null,
+				last_login timestamptz not null,
+				blocked_until timestamptz not null,
+				PRIMARY KEY (user_id, connector_id)
+			);`,
+		},
+	},
+	{
+		stmts: []string{
+			`
+			create table auth_session (
+				user_id text not null,
+				connector_id text not null,
+				nonce text not null default '',
+				client_states bytea not null,
+				created_at timestamptz not null,
+				last_activity timestamptz not null,
+				ip_address text not null default '',
+				user_agent text not null default '',
+				PRIMARY KEY (user_id, connector_id)
+			);`,
+		},
+	},
+	{
+		stmts: []string{
+			`
+			alter table auth_request
+				add column mfa_validated boolean not null default false;`,
+			`
+			alter table user_identity
+				add column mfa_secrets bytea;`,
+			`
+			alter table client
+				add column mfa_chain bytea;`,
+			`alter table auth_request add column prompt text not null default '';`,
+			`alter table auth_request add column max_age integer not null default -1;`,
+			`alter table auth_request add column auth_time timestamptz not null default '1970-01-01 00:00:00';`,
+			`alter table auth_code add column auth_time timestamptz not null default '1970-01-01 00:00:00';`,
+		},
+	},
+	{
+		stmts: []string{
+			`
+			alter table auth_session
+				add column absolute_expiry timestamptz not null default '1970-01-01 00:00:00';`,
+			`
+			alter table auth_session
+				add column idle_expiry timestamptz not null default '1970-01-01 00:00:00';`,
+		},
+	},
 }

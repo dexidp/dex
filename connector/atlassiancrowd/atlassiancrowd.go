@@ -87,15 +87,15 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 	return &crowdConnector{Config: *c, logger: logger.With(slog.Group("connector", "type", "atlassiancrowd", "id", id))}, nil
 }
 
-type crowdConnector struct {
-	Config
-	logger *slog.Logger
-}
-
 var (
 	_ connector.PasswordConnector = (*crowdConnector)(nil)
 	_ connector.RefreshConnector  = (*crowdConnector)(nil)
 )
+
+type crowdConnector struct {
+	Config
+	logger *slog.Logger
+}
 
 type refreshData struct {
 	Username string `json:"username"`

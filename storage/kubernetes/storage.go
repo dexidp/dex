@@ -25,6 +25,8 @@ const (
 	kindConnector       = "Connector"
 	kindDeviceRequest   = "DeviceRequest"
 	kindDeviceToken     = "DeviceToken"
+	kindUserIdentity    = "UserIdentity"
+	kindAuthSession     = "AuthSession"
 )
 
 const (
@@ -38,6 +40,8 @@ const (
 	resourceConnector       = "connectors"
 	resourceDeviceRequest   = "devicerequests"
 	resourceDeviceToken     = "devicetokens"
+	resourceUserIdentity    = "useridentities"
+	resourceAuthSession     = "authsessions"
 )
 
 const (
@@ -690,6 +694,22 @@ func (cli *client) GarbageCollect(ctx context.Context, now time.Time) (result st
 		}
 	}
 
+	var authSessions AuthSessionList
+	if err := cli.listN(resourceAuthSession, &authSessions, gcResultLimit); err != nil {
+		return result, fmt.Errorf("failed to list auth sessions: %v", err)
+	}
+
+	for _, authSession := range authSessions.AuthSessions {
+		if now.After(authSession.AbsoluteExpiry) || now.After(authSession.IdleExpiry) {
+			if err := cli.delete(resourceAuthSession, authSession.ObjectMeta.Name); err != nil {
+				cli.logger.Error("failed to delete auth session", "err", err)
+				delErr = fmt.Errorf("failed to delete auth session: %v", err)
+			} else {
+				result.AuthSessions++
+			}
+		}
+	}
+
 	if delErr != nil {
 		return result, delErr
 	}
@@ -741,6 +761,131 @@ func (cli *client) UpdateDeviceToken(ctx context.Context, deviceCode string, upd
 		newToken.ObjectMeta = r.ObjectMeta
 		return cli.put(resourceDeviceToken, r.ObjectMeta.Name, newToken)
 	})
+}
+
+func (cli *client) CreateUserIdentity(ctx context.Context, u storage.UserIdentity) error {
+	return cli.post(resourceUserIdentity, cli.fromStorageUserIdentity(u))
+}
+
+func (cli *client) GetUserIdentity(ctx context.Context, userID, connectorID string) (storage.UserIdentity, error) {
+	u, err := cli.getUserIdentity(userID, connectorID)
+	if err != nil {
+		return storage.UserIdentity{}, err
+	}
+	return toStorageUserIdentity(u), nil
+}
+
+func (cli *client) getUserIdentity(userID, connectorID string) (u UserIdentity, err error) {
+	name := cli.offlineTokenName(userID, connectorID)
+	if err = cli.get(resourceUserIdentity, name, &u); err != nil {
+		return UserIdentity{}, err
+	}
+	if userID != u.UserID || connectorID != u.ConnectorID {
+		return UserIdentity{}, fmt.Errorf("get user identity: wrong identity retrieved")
+	}
+	return u, nil
+}
+
+func (cli *client) UpdateUserIdentity(ctx context.Context, userID, connectorID string, updater func(old storage.UserIdentity) (storage.UserIdentity, error)) error {
+	return retryOnConflict(ctx, func() error {
+		u, err := cli.getUserIdentity(userID, connectorID)
+		if err != nil {
+			return err
+		}
+
+		updated, err := updater(toStorageUserIdentity(u))
+		if err != nil {
+			return err
+		}
+
+		newUserIdentity := cli.fromStorageUserIdentity(updated)
+		newUserIdentity.ObjectMeta = u.ObjectMeta
+		return cli.put(resourceUserIdentity, u.ObjectMeta.Name, newUserIdentity)
+	})
+}
+
+func (cli *client) DeleteUserIdentity(ctx context.Context, userID, connectorID string) error {
+	// Check for hash collision.
+	u, err := cli.getUserIdentity(userID, connectorID)
+	if err != nil {
+		return err
+	}
+	return cli.delete(resourceUserIdentity, u.ObjectMeta.Name)
+}
+
+func (cli *client) ListUserIdentities(ctx context.Context) ([]storage.UserIdentity, error) {
+	var userIdentityList UserIdentityList
+	if err := cli.list(resourceUserIdentity, &userIdentityList); err != nil {
+		return nil, fmt.Errorf("failed to list user identities: %v", err)
+	}
+
+	userIdentities := make([]storage.UserIdentity, len(userIdentityList.UserIdentities))
+	for i, u := range userIdentityList.UserIdentities {
+		userIdentities[i] = toStorageUserIdentity(u)
+	}
+
+	return userIdentities, nil
+}
+
+func (cli *client) CreateAuthSession(ctx context.Context, s storage.AuthSession) error {
+	return cli.post(resourceAuthSession, cli.fromStorageAuthSession(s))
+}
+
+func (cli *client) getAuthSession(userID, connectorID string) (AuthSession, error) {
+	var s AuthSession
+	name := offlineTokenName(userID, connectorID, cli.hash)
+	if err := cli.get(resourceAuthSession, name, &s); err != nil {
+		return AuthSession{}, err
+	}
+	return s, nil
+}
+
+func (cli *client) GetAuthSession(ctx context.Context, userID, connectorID string) (storage.AuthSession, error) {
+	s, err := cli.getAuthSession(userID, connectorID)
+	if err != nil {
+		return storage.AuthSession{}, err
+	}
+	return toStorageAuthSession(s), nil
+}
+
+func (cli *client) UpdateAuthSession(ctx context.Context, userID, connectorID string, updater func(old storage.AuthSession) (storage.AuthSession, error)) error {
+	return retryOnConflict(ctx, func() error {
+		s, err := cli.getAuthSession(userID, connectorID)
+		if err != nil {
+			return err
+		}
+
+		updated, err := updater(toStorageAuthSession(s))
+		if err != nil {
+			return err
+		}
+
+		newSession := cli.fromStorageAuthSession(updated)
+		newSession.ObjectMeta = s.ObjectMeta
+		return cli.put(resourceAuthSession, s.ObjectMeta.Name, newSession)
+	})
+}
+
+func (cli *client) ListAuthSessions(ctx context.Context) ([]storage.AuthSession, error) {
+	var authSessionList AuthSessionList
+	if err := cli.list(resourceAuthSession, &authSessionList); err != nil {
+		return nil, fmt.Errorf("failed to list auth sessions: %v", err)
+	}
+
+	sessions := make([]storage.AuthSession, len(authSessionList.AuthSessions))
+	for i, s := range authSessionList.AuthSessions {
+		sessions[i] = toStorageAuthSession(s)
+	}
+
+	return sessions, nil
+}
+
+func (cli *client) DeleteAuthSession(ctx context.Context, userID, connectorID string) error {
+	s, err := cli.getAuthSession(userID, connectorID)
+	if err != nil {
+		return err
+	}
+	return cli.delete(resourceAuthSession, s.ObjectMeta.Name)
 }
 
 func isKubernetesAPIConflictError(err error) bool {
