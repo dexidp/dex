@@ -454,4 +454,10 @@ var migrations = []migration{
 			`alter table auth_session add column logout_state bytea;`,
 		},
 	},
+	{
+		stmts: []string{
+			`alter table auth_request add column webauthn_session_data bytea;`,
+			`alter table user_identity add column webauthn_credentials bytea;`,
+		},
+	},
 }

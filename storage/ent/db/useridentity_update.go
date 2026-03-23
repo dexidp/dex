@@ -163,6 +163,18 @@ func (_u *UserIdentityUpdate) ClearMfaSecrets() *UserIdentityUpdate {
 	return _u
 }
 
+// SetWebauthnCredentials sets the "webauthn_credentials" field.
+func (_u *UserIdentityUpdate) SetWebauthnCredentials(v []byte) *UserIdentityUpdate {
+	_u.mutation.SetWebauthnCredentials(v)
+	return _u
+}
+
+// ClearWebauthnCredentials clears the value of the "webauthn_credentials" field.
+func (_u *UserIdentityUpdate) ClearWebauthnCredentials() *UserIdentityUpdate {
+	_u.mutation.ClearWebauthnCredentials()
+	return _u
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_u *UserIdentityUpdate) SetCreatedAt(v time.Time) *UserIdentityUpdate {
 	_u.mutation.SetCreatedAt(v)
@@ -304,6 +316,12 @@ func (_u *UserIdentityUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if _u.mutation.MfaSecretsCleared() {
 		_spec.ClearField(useridentity.FieldMfaSecrets, field.TypeBytes)
+	}
+	if value, ok := _u.mutation.WebauthnCredentials(); ok {
+		_spec.SetField(useridentity.FieldWebauthnCredentials, field.TypeBytes, value)
+	}
+	if _u.mutation.WebauthnCredentialsCleared() {
+		_spec.ClearField(useridentity.FieldWebauthnCredentials, field.TypeBytes)
 	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(useridentity.FieldCreatedAt, field.TypeTime, value)
@@ -465,6 +483,18 @@ func (_u *UserIdentityUpdateOne) SetMfaSecrets(v []byte) *UserIdentityUpdateOne 
 // ClearMfaSecrets clears the value of the "mfa_secrets" field.
 func (_u *UserIdentityUpdateOne) ClearMfaSecrets() *UserIdentityUpdateOne {
 	_u.mutation.ClearMfaSecrets()
+	return _u
+}
+
+// SetWebauthnCredentials sets the "webauthn_credentials" field.
+func (_u *UserIdentityUpdateOne) SetWebauthnCredentials(v []byte) *UserIdentityUpdateOne {
+	_u.mutation.SetWebauthnCredentials(v)
+	return _u
+}
+
+// ClearWebauthnCredentials clears the value of the "webauthn_credentials" field.
+func (_u *UserIdentityUpdateOne) ClearWebauthnCredentials() *UserIdentityUpdateOne {
+	_u.mutation.ClearWebauthnCredentials()
 	return _u
 }
 
@@ -639,6 +669,12 @@ func (_u *UserIdentityUpdateOne) sqlSave(ctx context.Context) (_node *UserIdenti
 	}
 	if _u.mutation.MfaSecretsCleared() {
 		_spec.ClearField(useridentity.FieldMfaSecrets, field.TypeBytes)
+	}
+	if value, ok := _u.mutation.WebauthnCredentials(); ok {
+		_spec.SetField(useridentity.FieldWebauthnCredentials, field.TypeBytes, value)
+	}
+	if _u.mutation.WebauthnCredentialsCleared() {
+		_spec.ClearField(useridentity.FieldWebauthnCredentials, field.TypeBytes)
 	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(useridentity.FieldCreatedAt, field.TypeTime, value)

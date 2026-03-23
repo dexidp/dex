@@ -144,10 +144,11 @@ func (c *conn) CreateAuthRequest(ctx context.Context, a storage.AuthRequest) err
 			code_challenge, code_challenge_method,
 			hmac_key,
 			mfa_validated,
+			webauthn_session_data,
 			prompt, max_age, auth_time
 		)
 		values (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26
 		);
 	`,
 		a.ID, a.ClientID, encoder(a.ResponseTypes), encoder(a.Scopes), a.RedirectURI, a.Nonce, a.State,
@@ -159,6 +160,7 @@ func (c *conn) CreateAuthRequest(ctx context.Context, a storage.AuthRequest) err
 		a.PKCE.CodeChallenge, a.PKCE.CodeChallengeMethod,
 		a.HMACKey,
 		a.MFAValidated,
+		a.WebAuthnSessionData,
 		a.Prompt, a.MaxAge, a.AuthTime,
 	)
 	if err != nil {
@@ -194,8 +196,9 @@ func (c *conn) UpdateAuthRequest(ctx context.Context, id string, updater func(a 
 				code_challenge = $18, code_challenge_method = $19,
 				hmac_key = $20,
 				mfa_validated = $21,
-				prompt = $22, max_age = $23, auth_time = $24
-			where id = $25;
+				webauthn_session_data = $22,
+				prompt = $23, max_age = $24, auth_time = $25
+			where id = $26;
 		`,
 			a.ClientID, encoder(a.ResponseTypes), encoder(a.Scopes), a.RedirectURI, a.Nonce, a.State,
 			a.ForceApprovalPrompt, a.LoggedIn,
@@ -206,6 +209,7 @@ func (c *conn) UpdateAuthRequest(ctx context.Context, id string, updater func(a 
 			a.Expiry,
 			a.PKCE.CodeChallenge, a.PKCE.CodeChallengeMethod, a.HMACKey,
 			a.MFAValidated,
+			a.WebAuthnSessionData,
 			a.Prompt, a.MaxAge, a.AuthTime,
 			r.ID,
 		)
@@ -230,6 +234,7 @@ func getAuthRequest(ctx context.Context, q querier, id string) (a storage.AuthRe
 			connector_id, connector_data, expiry,
 			code_challenge, code_challenge_method, hmac_key,
 			mfa_validated,
+			webauthn_session_data,
 			prompt, max_age, auth_time
 		from auth_request where id = $1;
 	`, id).Scan(
@@ -241,6 +246,7 @@ func getAuthRequest(ctx context.Context, q querier, id string) (a storage.AuthRe
 		&a.ConnectorID, &a.ConnectorData, &a.Expiry,
 		&a.PKCE.CodeChallenge, &a.PKCE.CodeChallengeMethod, &a.HMACKey,
 		&a.MFAValidated,
+		&a.WebAuthnSessionData,
 		&a.Prompt, &a.MaxAge, &a.AuthTime,
 	)
 	if err != nil {
@@ -819,17 +825,17 @@ func (c *conn) CreateUserIdentity(ctx context.Context, u storage.UserIdentity) e
 			user_id, connector_id,
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
-			consents, mfa_secrets,
+			consents, mfa_secrets, webauthn_credentials,
 			created_at, last_login, blocked_until
 		)
 		values (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 		);
 	`,
 		u.UserID, u.ConnectorID,
 		u.Claims.UserID, u.Claims.Username, u.Claims.PreferredUsername,
 		u.Claims.Email, u.Claims.EmailVerified, encoder(u.Claims.Groups),
-		encoder(u.Consents), encoder(u.MFASecrets),
+		encoder(u.Consents), encoder(u.MFASecrets), encoder(u.WebAuthnCredentials),
 		u.CreatedAt, u.LastLogin, u.BlockedUntil,
 	)
 	if err != nil {
@@ -863,14 +869,15 @@ func (c *conn) UpdateUserIdentity(ctx context.Context, userID, connectorID strin
 				claims_groups = $6,
 				consents = $7,
 				mfa_secrets = $8,
-				created_at = $9,
-				last_login = $10,
-				blocked_until = $11
-			where user_id = $12 AND connector_id = $13;
+				webauthn_credentials = $9,
+				created_at = $10,
+				last_login = $11,
+				blocked_until = $12
+			where user_id = $13 AND connector_id = $14;
 		`,
 			newIdentity.Claims.UserID, newIdentity.Claims.Username, newIdentity.Claims.PreferredUsername,
 			newIdentity.Claims.Email, newIdentity.Claims.EmailVerified, encoder(newIdentity.Claims.Groups),
-			encoder(newIdentity.Consents), encoder(newIdentity.MFASecrets),
+			encoder(newIdentity.Consents), encoder(newIdentity.MFASecrets), encoder(newIdentity.WebAuthnCredentials),
 			newIdentity.CreatedAt, newIdentity.LastLogin, newIdentity.BlockedUntil,
 			u.UserID, u.ConnectorID,
 		)
@@ -891,7 +898,7 @@ func getUserIdentity(ctx context.Context, q querier, userID, connectorID string)
 			user_id, connector_id,
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
-			consents, mfa_secrets,
+			consents, mfa_secrets, webauthn_credentials,
 			created_at, last_login, blocked_until
 		from user_identity
 		where user_id = $1 AND connector_id = $2;
@@ -904,7 +911,7 @@ func (c *conn) ListUserIdentities(ctx context.Context) ([]storage.UserIdentity, 
 			user_id, connector_id,
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
-			consents, mfa_secrets,
+			consents, mfa_secrets, webauthn_credentials,
 			created_at, last_login, blocked_until
 		from user_identity;
 	`)
@@ -928,12 +935,12 @@ func (c *conn) ListUserIdentities(ctx context.Context) ([]storage.UserIdentity, 
 }
 
 func scanUserIdentity(s scanner) (u storage.UserIdentity, err error) {
-	var mfaSecrets []byte
+	var mfaSecrets, webauthnCreds []byte
 	err = s.Scan(
 		&u.UserID, &u.ConnectorID,
 		&u.Claims.UserID, &u.Claims.Username, &u.Claims.PreferredUsername,
 		&u.Claims.Email, &u.Claims.EmailVerified, decoder(&u.Claims.Groups),
-		decoder(&u.Consents), &mfaSecrets,
+		decoder(&u.Consents), &mfaSecrets, &webauthnCreds,
 		&u.CreatedAt, &u.LastLogin, &u.BlockedUntil,
 	)
 	if err != nil {
@@ -948,6 +955,11 @@ func scanUserIdentity(s scanner) (u storage.UserIdentity, err error) {
 	if len(mfaSecrets) > 0 {
 		if err := json.Unmarshal(mfaSecrets, &u.MFASecrets); err != nil {
 			return u, fmt.Errorf("unmarshal user identity mfa secrets: %v", err)
+		}
+	}
+	if len(webauthnCreds) > 0 {
+		if err := json.Unmarshal(webauthnCreds, &u.WebAuthnCredentials); err != nil {
+			return u, fmt.Errorf("unmarshal user identity webauthn credentials: %v", err)
 		}
 	}
 	return u, nil

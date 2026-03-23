@@ -13,7 +13,6 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
-	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -887,30 +886,13 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 		userIdentity = &ui
 	}
 
-	// an HMAC is used here to ensure that the request ID is unpredictable, ensuring that an attacker who intercepted the original
-	// flow would be unable to poll for the result at the /approval endpoint
-	h := hmac.New(sha256.New, authReq.HMACKey)
-	h.Write([]byte(authReq.ID))
-	mac := h.Sum(nil)
-	hmacParam := base64.RawURLEncoding.EncodeToString(mac)
-
 	// Check if the client requires MFA.
 	mfaChain, err := s.mfaChainForClient(ctx, authReq.ClientID, authReq.ConnectorID)
 	if err != nil {
 		return "", false, fmt.Errorf("failed to get MFA chain for client: %v", err)
 	}
 	if len(mfaChain) > 0 {
-		// Redirect to MFA verification starting with the first authenticator.
-		// Each authenticator redirects to the next one in the chain upon success.
-		// HMAC includes authenticatorID to prevent skipping steps by URL manipulation.
-		h.Reset()
-		h.Write([]byte(authReq.ID + "|" + mfaChain[0]))
-		v := url.Values{}
-		v.Set("req", authReq.ID)
-		v.Set("hmac", base64.RawURLEncoding.EncodeToString(h.Sum(nil)))
-		v.Set("authenticator", mfaChain[0])
-		returnURL := path.Join(s.issuerURL.Path, "/mfa/verify") + "?" + v.Encode()
-		return returnURL, false, nil
+		return s.buildMFARedirectURL(authReq, mfaChain[0]), false, nil
 	}
 
 	// No MFA required — mark as validated.
@@ -933,8 +915,7 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 		}
 	}
 
-	returnURL := path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID + "&hmac=" + hmacParam
-	return returnURL, false, nil
+	return s.buildApprovalURL(authReq), false, nil
 }
 
 func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
@@ -977,14 +958,7 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(mfaChain) > 0 {
-			h.Write([]byte(authReq.ID + "|" + mfaChain[0]))
-			v := url.Values{}
-			v.Set("req", authReq.ID)
-			v.Set("hmac", base64.RawURLEncoding.EncodeToString(h.Sum(nil)))
-			v.Set("authenticator", mfaChain[0])
-			h.Reset()
-			totpURL := path.Join(s.issuerURL.Path, "/mfa/verify") + "?" + v.Encode()
-			http.Redirect(w, r, totpURL, http.StatusSeeOther)
+			http.Redirect(w, r, s.buildMFARedirectURL(authReq, mfaChain[0]), http.StatusSeeOther)
 			return
 		}
 		// No MFA required but flag not set — allow through (backward compat).
@@ -1001,6 +975,24 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
+		// Skip the approval page and issue the code directly if:
+		// 1. The client didn't force the approval prompt, AND
+		// 2. Either the server is configured to skip approval globally,
+		//    or the user has already consented to all requested scopes for this client.
+		// This handles the MFA redirect case: after MFA completion the user lands on
+		// /approval via GET, and we don't want to show the consent screen again.
+		if !authReq.ForceApprovalPrompt {
+			if s.skipApproval {
+				s.sendCodeResponse(w, r, authReq)
+				return
+			}
+			ui, err := s.storage.GetUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID)
+			if err == nil && scopesCoveredByConsent(ui.Consents[authReq.ClientID], authReq.Scopes) {
+				s.sendCodeResponse(w, r, authReq)
+				return
+			}
+		}
+
 		client, err := s.storage.GetClient(ctx, authReq.ClientID)
 		if err != nil {
 			s.logger.ErrorContext(r.Context(), "Failed to get client", "client_id", authReq.ClientID, "err", err)

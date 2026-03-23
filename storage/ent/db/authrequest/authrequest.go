@@ -53,6 +53,8 @@ const (
 	FieldHmacKey = "hmac_key"
 	// FieldMfaValidated holds the string denoting the mfa_validated field in the database.
 	FieldMfaValidated = "mfa_validated"
+	// FieldWebauthnSessionData holds the string denoting the webauthn_session_data field in the database.
+	FieldWebauthnSessionData = "webauthn_session_data"
 	// FieldPrompt holds the string denoting the prompt field in the database.
 	FieldPrompt = "prompt"
 	// FieldMaxAge holds the string denoting the max_age field in the database.
@@ -87,6 +89,7 @@ var Columns = []string{
 	FieldCodeChallengeMethod,
 	FieldHmacKey,
 	FieldMfaValidated,
+	FieldWebauthnSessionData,
 	FieldPrompt,
 	FieldMaxAge,
 	FieldAuthTime,

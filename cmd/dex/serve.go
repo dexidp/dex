@@ -385,7 +385,7 @@ func runServe(options serveOptions) error {
 		ContinueOnConnectorFailure: featureflags.ContinueOnConnectorFailure.Enabled(),
 		Signer:                     signerInstance,
 		IDTokensValidFor:           idTokensValidFor,
-		MFAProviders:               buildMFAProviders(c.MFA.Authenticators, logger),
+		MFAProviders:               buildMFAProviders(c.MFA.Authenticators, c.Issuer, logger),
 		DefaultMFAChain:            c.MFA.DefaultMFAChain,
 	}
 
@@ -823,7 +823,7 @@ func parseSessionConfig(s *Sessions) (*server.SessionConfig, error) {
 	return sc, nil
 }
 
-func buildMFAProviders(authenticators []MFAAuthenticator, logger *slog.Logger) map[string]server.MFAProvider {
+func buildMFAProviders(authenticators []MFAAuthenticator, issuerURL string, logger *slog.Logger) map[string]server.MFAProvider {
 	if len(authenticators) == 0 {
 		return nil
 	}
@@ -838,6 +838,21 @@ func buildMFAProviders(authenticators []MFAAuthenticator, logger *slog.Logger) m
 				continue
 			}
 			providers[auth.ID] = server.NewTOTPProvider(cfg.Issuer, auth.ConnectorTypes)
+			logger.Info("MFA authenticator configured", "id", auth.ID, "type", auth.Type)
+		case "WebAuthn":
+			var cfg WebAuthnConfig
+			if err := json.Unmarshal(auth.Config, &cfg); err != nil {
+				logger.Error("failed to parse WebAuthn config", "id", auth.ID, "err", err)
+				continue
+			}
+			provider, err := server.NewWebAuthnProvider(cfg.RPDisplayName, cfg.RPID, cfg.RPOrigins,
+				cfg.AttestationPreference, cfg.UserVerification, cfg.AuthenticatorAttachment,
+				cfg.Timeout, issuerURL, auth.ConnectorTypes)
+			if err != nil {
+				logger.Error("failed to create WebAuthn provider", "id", auth.ID, "err", err)
+				continue
+			}
+			providers[auth.ID] = provider
 			logger.Info("MFA authenticator configured", "id", auth.ID, "type", auth.Type)
 		default:
 			logger.Error("unknown MFA authenticator type, skipping", "id", auth.ID, "type", auth.Type)

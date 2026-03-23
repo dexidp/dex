@@ -10,7 +10,6 @@ import (
 	"image/png"
 	"net/http"
 	"net/url"
-	"path"
 
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
@@ -59,16 +58,26 @@ func (p *TOTPProvider) generate(connID, email string) (*otp.Key, error) {
 	})
 }
 
-func (s *Server) handleMFAVerify(w http.ResponseWriter, r *http.Request) {
+// mfaRequestContext holds validated MFA request data shared across handlers.
+type mfaRequestContext struct {
+	authReq         storage.AuthRequest
+	identity        storage.UserIdentity
+	authenticatorID string
+	approvalURL     string
+}
+
+// validateMFARequest performs common MFA request validation: HMAC check, auth request
+// lookup, user identity lookup, and approval URL generation.
+func (s *Server) validateMFARequest(w http.ResponseWriter, r *http.Request) (*mfaRequestContext, bool) {
 	macEncoded := r.FormValue("hmac")
 	if macEncoded == "" {
 		s.renderError(r, w, http.StatusUnauthorized, "Unauthorized request.")
-		return
+		return nil, false
 	}
 	mac, err := base64.RawURLEncoding.DecodeString(macEncoded)
 	if err != nil {
 		s.renderError(r, w, http.StatusUnauthorized, "Unauthorized request.")
-		return
+		return nil, false
 	}
 
 	ctx := r.Context()
@@ -77,54 +86,94 @@ func (s *Server) handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to get auth request", "err", err)
 		s.renderError(r, w, http.StatusInternalServerError, "Database error.")
-		return
+		return nil, false
 	}
 	if !authReq.LoggedIn {
 		s.logger.ErrorContext(ctx, "auth request does not have an identity for MFA verification")
 		s.renderError(r, w, http.StatusInternalServerError, "Login process not yet finalized.")
-		return
+		return nil, false
 	}
 
 	authenticatorID := r.FormValue("authenticator")
 
-	// Verify HMAC — includes authenticatorID to prevent skipping steps in the MFA chain.
 	h := hmac.New(sha256.New, authReq.HMACKey)
 	h.Write([]byte(authReq.ID + "|" + authenticatorID))
 	if !hmac.Equal(mac, h.Sum(nil)) {
 		s.renderError(r, w, http.StatusUnauthorized, "Unauthorized request.")
-		return
-	}
-	provider, ok := s.mfaProviders[authenticatorID]
-	if !ok {
-		s.renderError(r, w, http.StatusBadRequest, "Unknown authenticator.")
-		return
-	}
-
-	totpProvider, ok := provider.(*TOTPProvider)
-	if !ok {
-		s.renderError(r, w, http.StatusInternalServerError, "Unsupported authenticator type.")
-		return
+		return nil, false
 	}
 
 	identity, err := s.storage.GetUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to get user identity", "err", err)
 		s.renderError(r, w, http.StatusInternalServerError, "Database error.")
-		return
+		return nil, false
 	}
 
-	// Build approval URL with an HMAC that covers only the request ID
-	// (MFA HMAC includes authenticatorID and is not valid for approval).
-	approvalH := hmac.New(sha256.New, authReq.HMACKey)
-	approvalH.Write([]byte(authReq.ID))
-	returnURL := path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID +
-		"&hmac=" + base64.RawURLEncoding.EncodeToString(approvalH.Sum(nil))
+	approvalURL := s.buildApprovalURL(authReq)
 
 	if authReq.MFAValidated {
-		http.Redirect(w, r, returnURL, http.StatusSeeOther)
+		http.Redirect(w, r, approvalURL, http.StatusSeeOther)
+		return nil, false
+	}
+
+	return &mfaRequestContext{
+		authReq:         authReq,
+		identity:        identity,
+		authenticatorID: authenticatorID,
+		approvalURL:     approvalURL,
+	}, true
+}
+
+func (s *Server) handleTOTP(w http.ResponseWriter, r *http.Request) {
+	mfa, ok := s.validateMFARequest(w, r)
+	if !ok {
 		return
 	}
 
+	provider, ok := s.mfaProviders[mfa.authenticatorID]
+	if !ok {
+		s.renderError(r, w, http.StatusBadRequest, "Unknown authenticator.")
+		return
+	}
+	totpProvider, ok := provider.(*TOTPProvider)
+	if !ok {
+		s.renderError(r, w, http.StatusBadRequest, "Not a TOTP authenticator.")
+		return
+	}
+
+	s.handleTOTPVerify(w, r, r.Context(), mfa.authReq, mfa.identity, mfa.authenticatorID, totpProvider, mfa.approvalURL)
+}
+
+func (s *Server) handleWebAuthn(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		s.renderError(r, w, http.StatusBadRequest, "Unsupported request method.")
+		return
+	}
+
+	mfa, ok := s.validateMFARequest(w, r)
+	if !ok {
+		return
+	}
+
+	w.Header().Set("Cache-Control", "no-store")
+
+	user := buildWebAuthnUser(mfa.identity, mfa.authenticatorID)
+	mode := "login"
+	if len(user.credentials) == 0 {
+		mode = "register"
+	}
+
+	if err := s.templates.webauthnVerify(r, w, mode, mfa.authenticatorID); err != nil {
+		s.logger.ErrorContext(r.Context(), "server template error", "err", err)
+	}
+}
+
+// handleTOTPVerify handles TOTP enrollment and verification.
+func (s *Server) handleTOTPVerify(w http.ResponseWriter, r *http.Request, ctx context.Context,
+	authReq storage.AuthRequest, identity storage.UserIdentity,
+	authenticatorID string, totpProvider *TOTPProvider, returnURL string,
+) {
 	secret := identity.MFASecrets[authenticatorID]
 
 	switch r.Method {
@@ -201,47 +250,16 @@ func (s *Server) handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// Check if there are more authenticators in the MFA chain.
-		mfaChain, err := s.mfaChainForClient(ctx, authReq.ClientID, authReq.ConnectorID)
+		redirectURL, err := s.completeMFAStep(ctx, authReq, authenticatorID)
 		if err != nil {
-			s.logger.ErrorContext(ctx, "failed to get MFA chain", "err", err)
+			s.logger.ErrorContext(ctx, "failed to complete MFA step", "err", err)
 			s.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 			return
 		}
 
-		// Find the next authenticator in the chain after the current one.
-		var nextAuthenticator string
-		for i, id := range mfaChain {
-			if id == authenticatorID && i+1 < len(mfaChain) {
-				nextAuthenticator = mfaChain[i+1]
-				break
-			}
-		}
-
-		if nextAuthenticator != "" {
-			// Redirect to the next authenticator in the chain.
-			h := hmac.New(sha256.New, authReq.HMACKey)
-			h.Write([]byte(authReq.ID + "|" + nextAuthenticator))
-			v := url.Values{}
-			v.Set("req", authReq.ID)
-			v.Set("hmac", base64.RawURLEncoding.EncodeToString(h.Sum(nil)))
-			v.Set("authenticator", nextAuthenticator)
-			nextURL := path.Join(s.issuerURL.Path, "/mfa/verify") + "?" + v.Encode()
-			http.Redirect(w, r, nextURL, http.StatusSeeOther)
-			return
-		}
-
-		// All authenticators in the chain completed — mark as validated.
-		if err := s.storage.UpdateAuthRequest(ctx, authReq.ID, func(old storage.AuthRequest) (storage.AuthRequest, error) {
-			old.MFAValidated = true
-			return old, nil
-		}); err != nil {
-			s.logger.ErrorContext(ctx, "failed to update auth request", "err", err)
-			s.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
-			return
-		}
-
-		s.sendCodeOrRedirectToApproval(w, r, authReq, returnURL)
+		// completeMFAStep returns either the next MFA step URL or the approval URL.
+		// Redirect in both cases — the approval handler handles skipApproval logic.
+		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 
 	default:
 		s.renderError(r, w, http.StatusBadRequest, "Unsupported request method.")
@@ -264,39 +282,6 @@ func (s *Server) renderTOTPPage(secret *storage.MFASecret, lastFail bool, issuer
 	if err := s.templates.totpVerify(r, w, r.URL.String(), issuer, connectorID, qrCode, lastFail); err != nil {
 		s.logger.ErrorContext(r.Context(), "server template error", "err", err)
 	}
-}
-
-// sendCodeOrRedirectToApproval checks skipApproval and stored consent,
-// sending a code response directly if possible, or redirecting to the approval page.
-func (s *Server) sendCodeOrRedirectToApproval(w http.ResponseWriter, r *http.Request, authReq storage.AuthRequest, approvalURL string) {
-	ctx := r.Context()
-
-	if !authReq.ForceApprovalPrompt {
-		if s.skipApproval {
-			authReq, err := s.storage.GetAuthRequest(ctx, authReq.ID)
-			if err != nil {
-				s.logger.ErrorContext(ctx, "failed to get auth request", "err", err)
-				s.renderError(r, w, http.StatusInternalServerError, "Login error.")
-				return
-			}
-			s.sendCodeResponse(w, r, authReq)
-			return
-		}
-
-		ui, err := s.storage.GetUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID)
-		if err == nil && scopesCoveredByConsent(ui.Consents[authReq.ClientID], authReq.Scopes) {
-			authReq, err := s.storage.GetAuthRequest(ctx, authReq.ID)
-			if err != nil {
-				s.logger.ErrorContext(ctx, "failed to get auth request", "err", err)
-				s.renderError(r, w, http.StatusInternalServerError, "Login error.")
-				return
-			}
-			s.sendCodeResponse(w, r, authReq)
-			return
-		}
-	}
-
-	http.Redirect(w, r, approvalURL, http.StatusSeeOther)
 }
 
 func generateTOTPQRCode(keyURL string) (string, error) {
@@ -361,4 +346,56 @@ func (s *Server) getConnectorType(ctx context.Context, connectorID string) (stri
 		return "", fmt.Errorf("get connector %q: %w", connectorID, err)
 	}
 	return conn.Type, nil
+}
+
+// mfaPagePath returns the page URL path for the given MFA provider type.
+func (s *Server) mfaPagePath(authenticatorID string) string {
+	provider, ok := s.mfaProviders[authenticatorID]
+	if ok && provider.Type() == "WebAuthn" {
+		return "/mfa/webauthn"
+	}
+	return "/mfa/totp"
+}
+
+// completeMFAStep checks for the next authenticator in the MFA chain and either
+// returns the URL for the next step or marks MFA as validated and returns the approval URL.
+func (s *Server) completeMFAStep(ctx context.Context, authReq storage.AuthRequest, authenticatorID string) (string, error) {
+	mfaChain, err := s.mfaChainForClient(ctx, authReq.ClientID, authReq.ConnectorID)
+	if err != nil {
+		return "", fmt.Errorf("get MFA chain: %w", err)
+	}
+
+	// Find the next authenticator in the chain after the current one.
+	var nextAuthenticator string
+	for i, id := range mfaChain {
+		if id == authenticatorID && i+1 < len(mfaChain) {
+			nextAuthenticator = mfaChain[i+1]
+			break
+		}
+	}
+
+	if nextAuthenticator != "" {
+		return s.buildMFARedirectURL(authReq, nextAuthenticator), nil
+	}
+
+	// All authenticators completed — mark as validated.
+	if err := s.storage.UpdateAuthRequest(ctx, authReq.ID, func(old storage.AuthRequest) (storage.AuthRequest, error) {
+		old.MFAValidated = true
+		return old, nil
+	}); err != nil {
+		return "", fmt.Errorf("update auth request: %w", err)
+	}
+
+	return s.buildApprovalURL(authReq), nil
+}
+
+// buildMFARedirectURL builds an HMAC-protected redirect URL for the given authenticator.
+func (s *Server) buildMFARedirectURL(authReq storage.AuthRequest, authenticatorID string) string {
+	h := hmac.New(sha256.New, authReq.HMACKey)
+	h.Write([]byte(authReq.ID + "|" + authenticatorID))
+	v := url.Values{}
+	v.Set("req", authReq.ID)
+	v.Set("hmac", base64.RawURLEncoding.EncodeToString(h.Sum(nil)))
+	v.Set("authenticator", authenticatorID)
+	return s.absPath(s.mfaPagePath(authenticatorID)) + "?" + v.Encode()
 }

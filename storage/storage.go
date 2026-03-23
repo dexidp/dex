@@ -275,6 +275,10 @@ type AuthRequest struct {
 
 	// MFAValidated is set to true if the user has completed multi-factor authentication.
 	MFAValidated bool
+
+	// WebAuthnSessionData stores temporary WebAuthn ceremony data (challenge, etc.)
+	// between Begin and Finish calls. JSON-encoded webauthn.SessionData.
+	WebAuthnSessionData []byte
 }
 
 // AuthCode represents a code which can be exchanged for an OAuth2 token response.
@@ -373,16 +377,32 @@ type MFASecret struct {
 	CreatedAt       time.Time `json:"createdAt"`
 }
 
+// WebAuthnCredential stores a registered WebAuthn credential for a user.
+type WebAuthnCredential struct {
+	CredentialID    []byte    `json:"credentialID"`
+	PublicKey       []byte    `json:"publicKey"`
+	AttestationType string    `json:"attestationType"`
+	AAGUID          []byte    `json:"aaguid"`
+	SignCount       uint32    `json:"signCount"`
+	CloneWarning    bool      `json:"cloneWarning"`
+	Transport       []string  `json:"transport"`
+	BackupEligible  bool      `json:"backupEligible"`
+	BackupState     bool      `json:"backupState"`
+	DisplayName     string    `json:"displayName"`
+	CreatedAt       time.Time `json:"createdAt"`
+}
+
 // UserIdentity represents persistent per-user identity data.
 type UserIdentity struct {
-	UserID       string
-	ConnectorID  string
-	Claims       Claims
-	Consents     map[string][]string   // clientID -> approved scopes
-	MFASecrets   map[string]*MFASecret // authenticatorID -> secret
-	CreatedAt    time.Time
-	LastLogin    time.Time
-	BlockedUntil time.Time
+	UserID              string
+	ConnectorID         string
+	Claims              Claims
+	Consents            map[string][]string             // clientID -> approved scopes
+	MFASecrets          map[string]*MFASecret           // authenticatorID -> secret
+	WebAuthnCredentials map[string][]WebAuthnCredential // authenticatorID -> credentials
+	CreatedAt           time.Time
+	LastLogin           time.Time
+	BlockedUntil        time.Time
 }
 
 // ClientAuthState represents authentication state for a specific client within an auth session.
