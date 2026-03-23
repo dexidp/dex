@@ -245,7 +245,7 @@ func (s *Server) introspectRefreshToken(ctx context.Context, token string) (*Int
 }
 
 func (s *Server) introspectAccessToken(ctx context.Context, token string) (*Introspection, error) {
-	verifier := oidc.NewVerifier(s.issuerURL.String(), &storageKeySet{s.storage}, &oidc.Config{SkipClientIDCheck: true})
+	verifier := oidc.NewVerifier(s.issuerURL.String(), &signerKeySet{s.signer}, &oidc.Config{SkipClientIDCheck: true})
 	idToken, err := verifier.Verify(ctx, token)
 	if err != nil {
 		return nil, newIntrospectInactiveTokenError()
@@ -318,7 +318,9 @@ func (s *Server) handleIntrospect(w http.ResponseWriter, r *http.Request) {
 
 	rawJSON, jsonErr := json.Marshal(introspect)
 	if jsonErr != nil {
-		s.introspectErrHelper(w, errServerError, jsonErr.Error(), 500)
+		s.logger.ErrorContext(r.Context(), "failed to marshal introspection response", "err", jsonErr)
+		s.introspectErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")

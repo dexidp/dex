@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -206,4 +207,26 @@ func TestRefreshTokenExpirationScenarios(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRefreshTokenPolicy(t *testing.T) {
+	lastTime := time.Now()
+	l := slog.New(slog.DiscardHandler)
+
+	r, err := NewRefreshTokenPolicy(l, true, "1m", "1m", "1m")
+	require.NoError(t, err)
+
+	t.Run("Allowed", func(t *testing.T) {
+		r.now = func() time.Time { return lastTime }
+		require.Equal(t, true, r.AllowedToReuse(lastTime))
+		require.Equal(t, false, r.ExpiredBecauseUnused(lastTime))
+		require.Equal(t, false, r.CompletelyExpired(lastTime))
+	})
+
+	t.Run("Expired", func(t *testing.T) {
+		r.now = func() time.Time { return lastTime.Add(2 * time.Minute) }
+		require.Equal(t, false, r.AllowedToReuse(lastTime))
+		require.Equal(t, true, r.ExpiredBecauseUnused(lastTime))
+		require.Equal(t, true, r.CompletelyExpired(lastTime))
+	})
 }

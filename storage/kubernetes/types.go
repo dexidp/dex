@@ -431,9 +431,13 @@ type Password struct {
 	// This field is IMMUTABLE. Do not change.
 	Email string `json:"email,omitempty"`
 
-	Hash     []byte `json:"hash,omitempty"`
-	Username string `json:"username,omitempty"`
-	UserID   string `json:"userID,omitempty"`
+	Hash              []byte   `json:"hash,omitempty"`
+	Username          string   `json:"username,omitempty"`
+	Name              string   `json:"name,omitempty"`
+	PreferredUsername string   `json:"preferredUsername,omitempty"`
+	EmailVerified     *bool    `json:"emailVerified,omitempty"`
+	UserID            string   `json:"userID,omitempty"`
+	Groups            []string `json:"groups,omitempty"`
 }
 
 // PasswordList is a list of Passwords.
@@ -454,19 +458,27 @@ func (cli *client) fromStoragePassword(p storage.Password) Password {
 			Name:      cli.idToName(email),
 			Namespace: cli.namespace,
 		},
-		Email:    email,
-		Hash:     p.Hash,
-		Username: p.Username,
-		UserID:   p.UserID,
+		Email:             email,
+		Hash:              p.Hash,
+		Username:          p.Username,
+		Name:              p.Name,
+		PreferredUsername: p.PreferredUsername,
+		EmailVerified:     p.EmailVerified,
+		UserID:            p.UserID,
+		Groups:            p.Groups,
 	}
 }
 
 func toStoragePassword(p Password) storage.Password {
 	return storage.Password{
-		Email:    p.Email,
-		Hash:     p.Hash,
-		Username: p.Username,
-		UserID:   p.UserID,
+		Email:             p.Email,
+		Hash:              p.Hash,
+		Username:          p.Username,
+		Name:              p.Name,
+		PreferredUsername: p.PreferredUsername,
+		EmailVerified:     p.EmailVerified,
+		UserID:            p.UserID,
+		Groups:            p.Groups,
 	}
 }
 

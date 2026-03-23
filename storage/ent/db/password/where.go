@@ -67,6 +67,21 @@ func Username(v string) predicate.Password {
 	return predicate.Password(sql.FieldEQ(FieldUsername, v))
 }
 
+// Name applies equality check predicate on the "name" field. It's identical to NameEQ.
+func Name(v string) predicate.Password {
+	return predicate.Password(sql.FieldEQ(FieldName, v))
+}
+
+// PreferredUsername applies equality check predicate on the "preferred_username" field. It's identical to PreferredUsernameEQ.
+func PreferredUsername(v string) predicate.Password {
+	return predicate.Password(sql.FieldEQ(FieldPreferredUsername, v))
+}
+
+// EmailVerified applies equality check predicate on the "email_verified" field. It's identical to EmailVerifiedEQ.
+func EmailVerified(v bool) predicate.Password {
+	return predicate.Password(sql.FieldEQ(FieldEmailVerified, v))
+}
+
 // UserID applies equality check predicate on the "user_id" field. It's identical to UserIDEQ.
 func UserID(v string) predicate.Password {
 	return predicate.Password(sql.FieldEQ(FieldUserID, v))
@@ -242,6 +257,156 @@ func UsernameContainsFold(v string) predicate.Password {
 	return predicate.Password(sql.FieldContainsFold(FieldUsername, v))
 }
 
+// NameEQ applies the EQ predicate on the "name" field.
+func NameEQ(v string) predicate.Password {
+	return predicate.Password(sql.FieldEQ(FieldName, v))
+}
+
+// NameNEQ applies the NEQ predicate on the "name" field.
+func NameNEQ(v string) predicate.Password {
+	return predicate.Password(sql.FieldNEQ(FieldName, v))
+}
+
+// NameIn applies the In predicate on the "name" field.
+func NameIn(vs ...string) predicate.Password {
+	return predicate.Password(sql.FieldIn(FieldName, vs...))
+}
+
+// NameNotIn applies the NotIn predicate on the "name" field.
+func NameNotIn(vs ...string) predicate.Password {
+	return predicate.Password(sql.FieldNotIn(FieldName, vs...))
+}
+
+// NameGT applies the GT predicate on the "name" field.
+func NameGT(v string) predicate.Password {
+	return predicate.Password(sql.FieldGT(FieldName, v))
+}
+
+// NameGTE applies the GTE predicate on the "name" field.
+func NameGTE(v string) predicate.Password {
+	return predicate.Password(sql.FieldGTE(FieldName, v))
+}
+
+// NameLT applies the LT predicate on the "name" field.
+func NameLT(v string) predicate.Password {
+	return predicate.Password(sql.FieldLT(FieldName, v))
+}
+
+// NameLTE applies the LTE predicate on the "name" field.
+func NameLTE(v string) predicate.Password {
+	return predicate.Password(sql.FieldLTE(FieldName, v))
+}
+
+// NameContains applies the Contains predicate on the "name" field.
+func NameContains(v string) predicate.Password {
+	return predicate.Password(sql.FieldContains(FieldName, v))
+}
+
+// NameHasPrefix applies the HasPrefix predicate on the "name" field.
+func NameHasPrefix(v string) predicate.Password {
+	return predicate.Password(sql.FieldHasPrefix(FieldName, v))
+}
+
+// NameHasSuffix applies the HasSuffix predicate on the "name" field.
+func NameHasSuffix(v string) predicate.Password {
+	return predicate.Password(sql.FieldHasSuffix(FieldName, v))
+}
+
+// NameEqualFold applies the EqualFold predicate on the "name" field.
+func NameEqualFold(v string) predicate.Password {
+	return predicate.Password(sql.FieldEqualFold(FieldName, v))
+}
+
+// NameContainsFold applies the ContainsFold predicate on the "name" field.
+func NameContainsFold(v string) predicate.Password {
+	return predicate.Password(sql.FieldContainsFold(FieldName, v))
+}
+
+// PreferredUsernameEQ applies the EQ predicate on the "preferred_username" field.
+func PreferredUsernameEQ(v string) predicate.Password {
+	return predicate.Password(sql.FieldEQ(FieldPreferredUsername, v))
+}
+
+// PreferredUsernameNEQ applies the NEQ predicate on the "preferred_username" field.
+func PreferredUsernameNEQ(v string) predicate.Password {
+	return predicate.Password(sql.FieldNEQ(FieldPreferredUsername, v))
+}
+
+// PreferredUsernameIn applies the In predicate on the "preferred_username" field.
+func PreferredUsernameIn(vs ...string) predicate.Password {
+	return predicate.Password(sql.FieldIn(FieldPreferredUsername, vs...))
+}
+
+// PreferredUsernameNotIn applies the NotIn predicate on the "preferred_username" field.
+func PreferredUsernameNotIn(vs ...string) predicate.Password {
+	return predicate.Password(sql.FieldNotIn(FieldPreferredUsername, vs...))
+}
+
+// PreferredUsernameGT applies the GT predicate on the "preferred_username" field.
+func PreferredUsernameGT(v string) predicate.Password {
+	return predicate.Password(sql.FieldGT(FieldPreferredUsername, v))
+}
+
+// PreferredUsernameGTE applies the GTE predicate on the "preferred_username" field.
+func PreferredUsernameGTE(v string) predicate.Password {
+	return predicate.Password(sql.FieldGTE(FieldPreferredUsername, v))
+}
+
+// PreferredUsernameLT applies the LT predicate on the "preferred_username" field.
+func PreferredUsernameLT(v string) predicate.Password {
+	return predicate.Password(sql.FieldLT(FieldPreferredUsername, v))
+}
+
+// PreferredUsernameLTE applies the LTE predicate on the "preferred_username" field.
+func PreferredUsernameLTE(v string) predicate.Password {
+	return predicate.Password(sql.FieldLTE(FieldPreferredUsername, v))
+}
+
+// PreferredUsernameContains applies the Contains predicate on the "preferred_username" field.
+func PreferredUsernameContains(v string) predicate.Password {
+	return predicate.Password(sql.FieldContains(FieldPreferredUsername, v))
+}
+
+// PreferredUsernameHasPrefix applies the HasPrefix predicate on the "preferred_username" field.
+func PreferredUsernameHasPrefix(v string) predicate.Password {
+	return predicate.Password(sql.FieldHasPrefix(FieldPreferredUsername, v))
+}
+
+// PreferredUsernameHasSuffix applies the HasSuffix predicate on the "preferred_username" field.
+func PreferredUsernameHasSuffix(v string) predicate.Password {
+	return predicate.Password(sql.FieldHasSuffix(FieldPreferredUsername, v))
+}
+
+// PreferredUsernameEqualFold applies the EqualFold predicate on the "preferred_username" field.
+func PreferredUsernameEqualFold(v string) predicate.Password {
+	return predicate.Password(sql.FieldEqualFold(FieldPreferredUsername, v))
+}
+
+// PreferredUsernameContainsFold applies the ContainsFold predicate on the "preferred_username" field.
+func PreferredUsernameContainsFold(v string) predicate.Password {
+	return predicate.Password(sql.FieldContainsFold(FieldPreferredUsername, v))
+}
+
+// EmailVerifiedEQ applies the EQ predicate on the "email_verified" field.
+func EmailVerifiedEQ(v bool) predicate.Password {
+	return predicate.Password(sql.FieldEQ(FieldEmailVerified, v))
+}
+
+// EmailVerifiedNEQ applies the NEQ predicate on the "email_verified" field.
+func EmailVerifiedNEQ(v bool) predicate.Password {
+	return predicate.Password(sql.FieldNEQ(FieldEmailVerified, v))
+}
+
+// EmailVerifiedIsNil applies the IsNil predicate on the "email_verified" field.
+func EmailVerifiedIsNil() predicate.Password {
+	return predicate.Password(sql.FieldIsNull(FieldEmailVerified))
+}
+
+// EmailVerifiedNotNil applies the NotNil predicate on the "email_verified" field.
+func EmailVerifiedNotNil() predicate.Password {
+	return predicate.Password(sql.FieldNotNull(FieldEmailVerified))
+}
+
 // UserIDEQ applies the EQ predicate on the "user_id" field.
 func UserIDEQ(v string) predicate.Password {
 	return predicate.Password(sql.FieldEQ(FieldUserID, v))
@@ -305,6 +470,16 @@ func UserIDEqualFold(v string) predicate.Password {
 // UserIDContainsFold applies the ContainsFold predicate on the "user_id" field.
 func UserIDContainsFold(v string) predicate.Password {
 	return predicate.Password(sql.FieldContainsFold(FieldUserID, v))
+}
+
+// GroupsIsNil applies the IsNil predicate on the "groups" field.
+func GroupsIsNil() predicate.Password {
+	return predicate.Password(sql.FieldIsNull(FieldGroups))
+}
+
+// GroupsNotNil applies the NotNil predicate on the "groups" field.
+func GroupsNotNil() predicate.Password {
+	return predicate.Password(sql.FieldNotNull(FieldGroups))
 }
 
 // And groups predicates with the AND operator between them.

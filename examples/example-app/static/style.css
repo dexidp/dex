@@ -1,0 +1,589 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f2f2f2;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    flex-direction: column;
+    padding: 20px;
+}
+
+/* Token page layout - no centering */
+body.token-page {
+    display: block;
+    align-items: flex-start;
+    justify-content: flex-start;
+    padding: 20px;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    max-width: 600px;
+}
+
+.logo {
+    max-width: 100%;
+    width: 200px;
+    height: auto;
+    margin-bottom: 30px;
+    display: block;
+}
+
+form {
+    background-color: #fff;
+    padding: 30px;
+    border-radius: 8px;
+    width: 100%;
+}
+
+/* Shadow only for main login form */
+.container form {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.primary-action {
+    margin-bottom: 20px;
+}
+
+.advanced {
+    margin-top: 20px;
+    background: #f9fbfd;
+    border: 1px solid #dbe7f3;
+    border-radius: 6px;
+    padding: 15px;
+}
+
+.advanced summary {
+    cursor: pointer;
+    font-weight: bold;
+    color: #3F9FD8;
+    user-select: none;
+    text-align: center;
+}
+
+.advanced summary:hover {
+    color: #357FAA;
+}
+
+.app-description {
+    text-align: center;
+    color: #666;
+    font-size: 14px;
+    margin-bottom: 25px;
+    line-height: 1.5;
+}
+
+.app-description a {
+    color: #3F9FD8;
+    text-decoration: none;
+}
+
+.app-description a:hover {
+    text-decoration: underline;
+}
+
+.field {
+    margin-top: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.field label {
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+}
+
+.inline-input {
+    display: flex;
+    gap: 8px;
+}
+
+.inline-input input[type="text"] {
+    flex: 1;
+}
+
+input[type="text"] {
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+input[type="text"]:focus {
+    border-color: #3F9FD8;
+}
+
+.checkbox-field {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.checkbox-field label {
+    margin: 0;
+    font-weight: 500;
+}
+
+input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.scopes-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 10px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.scope-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.scope-item input[type="checkbox"] {
+    margin: 0;
+}
+
+.scope-item label {
+    margin: 0;
+    font-weight: 400;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+input[type="submit"], button {
+    padding: 12px 20px;
+    background-color: #3F9FD8;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+/* Full width submit button only on main login form */
+form input[type="submit"] {
+    width: 100%;
+    font-size: 16px;
+}
+
+/* Token page forms should have auto-width buttons */
+body.token-page input[type="submit"] {
+    width: auto;
+    font-size: 14px;
+}
+
+input[type="submit"]:hover, button:hover {
+    background-color: #357FAA;
+}
+
+button {
+    white-space: nowrap;
+}
+
+.chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 32px;
+    margin-top: 8px;
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #e9f4fb;
+    border: 1px solid #cde5f5;
+    border-radius: 16px;
+    padding: 6px 12px;
+    font-size: 13px;
+}
+
+.chip button {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-weight: bold;
+    color: #3F9FD8;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.chip button:hover {
+    background: #d0e8f5;
+}
+
+.hint {
+    font-size: 12px;
+    color: #666;
+    margin-top: 4px;
+}
+
+.copy-btn {
+    padding: 4px 10px;
+    background-color: #3F9FD8;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    transition: background-color 0.2s;
+    margin-left: 8px;
+    white-space: nowrap;
+}
+
+.copy-btn:hover {
+    background-color: #357FAA;
+}
+
+/* Token page styles */
+.back-button {
+    display: inline-block;
+    padding: 8px 16px;
+    background-color: #EF4B5C;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    text-decoration: none;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+}
+
+.back-button:hover {
+    background-color: #C43B4B;
+}
+
+.token-block {
+    background-color: #fff;
+    padding: 10px 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    word-wrap: break-word;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid #e0e0e0;
+}
+
+.token-block form {
+    margin: 10px 0 0 0;
+    padding: 0;
+    background-color: transparent;
+    box-shadow: none;
+    border-radius: 0;
+}
+
+.token-title {
+    font-weight: bold;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.token-title a {
+    font-size: 0.9em;
+    text-decoration: none;
+    color: #3F9FD8;
+}
+
+.token-title a:hover {
+    text-decoration: underline;
+}
+
+.token-code {
+    overflow-wrap: break-word;
+    word-break: break-all;
+    white-space: normal;
+}
+
+pre {
+    white-space: pre-wrap;
+    background-color: #f9f9f9;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    margin: 0;
+    font-family: 'Courier New', Courier, monospace;
+    overflow-x: auto;
+    font-size: 0.9em;
+    position: relative;
+    margin-top: 5px;
+}
+
+pre .key {
+    color: #c00;
+}
+
+pre .string {
+    color: #080;
+}
+
+pre .number {
+    color: #00f;
+}
+
+/* Login Buttons Styles */
+.login-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.login-button {
+    width: 100%;
+    padding: 14px 24px;
+    font-size: 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 600;
+    border: 2px solid #3F9FD8;
+}
+
+.login-button.primary {
+    background-color: #3F9FD8;
+    color: #fff;
+}
+
+.login-button.primary:hover {
+    background-color: #357FAA;
+    border-color: #357FAA;
+}
+
+.login-button.secondary {
+    background-color: #fff;
+    color: #3F9FD8;
+}
+
+.login-button.secondary:hover {
+    background-color: #f0f8ff;
+}
+
+/* Device Flow Page Styles */
+.device-flow-container {
+    background-color: #fff;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    width: 100%;
+}
+
+.device-instructions h2 {
+    margin-top: 0;
+    color: #333;
+    text-align: center;
+}
+
+.instruction-text {
+    text-align: center;
+    color: #666;
+    margin-bottom: 25px;
+}
+
+.verification-info {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    margin-bottom: 25px;
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.info-item label {
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+}
+
+.code-display {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background-color: #f5f5f5;
+    padding: 12px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+}
+
+.code-display.large {
+    padding: 20px;
+}
+
+.code-display code {
+    flex: 1;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 14px;
+    word-break: break-all;
+}
+
+.code-display code.user-code {
+    font-size: 24px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    color: #3F9FD8;
+}
+
+.copy-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 5px 10px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.copy-btn:hover {
+    background-color: #e0e0e0;
+}
+
+.copy-btn:active {
+    background-color: #d0d0d0;
+}
+
+.actions {
+    text-align: center;
+}
+
+.primary-button {
+    padding: 12px 32px;
+    font-size: 16px;
+    background-color: #3F9FD8;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background-color 0.3s;
+}
+
+.primary-button:hover {
+    background-color: #357FAA;
+}
+
+.polling-status {
+    margin-top: 30px;
+    padding-top: 30px;
+    border-top: 1px solid #eee;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    color: #666;
+}
+
+.spinner {
+    width: 20px;
+    height: 20px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #3F9FD8;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.error-message {
+    margin-top: 15px;
+    padding: 12px;
+    background-color: #fee;
+    border: 1px solid #fcc;
+    border-radius: 4px;
+    color: #c00;
+    text-align: center;
+}
+
+.device-data {
+    display: none;
+}
+
+/* UserInfo Styles */
+#userinfo-section {
+    margin-top: 10px;
+}
+
+.fetch-userinfo-btn {
+    padding: 10px 20px;
+    background-color: #3F9FD8;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+.fetch-userinfo-btn:hover {
+    background-color: #357FAA;
+}
+
+.userinfo-loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #666;
+    margin-top: 10px;
+}
+
+.userinfo-loading .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #3F9FD8;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+#userinfo-claims {
+    margin-top: 15px;
+}
+
+#userinfo-error {
+    margin-top: 10px;
+}
+

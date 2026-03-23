@@ -439,7 +439,7 @@ func TestPromptTypeConfig(t *testing.T) {
 			assert.Nil(t, err)
 			assert.Equal(t, test.expectedPromptTypeValue, conn.promptType)
 
-			loginURL, err := conn.LoginURL(connector.Scopes{OfflineAccess: true}, ts.URL+"/callback", "state")
+			loginURL, _, err := conn.LoginURL(connector.Scopes{OfflineAccess: true}, ts.URL+"/callback", "state")
 			assert.Nil(t, err)
 
 			urlp, err := url.Parse(loginURL)

@@ -31,6 +31,7 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/connector/mock"
+	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
 )
@@ -84,6 +85,11 @@ func newTestServer(t *testing.T, updateConfig func(c *Config)) (*httptest.Server
 	logger := newLogger(t)
 	ctx := t.Context()
 
+	sig, err := signer.NewMockSigner(testKey)
+	if err != nil {
+		t.Fatalf("failed to create mock signer: %v", err)
+	}
+
 	config := Config{
 		Issuer:  s.URL,
 		Storage: memory.New(logger),
@@ -102,6 +108,7 @@ func newTestServer(t *testing.T, updateConfig func(c *Config)) (*httptest.Server
 			grantTypeImplicit,
 			grantTypePassword,
 		},
+		Signer: sig,
 	}
 	if updateConfig != nil {
 		updateConfig(&config)
@@ -118,8 +125,7 @@ func newTestServer(t *testing.T, updateConfig func(c *Config)) (*httptest.Server
 		t.Fatalf("create connector: %v", err)
 	}
 
-	var err error
-	if server, err = newServer(ctx, config, staticRotationStrategy(testKey)); err != nil {
+	if server, err = newServer(ctx, config); err != nil {
 		t.Fatal(err)
 	}
 
@@ -144,6 +150,11 @@ func newTestServerMultipleConnectors(t *testing.T, updateConfig func(c *Config))
 	logger := newLogger(t)
 	ctx := t.Context()
 
+	sig, err := signer.NewMockSigner(testKey)
+	if err != nil {
+		t.Fatalf("failed to create mock signer: %v", err)
+	}
+
 	config := Config{
 		Issuer:  s.URL,
 		Storage: memory.New(logger),
@@ -152,6 +163,7 @@ func newTestServerMultipleConnectors(t *testing.T, updateConfig func(c *Config))
 		},
 		Logger:             logger,
 		PrometheusRegistry: prometheus.NewRegistry(),
+		Signer:             sig,
 	}
 	if updateConfig != nil {
 		updateConfig(&config)
@@ -177,8 +189,7 @@ func newTestServerMultipleConnectors(t *testing.T, updateConfig func(c *Config))
 		t.Fatalf("create connector: %v", err)
 	}
 
-	var err error
-	if server, err = newServer(ctx, config, staticRotationStrategy(testKey)); err != nil {
+	if server, err = newServer(ctx, config); err != nil {
 		t.Fatal(err)
 	}
 	server.skipApproval = true // Don't prompt for approval, just immediately redirect with code.
@@ -1279,10 +1290,14 @@ func TestPasswordDB(t *testing.T) {
 	}
 
 	s.CreatePassword(ctx, storage.Password{
-		Email:    "jane@example.com",
-		Username: "jane",
-		UserID:   "foobar",
-		Hash:     h,
+		Email:             "jane@example.com",
+		Username:          "jane",
+		Name:              "Jane Doe",
+		PreferredUsername: "jane-public",
+		EmailVerified:     boolPtr(false),
+		UserID:            "foobar",
+		Groups:            []string{"team-a", "team-a/admins"},
+		Hash:              h,
 	})
 
 	tests := []struct {
@@ -1298,10 +1313,12 @@ func TestPasswordDB(t *testing.T) {
 			username: "jane@example.com",
 			password: pw,
 			wantIdentity: connector.Identity{
-				Email:         "jane@example.com",
-				Username:      "jane",
-				UserID:        "foobar",
-				EmailVerified: true,
+				Email:             "jane@example.com",
+				Username:          "Jane Doe",
+				PreferredUsername: "jane-public",
+				UserID:            "foobar",
+				EmailVerified:     false,
+				Groups:            []string{"team-a", "team-a/admins"},
 			},
 		},
 		{
@@ -1956,6 +1973,11 @@ func TestConnectorFailureHandling(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			logger := newLogger(t)
 
+			sig, err := signer.NewMockSigner(testKey)
+			if err != nil {
+				t.Fatalf("failed to create mock signer: %v", err)
+			}
+
 			config := Config{
 				Issuer:  "http://localhost",
 				Storage: memory.New(logger),
@@ -1966,6 +1988,7 @@ func TestConnectorFailureHandling(t *testing.T) {
 				PrometheusRegistry:         prometheus.NewRegistry(),
 				HealthChecker:              gosundheit.New(),
 				ContinueOnConnectorFailure: tc.continueOnConnectorFailure,
+				Signer:                     sig,
 			}
 
 			// Create connectors in storage
@@ -1975,7 +1998,7 @@ func TestConnectorFailureHandling(t *testing.T) {
 				}
 			}
 
-			server, err := newServer(ctx, config, staticRotationStrategy(testKey))
+			server, err := newServer(ctx, config)
 
 			if tc.wantErr {
 				if err == nil {

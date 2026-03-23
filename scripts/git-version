@@ -1,14 +1,42 @@
 #!/bin/sh -e
 
 # parse the current git commit hash
-COMMIT=`git rev-parse HEAD`
+COMMIT=`git rev-parse --short=8 HEAD`
 
-# check if the current commit has a matching tag
-TAG=$(git describe --exact-match --abbrev=0 --tags ${COMMIT} 2> /dev/null || true)
+# check if the current commit has a matching tag (filter for v* tags, excluding api/)
+TAG=$(git describe --exact-match --abbrev=0 --tags --match="v[0-9]*" 2> /dev/null || true)
 
 # use the matching tag as the version, if available
 if [ -z "$TAG" ]; then
-    VERSION=$COMMIT
+    # No exact tag on current commit, find the last version tag and bump minor version
+    # Get all tags matching v[0-9]*, sort them, and take the last one
+    LAST_TAG=$(git tag --list "v[0-9]*" --sort=-version:refname | head -1)
+
+    if [ -z "$LAST_TAG" ]; then
+        # No tags found, use v0.1.0 as fallback
+        BASE_VERSION="v0.1.0"
+    else
+        # Parse the last tag and bump minor version
+        # Remove 'v' prefix
+        TAG_WITHOUT_V="${LAST_TAG#v}"
+
+        # Split version into parts (major.minor.patch)
+        MAJOR=$(echo "$TAG_WITHOUT_V" | cut -d. -f1)
+        MINOR=$(echo "$TAG_WITHOUT_V" | cut -d. -f2)
+        PATCH=$(echo "$TAG_WITHOUT_V" | cut -d. -f3)
+
+        # Bump minor version
+        MINOR=$((MINOR + 1))
+
+        # Construct base version with bumped minor
+        BASE_VERSION="v${MAJOR}.${MINOR}.0"
+    fi
+
+    # Get commit timestamp in YYYYMMDDhhmmss format
+    TIMESTAMP=$(git log -1 --format=%ci HEAD | sed 's/[-: ]//g' | cut -c1-14)
+
+    # Construct pseudo-version
+    VERSION="${BASE_VERSION}-${TIMESTAMP}-${COMMIT}"
 else
     VERSION=$TAG
 fi

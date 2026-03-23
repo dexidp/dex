@@ -105,7 +105,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("gofmt failed: %v", err)
 	}
-	if err := os.WriteFile("jwks.go", out, 0644); err != nil {
+	if err := os.WriteFile("jwks.go", out, 0o644); err != nil {
 		log.Fatal(err)
 	}
 }

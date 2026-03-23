@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Login - Example App</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <img class="logo" src="{{.LogoURI}}" alt="Dex">
+        <div class="device-flow-container">
+            <div class="device-instructions">
+                <h2>Device Login</h2>
+                <p class="instruction-text">Please authenticate on your device:</p>
+
+                <div class="verification-info">
+                    <div class="info-item">
+                        <label>Verification URL:</label>
+                        <div class="code-display">
+                            <code id="verification-url">{{.VerificationURI}}</code>
+                            <button type="button" class="copy-btn" data-copy="verification-url">📋</button>
+                        </div>
+                    </div>
+
+                    <div class="info-item">
+                        <label>User Code:</label>
+                        <div class="code-display large">
+                            <code id="user-code" class="user-code">{{.UserCode}}</code>
+                            <button type="button" class="copy-btn" data-copy="user-code">📋</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <button type="button" id="open-auth-btn" class="primary-button">
+                        Open Authentication Page
+                    </button>
+                </div>
+            </div>
+
+            <div class="polling-status">
+                <div class="status-indicator">
+                    <div class="spinner"></div>
+                    <span id="status-text">Waiting for authentication...</span>
+                </div>
+                <div id="error-message" class="error-message" style="display: none;"></div>
+            </div>
+
+            <div class="device-data" style="display: none;">
+                <input type="hidden" id="session-id" value="{{.SessionID}}">
+                <input type="hidden" id="device-code" value="{{.DeviceCode}}">
+                <input type="hidden" id="poll-interval" value="{{.PollInterval}}">
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/device.js"></script>
+</body>
+</html>
+

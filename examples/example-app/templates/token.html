@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tokens</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="token-page">
+    {{ if .IDToken }}
+    <div class="token-block">
+        <div class="token-title">
+            ID Token:
+            <a href="{{.IDTokenJWTLink}}" target="_blank">Decode on jwt.io</a>
+        </div>
+        <pre><code class="token-code">{{ .IDToken }}</code></pre>
+    </div>
+    {{ end }}
+
+    {{ if .AccessToken }}
+    <div class="token-block">
+        <div class="token-title">
+            Access Token:
+            <a href="{{.AccessTokenJWTLink}}" target="_blank">Decode on jwt.io</a>
+        </div>
+        <pre><code class="token-code">{{ .AccessToken }}</code></pre>
+    </div>
+    {{ end }}
+
+    {{ if .Claims }}
+    <div class="token-block">
+        <div class="token-title">ID Token Claims:</div>
+        <pre><code id="claims">{{ .Claims }}</code></pre>
+    </div>
+    {{ end }}
+
+    {{ if .AccessToken }}
+    <div class="token-block">
+        <div class="token-title">UserInfo:</div>
+        <div id="userinfo-section">
+            <form id="userinfo-form">
+                <input type="hidden" name="access_token" value="{{ .AccessToken }}">
+                <button type="submit" class="fetch-userinfo-btn">
+                    Fetch UserInfo
+                </button>
+            </form>
+            <div id="userinfo-loading" class="userinfo-loading" style="display: none;">
+                <div class="spinner"></div>
+                <span>Loading...</span>
+            </div>
+            <div id="userinfo-error" class="error-message" style="display: none;"></div>
+            <pre id="userinfo-claims" style="display: none;"><code></code></pre>
+        </div>
+    </div>
+    {{ end }}
+
+    {{ if .RefreshToken }}
+    <div class="token-block">
+        <div class="token-title">Refresh Token:</div>
+        <pre><code class="token-code">{{ .RefreshToken }}</code></pre>
+        <form action="{{ .RedirectURL }}" method="post">
+            <input type="hidden" name="refresh_token" value="{{ .RefreshToken }}">
+            <input type="submit" value="Redeem refresh token">
+        </form>
+    </div>
+    {{ end }}
+
+    {{ if .PublicKeyPEM }}
+    <div class="token-block">
+        <div class="token-title">
+            Public Key (for JWT verification):
+            <button type="button" class="copy-btn" onclick="copyPublicKey()">Copy to Clipboard</button>
+        </div>
+        <pre><code id="public-key">{{ .PublicKeyPEM }}</code></pre>
+        <div class="hint">Copy this key and paste it into jwt.io's "Verify Signature" section to validate the token signature.</div>
+    </div>
+    {{ end }}
+
+    <a href="/" class="back-button">Back to Home</a>
+
+    <script src="/static/token.js"></script>
+</body>
+</html>
+

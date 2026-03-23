@@ -110,10 +110,14 @@ func testPasswordConcurrentUpdate(t *testing.T, s storage.Storage) {
 	}
 
 	password := storage.Password{
-		Email:    "jane@example.com",
-		Hash:     passwordHash,
-		Username: "jane",
-		UserID:   "foobar",
+		Email:             "jane@example.com",
+		Hash:              passwordHash,
+		Username:          "jane",
+		Name:              "Jane Doe",
+		PreferredUsername: "jane-public",
+		EmailVerified:     boolPtr(true),
+		UserID:            "foobar",
+		Groups:            []string{"team-a"},
 	}
 	if err := s.CreatePassword(ctx, password); err != nil {
 		t.Fatalf("create password token: %v", err)

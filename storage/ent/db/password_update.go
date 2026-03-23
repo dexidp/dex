@@ -9,6 +9,7 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
 	"github.com/dexidp/dex/storage/ent/db/password"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
@@ -61,6 +62,54 @@ func (_u *PasswordUpdate) SetNillableUsername(v *string) *PasswordUpdate {
 	return _u
 }
 
+// SetName sets the "name" field.
+func (_u *PasswordUpdate) SetName(v string) *PasswordUpdate {
+	_u.mutation.SetName(v)
+	return _u
+}
+
+// SetNillableName sets the "name" field if the given value is not nil.
+func (_u *PasswordUpdate) SetNillableName(v *string) *PasswordUpdate {
+	if v != nil {
+		_u.SetName(*v)
+	}
+	return _u
+}
+
+// SetPreferredUsername sets the "preferred_username" field.
+func (_u *PasswordUpdate) SetPreferredUsername(v string) *PasswordUpdate {
+	_u.mutation.SetPreferredUsername(v)
+	return _u
+}
+
+// SetNillablePreferredUsername sets the "preferred_username" field if the given value is not nil.
+func (_u *PasswordUpdate) SetNillablePreferredUsername(v *string) *PasswordUpdate {
+	if v != nil {
+		_u.SetPreferredUsername(*v)
+	}
+	return _u
+}
+
+// SetEmailVerified sets the "email_verified" field.
+func (_u *PasswordUpdate) SetEmailVerified(v bool) *PasswordUpdate {
+	_u.mutation.SetEmailVerified(v)
+	return _u
+}
+
+// SetNillableEmailVerified sets the "email_verified" field if the given value is not nil.
+func (_u *PasswordUpdate) SetNillableEmailVerified(v *bool) *PasswordUpdate {
+	if v != nil {
+		_u.SetEmailVerified(*v)
+	}
+	return _u
+}
+
+// ClearEmailVerified clears the value of the "email_verified" field.
+func (_u *PasswordUpdate) ClearEmailVerified() *PasswordUpdate {
+	_u.mutation.ClearEmailVerified()
+	return _u
+}
+
 // SetUserID sets the "user_id" field.
 func (_u *PasswordUpdate) SetUserID(v string) *PasswordUpdate {
 	_u.mutation.SetUserID(v)
@@ -72,6 +121,24 @@ func (_u *PasswordUpdate) SetNillableUserID(v *string) *PasswordUpdate {
 	if v != nil {
 		_u.SetUserID(*v)
 	}
+	return _u
+}
+
+// SetGroups sets the "groups" field.
+func (_u *PasswordUpdate) SetGroups(v []string) *PasswordUpdate {
+	_u.mutation.SetGroups(v)
+	return _u
+}
+
+// AppendGroups appends value to the "groups" field.
+func (_u *PasswordUpdate) AppendGroups(v []string) *PasswordUpdate {
+	_u.mutation.AppendGroups(v)
+	return _u
+}
+
+// ClearGroups clears the value of the "groups" field.
+func (_u *PasswordUpdate) ClearGroups() *PasswordUpdate {
+	_u.mutation.ClearGroups()
 	return _u
 }
 
@@ -148,8 +215,31 @@ func (_u *PasswordUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.Username(); ok {
 		_spec.SetField(password.FieldUsername, field.TypeString, value)
 	}
+	if value, ok := _u.mutation.Name(); ok {
+		_spec.SetField(password.FieldName, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.PreferredUsername(); ok {
+		_spec.SetField(password.FieldPreferredUsername, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.EmailVerified(); ok {
+		_spec.SetField(password.FieldEmailVerified, field.TypeBool, value)
+	}
+	if _u.mutation.EmailVerifiedCleared() {
+		_spec.ClearField(password.FieldEmailVerified, field.TypeBool)
+	}
 	if value, ok := _u.mutation.UserID(); ok {
 		_spec.SetField(password.FieldUserID, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Groups(); ok {
+		_spec.SetField(password.FieldGroups, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedGroups(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, password.FieldGroups, value)
+		})
+	}
+	if _u.mutation.GroupsCleared() {
+		_spec.ClearField(password.FieldGroups, field.TypeJSON)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -205,6 +295,54 @@ func (_u *PasswordUpdateOne) SetNillableUsername(v *string) *PasswordUpdateOne {
 	return _u
 }
 
+// SetName sets the "name" field.
+func (_u *PasswordUpdateOne) SetName(v string) *PasswordUpdateOne {
+	_u.mutation.SetName(v)
+	return _u
+}
+
+// SetNillableName sets the "name" field if the given value is not nil.
+func (_u *PasswordUpdateOne) SetNillableName(v *string) *PasswordUpdateOne {
+	if v != nil {
+		_u.SetName(*v)
+	}
+	return _u
+}
+
+// SetPreferredUsername sets the "preferred_username" field.
+func (_u *PasswordUpdateOne) SetPreferredUsername(v string) *PasswordUpdateOne {
+	_u.mutation.SetPreferredUsername(v)
+	return _u
+}
+
+// SetNillablePreferredUsername sets the "preferred_username" field if the given value is not nil.
+func (_u *PasswordUpdateOne) SetNillablePreferredUsername(v *string) *PasswordUpdateOne {
+	if v != nil {
+		_u.SetPreferredUsername(*v)
+	}
+	return _u
+}
+
+// SetEmailVerified sets the "email_verified" field.
+func (_u *PasswordUpdateOne) SetEmailVerified(v bool) *PasswordUpdateOne {
+	_u.mutation.SetEmailVerified(v)
+	return _u
+}
+
+// SetNillableEmailVerified sets the "email_verified" field if the given value is not nil.
+func (_u *PasswordUpdateOne) SetNillableEmailVerified(v *bool) *PasswordUpdateOne {
+	if v != nil {
+		_u.SetEmailVerified(*v)
+	}
+	return _u
+}
+
+// ClearEmailVerified clears the value of the "email_verified" field.
+func (_u *PasswordUpdateOne) ClearEmailVerified() *PasswordUpdateOne {
+	_u.mutation.ClearEmailVerified()
+	return _u
+}
+
 // SetUserID sets the "user_id" field.
 func (_u *PasswordUpdateOne) SetUserID(v string) *PasswordUpdateOne {
 	_u.mutation.SetUserID(v)
@@ -216,6 +354,24 @@ func (_u *PasswordUpdateOne) SetNillableUserID(v *string) *PasswordUpdateOne {
 	if v != nil {
 		_u.SetUserID(*v)
 	}
+	return _u
+}
+
+// SetGroups sets the "groups" field.
+func (_u *PasswordUpdateOne) SetGroups(v []string) *PasswordUpdateOne {
+	_u.mutation.SetGroups(v)
+	return _u
+}
+
+// AppendGroups appends value to the "groups" field.
+func (_u *PasswordUpdateOne) AppendGroups(v []string) *PasswordUpdateOne {
+	_u.mutation.AppendGroups(v)
+	return _u
+}
+
+// ClearGroups clears the value of the "groups" field.
+func (_u *PasswordUpdateOne) ClearGroups() *PasswordUpdateOne {
+	_u.mutation.ClearGroups()
 	return _u
 }
 
@@ -322,8 +478,31 @@ func (_u *PasswordUpdateOne) sqlSave(ctx context.Context) (_node *Password, err 
 	if value, ok := _u.mutation.Username(); ok {
 		_spec.SetField(password.FieldUsername, field.TypeString, value)
 	}
+	if value, ok := _u.mutation.Name(); ok {
+		_spec.SetField(password.FieldName, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.PreferredUsername(); ok {
+		_spec.SetField(password.FieldPreferredUsername, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.EmailVerified(); ok {
+		_spec.SetField(password.FieldEmailVerified, field.TypeBool, value)
+	}
+	if _u.mutation.EmailVerifiedCleared() {
+		_spec.ClearField(password.FieldEmailVerified, field.TypeBool)
+	}
 	if value, ok := _u.mutation.UserID(); ok {
 		_spec.SetField(password.FieldUserID, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Groups(); ok {
+		_spec.SetField(password.FieldGroups, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedGroups(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, password.FieldGroups, value)
+		})
+	}
+	if _u.mutation.GroupsCleared() {
+		_spec.ClearField(password.FieldGroups, field.TypeJSON)
 	}
 	_node = &Password{config: _u.config}
 	_spec.Assign = _node.assignValues
