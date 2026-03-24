@@ -306,6 +306,7 @@ func (s *Server) newAccessToken(ctx context.Context, clientID string, claims sto
 const idJAGTyp = "oauth-id-jag+jwt"
 
 // idJAGClaims is the JWT payload for an ID-JAG token.
+// Audience is a single string per draft-ietf-oauth-identity-assertion-authz-grant-02.
 type idJAGClaims struct {
 	Issuer   string `json:"iss"`
 	Subject  string `json:"sub"`
