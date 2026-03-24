@@ -1,9 +1,5 @@
 package server
 
-import (
-	"fmt"
-)
-
 // PolicyDenialReason categorizes why an ID-JAG policy check failed.
 type PolicyDenialReason string
 
@@ -50,7 +46,7 @@ func evaluateIDJAGPolicy(policies []TokenExchangePolicy, clientID, audience stri
 		return PolicyResult{
 			Denied:       true,
 			DenialReason: PolicyDenialClientHasNoPolicy,
-		}, fmt.Errorf("no ID-JAG policy found for client %q: access_denied", clientID)
+		}, nil
 	}
 
 	// Check audience.
@@ -58,7 +54,7 @@ func evaluateIDJAGPolicy(policies []TokenExchangePolicy, clientID, audience stri
 		return PolicyResult{
 			Denied:       true,
 			DenialReason: PolicyDenialAudienceNotAllowed,
-		}, fmt.Errorf("audience %q is not allowed for client %q: access_denied", audience, clientID)
+		}, nil
 	}
 
 	// Filter scopes: if the policy restricts scopes, only grant those that are allowed.
