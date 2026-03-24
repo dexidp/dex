@@ -468,24 +468,25 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 
 		c.PrometheusRegistry.MustRegister(requestCounter, durationHist, sizeHist)
 
-		// ID-JAG metrics.
-		s.idJAGRequestsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "dex_id_jag_requests_total",
-			Help: "Total number of ID-JAG token exchange requests.",
-		}, []string{"result"})
-		s.idJAGPolicyRejectionsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "dex_id_jag_policy_rejections_total",
-			Help: "Total number of ID-JAG policy rejections by reason.",
-		}, []string{"reason"})
-		s.idJAGScopeModificationsTotal = prometheus.NewCounter(prometheus.CounterOpts{
-			Name: "dex_id_jag_scope_modifications_total",
-			Help: "Total number of ID-JAG requests where policy reduced the requested scopes.",
-		})
-		c.PrometheusRegistry.MustRegister(
-			s.idJAGRequestsTotal,
-			s.idJAGPolicyRejectionsTotal,
-			s.idJAGScopeModificationsTotal,
-		)
+		if s.enableIDJAG {
+			s.idJAGRequestsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+				Name: "dex_id_jag_requests_total",
+				Help: "Total number of ID-JAG token exchange requests.",
+			}, []string{"result"})
+			s.idJAGPolicyRejectionsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+				Name: "dex_id_jag_policy_rejections_total",
+				Help: "Total number of ID-JAG policy rejections by reason.",
+			}, []string{"reason"})
+			s.idJAGScopeModificationsTotal = prometheus.NewCounter(prometheus.CounterOpts{
+				Name: "dex_id_jag_scope_modifications_total",
+				Help: "Total number of ID-JAG requests where policy reduced the requested scopes.",
+			})
+			c.PrometheusRegistry.MustRegister(
+				s.idJAGRequestsTotal,
+				s.idJAGPolicyRejectionsTotal,
+				s.idJAGScopeModificationsTotal,
+			)
+		}
 
 		instrumentHandler = func(handlerName string, handler http.Handler) http.HandlerFunc {
 			return promhttp.InstrumentHandlerDuration(durationHist.MustCurryWith(prometheus.Labels{"handler": handlerName}),
