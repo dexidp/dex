@@ -880,13 +880,6 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 		userIdentity = &ui
 	}
 
-	// Skip approval if user already consented to the requested scopes for this client.
-	if !authReq.ForceApprovalPrompt && userIdentity != nil {
-		if scopesCoveredByConsent(userIdentity.Consents[authReq.ClientID], authReq.Scopes) {
-			return "", true, nil
-		}
-	}
-
 	// an HMAC is used here to ensure that the request ID is unpredictable, ensuring that an attacker who intercepted the original
 	// flow would be unable to poll for the result at the /approval endpoint
 	h := hmac.New(sha256.New, authReq.HMACKey)
@@ -1925,38 +1918,28 @@ func (s *Server) handleIDJAGExchange(w http.ResponseWriter, r *http.Request, cli
 		return
 	}
 
-	// Extract sub and aud from the subject_token.
-	sub, tokenAud, err := extractJWTSubAndAud(subjectToken)
+	// Verify the subject_token signature and expiry against this server's signing keys.
+	verifier := oidc.NewVerifier(s.issuerURL.String(), &signerKeySet{s.signer}, &oidc.Config{ClientID: client.ID})
+	idToken, err := verifier.Verify(ctx, subjectToken)
 	if err != nil {
-		s.idJAGReject(ctx, w, "rejected", errInvalidRequest, "Invalid subject_token: could not parse JWT claims.", http.StatusBadRequest,
+		s.idJAGReject(ctx, w, "rejected", errInvalidRequest, "Invalid subject_token.", http.StatusBadRequest,
 			"client_id", client.ID, "connector_id", connectorID, "audience", audience, "resource", resource, "requested_scope", requestedScope, "reason", "invalid_subject_token")
 		return
 	}
-	if sub == "" {
-		s.idJAGReject(ctx, w, "rejected", errInvalidRequest, "subject_token missing required sub claim.", http.StatusBadRequest,
-			"client_id", client.ID, "connector_id", connectorID, "audience", audience, "resource", resource, "requested_scope", requestedScope, "reason", "missing_sub")
+	sub := idToken.Subject
+
+	policyResult, err := evaluateIDJAGPolicy(s.tokenExchangePolicies, client.ID, audience, scopes)
+	if err != nil {
+		s.idJAGReject(ctx, w, "rejected", errServerError, "", http.StatusInternalServerError,
+			"client_id", client.ID, "connector_id", connectorID, "audience", audience, "resource", resource, "requested_scope", requestedScope, "sub", sub, "reason", "policy_error")
 		return
 	}
-
-	// Validate that the subject_token audience matches the requesting client (Section 4.3).
-	if !audContains(tokenAud, client.ID) {
-		s.idJAGReject(ctx, w, "rejected", errInvalidRequest, "subject_token audience does not match client_id.", http.StatusBadRequest,
-			"client_id", client.ID, "connector_id", connectorID, "audience", audience, "resource", resource, "requested_scope", requestedScope, "sub", sub, "reason", "audience_mismatch")
-		return
-	}
-
-	policyResult, policyErr := evaluateIDJAGPolicy(s.tokenExchangePolicies, client.ID, audience, scopes)
 	if policyResult.Denied {
 		if s.idJAGPolicyRejectionsTotal != nil {
 			s.idJAGPolicyRejectionsTotal.WithLabelValues(string(policyResult.DenialReason)).Inc()
 		}
 		s.idJAGReject(ctx, w, "denied", errAccessDenied, "", http.StatusForbidden,
 			"client_id", client.ID, "connector_id", connectorID, "audience", audience, "resource", resource, "requested_scope", requestedScope, "sub", sub, "reason", string(policyResult.DenialReason))
-		return
-	}
-	if policyErr != nil {
-		s.idJAGReject(ctx, w, "rejected", errServerError, "", http.StatusInternalServerError,
-			"client_id", client.ID, "connector_id", connectorID, "audience", audience, "resource", resource, "requested_scope", requestedScope, "sub", sub, "reason", "policy_error")
 		return
 	}
 
@@ -2021,51 +2004,6 @@ func (s *Server) idJAGReject(ctx context.Context, w http.ResponseWriter, result 
 	}
 
 	s.tokenErrHelper(w, errType, errDesc, status)
-}
-
-// extractJWTSubAndAud extracts the "sub" and "aud" claims from a JWT without
-// verifying the signature. The aud claim may be a string or []string.
-func extractJWTSubAndAud(token string) (sub string, aud []string, err error) {
-	parts := strings.SplitN(token, ".", 3)
-	if len(parts) != 3 {
-		return "", nil, fmt.Errorf("malformed JWT: expected 3 parts, got %d", len(parts))
-	}
-	payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to decode JWT payload: %v", err)
-	}
-
-	var claims struct {
-		Sub string          `json:"sub"`
-		Aud json.RawMessage `json:"aud"`
-	}
-	if err := json.Unmarshal(payloadBytes, &claims); err != nil {
-		return "", nil, fmt.Errorf("failed to unmarshal JWT payload: %v", err)
-	}
-
-	if len(claims.Aud) > 0 {
-		var single string
-		if err := json.Unmarshal(claims.Aud, &single); err == nil {
-			aud = []string{single}
-		} else {
-			var multi []string
-			if err := json.Unmarshal(claims.Aud, &multi); err == nil {
-				aud = multi
-			}
-		}
-	}
-
-	return claims.Sub, aud, nil
-}
-
-// audContains reports whether target is in aud.
-func audContains(aud []string, target string) bool {
-	for _, a := range aud {
-		if a == target {
-			return true
-		}
-	}
-	return false
 }
 
 func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Request, client storage.Client) {

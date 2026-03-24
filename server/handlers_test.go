@@ -1804,18 +1804,34 @@ func (m *mockSAMLRefreshConnector) Refresh(ctx context.Context, s connector.Scop
 	return m.refreshIdentity, nil
 }
 
-// makeTestJWT builds a minimal JWT with the given sub for testing.
-// The audience defaults to "client_1".
-func makeTestJWT(sub string) string {
-	return makeTestJWTWithClaims(sub, "client_1")
-}
+// makeTestJWT builds a properly signed ID token JWT for testing.
+// The token is signed with testKey and has aud=clientID, iss=issuerURL.
+func makeTestJWT(t *testing.T, issuerURL, sub, clientID string) string {
+	t.Helper()
+	claims := struct {
+		Iss string `json:"iss"`
+		Sub string `json:"sub"`
+		Aud string `json:"aud"`
+		Exp int64  `json:"exp"`
+		Iat int64  `json:"iat"`
+	}{
+		Iss: issuerURL,
+		Sub: sub,
+		Aud: clientID,
+		Exp: time.Now().Add(time.Hour).Unix(),
+		Iat: time.Now().Unix(),
+	}
+	payload, err := json.Marshal(claims)
+	require.NoError(t, err)
 
-// makeTestJWTWithClaims builds a JWT with configurable sub and aud.
-func makeTestJWTWithClaims(sub, aud string) string {
-	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`))
-	claimsJSON := fmt.Sprintf(`{"sub":"%s","iss":"https://issuer.example","aud":"%s","exp":9999999999}`, sub, aud)
-	payload := base64.RawURLEncoding.EncodeToString([]byte(claimsJSON))
-	return header + "." + payload + ".fakesig"
+	key := &jose.JSONWebKey{Key: testKey, Algorithm: "RS256"}
+	s, err := jose.NewSigner(jose.SigningKey{Key: key, Algorithm: jose.RS256}, &jose.SignerOptions{})
+	require.NoError(t, err)
+	jws, err := s.Sign(payload)
+	require.NoError(t, err)
+	token, err := jws.CompactSerialize()
+	require.NoError(t, err)
+	return token
 }
 
 // decodeJWTPayload decodes the payload section of a compact JWT (without signature verification).
@@ -1842,73 +1858,10 @@ func decodeJWTHeader(t *testing.T, token string) map[string]interface{} {
 	return header
 }
 
-// TestExtractJWTSubAndAud tests extractJWTSubAndAud.
-func TestExtractJWTSubAndAud(t *testing.T) {
-	tests := []struct {
-		name    string
-		token   string
-		wantSub string
-		wantAud []string
-		wantErr bool
-	}{
-		{
-			name:    "valid JWT returns sub and aud",
-			token:   makeTestJWT("user-abc-123"),
-			wantSub: "user-abc-123",
-			wantAud: []string{"client_1"},
-		},
-		{
-			name:    "not a JWT (no dots)",
-			token:   "notajwt",
-			wantErr: true,
-		},
-		{
-			name:    "invalid base64 payload",
-			token:   "aGVhZGVy.!!!.c2ln",
-			wantErr: true,
-		},
-		{
-			name: "valid JWT without sub returns empty string",
-			token: func() string {
-				h := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256"}`))
-				p := base64.RawURLEncoding.EncodeToString([]byte(`{"iss":"https://issuer.example"}`))
-				return h + "." + p + ".sig"
-			}(),
-			wantSub: "",
-			wantAud: nil,
-			wantErr: false,
-		},
-		{
-			name: "aud as array",
-			token: func() string {
-				h := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256"}`))
-				p := base64.RawURLEncoding.EncodeToString([]byte(`{"sub":"u1","aud":["a","b"]}`))
-				return h + "." + p + ".sig"
-			}(),
-			wantSub: "u1",
-			wantAud: []string{"a", "b"},
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			sub, aud, err := extractJWTSubAndAud(tc.token)
-			if tc.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, tc.wantSub, sub)
-			require.Equal(t, tc.wantAud, aud)
-		})
-	}
-}
-
 // TestHandleIDJAGExchange_JWTClaims verifies the issued ID-JAG JWT contains all
 // required claims per the spec (iss, sub, aud, client_id, jti, exp, iat) and
 // uses the correct typ header (oauth-id-jag+jwt).
 func TestHandleIDJAGExchange_JWTClaims(t *testing.T) {
-	subjectToken := makeTestJWT("user-123")
-
 	ctx := t.Context()
 	httpServer, s := newTestServer(t, func(c *Config) {
 		require.NoError(t, c.Storage.CreateClient(ctx, storage.Client{
@@ -1923,6 +1876,8 @@ func TestHandleIDJAGExchange_JWTClaims(t *testing.T) {
 		}
 	})
 	defer httpServer.Close()
+
+	subjectToken := makeTestJWT(t, httpServer.URL, "user-123", "client_1")
 
 	vals := url.Values{}
 	vals.Set("grant_type", grantTypeTokenExchange)
@@ -1972,8 +1927,6 @@ func TestHandleIDJAGExchange_JWTClaims(t *testing.T) {
 // and scopes are correctly passed through to the JWT claims, and that scope
 // reduction by policy produces the scope field in the response.
 func TestHandleIDJAGExchange_ResourceAndScope(t *testing.T) {
-	subjectToken := makeTestJWT("user-456")
-
 	t.Run("resource parameter appears in JWT", func(t *testing.T) {
 		ctx := t.Context()
 		httpServer, s := newTestServer(t, func(c *Config) {
@@ -1988,6 +1941,7 @@ func TestHandleIDJAGExchange_ResourceAndScope(t *testing.T) {
 		})
 		defer httpServer.Close()
 
+		subjectToken := makeTestJWT(t, httpServer.URL, "user-456", "client_1")
 		vals := url.Values{}
 		vals.Set("grant_type", grantTypeTokenExchange)
 		vals.Set("requested_token_type", tokenTypeIDJAG)
@@ -2025,6 +1979,7 @@ func TestHandleIDJAGExchange_ResourceAndScope(t *testing.T) {
 		})
 		defer httpServer.Close()
 
+		subjectToken := makeTestJWT(t, httpServer.URL, "user-456", "client_1")
 		vals := url.Values{}
 		vals.Set("grant_type", grantTypeTokenExchange)
 		vals.Set("requested_token_type", tokenTypeIDJAG)
@@ -2066,6 +2021,7 @@ func TestHandleIDJAGExchange_ResourceAndScope(t *testing.T) {
 		})
 		defer httpServer.Close()
 
+		subjectToken := makeTestJWT(t, httpServer.URL, "user-456", "client_1")
 		vals := url.Values{}
 		vals.Set("grant_type", grantTypeTokenExchange)
 		vals.Set("requested_token_type", tokenTypeIDJAG)
@@ -2110,7 +2066,7 @@ func TestHandleIDJAGExchange_SecurityBoundaries(t *testing.T) {
 		})
 		defer httpServer.Close()
 
-		subjectToken := makeTestJWTWithClaims("user-1", "public_client")
+		subjectToken := makeTestJWT(t, httpServer.URL, "user-1", "public_client")
 		vals := url.Values{}
 		vals.Set("grant_type", grantTypeTokenExchange)
 		vals.Set("requested_token_type", tokenTypeIDJAG)
@@ -2143,7 +2099,7 @@ func TestHandleIDJAGExchange_SecurityBoundaries(t *testing.T) {
 		defer httpServer.Close()
 
 		// Subject token has aud="other_client", but we authenticate as client_1.
-		subjectToken := makeTestJWTWithClaims("user-1", "other_client")
+		subjectToken := makeTestJWT(t, httpServer.URL, "user-1", "other_client")
 		vals := url.Values{}
 		vals.Set("grant_type", grantTypeTokenExchange)
 		vals.Set("requested_token_type", tokenTypeIDJAG)
@@ -2178,7 +2134,7 @@ func TestHandleIDJAGExchange_SecurityBoundaries(t *testing.T) {
 		vals.Set("grant_type", grantTypeTokenExchange)
 		vals.Set("requested_token_type", tokenTypeIDJAG)
 		vals.Set("subject_token_type", tokenTypeID)
-		vals.Set("subject_token", makeTestJWT("user-1"))
+		vals.Set("subject_token", makeTestJWT(t, httpServer.URL, "user-1", "client_1"))
 		vals.Set("connector_id", "mock")
 		vals.Set("audience", "https://resource.example.com")
 		vals.Set("client_id", "client_1")
@@ -2209,7 +2165,7 @@ func TestHandleIDJAGExchange_SecurityBoundaries(t *testing.T) {
 		vals.Set("grant_type", grantTypeTokenExchange)
 		vals.Set("requested_token_type", tokenTypeIDJAG)
 		vals.Set("subject_token_type", tokenTypeID)
-		vals.Set("subject_token", makeTestJWT("user-1"))
+		vals.Set("subject_token", makeTestJWT(t, httpServer.URL, "user-1", "client_1"))
 		vals.Set("connector_id", "mock")
 		vals.Set("audience", "https://resource-as.example.com") // not in allowed list
 		vals.Set("client_id", "client_1")
@@ -2224,15 +2180,13 @@ func TestHandleIDJAGExchange_SecurityBoundaries(t *testing.T) {
 }
 
 // TestHandleIDJAGExchange_ValidationErrors verifies parameter validation.
+// All these cases are rejected before subject_token verification is reached.
 func TestHandleIDJAGExchange_ValidationErrors(t *testing.T) {
-	subjectToken := makeTestJWT("user-123")
-
 	tests := []struct {
 		name             string
 		audience         string
 		connectorID      string
 		subjectTokenType string
-		subjectToken     string
 		enableIDJAG      bool
 		wantCode         int
 		wantErrContains  string
@@ -2242,7 +2196,6 @@ func TestHandleIDJAGExchange_ValidationErrors(t *testing.T) {
 			audience:         "",
 			connectorID:      "mock",
 			subjectTokenType: tokenTypeID,
-			subjectToken:     subjectToken,
 			enableIDJAG:      true,
 			wantCode:         http.StatusBadRequest,
 		},
@@ -2251,7 +2204,6 @@ func TestHandleIDJAGExchange_ValidationErrors(t *testing.T) {
 			audience:         "https://resource.example.com",
 			connectorID:      "mock",
 			subjectTokenType: tokenTypeAccess,
-			subjectToken:     subjectToken,
 			enableIDJAG:      true,
 			wantCode:         http.StatusBadRequest,
 		},
@@ -2260,7 +2212,6 @@ func TestHandleIDJAGExchange_ValidationErrors(t *testing.T) {
 			audience:         "https://resource.example.com",
 			connectorID:      "",
 			subjectTokenType: tokenTypeID,
-			subjectToken:     subjectToken,
 			enableIDJAG:      true,
 			wantCode:         http.StatusBadRequest,
 			wantErrContains:  "connector_id",
@@ -2270,7 +2221,6 @@ func TestHandleIDJAGExchange_ValidationErrors(t *testing.T) {
 			audience:         "https://resource.example.com",
 			connectorID:      "nonexistent",
 			subjectTokenType: tokenTypeID,
-			subjectToken:     subjectToken,
 			enableIDJAG:      true,
 			wantCode:         http.StatusBadRequest,
 		},
@@ -2279,7 +2229,6 @@ func TestHandleIDJAGExchange_ValidationErrors(t *testing.T) {
 			audience:         "https://resource.example.com",
 			connectorID:      "mock",
 			subjectTokenType: tokenTypeID,
-			subjectToken:     subjectToken,
 			enableIDJAG:      false,
 			wantCode:         http.StatusBadRequest,
 			wantErrContains:  "not enabled",
@@ -2307,7 +2256,7 @@ func TestHandleIDJAGExchange_ValidationErrors(t *testing.T) {
 			vals.Set("grant_type", grantTypeTokenExchange)
 			vals.Set("requested_token_type", tokenTypeIDJAG)
 			vals.Set("subject_token_type", tc.subjectTokenType)
-			vals.Set("subject_token", tc.subjectToken)
+			vals.Set("subject_token", "placeholder")
 			if tc.connectorID != "" {
 				vals.Set("connector_id", tc.connectorID)
 			}
@@ -2332,8 +2281,6 @@ func TestHandleIDJAGExchange_ValidationErrors(t *testing.T) {
 
 // TestHandleIDJAGExchange_CustomExpiry verifies that IDJAGTokensValidFor is honored.
 func TestHandleIDJAGExchange_CustomExpiry(t *testing.T) {
-	subjectToken := makeTestJWT("user-789")
-
 	ctx := t.Context()
 	httpServer, s := newTestServer(t, func(c *Config) {
 		require.NoError(t, c.Storage.CreateClient(ctx, storage.Client{
@@ -2347,6 +2294,8 @@ func TestHandleIDJAGExchange_CustomExpiry(t *testing.T) {
 		c.IDJAGTokensValidFor = 10 * time.Minute // custom: 10 minutes instead of default 5
 	})
 	defer httpServer.Close()
+
+	subjectToken := makeTestJWT(t, httpServer.URL, "user-789", "client_1")
 
 	vals := url.Values{}
 	vals.Set("grant_type", grantTypeTokenExchange)
