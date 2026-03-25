@@ -20,12 +20,14 @@ import (
 	gosundheit "github.com/AppsFlyer/go-sundheit"
 	"github.com/AppsFlyer/go-sundheit/checks"
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/go-jose/go-jose/v4"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -110,6 +112,29 @@ func TestHandleDiscovery(t *testing.T) {
 			"at_hash",
 		},
 	}, res)
+}
+
+func TestHandleDiscoveryWithES256LocalSigner(t *testing.T) {
+	httpServer, server := newTestServer(t, func(c *Config) {
+		localConfig := signer.LocalConfig{
+			KeysRotationPeriod: time.Hour.String(),
+			Algorithm:          jose.ES256,
+		}
+
+		sig, err := localConfig.Open(context.Background(), c.Storage, time.Hour, time.Now, c.Logger)
+		require.NoError(t, err)
+		c.Signer = sig
+	})
+	defer httpServer.Close()
+
+	rr := httptest.NewRecorder()
+	server.ServeHTTP(rr, httptest.NewRequest("GET", "/.well-known/openid-configuration", nil))
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var res discovery
+	err := json.NewDecoder(rr.Result().Body).Decode(&res)
+	require.NoError(t, err)
+	require.Equal(t, []string{string(jose.ES256)}, res.IDTokenAlgs)
 }
 
 func TestHandleHealthFailure(t *testing.T) {

@@ -1,12 +1,12 @@
 package conformance
 
 import (
-	"context"
 	"strconv"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
@@ -154,34 +154,67 @@ func testPasswordConcurrentUpdate(t *testing.T, s storage.Storage) {
 }
 
 func testKeysConcurrentUpdate(t *testing.T, s storage.Storage) {
-	// Test twice. Once for a create, once for an update.
-	for i := 0; i < 2; i++ {
-		n := time.Now().UTC().Round(time.Second)
-		keys1 := storage.Keys{
-			SigningKey:    jsonWebKeys[i].Private,
-			SigningKeyPub: jsonWebKeys[i].Public,
-			NextRotation:  n,
-		}
-
-		keys2 := storage.Keys{
-			SigningKey:    jsonWebKeys[2].Private,
-			SigningKeyPub: jsonWebKeys[2].Public,
-			NextRotation:  n.Add(time.Hour),
-			VerificationKeys: []storage.VerificationKey{
-				{
-					PublicKey: jsonWebKeys[0].Public,
-					Expiry:    n.Add(time.Hour),
-				},
-				{
-					PublicKey: jsonWebKeys[1].Public,
-					Expiry:    n.Add(time.Hour * 2),
+	tests := []struct {
+		name  string
+		keys1 storage.Keys
+		keys2 storage.Keys
+	}{
+		{
+			name: "create with rsa and es256 payloads",
+			keys1: storage.Keys{
+				SigningKey:    jsonWebKeys[0].Private,
+				SigningKeyPub: jsonWebKeys[0].Public,
+			},
+			keys2: storage.Keys{
+				SigningKey:    jsonWebKeys[5].Private,
+				SigningKeyPub: jsonWebKeys[5].Public,
+				VerificationKeys: []storage.VerificationKey{
+					{
+						PublicKey: jsonWebKeys[1].Public,
+					},
+					{
+						PublicKey: jsonWebKeys[6].Public,
+					},
 				},
 			},
+		},
+		{
+			name: "update with es256 and rsa payloads",
+			keys1: storage.Keys{
+				SigningKey:    jsonWebKeys[6].Private,
+				SigningKeyPub: jsonWebKeys[6].Public,
+			},
+			keys2: storage.Keys{
+				SigningKey:    jsonWebKeys[2].Private,
+				SigningKeyPub: jsonWebKeys[2].Public,
+				VerificationKeys: []storage.VerificationKey{
+					{
+						PublicKey: jsonWebKeys[5].Public,
+					},
+					{
+						PublicKey: jsonWebKeys[3].Public,
+					},
+				},
+			},
+		},
+	}
+
+	// Run twice against the same storage. The first case exercises row creation,
+	// the second runs with an existing keys row and therefore exercises updates.
+	for _, tt := range tests {
+		n := time.Now().UTC().Round(time.Second)
+		keys1 := tt.keys1
+		keys1.NextRotation = n
+		keys2 := tt.keys2
+		keys2.NextRotation = n.Add(time.Hour)
+
+		for i := range keys2.VerificationKeys {
+			keys2.VerificationKeys[i].Expiry = n.Add(time.Duration(i+1) * time.Hour)
 		}
 
 		var err1, err2 error
 
-		ctx := context.TODO()
+		ctx := t.Context()
 		err1 = s.UpdateKeys(ctx, func(old storage.Keys) (storage.Keys, error) {
 			err2 = s.UpdateKeys(ctx, func(old storage.Keys) (storage.Keys, error) {
 				return keys1, nil
@@ -190,8 +223,23 @@ func testKeysConcurrentUpdate(t *testing.T, s storage.Storage) {
 		})
 
 		if (err1 == nil) == (err2 == nil) {
-			t.Errorf("update keys: concurrent updates both returned no error")
+			t.Errorf("%s: concurrent updates both returned no error", tt.name)
 		}
+
+		got, err := s.GetKeys(ctx)
+		require.NoError(t, err)
+
+		got.NextRotation = got.NextRotation.UTC()
+
+		diff1 := pretty.Compare(keys1, got)
+		diff2 := pretty.Compare(keys2, got)
+		match1 := diff1 == ""
+		match2 := diff2 == ""
+		if match1 == match2 {
+			t.Fatalf("%s: final stored keys did not match an expected winner\nkeys1 diff:\n%s\nkeys2 diff:\n%s", tt.name, diff1, diff2)
+		}
+
+		requireSigningKeyRoundTripUsable(t, got)
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/go-jose/go-jose/v4"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dexidp/dex/pkg/featureflags"
@@ -525,12 +526,28 @@ func (s *Signer) UnmarshalJSON(b []byte) error {
 			return fmt.Errorf("parse signer config: %v", err)
 		}
 	}
+	if localConfig, ok := signerConfig.(*signer.LocalConfig); ok {
+		if err := normalizeLocalSignerConfig(localConfig); err != nil {
+			return fmt.Errorf("parse signer config: %v", err)
+		}
+	}
 
 	*s = Signer{
 		Type:   signerData.Type,
 		Config: signerConfig,
 	}
 	return nil
+}
+
+func normalizeLocalSignerConfig(c *signer.LocalConfig) error {
+	if c.Algorithm == "" {
+		c.Algorithm = jose.RS256
+		return nil
+	}
+	if c.Algorithm == jose.RS256 || c.Algorithm == jose.ES256 {
+		return nil
+	}
+	return fmt.Errorf("unsupported local signer algorithm %q", c.Algorithm)
 }
 
 // Connector is a magical type that can unmarshal YAML dynamically. The
