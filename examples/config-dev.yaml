@@ -88,7 +88,7 @@ telemetry:
 # Is possible to specify units using only s, m and h suffixes.
 # expiry:
 #   deviceRequests: "5m"
-#   signingKeys: "6h"
+#   signingKeys: "6h" # deprecated, use signer.config.keysRotationPeriod
 #   idTokens: "24h"
 #   refreshTokens:
 #     reuseInterval: "3s"
@@ -239,13 +239,14 @@ staticPasswords:
   - "team-a/admins"
   userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
 
-# Settings for signing JWT tokens. Available options:
-# - "local": use local keys (only RSA keys supported)
-# - "vault": use Vault Transit backend (RSA and EC keys supported)
+# Configuration for signing JWT tokens.
+# - "local": use local keys (supports RS256 (default) and ES256)
+# - "vault": use Vault Transit backend (supports RSA, ECDSA, and Ed25519)
 signer:
   type: local
   config:
     keysRotationPeriod: "6h"
+    algorithm: "RS256" # changes apply on the next key rotation
 # signer
 #   type: vault
 #   config:

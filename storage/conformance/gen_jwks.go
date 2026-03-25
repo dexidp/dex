@@ -7,6 +7,9 @@ package main
 
 import (
 	"bytes"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/hex"
@@ -44,14 +47,14 @@ type keyPair struct {
 	Private *jose.JSONWebKey
 }
 
-// keys are generated beforehand so we don't have to generate RSA keys for every test.
+// keys are generated beforehand so tests don't spend time on crypto key generation.
 var jsonWebKeys = []keyPair{
-	{{ range $i, $pair := .Keys }}
+{{- range $i, $pair := .Keys }}
 	{
 		Public:  mustLoadJWK({{ $pair.Public }}),
 		Private: mustLoadJWK({{ $pair.Private }}),
 	},
-	{{ end }}
+{{- end }}
 }
 `[1:])) // Remove the first newline.
 
@@ -60,42 +63,73 @@ type keyPair struct {
 	Private string
 }
 
+type keySpec struct {
+	count     int
+	algorithm string
+	generate  func() (crypto.Signer, error)
+}
+
+func newKeyPair(algorithm string, key crypto.Signer) keyPair {
+	priv := jose.JSONWebKey{
+		Key:       key,
+		KeyID:     newUUID(),
+		Algorithm: algorithm,
+		Use:       "sig",
+	}
+	pub := jose.JSONWebKey{
+		Key:       key.Public(),
+		KeyID:     newUUID(),
+		Algorithm: algorithm,
+		Use:       "sig",
+	}
+
+	privBytes, err := json.MarshalIndent(priv, "\t\t", "\t")
+	if err != nil {
+		log.Fatalf("marshal priv: %v", err)
+	}
+	pubBytes, err := json.MarshalIndent(pub, "\t\t", "\t")
+	if err != nil {
+		log.Fatalf("marshal pub: %v", err)
+	}
+
+	return keyPair{
+		Private: "`" + string(privBytes) + "`",
+		Public:  "`" + string(pubBytes) + "`",
+	}
+}
+
 func main() {
 	var tmplData struct {
 		Keys []keyPair
 	}
-	for i := 0; i < 5; i++ {
-		// TODO(ericchiang): Test with ECDSA keys.
-		key, err := rsa.GenerateKey(rand.Reader, 2048)
-		if err != nil {
-			log.Fatalf("gen rsa key: %v", err)
-		}
-		priv := jose.JSONWebKey{
-			Key:       key,
-			KeyID:     newUUID(),
-			Algorithm: "RS256",
-			Use:       "sig",
-		}
-		pub := jose.JSONWebKey{
-			Key:       key.Public(),
-			KeyID:     newUUID(),
-			Algorithm: "RS256",
-			Use:       "sig",
-		}
 
-		privBytes, err := json.MarshalIndent(priv, "\t\t", "\t")
-		if err != nil {
-			log.Fatalf("marshal priv: %v", err)
-		}
-		pubBytes, err := json.MarshalIndent(pub, "\t\t", "\t")
-		if err != nil {
-			log.Fatalf("marshal pub: %v", err)
-		}
-		tmplData.Keys = append(tmplData.Keys, keyPair{
-			Private: "`" + string(privBytes) + "`",
-			Public:  "`" + string(pubBytes) + "`",
-		})
+	specs := []keySpec{
+		{
+			count:     5,
+			algorithm: "RS256",
+			generate: func() (crypto.Signer, error) {
+				return rsa.GenerateKey(rand.Reader, 2048)
+			},
+		},
+		{
+			count:     2,
+			algorithm: "ES256",
+			generate: func() (crypto.Signer, error) {
+				return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+			},
+		},
 	}
+
+	for _, spec := range specs {
+		for i := 0; i < spec.count; i++ {
+			key, err := spec.generate()
+			if err != nil {
+				log.Fatalf("gen %s key: %v", spec.algorithm, err)
+			}
+			tmplData.Keys = append(tmplData.Keys, newKeyPair(spec.algorithm, key))
+		}
+	}
+
 	buff := new(bytes.Buffer)
 	if err := tmpl.Execute(buff, tmplData); err != nil {
 		log.Fatalf("execute tmpl: %v", err)

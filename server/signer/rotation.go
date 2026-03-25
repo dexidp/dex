@@ -2,6 +2,9 @@ package signer
 
 import (
 	"context"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/hex"
@@ -28,21 +31,55 @@ type rotationStrategy struct {
 	// signatures?
 	idTokenValidFor time.Duration
 
-	// Keys are always RSA keys. Though cryptopasta recommends ECDSA keys, not every
-	// client may support these (e.g. github.com/coreos/go-oidc/oidc).
-	key func() (*rsa.PrivateKey, error)
+	// Algorithm used for newly generated signing keys.
+	algorithm jose.SignatureAlgorithm
+
+	// Local signer keys can be RSA or ECDSA depending on the configured algorithm.
+	key func() (crypto.Signer, error)
 }
 
-// defaultRotationStrategy returns a strategy which rotates keys every provided period,
-// holding onto the public parts for some specified amount of time.
-func defaultRotationStrategy(rotationFrequency, idTokenValidFor time.Duration) rotationStrategy {
-	return rotationStrategy{
+// rotationStrategyForAlgorithm builds a key rotation strategy for the provided
+// local signer algorithm.
+func rotationStrategyForAlgorithm(rotationFrequency, idTokenValidFor time.Duration, algorithm jose.SignatureAlgorithm) (rotationStrategy, error) {
+	strategy := rotationStrategy{
 		rotationFrequency: rotationFrequency,
 		idTokenValidFor:   idTokenValidFor,
-		key: func() (*rsa.PrivateKey, error) {
-			return rsa.GenerateKey(rand.Reader, 2048)
-		},
+		algorithm:         algorithm,
 	}
+	// Only RS256 and ES256 are supported for local key rotation; all other algorithms are handled by the default case.
+	switch algorithm { //nolint:exhaustive
+	case jose.RS256:
+		strategy.key = func() (crypto.Signer, error) {
+			return rsa.GenerateKey(rand.Reader, 2048)
+		}
+	case jose.ES256:
+		strategy.key = func() (crypto.Signer, error) {
+			return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		}
+	default:
+		return rotationStrategy{}, fmt.Errorf("unsupported local signer algorithm %q", algorithm)
+	}
+	return strategy, nil
+}
+
+func newJWKPair(key crypto.Signer, algorithm jose.SignatureAlgorithm) (priv, pub *jose.JSONWebKey, err error) {
+	b := make([]byte, 20)
+	if _, err := io.ReadFull(rand.Reader, b); err != nil {
+		return nil, nil, fmt.Errorf("generate key id: %v", err)
+	}
+	keyID := hex.EncodeToString(b)
+
+	return &jose.JSONWebKey{
+			Key:       key,
+			KeyID:     keyID,
+			Algorithm: string(algorithm),
+			Use:       "sig",
+		}, &jose.JSONWebKey{
+			Key:       key.Public(),
+			KeyID:     keyID,
+			Algorithm: string(algorithm),
+			Use:       "sig",
+		}, nil
 }
 
 type keyRotator struct {
@@ -54,46 +91,47 @@ type keyRotator struct {
 	logger *slog.Logger
 }
 
+func (k keyRotator) rotationReason(keys storage.Keys, tNow time.Time) string {
+	if keys.SigningKey == nil {
+		return "missing signing key"
+	}
+
+	if tNow.Before(keys.NextRotation) {
+		return ""
+	}
+	return "expired"
+}
+
 func (k keyRotator) rotate() error {
 	keys, err := k.GetKeys(context.Background())
 	if err != nil && err != storage.ErrNotFound {
 		return fmt.Errorf("get keys: %v", err)
 	}
-	if k.now().Before(keys.NextRotation) {
+
+	reason := k.rotationReason(keys, k.now())
+	if reason == "" {
 		return nil
 	}
-	k.logger.Info("keys expired, rotating")
+	k.logger.Info("rotating signing keys", "reason", reason)
 
 	// Generate the key outside of a storage transaction.
 	key, err := k.strategy.key()
 	if err != nil {
 		return fmt.Errorf("generate key: %v", err)
 	}
-	b := make([]byte, 20)
-	if _, err := io.ReadFull(rand.Reader, b); err != nil {
-		panic(err)
-	}
-	keyID := hex.EncodeToString(b)
-	priv := &jose.JSONWebKey{
-		Key:       key,
-		KeyID:     keyID,
-		Algorithm: "RS256",
-		Use:       "sig",
-	}
-	pub := &jose.JSONWebKey{
-		Key:       key.Public(),
-		KeyID:     keyID,
-		Algorithm: "RS256",
-		Use:       "sig",
+	priv, pub, err := newJWKPair(key, k.strategy.algorithm)
+	if err != nil {
+		return fmt.Errorf("generate JWK pair: %v", err)
 	}
 
 	var nextRotation time.Time
 	err = k.Storage.UpdateKeys(context.Background(), func(keys storage.Keys) (storage.Keys, error) {
 		tNow := k.now()
+		reason := k.rotationReason(keys, tNow)
 
 		// if you are running multiple instances of dex, another instance
 		// could have already rotated the keys.
-		if tNow.Before(keys.NextRotation) {
+		if reason == "" {
 			return storage.Keys{}, errAlreadyRotated
 		}
 
@@ -134,6 +172,6 @@ func (k keyRotator) rotate() error {
 	if err != nil {
 		return err
 	}
-	k.logger.Info("keys rotated", "next_rotation", nextRotation)
+	k.logger.Info("keys rotated", "reason", reason, "next_rotation", nextRotation)
 	return nil
 }

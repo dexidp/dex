@@ -2,7 +2,7 @@
 package conformance
 
 import (
-	"context"
+	"crypto/ecdsa"
 	"reflect"
 	"sort"
 	"testing"
@@ -15,6 +15,8 @@ import (
 
 	"github.com/dexidp/dex/storage"
 )
+
+const keyRoundTripPayload = "storage-keys-round-trip"
 
 // ensure that values being tested on never expire.
 var neverExpire = time.Now().UTC().Add(time.Hour * 24 * 365 * 100)
@@ -84,6 +86,45 @@ func mustBeErrAlreadyExists(t *testing.T, kind string, err error) {
 	case err != storage.ErrAlreadyExists:
 		t.Errorf("creating an existing %s expected storage.ErrAlreadyExists, got %v", kind, err)
 	}
+}
+
+func isES256JWK(jwk *jose.JSONWebKey) bool {
+	if jwk == nil {
+		return false
+	}
+
+	switch jwk.Key.(type) {
+	case *ecdsa.PrivateKey, *ecdsa.PublicKey:
+		return jose.SignatureAlgorithm(jwk.Algorithm) == jose.ES256
+	default:
+		return false
+	}
+}
+
+func requireSigningKeyRoundTripUsable(t *testing.T, keys storage.Keys) {
+	t.Helper()
+
+	if !isES256JWK(keys.SigningKey) {
+		return
+	}
+	require.NotNil(t, keys.SigningKeyPub)
+
+	alg := jose.SignatureAlgorithm(keys.SigningKey.Algorithm)
+	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: alg, Key: keys.SigningKey}, nil)
+	require.NoError(t, err)
+
+	signed, err := signer.Sign([]byte(keyRoundTripPayload))
+	require.NoError(t, err)
+
+	compact, err := signed.CompactSerialize()
+	require.NoError(t, err)
+
+	jws, err := jose.ParseSigned(compact, []jose.SignatureAlgorithm{alg})
+	require.NoError(t, err)
+
+	payload, err := jws.Verify(keys.SigningKeyPub)
+	require.NoError(t, err)
+	require.Equal(t, []byte(keyRoundTripPayload), payload)
 }
 
 func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
@@ -730,54 +771,69 @@ func testConnectorCRUD(t *testing.T, s storage.Storage) {
 }
 
 func testKeysCRUD(t *testing.T, s storage.Storage) {
-	ctx := context.TODO()
-
-	updateAndCompare := func(k storage.Keys) {
-		err := s.UpdateKeys(ctx, func(oldKeys storage.Keys) (storage.Keys, error) {
-			return k, nil
-		})
-		if err != nil {
-			t.Errorf("failed to update keys: %v", err)
-			return
-		}
-
-		if got, err := s.GetKeys(ctx); err != nil {
-			t.Errorf("failed to get keys: %v", err)
-		} else {
-			got.NextRotation = got.NextRotation.UTC()
-			if diff := pretty.Compare(k, got); diff != "" {
-				t.Errorf("got keys did not equal expected: %s", diff)
-			}
-		}
-	}
+	ctx := t.Context()
 
 	// Postgres isn't as accurate with nano seconds as we'd like
 	n := time.Now().UTC().Round(time.Second)
 
-	keys1 := storage.Keys{
-		SigningKey:    jsonWebKeys[0].Private,
-		SigningKeyPub: jsonWebKeys[0].Public,
-		NextRotation:  n,
-	}
-
-	keys2 := storage.Keys{
-		SigningKey:    jsonWebKeys[2].Private,
-		SigningKeyPub: jsonWebKeys[2].Public,
-		NextRotation:  n.Add(time.Hour),
-		VerificationKeys: []storage.VerificationKey{
-			{
-				PublicKey: jsonWebKeys[0].Public,
-				Expiry:    n.Add(time.Hour),
+	tests := []struct {
+		name string
+		keys storage.Keys
+	}{
+		{
+			name: "rsa signing key",
+			keys: storage.Keys{
+				SigningKey:    jsonWebKeys[0].Private,
+				SigningKeyPub: jsonWebKeys[0].Public,
+				NextRotation:  n,
 			},
-			{
-				PublicKey: jsonWebKeys[1].Public,
-				Expiry:    n.Add(time.Hour * 2),
+		},
+		{
+			name: "es256 signing key",
+			keys: storage.Keys{
+				SigningKey:    jsonWebKeys[5].Private,
+				SigningKeyPub: jsonWebKeys[5].Public,
+				NextRotation:  n.Add(time.Hour),
+			},
+		},
+		{
+			name: "mixed verification key algorithms",
+			keys: storage.Keys{
+				SigningKey:    jsonWebKeys[6].Private,
+				SigningKeyPub: jsonWebKeys[6].Public,
+				NextRotation:  n.Add(2 * time.Hour),
+				VerificationKeys: []storage.VerificationKey{
+					{
+						PublicKey: jsonWebKeys[1].Public,
+						Expiry:    n.Add(3 * time.Hour),
+					},
+					{
+						PublicKey: jsonWebKeys[5].Public,
+						Expiry:    n.Add(4 * time.Hour),
+					},
+				},
 			},
 		},
 	}
 
-	updateAndCompare(keys1)
-	updateAndCompare(keys2)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := s.UpdateKeys(ctx, func(oldKeys storage.Keys) (storage.Keys, error) {
+				return tt.keys, nil
+			})
+			require.NoError(t, err)
+
+			got, err := s.GetKeys(ctx)
+			require.NoError(t, err)
+
+			got.NextRotation = got.NextRotation.UTC()
+			if diff := pretty.Compare(tt.keys, got); diff != "" {
+				t.Fatalf("got keys did not equal expected: %s", diff)
+			}
+
+			requireSigningKeyRoundTripUsable(t, got)
+		})
+	}
 }
 
 func testGC(t *testing.T, s storage.Storage) {
