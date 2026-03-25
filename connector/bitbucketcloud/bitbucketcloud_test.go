@@ -14,27 +14,24 @@ import (
 )
 
 func TestUserGroups(t *testing.T) {
-	teamsResponse := userWorkspacesResponse{
+	workspacesResponse := workspacesResponse{
 		pagedResponse: pagedResponse{
 			Size:    3,
 			Page:    1,
 			PageLen: 10,
 		},
 		Values: []workspace{
-			{Workspace: workspaceSlug{Slug: "team-1"}},
-			{Workspace: workspaceSlug{Slug: "team-2"}},
-			{Workspace: workspaceSlug{Slug: "team-3"}},
+			{Slug: "team-1"},
+			{Slug: "team-2"},
+			{Slug: "team-3"},
 		},
 	}
 
 	s := newTestServer(map[string]interface{}{
-		"/user/permissions/workspaces": teamsResponse,
-		"/groups/team-1":               []group{{Slug: "administrators"}, {Slug: "members"}},
-		"/groups/team-2":               []group{{Slug: "everyone"}},
-		"/groups/team-3":               []group{},
+		"/workspaces": workspacesResponse,
 	})
 
-	connector := bitbucketConnector{apiURL: s.URL, legacyAPIURL: s.URL}
+	connector := bitbucketConnector{apiURL: s.URL}
 	groups, err := connector.userWorkspaces(context.Background(), newClient())
 
 	expectNil(t, err)
@@ -44,25 +41,12 @@ func TestUserGroups(t *testing.T) {
 		"team-3",
 	})
 
-	connector.includeTeamGroups = true
-	groups, err = connector.userWorkspaces(context.Background(), newClient())
-
-	expectNil(t, err)
-	expectEquals(t, groups, []string{
-		"team-1",
-		"team-2",
-		"team-3",
-		"team-1/administrators",
-		"team-1/members",
-		"team-2/everyone",
-	})
-
 	s.Close()
 }
 
 func TestUserWithoutTeams(t *testing.T) {
 	s := newTestServer(map[string]interface{}{
-		"/user/permissions/workspaces": userWorkspacesResponse{},
+		"/workspaces": workspacesResponse{},
 	})
 
 	connector := bitbucketConnector{apiURL: s.URL}
