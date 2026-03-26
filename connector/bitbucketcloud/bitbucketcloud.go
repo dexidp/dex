@@ -33,17 +33,32 @@ type Config struct {
 	ClientSecret string   `json:"clientSecret"`
 	RedirectURI  string   `json:"redirectURI"`
 	Teams        []string `json:"teams"`
+
+	// Deprecated: The Bitbucket 1.0 API (/1.0/groups/{team}) that this feature
+	// relied on has been removed by Atlassian. This option is ignored; if set,
+	// a warning is logged at startup. Consider using getWorkspacePermissions.
+	IncludeTeamGroups bool `json:"includeTeamGroups,omitempty"`
+
+	// When enabled, appends workspace permission suffixes (e.g. "workspace:owner",
+	// "workspace:member") to the groups claim, similar to GitLab's getGroupsPermission.
+	GetWorkspacePermissions bool `json:"getWorkspacePermissions,omitempty"`
 }
 
 // Open returns a strategy for logging in through Bitbucket.
 func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, error) {
+	if c.IncludeTeamGroups {
+		logger.Warn("bitbucket: includeTeamGroups is deprecated and has no effect; " +
+			"the Bitbucket 1.0 API it relied on has been removed by Atlassian")
+	}
+
 	b := bitbucketConnector{
-		redirectURI:  c.RedirectURI,
-		teams:        c.Teams,
-		clientID:     c.ClientID,
-		clientSecret: c.ClientSecret,
-		apiURL:       apiURL,
-		logger:       logger.With(slog.Group("connector", "type", "bitbucketcloud", "id", id)),
+		redirectURI:             c.RedirectURI,
+		teams:                   c.Teams,
+		clientID:                c.ClientID,
+		clientSecret:            c.ClientSecret,
+		getWorkspacePermissions: c.GetWorkspacePermissions,
+		apiURL:                  apiURL,
+		logger:                  logger.With(slog.Group("connector", "type", "bitbucketcloud", "id", id)),
 	}
 
 	return &b, nil
@@ -61,12 +76,13 @@ var (
 )
 
 type bitbucketConnector struct {
-	redirectURI  string
-	teams        []string
-	clientID     string
-	clientSecret string
-	logger       *slog.Logger
-	apiURL       string
+	redirectURI             string
+	teams                   []string
+	clientID                string
+	clientSecret            string
+	logger                  *slog.Logger
+	apiURL                  string
+	getWorkspacePermissions bool
 
 	// the following are used only for tests
 	hostName   string
@@ -330,6 +346,7 @@ func (b *bitbucketConnector) userEmail(ctx context.Context, client *http.Client)
 		if response.Next == nil {
 			break
 		}
+		apiURL = *response.Next
 	}
 
 	return "", errors.New("bitbucket: user has no confirmed, primary email")
@@ -364,12 +381,16 @@ type workspacesResponse struct {
 	Values []workspace `json:"values"`
 }
 
+type workspacePermission struct {
+	Permission string `json:"permission"`
+}
+
 func (b *bitbucketConnector) userWorkspaces(ctx context.Context, client *http.Client) ([]string, error) {
 	var teams []string
-	apiURL := b.apiURL + "/workspaces"
+	apiURL := b.apiURL + "/user/workspaces"
 
 	for {
-		// https://developer.atlassian.com/cloud/bitbucket/rest/api-group-workspaces/#api-workspaces-get
+		// https://developer.atlassian.com/cloud/bitbucket/rest/api-group-user/#api-user-workspaces-get
 		var response workspacesResponse
 
 		if err := get(ctx, client, apiURL, &response); err != nil {
@@ -383,9 +404,33 @@ func (b *bitbucketConnector) userWorkspaces(ctx context.Context, client *http.Cl
 		if response.Next == nil {
 			break
 		}
+		apiURL = *response.Next
+	}
+
+	if b.getWorkspacePermissions {
+		var permissionGroups []string
+		for _, team := range teams {
+			perm, err := b.userWorkspacePermission(ctx, client, team)
+			if err != nil {
+				b.logger.Warn("bitbucket: failed to get permission for workspace, skipping permission suffix",
+					"workspace", team, "error", err)
+				continue
+			}
+			permissionGroups = append(permissionGroups, team+":"+perm)
+		}
+		teams = append(teams, permissionGroups...)
 	}
 
 	return teams, nil
+}
+
+func (b *bitbucketConnector) userWorkspacePermission(ctx context.Context, client *http.Client, workspaceSlug string) (string, error) {
+	apiURL := b.apiURL + "/user/workspaces/" + workspaceSlug + "/permission"
+	var response workspacePermission
+	if err := get(ctx, client, apiURL, &response); err != nil {
+		return "", fmt.Errorf("get workspace %q permission: %v", workspaceSlug, err)
+	}
+	return response.Permission, nil
 }
 
 // get creates a "GET `apiURL`" request with context, sends the request using

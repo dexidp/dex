@@ -1,13 +1,16 @@
 package bitbucketcloud
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/dexidp/dex/connector"
@@ -28,7 +31,7 @@ func TestUserGroups(t *testing.T) {
 	}
 
 	s := newTestServer(map[string]interface{}{
-		"/workspaces": workspacesResponse,
+		"/user/workspaces": workspacesResponse,
 	})
 
 	connector := bitbucketConnector{apiURL: s.URL}
@@ -56,6 +59,58 @@ func TestUserWithoutTeams(t *testing.T) {
 	expectEquals(t, len(groups), 0)
 
 	s.Close()
+}
+
+func TestUserGroupsWithPermissions(t *testing.T) {
+	workspacesResp := workspacesResponse{
+		pagedResponse: pagedResponse{
+			Size:    2,
+			Page:    1,
+			PageLen: 10,
+		},
+		Values: []workspace{
+			{Slug: "team-1"},
+			{Slug: "team-2"},
+		},
+	}
+
+	s := newTestServer(map[string]interface{}{
+		"/user/workspaces":                   workspacesResp,
+		"/user/workspaces/team-1/permission": workspacePermission{Permission: "owner"},
+		"/user/workspaces/team-2/permission": workspacePermission{Permission: "member"},
+	})
+	defer s.Close()
+
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	c := bitbucketConnector{apiURL: s.URL, getWorkspacePermissions: true, logger: logger}
+	groups, err := c.userWorkspaces(context.Background(), newClient())
+
+	expectNil(t, err)
+	expectEquals(t, groups, []string{
+		"team-1",
+		"team-2",
+		"team-1:owner",
+		"team-2:member",
+	})
+}
+
+func TestDeprecatedIncludeTeamGroups(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+
+	cfg := Config{
+		ClientID:          "id",
+		ClientSecret:      "secret",
+		RedirectURI:       "http://localhost",
+		IncludeTeamGroups: true,
+	}
+
+	_, err := cfg.Open("test", logger)
+	expectNil(t, err)
+
+	if !strings.Contains(buf.String(), "includeTeamGroups is deprecated") {
+		t.Fatal("expected deprecation warning for includeTeamGroups")
+	}
 }
 
 func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
