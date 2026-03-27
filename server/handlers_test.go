@@ -1913,6 +1913,143 @@ func TestHandleAuthorizationWithNoMatchingConnectors(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
+func TestHandleAuthorizationSessionSkipsConnectorSelection(t *testing.T) {
+	ctx := t.Context()
+
+	sessionConfig := &SessionConfig{
+		CookieName:        "dex_session",
+		AbsoluteLifetime:  24 * time.Hour,
+		ValidIfNotUsedFor: 1 * time.Hour,
+	}
+
+	client := storage.Client{
+		ID:           "test-client",
+		Secret:       "secret",
+		RedirectURIs: []string{"https://example.com/callback"},
+		Name:         "Test Client",
+	}
+
+	authURL := fmt.Sprintf("/auth?client_id=%s&redirect_uri=%s&response_type=code&scope=openid",
+		client.ID, url.QueryEscape("https://example.com/callback"))
+
+	createSession := func(t *testing.T, s *Server, connectorID string) *http.Cookie {
+		t.Helper()
+		now := time.Now()
+		nonce := "test-nonce"
+		session := storage.AuthSession{
+			UserID:         "user1",
+			ConnectorID:    connectorID,
+			Nonce:          nonce,
+			ClientStates:   map[string]*storage.ClientAuthState{},
+			CreatedAt:      now.Add(-30 * time.Minute),
+			LastActivity:   now.Add(-5 * time.Minute),
+			IPAddress:      "127.0.0.1",
+			UserAgent:      "test",
+			AbsoluteExpiry: now.Add(24 * time.Hour),
+			IdleExpiry:     now.Add(1 * time.Hour),
+		}
+		require.NoError(t, s.storage.CreateAuthSession(ctx, session))
+		return &http.Cookie{
+			Name:  "dex_session",
+			Value: sessionCookieValue("user1", connectorID, nonce),
+		}
+	}
+
+	t.Run("valid session redirects to session connector", func(t *testing.T) {
+		httpServer, s := newTestServerMultipleConnectors(t, func(c *Config) {
+			c.SessionConfig = sessionConfig
+		})
+		defer httpServer.Close()
+		require.NoError(t, s.storage.CreateClient(ctx, client))
+
+		cookie := createSession(t, s, "mock")
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", authURL, nil)
+		req.AddCookie(cookie)
+		s.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusFound, rr.Code)
+		require.Contains(t, rr.Header().Get("Location"), "/auth/mock")
+	})
+
+	t.Run("prompt=select_account shows connector selection despite session", func(t *testing.T) {
+		httpServer, s := newTestServerMultipleConnectors(t, func(c *Config) {
+			c.SessionConfig = sessionConfig
+		})
+		defer httpServer.Close()
+		require.NoError(t, s.storage.CreateClient(ctx, client))
+
+		cookie := createSession(t, s, "mock")
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", authURL+"&prompt=select_account", nil)
+		req.AddCookie(cookie)
+		s.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusOK, rr.Code)
+	})
+
+	t.Run("no session shows connector selection", func(t *testing.T) {
+		httpServer, s := newTestServerMultipleConnectors(t, func(c *Config) {
+			c.SessionConfig = sessionConfig
+		})
+		defer httpServer.Close()
+		require.NoError(t, s.storage.CreateClient(ctx, client))
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", authURL, nil)
+		s.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusOK, rr.Code)
+	})
+
+	t.Run("alwaysShowLogin shows connector selection despite session", func(t *testing.T) {
+		httpServer, s := newTestServerMultipleConnectors(t, func(c *Config) {
+			c.SessionConfig = sessionConfig
+			c.AlwaysShowLoginScreen = true
+		})
+		defer httpServer.Close()
+		require.NoError(t, s.storage.CreateClient(ctx, client))
+
+		cookie := createSession(t, s, "mock")
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", authURL, nil)
+		req.AddCookie(cookie)
+		s.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusOK, rr.Code)
+	})
+
+	t.Run("session connector not in filtered list shows connector selection", func(t *testing.T) {
+		httpServer, s := newTestServerMultipleConnectors(t, func(c *Config) {
+			c.SessionConfig = sessionConfig
+		})
+		defer httpServer.Close()
+
+		filteredClient := storage.Client{
+			ID:                "filtered-client",
+			Secret:            "secret",
+			RedirectURIs:      []string{"https://example.com/callback"},
+			Name:              "Filtered Client",
+			AllowedConnectors: []string{"mock", "mock2"},
+		}
+		require.NoError(t, s.storage.CreateClient(ctx, filteredClient))
+
+		// Session is for "other-connector" which is not in the allowed list.
+		cookie := createSession(t, s, "other-connector")
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", fmt.Sprintf("/auth?client_id=%s&redirect_uri=%s&response_type=code&scope=openid",
+			filteredClient.ID, url.QueryEscape("https://example.com/callback")), nil)
+		req.AddCookie(cookie)
+		s.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusOK, rr.Code)
+	})
+}
+
 func TestHandleAuthorizationWithoutAllowedConnectors(t *testing.T) {
 	ctx := t.Context()
 
