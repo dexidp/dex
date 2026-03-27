@@ -1951,7 +1951,7 @@ func TestHandleAuthorizationSessionSkipsConnectorSelection(t *testing.T) {
 		require.NoError(t, s.storage.CreateAuthSession(ctx, session))
 		return &http.Cookie{
 			Name:  "dex_session",
-			Value: sessionCookieValue("user1", connectorID, nonce),
+			Value: sessionCookieValue("user1", connectorID, nonce, nil),
 		}
 	}
 
