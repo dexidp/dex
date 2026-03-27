@@ -2074,3 +2074,49 @@ func TestHandleAuthorizationWithoutAllowedConnectors(t *testing.T) {
 	// With multiple connectors and no filter, the login page should be rendered (200 OK)
 	require.Equal(t, http.StatusOK, rr.Code)
 }
+
+func TestBackLinkIncludesPromptSelectAccount(t *testing.T) {
+	ctx := t.Context()
+
+	httpServer, s := newTestServerMultipleConnectors(t, nil)
+	defer httpServer.Close()
+
+	// Add a password connector so handleConnectorLogin passes the backlink via redirect.
+	pwConn := storage.Connector{
+		ID:              "mockPw",
+		Type:            "mockPassword",
+		Name:            "MockPassword",
+		ResourceVersion: "1",
+		Config:          []byte(`{"username": "foo", "password": "bar"}`),
+	}
+	require.NoError(t, s.storage.CreateConnector(ctx, pwConn))
+	_, err := s.OpenConnector(pwConn)
+	require.NoError(t, err)
+
+	client := storage.Client{
+		ID:           "test-client",
+		Secret:       "secret",
+		RedirectURIs: []string{"https://example.com/callback"},
+		Name:         "Test Client",
+	}
+	require.NoError(t, s.storage.CreateClient(ctx, client))
+
+	rr := httptest.NewRecorder()
+	authURL := fmt.Sprintf("/auth/mockPw?client_id=%s&redirect_uri=%s&response_type=code&scope=openid",
+		client.ID, url.QueryEscape("https://example.com/callback"))
+	req := httptest.NewRequest("GET", authURL, nil)
+	s.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusFound, rr.Code)
+
+	loc, err := url.Parse(rr.Header().Get("Location"))
+	require.NoError(t, err)
+
+	backLink := loc.Query().Get("back")
+	require.NotEmpty(t, backLink, "back link should be set when multiple connectors exist")
+
+	backURL, err := url.Parse(backLink)
+	require.NoError(t, err)
+	require.Equal(t, "select_account", backURL.Query().Get("prompt"),
+		"back link should include prompt=select_account")
+}
