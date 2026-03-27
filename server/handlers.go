@@ -471,7 +471,9 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	if len(s.connectors) > 1 {
 		backLinkParams := make(url.Values)
 		maps.Copy(backLinkParams, r.Form)
-		backLinkParams.Set("prompt", "select_account")
+		if s.sessionConfig != nil {
+			backLinkParams.Set("prompt", "select_account")
+		}
 		backLinkURL := url.URL{
 			Path:     s.absPath("/auth"),
 			RawQuery: backLinkParams.Encode(),
