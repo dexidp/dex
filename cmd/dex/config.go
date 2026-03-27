@@ -683,6 +683,10 @@ type Sessions struct {
 	ValidIfNotUsedFor string `json:"validIfNotUsedFor"`
 	// RememberMeCheckedByDefault controls the default state of the "remember me" checkbox.
 	RememberMeCheckedByDefault *bool `json:"rememberMeCheckedByDefault"`
+	// CookieEncryptionKey is the AES key for encrypting session cookies.
+	// Must be 16, 24, or 32 bytes for AES-128, AES-192, or AES-256.
+	// If empty, cookies are not encrypted.
+	CookieEncryptionKey string `json:"cookieEncryptionKey"`
 }
 
 // MFAAuthenticator defines a multi-factor authentication provider.
