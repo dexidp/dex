@@ -1099,6 +1099,84 @@ func TestNewIDTokenUsesStoredAlgorithmUntilNextRotation(t *testing.T) {
 	require.Equal(t, wantCodeHash, claims.CodeHash)
 }
 
+func TestNewIDTokenContainsJTI(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	logger := slog.New(slog.DiscardHandler)
+	store := memory.New(logger)
+
+	now := time.Now().UTC()
+	err := store.UpdateKeys(ctx, func(keys storage.Keys) (storage.Keys, error) {
+		keys.SigningKey = &jose.JSONWebKey{
+			Key:       testKey,
+			KeyID:     "test-rs256",
+			Algorithm: string(jose.RS256),
+			Use:       "sig",
+		}
+		keys.SigningKeyPub = &jose.JSONWebKey{
+			Key:       testKey.Public(),
+			KeyID:     "test-rs256",
+			Algorithm: string(jose.RS256),
+			Use:       "sig",
+		}
+		keys.NextRotation = now.Add(time.Hour)
+		return keys, nil
+	})
+	require.NoError(t, err)
+
+	localConfig := signer.LocalConfig{
+		KeysRotationPeriod: time.Hour.String(),
+		Algorithm:          jose.RS256,
+	}
+	sig, err := localConfig.Open(ctx, store, time.Hour, func() time.Time { return now }, logger)
+	require.NoError(t, err)
+
+	sig.Start(ctx)
+
+	issuerURL, err := url.Parse("https://issuer.example.com")
+	require.NoError(t, err)
+
+	s := &Server{
+		signer:           sig,
+		issuerURL:        *issuerURL,
+		logger:           logger,
+		now:              func() time.Time { return now },
+		idTokensValidFor: time.Hour,
+	}
+
+	keys, err := sig.ValidationKeys(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, keys)
+
+	extractJTI := func(t *testing.T, idToken string) string {
+		t.Helper()
+		jws, err := jose.ParseSigned(idToken, []jose.SignatureAlgorithm{jose.RS256})
+		require.NoError(t, err)
+		payload, err := jws.Verify(keys[0])
+		require.NoError(t, err)
+		var claims struct {
+			JTI string `json:"jti"`
+		}
+		err = json.Unmarshal(payload, &claims)
+		require.NoError(t, err)
+		return claims.JTI
+	}
+
+	token1, _, err := s.newIDToken(ctx, "client", storage.Claims{UserID: "1", Username: "alice"}, []string{"openid"}, "n1", "", "", "mock", time.Time{})
+	require.NoError(t, err)
+
+	token2, _, err := s.newIDToken(ctx, "client", storage.Claims{UserID: "1", Username: "alice"}, []string{"openid"}, "n2", "", "", "mock", time.Time{})
+	require.NoError(t, err)
+
+	jti1 := extractJTI(t, token1)
+	jti2 := extractJTI(t, token2)
+
+	assert.NotEmpty(t, jti1, "jti claim must be present and non-empty")
+	assert.NotEmpty(t, jti2, "jti claim must be present and non-empty")
+	assert.NotEqual(t, jti1, jti2, "each token must have a unique jti")
+}
+
 func TestSessionMatchesHint(t *testing.T) {
 	// genSubject("foo", "bar") == "CgNmb28SA2Jhcg" (from TestGetSubject)
 	assert.True(t, sessionMatchesHint(&storage.AuthSession{UserID: "foo", ConnectorID: "bar"}, "CgNmb28SA2Jhcg"))
