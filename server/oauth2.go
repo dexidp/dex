@@ -21,6 +21,7 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-jose/go-jose/v4"
+	"github.com/google/uuid"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
@@ -271,7 +272,7 @@ type idTokenClaims struct {
 	Audience         audience `json:"aud"`
 	Expiry           int64    `json:"exp"`
 	IssuedAt         int64    `json:"iat"`
-	JwtTokenID       string   `json:"jti,omitempty"`
+	JWTID            string   `json:"jti,omitempty"`
 	AuthorizingParty string   `json:"azp,omitempty"`
 	Nonce            string   `json:"nonce,omitempty"`
 	AuthTime         int64    `json:"auth_time,omitempty"`
@@ -353,12 +354,12 @@ func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage
 	}
 
 	tok := idTokenClaims{
-		Issuer:     s.issuerURL.String(),
-		Subject:    subjectString,
-		Nonce:      nonce,
-		Expiry:     expiry.Unix(),
-		IssuedAt:   issuedAt.Unix(),
-		JwtTokenID: storage.NewID(),
+		Issuer:   s.issuerURL.String(),
+		Subject:  subjectString,
+		Nonce:    nonce,
+		Expiry:   expiry.Unix(),
+		IssuedAt: issuedAt.Unix(),
+		JWTID:    uuid.New().String(),
 	}
 
 	// Include auth_time when sessions are enabled and the value is available.
