@@ -163,6 +163,9 @@ web:
 # Connectors are used to authenticate users against upstream identity providers.
 #
 # See the documentation (https://dexidp.io/docs/connectors/) for further information.
+#
+# For LDAP nested group resolution, set groupSearch.userMatchers[].recursionGroupAttr
+# in the connector config. See: https://dexidp.io/docs/connectors/ldap/
 # connectors: []
 
 # Enable the password database.
