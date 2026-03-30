@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
@@ -105,6 +106,10 @@ func (r *refreshError) Error() string {
 
 func newInternalServerError() *refreshError {
 	return &refreshError{msg: errInvalidRequest, desc: "", code: http.StatusInternalServerError}
+}
+
+func newUpstreamRefreshError(desc string) *refreshError {
+	return &refreshError{msg: errInvalidGrant, desc: desc, code: http.StatusBadGateway}
 }
 
 func newBadRequestError(desc string) *refreshError {
@@ -271,7 +276,7 @@ func (s *Server) refreshWithConnector(ctx context.Context, rCtx *refreshContext,
 		newIdent, err := refreshConn.Refresh(ctx, parseScopes(rCtx.scopes), ident)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "failed to refresh identity", "err", err)
-			return ident, newInternalServerError()
+			return ident, newUpstreamRefreshError(err.Error())
 		}
 
 		return newIdent, nil
@@ -327,6 +332,20 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 		Groups:            rCtx.storageToken.Claims.Groups,
 	}
 
+	// Pre-fetch UserIdentity outside the storage transaction to avoid deadlocks with
+	// storage backends that use a single lock (e.g., memory storage).
+	// This is used as a fallback when the upstream connector refresh fails.
+	var cachedIdentity *storage.UserIdentity
+	if featureflags.SessionsEnabled.Enabled() {
+		ui, err := s.storage.GetUserIdentity(ctx, rCtx.storageToken.Claims.UserID, rCtx.storageToken.ConnectorID)
+		if err != nil {
+			s.logger.WarnContext(ctx, "failed to pre-fetch user identity for upstream refresh fallback",
+				"user_id", rCtx.storageToken.Claims.UserID, "connector_id", rCtx.storageToken.ConnectorID, "err", err)
+		} else {
+			cachedIdentity = &ui
+		}
+	}
+
 	refreshTokenUpdater := func(old storage.RefreshToken) (storage.RefreshToken, error) {
 		rotationEnabled := s.refreshTokenPolicy.RotationEnabled()
 		reusingAllowed := s.refreshTokenPolicy.AllowedToReuse(old.LastUsed)
@@ -373,7 +392,26 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 		// Dex will call the connector's Refresh method only once if request is not in reuse interval.
 		ident, rerr = s.refreshWithConnector(ctx, rCtx, ident)
 		if rerr != nil {
-			return old, rerr
+			// When sessions are enabled and the upstream provider fails (e.g., expired upstream
+			// refresh token), fall back to claims stored in UserIdentity instead of failing the
+			// entire refresh. This matches the behavior of other identity brokers (Keycloak, Auth0)
+			// that do not contact the upstream on every downstream refresh.
+			if cachedIdentity != nil {
+				s.logger.WarnContext(ctx, "upstream refresh failed, using cached identity from last login",
+					"err", rerr, "user_id", cachedIdentity.Claims.UserID, "connector_id", rCtx.storageToken.ConnectorID)
+				ident = connector.Identity{
+					UserID:            cachedIdentity.Claims.UserID,
+					Username:          cachedIdentity.Claims.Username,
+					PreferredUsername: cachedIdentity.Claims.PreferredUsername,
+					Email:             cachedIdentity.Claims.Email,
+					EmailVerified:     cachedIdentity.Claims.EmailVerified,
+					Groups:            cachedIdentity.Claims.Groups,
+				}
+				rerr = nil
+			}
+			if rerr != nil {
+				return old, rerr
+			}
 		}
 
 		// Update the claims of the refresh token.
