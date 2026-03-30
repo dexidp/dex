@@ -163,7 +163,7 @@ type TokenExchangeConfig struct {
 // IDJAGEnabled reports whether the ID-JAG token type is enabled.
 func (c TokenExchangeConfig) IDJAGEnabled() bool {
 	for _, t := range c.TokenTypes {
-		if t == "urn:ietf:params:oauth:token-type:id-jag" {
+		if t == tokenTypeIDJAG {
 			return true
 		}
 	}
