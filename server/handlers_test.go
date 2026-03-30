@@ -2081,6 +2081,9 @@ func TestBackLinkIncludesPromptSelectAccount(t *testing.T) {
 	httpServer, s := newTestServerMultipleConnectors(t, nil)
 	defer httpServer.Close()
 
+	// select_account prompt only works with the sessions feature flag enabled.
+	s.sessionConfig = &SessionConfig{}
+
 	// Add a password connector so handleConnectorLogin passes the backlink via redirect.
 	pwConn := storage.Connector{
 		ID:              "mockPw",
