@@ -104,8 +104,7 @@ func TestEvaluateIDJAGPolicy(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := evaluateIDJAGPolicy(tc.policies, tc.clientID, tc.audience, tc.scopes)
-			require.NoError(t, err)
+			result := evaluateIDJAGPolicy(tc.policies, tc.clientID, tc.audience, tc.scopes)
 			if tc.wantDenied {
 				require.True(t, result.Denied)
 				require.Equal(t, tc.wantDenialReason, result.DenialReason)

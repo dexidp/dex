@@ -1928,12 +1928,7 @@ func (s *Server) handleIDJAGExchange(w http.ResponseWriter, r *http.Request, cli
 	}
 	sub := idToken.Subject
 
-	policyResult, err := evaluateIDJAGPolicy(s.tokenExchangePolicies, client.ID, audience, scopes)
-	if err != nil {
-		s.idJAGReject(ctx, w, "rejected", errServerError, "", http.StatusInternalServerError,
-			"client_id", client.ID, "connector_id", connectorID, "audience", audience, "resource", resource, "requested_scope", requestedScope, "sub", sub, "reason", "policy_error")
-		return
-	}
+	policyResult := evaluateIDJAGPolicy(s.tokenExchangePolicies, client.ID, audience, scopes)
 	if policyResult.Denied {
 		if s.idJAGPolicyRejectionsTotal != nil {
 			s.idJAGPolicyRejectionsTotal.WithLabelValues(string(policyResult.DenialReason)).Inc()

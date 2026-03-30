@@ -28,7 +28,7 @@ type TokenExchangePolicy struct {
 // evaluateIDJAGPolicy checks whether the client is permitted to obtain an ID-JAG
 // for the given audience and scopes. Clients without a matching policy are denied
 // by default (default-deny).
-func evaluateIDJAGPolicy(policies []TokenExchangePolicy, clientID, audience string, scopes []string) (PolicyResult, error) {
+func evaluateIDJAGPolicy(policies []TokenExchangePolicy, clientID, audience string, scopes []string) PolicyResult {
 	// Find the most-specific policy for this client: exact match first, then wildcard.
 	var matched *TokenExchangePolicy
 	for i := range policies {
@@ -46,7 +46,7 @@ func evaluateIDJAGPolicy(policies []TokenExchangePolicy, clientID, audience stri
 		return PolicyResult{
 			Denied:       true,
 			DenialReason: PolicyDenialClientHasNoPolicy,
-		}, nil
+		}
 	}
 
 	// Check audience.
@@ -54,7 +54,7 @@ func evaluateIDJAGPolicy(policies []TokenExchangePolicy, clientID, audience stri
 		return PolicyResult{
 			Denied:       true,
 			DenialReason: PolicyDenialAudienceNotAllowed,
-		}, nil
+		}
 	}
 
 	// Filter scopes: if the policy restricts scopes, only grant those that are allowed.
@@ -72,7 +72,7 @@ func evaluateIDJAGPolicy(policies []TokenExchangePolicy, clientID, audience stri
 	return PolicyResult{
 		Denied:        false,
 		GrantedScopes: grantedScopes,
-	}, nil
+	}
 }
 
 func audienceAllowed(allowedAudiences []string, audience string) bool {
