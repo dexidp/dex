@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"maps"
 	"net/http"
 	"net/url"
 	"path"
@@ -464,11 +465,18 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	scopes := parseScopes(authReq.Scopes)
 
 	// Work out where the "Select another login method" link should go.
+	// Include prompt=select_account so that handleAuthorization skips
+	// session-based connector reuse and shows the connector list.
 	backLink := ""
 	if len(s.connectors) > 1 {
+		backLinkParams := make(url.Values)
+		maps.Copy(backLinkParams, r.Form)
+		if s.sessionConfig != nil {
+			backLinkParams.Set("prompt", "select_account")
+		}
 		backLinkURL := url.URL{
 			Path:     s.absPath("/auth"),
-			RawQuery: r.Form.Encode(),
+			RawQuery: backLinkParams.Encode(),
 		}
 		backLink = backLinkURL.String()
 	}
