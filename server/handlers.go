@@ -1898,6 +1898,7 @@ func (s *Server) handleIDJAGExchange(w http.ResponseWriter, r *http.Request, cli
 		return
 	}
 
+	// Only checking existence; the connector value is not needed for token exchange.
 	if _, err := s.getConnector(ctx, connectorID); err != nil {
 		s.idJAGReject(ctx, w, "rejected", errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest,
 			"client_id", client.ID, "connector_id", connectorID, "audience", audience, "resource", resource, "requested_scope", requestedScope, "reason", "connector_not_found")
