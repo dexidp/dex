@@ -141,7 +141,7 @@ func TestHomeLoggedIn(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  "dex_session",
-		Value: sessionCookieValue(userID, connectorID, nonce),
+		Value: sessionCookieValue(userID, connectorID, nonce, nil),
 	})
 
 	rr := httptest.NewRecorder()
