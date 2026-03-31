@@ -23,10 +23,10 @@ func TestUserGroups(t *testing.T) {
 			Page:    1,
 			PageLen: 10,
 		},
-		Values: []workspace{
-			{Slug: "team-1"},
-			{Slug: "team-2"},
-			{Slug: "team-3"},
+		Values: []workspaceAccess{
+			{Workspace: workspaceRef{Slug: "team-1"}},
+			{Workspace: workspaceRef{Slug: "team-2"}},
+			{Workspace: workspaceRef{Slug: "team-3"}},
 		},
 	}
 
@@ -49,7 +49,7 @@ func TestUserGroups(t *testing.T) {
 
 func TestUserWithoutTeams(t *testing.T) {
 	s := newTestServer(map[string]interface{}{
-		"/workspaces": workspacesResponse{},
+		"/user/workspaces": workspacesResponse{},
 	})
 
 	connector := bitbucketConnector{apiURL: s.URL}
@@ -68,9 +68,9 @@ func TestUserGroupsWithPermissions(t *testing.T) {
 			Page:    1,
 			PageLen: 10,
 		},
-		Values: []workspace{
-			{Slug: "team-1"},
-			{Slug: "team-2"},
+		Values: []workspaceAccess{
+			{Workspace: workspaceRef{Slug: "team-1"}},
+			{Workspace: workspaceRef{Slug: "team-2"}},
 		},
 	}
 

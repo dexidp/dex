@@ -372,13 +372,17 @@ func (b *bitbucketConnector) getGroups(ctx context.Context, client *http.Client,
 	return nil, nil
 }
 
-type workspace struct {
+type workspaceRef struct {
 	Slug string `json:"slug"`
+}
+
+type workspaceAccess struct {
+	Workspace workspaceRef `json:"workspace"`
 }
 
 type workspacesResponse struct {
 	pagedResponse
-	Values []workspace `json:"values"`
+	Values []workspaceAccess `json:"values"`
 }
 
 type workspacePermission struct {
@@ -398,7 +402,7 @@ func (b *bitbucketConnector) userWorkspaces(ctx context.Context, client *http.Cl
 		}
 
 		for _, value := range response.Values {
-			teams = append(teams, value.Slug)
+			teams = append(teams, value.Workspace.Slug)
 		}
 
 		if response.Next == nil {
