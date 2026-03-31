@@ -14,7 +14,7 @@ import (
 
 // handleLogout implements OIDC RP-Initiated Logout (https://openid.net/specs/openid-connect-rpinitiated-1_0.html).
 //
-// GET /logout?id_token_hint=...&post_logout_redirect_uri=...&state=...
+// GET/POST /logout?id_token_hint=...&post_logout_redirect_uri=...&state=...
 //
 // Flow:
 //  1. Validate id_token_hint (signature + issuer; expiry skipped per spec)
@@ -34,7 +34,7 @@ import (
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	if r.Method != http.MethodGet {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
 		s.renderError(r, w, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
@@ -92,7 +92,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	// This allows logout without a hint when the user has an active session.
 	if userID == "" && connectorID == "" {
 		if cookie, err := r.Cookie(s.sessionConfig.CookieName); err == nil && cookie.Value != "" {
-			if uid, cid, nonce, err := parseSessionCookie(cookie.Value); err == nil {
+			if uid, cid, nonce, err := parseSessionCookie(cookie.Value, s.sessionConfig.CookieEncryptionKey); err == nil {
 				// Verify the session exists and nonce matches before trusting the cookie.
 				if session, err := s.storage.GetAuthSession(ctx, uid, cid); err == nil && session.Nonce == nonce {
 					userID = uid
@@ -164,7 +164,7 @@ func (s *Server) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, connectorID, nonce, err := parseSessionCookie(cookie.Value)
+	userID, connectorID, nonce, err := parseSessionCookie(cookie.Value, s.sessionConfig.CookieEncryptionKey)
 	if err != nil {
 		s.renderError(r, w, http.StatusBadRequest, "Invalid session cookie.")
 		return
@@ -308,6 +308,13 @@ func (s *Server) deleteAuthSession(ctx context.Context, userID, connectorID stri
 // revokeRefreshTokens deletes all refresh tokens for the given user/connector
 // and clears the references in the offline session (but keeps the session object).
 // Returns the connector data from the offline session (for upstream logout).
+//
+// To avoid a race condition where a new token issued between deletion and the
+// OfflineSessions update would have its reference wiped, we:
+//  1. Snapshot the token IDs to revoke
+//  2. Remove only those specific references from OfflineSessions (the updater
+//     sees the latest state, so concurrently added refs are preserved)
+//  3. Delete the actual refresh tokens
 func (s *Server) revokeRefreshTokens(ctx context.Context, userID, connectorID string) []byte {
 	offlineSessions, err := s.storage.GetOfflineSessions(ctx, userID, connectorID)
 	if err != nil {
@@ -317,19 +324,32 @@ func (s *Server) revokeRefreshTokens(ctx context.Context, userID, connectorID st
 		return nil
 	}
 
+	// Snapshot token IDs to revoke.
+	tokenIDs := make(map[string]struct{}, len(offlineSessions.Refresh))
 	for _, ref := range offlineSessions.Refresh {
-		if err := s.storage.DeleteRefresh(ctx, ref.ID); err != nil {
-			if !errors.Is(err, storage.ErrNotFound) {
-				s.logger.ErrorContext(ctx, "logout: failed to delete refresh token", "token_id", ref.ID, "err", err)
-			}
-		}
+		tokenIDs[ref.ID] = struct{}{}
 	}
 
+	// Remove only the snapshotted references — any token added concurrently
+	// will not be in tokenIDs and will be left untouched.
 	if err := s.storage.UpdateOfflineSessions(ctx, userID, connectorID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
-		old.Refresh = make(map[string]*storage.RefreshTokenRef)
+		for clientID, ref := range old.Refresh {
+			if _, ok := tokenIDs[ref.ID]; ok {
+				delete(old.Refresh, clientID)
+			}
+		}
 		return old, nil
 	}); err != nil {
 		s.logger.ErrorContext(ctx, "logout: failed to update offline sessions", "err", err)
+	}
+
+	// Delete the actual refresh tokens.
+	for id := range tokenIDs {
+		if err := s.storage.DeleteRefresh(ctx, id); err != nil {
+			if !errors.Is(err, storage.ErrNotFound) {
+				s.logger.ErrorContext(ctx, "logout: failed to delete refresh token", "token_id", id, "err", err)
+			}
+		}
 	}
 
 	return offlineSessions.ConnectorData

@@ -10,77 +10,10 @@ import (
 	"testing"
 	"time"
 
-	gosundheit "github.com/AppsFlyer/go-sundheit"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
-	"github.com/dexidp/dex/storage/memory"
 )
-
-func newTestServerWithSessions(t *testing.T, updateConfig func(c *Config)) (*httptest.Server, *Server) {
-	t.Helper()
-
-	var server *Server
-	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		server.ServeHTTP(w, r)
-	}))
-
-	logger := newLogger(t)
-	ctx := t.Context()
-
-	sig, err := signer.NewMockSigner(testKey)
-	require.NoError(t, err)
-
-	config := Config{
-		Issuer:  s.URL,
-		Storage: memory.New(logger),
-		Web: WebConfig{
-			Dir: "../web",
-		},
-		Logger:             logger,
-		PrometheusRegistry: prometheus.NewRegistry(),
-		HealthChecker:      gosundheit.New(),
-		SkipApprovalScreen: true,
-		AllowedGrantTypes: []string{
-			grantTypeAuthorizationCode,
-			grantTypeClientCredentials,
-			grantTypeRefreshToken,
-			grantTypeTokenExchange,
-			grantTypeDeviceCode,
-		},
-		Signer: sig,
-		SessionConfig: &SessionConfig{
-			CookieName:        "dex_session",
-			AbsoluteLifetime:  24 * time.Hour,
-			ValidIfNotUsedFor: 1 * time.Hour,
-		},
-	}
-	if updateConfig != nil {
-		updateConfig(&config)
-	}
-	s.URL = config.Issuer
-
-	connector := storage.Connector{
-		ID:              "mock",
-		Type:            "mockCallback",
-		Name:            "Mock",
-		ResourceVersion: "1",
-	}
-	require.NoError(t, config.Storage.CreateConnector(ctx, connector))
-
-	server, err = newServer(ctx, config)
-	require.NoError(t, err)
-
-	if server.refreshTokenPolicy == nil {
-		server.refreshTokenPolicy, err = NewRefreshTokenPolicy(logger, false, "", "", "")
-		require.NoError(t, err)
-		server.refreshTokenPolicy.now = config.Now
-	}
-
-	return s, server
-}
 
 func TestHandleLogoutNoSessions(t *testing.T) {
 	httpServer, server := newTestServer(t, nil)
@@ -97,9 +30,21 @@ func TestHandleLogoutMethodNotAllowed(t *testing.T) {
 	defer httpServer.Close()
 
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "/logout", nil)
+	req := httptest.NewRequest("PUT", "/logout", nil)
 	server.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusMethodNotAllowed, rr.Code)
+}
+
+func TestHandleLogoutPOST(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/logout", nil)
+	server.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+	body := rr.Body.String()
+	require.Contains(t, body, "No active session")
 }
 
 func TestHandleLogoutNoHint(t *testing.T) {

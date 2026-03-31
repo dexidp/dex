@@ -348,6 +348,17 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 	if c.ProviderDiscoveryOverrides.EndSessionURL != "" {
 		endSessionURL = c.ProviderDiscoveryOverrides.EndSessionURL
 	}
+	if endSessionURL != "" {
+		endSessionParsed, err := url.Parse(endSessionURL)
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("oidc: invalid end_session_endpoint: %v", err)
+		}
+		if endSessionParsed.Scheme != "https" && endSessionParsed.Scheme != "http" {
+			cancel()
+			return nil, fmt.Errorf("oidc: end_session_endpoint must use http or https scheme, got %q", endSessionParsed.Scheme)
+		}
+	}
 
 	clientID := c.ClientID
 	return &oidcConnector{
