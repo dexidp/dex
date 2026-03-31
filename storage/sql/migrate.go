@@ -460,4 +460,11 @@ var migrations = []migration{
 			`alter table user_identity add column webauthn_credentials bytea;`,
 		},
 	},
+	{
+		stmts: []string{
+			`
+			alter table client
+				add column sso_shared_with bytea;`,
+		},
+	},
 }

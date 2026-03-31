@@ -6470,6 +6470,8 @@ type OAuth2ClientMutation struct {
 	appendmfa_chain                 []string
 	post_logout_redirect_uris       *[]string
 	appendpost_logout_redirect_uris []string
+	sso_shared_with                 *[]string
+	appendsso_shared_with           []string
 	clearedFields                   map[string]struct{}
 	done                            bool
 	oldValue                        func(context.Context) (*OAuth2Client, error)
@@ -7049,6 +7051,71 @@ func (m *OAuth2ClientMutation) ResetPostLogoutRedirectUris() {
 	delete(m.clearedFields, oauth2client.FieldPostLogoutRedirectUris)
 }
 
+// SetSSOSharedWith sets the "sso_shared_with" field.
+func (m *OAuth2ClientMutation) SetSSOSharedWith(s []string) {
+	m.sso_shared_with = &s
+	m.appendsso_shared_with = nil
+}
+
+// SSOSharedWith returns the value of the "sso_shared_with" field in the mutation.
+func (m *OAuth2ClientMutation) SSOSharedWith() (r []string, exists bool) {
+	v := m.sso_shared_with
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSSOSharedWith returns the old "sso_shared_with" field's value of the OAuth2Client entity.
+// If the OAuth2Client object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuth2ClientMutation) OldSSOSharedWith(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSSOSharedWith is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSSOSharedWith requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSSOSharedWith: %w", err)
+	}
+	return oldValue.SSOSharedWith, nil
+}
+
+// AppendSSOSharedWith adds s to the "sso_shared_with" field.
+func (m *OAuth2ClientMutation) AppendSSOSharedWith(s []string) {
+	m.appendsso_shared_with = append(m.appendsso_shared_with, s...)
+}
+
+// AppendedSSOSharedWith returns the list of values that were appended to the "sso_shared_with" field in this mutation.
+func (m *OAuth2ClientMutation) AppendedSSOSharedWith() ([]string, bool) {
+	if len(m.appendsso_shared_with) == 0 {
+		return nil, false
+	}
+	return m.appendsso_shared_with, true
+}
+
+// ClearSSOSharedWith clears the value of the "sso_shared_with" field.
+func (m *OAuth2ClientMutation) ClearSSOSharedWith() {
+	m.sso_shared_with = nil
+	m.appendsso_shared_with = nil
+	m.clearedFields[oauth2client.FieldSSOSharedWith] = struct{}{}
+}
+
+// SSOSharedWithCleared returns if the "sso_shared_with" field was cleared in this mutation.
+func (m *OAuth2ClientMutation) SSOSharedWithCleared() bool {
+	_, ok := m.clearedFields[oauth2client.FieldSSOSharedWith]
+	return ok
+}
+
+// ResetSSOSharedWith resets all changes to the "sso_shared_with" field.
+func (m *OAuth2ClientMutation) ResetSSOSharedWith() {
+	m.sso_shared_with = nil
+	m.appendsso_shared_with = nil
+	delete(m.clearedFields, oauth2client.FieldSSOSharedWith)
+}
+
 // Where appends a list predicates to the OAuth2ClientMutation builder.
 func (m *OAuth2ClientMutation) Where(ps ...predicate.OAuth2Client) {
 	m.predicates = append(m.predicates, ps...)
@@ -7083,7 +7150,7 @@ func (m *OAuth2ClientMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *OAuth2ClientMutation) Fields() []string {
-	fields := make([]string, 0, 9)
+	fields := make([]string, 0, 10)
 	if m.secret != nil {
 		fields = append(fields, oauth2client.FieldSecret)
 	}
@@ -7111,6 +7178,9 @@ func (m *OAuth2ClientMutation) Fields() []string {
 	if m.post_logout_redirect_uris != nil {
 		fields = append(fields, oauth2client.FieldPostLogoutRedirectUris)
 	}
+	if m.sso_shared_with != nil {
+		fields = append(fields, oauth2client.FieldSSOSharedWith)
+	}
 	return fields
 }
 
@@ -7137,6 +7207,8 @@ func (m *OAuth2ClientMutation) Field(name string) (ent.Value, bool) {
 		return m.MfaChain()
 	case oauth2client.FieldPostLogoutRedirectUris:
 		return m.PostLogoutRedirectUris()
+	case oauth2client.FieldSSOSharedWith:
+		return m.SSOSharedWith()
 	}
 	return nil, false
 }
@@ -7164,6 +7236,8 @@ func (m *OAuth2ClientMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldMfaChain(ctx)
 	case oauth2client.FieldPostLogoutRedirectUris:
 		return m.OldPostLogoutRedirectUris(ctx)
+	case oauth2client.FieldSSOSharedWith:
+		return m.OldSSOSharedWith(ctx)
 	}
 	return nil, fmt.Errorf("unknown OAuth2Client field %s", name)
 }
@@ -7236,6 +7310,13 @@ func (m *OAuth2ClientMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetPostLogoutRedirectUris(v)
 		return nil
+	case oauth2client.FieldSSOSharedWith:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSSOSharedWith(v)
+		return nil
 	}
 	return fmt.Errorf("unknown OAuth2Client field %s", name)
 }
@@ -7281,6 +7362,9 @@ func (m *OAuth2ClientMutation) ClearedFields() []string {
 	if m.FieldCleared(oauth2client.FieldPostLogoutRedirectUris) {
 		fields = append(fields, oauth2client.FieldPostLogoutRedirectUris)
 	}
+	if m.FieldCleared(oauth2client.FieldSSOSharedWith) {
+		fields = append(fields, oauth2client.FieldSSOSharedWith)
+	}
 	return fields
 }
 
@@ -7309,6 +7393,9 @@ func (m *OAuth2ClientMutation) ClearField(name string) error {
 		return nil
 	case oauth2client.FieldPostLogoutRedirectUris:
 		m.ClearPostLogoutRedirectUris()
+		return nil
+	case oauth2client.FieldSSOSharedWith:
+		m.ClearSSOSharedWith()
 		return nil
 	}
 	return fmt.Errorf("unknown OAuth2Client nullable field %s", name)
@@ -7344,6 +7431,9 @@ func (m *OAuth2ClientMutation) ResetField(name string) error {
 		return nil
 	case oauth2client.FieldPostLogoutRedirectUris:
 		m.ResetPostLogoutRedirectUris()
+		return nil
+	case oauth2client.FieldSSOSharedWith:
+		m.ResetSSOSharedWith()
 		return nil
 	}
 	return fmt.Errorf("unknown OAuth2Client field %s", name)

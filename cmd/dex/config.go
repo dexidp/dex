@@ -687,6 +687,9 @@ type Sessions struct {
 	// Must be 16, 24, or 32 bytes for AES-128, AES-192, or AES-256.
 	// If empty, cookies are not encrypted.
 	CookieEncryptionKey string `json:"cookieEncryptionKey"`
+	// SSOSharedWithDefault is the default SSO sharing policy for clients without explicit ssoSharedWith.
+	// "all" = share with all clients, "none" = share with no one (default: "none").
+	SSOSharedWithDefault string `json:"ssoSharedWithDefault"`
 }
 
 // MFAAuthenticator defines a multi-factor authentication provider.

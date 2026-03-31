@@ -102,6 +102,9 @@ telemetry:
 #   absoluteLifetime: "24h"
 #   validIfNotUsedFor: "1h"
 #   rememberMeCheckedByDefault: false
+#   # Default SSO sharing policy for clients without explicit ssoSharedWith.
+#   # "all" = share with all clients (Keycloak-like), "none" = no sharing (default).
+#   ssoSharedWithDefault: "none"
 
 # Options for controlling the logger.
 # logger:
@@ -187,6 +190,11 @@ staticClients:
   # If omitted, mfa.defaultMFAChain is used.
   # mfaChain:
   # - totp-1
+  # Optional: which other clients can reuse this client's authentication session (SSO).
+  # ["*"] = share with all clients, [] = share with no one.
+  # If omitted, ssoSharedWithDefault from sessions config is used.
+  # ssoSharedWith:
+  # - "*"
 
 # Example using environment variables
 # Set DEX_CLIENT_ID and DEX_SECURE_CLIENT_SECRET before starting Dex

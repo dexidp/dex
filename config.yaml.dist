@@ -101,6 +101,20 @@ web:
 #     keysRotationPeriod: "6h"
 #     algorithm: "RS256" # supported values: "RS256" (default) and "ES256"; changes apply on the next key rotation
 
+# Authentication sessions configuration.
+# Requires DEX_SESSIONS_ENABLED=true feature flag.
+# sessions:
+#   cookieName: "dex_session"
+#   absoluteLifetime: "24h"
+#   validIfNotUsedFor: "1h"
+#   rememberMeCheckedByDefault: false
+#   # AES key for encrypting session cookies. Must be 16, 24, or 32 bytes.
+#   # If empty, cookies are not encrypted.
+#   cookieEncryptionKey: ""
+#   # Default SSO sharing policy for clients without explicit ssoSharedWith.
+#   # "all" = share with all clients (Keycloak-like), "none" = no sharing (default).
+#   ssoSharedWithDefault: "none"
+
 # OAuth2 configuration
 # oauth2:
 #   # use ["code", "token", "id_token"] to enable implicit flow for web-only clients
@@ -159,6 +173,19 @@ web:
 #     allowedConnectors:
 #       - github
 #       - google
+#
+#   # Example of SSO sharing between clients.
+#   # ssoSharedWith defines which other clients can reuse this client's session.
+#   # ["*"] = share with all, [] = share with no one.
+#   # If omitted, ssoSharedWithDefault from sessions config is used.
+#   - id: portal-app
+#     secret: portal-secret
+#     redirectURIs:
+#       - 'https://portal.example.com/callback'
+#     name: 'Portal'
+#     ssoSharedWith:
+#       - "dashboard-app"
+#       - "admin-app"
 
 # Connectors are used to authenticate users against upstream identity providers.
 #

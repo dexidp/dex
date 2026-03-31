@@ -291,6 +291,8 @@ type Client struct {
 	MFAChain []string `json:"mfaChain,omitempty"`
 
 	PostLogoutRedirectURIs []string `json:"postLogoutRedirectURIs,omitempty"`
+
+	SSOSharedWith []string `json:"ssoSharedWith,omitempty"`
 }
 
 // ClientList is a list of Clients.
@@ -320,6 +322,7 @@ func (cli *client) fromStorageClient(c storage.Client) Client {
 		AllowedConnectors:      c.AllowedConnectors,
 		MFAChain:               c.MFAChain,
 		PostLogoutRedirectURIs: c.PostLogoutRedirectURIs,
+		SSOSharedWith:          c.SSOSharedWith,
 	}
 }
 
@@ -335,6 +338,7 @@ func toStorageClient(c Client) storage.Client {
 		AllowedConnectors:      c.AllowedConnectors,
 		MFAChain:               c.MFAChain,
 		PostLogoutRedirectURIs: c.PostLogoutRedirectURIs,
+		SSOSharedWith:          c.SSOSharedWith,
 	}
 }
 

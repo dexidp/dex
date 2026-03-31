@@ -337,6 +337,16 @@ func PostLogoutRedirectUrisNotNil() predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.FieldNotNull(FieldPostLogoutRedirectUris))
 }
 
+// SSOSharedWithIsNil applies the IsNil predicate on the "sso_shared_with" field.
+func SSOSharedWithIsNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldIsNull(FieldSSOSharedWith))
+}
+
+// SSOSharedWithNotNil applies the NotNil predicate on the "sso_shared_with" field.
+func SSOSharedWithNotNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNotNull(FieldSSOSharedWith))
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.OAuth2Client) predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.AndPredicates(predicates...))

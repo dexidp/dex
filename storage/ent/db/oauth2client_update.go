@@ -174,6 +174,24 @@ func (_u *OAuth2ClientUpdate) ClearPostLogoutRedirectUris() *OAuth2ClientUpdate 
 	return _u
 }
 
+// SetSSOSharedWith sets the "sso_shared_with" field.
+func (_u *OAuth2ClientUpdate) SetSSOSharedWith(v []string) *OAuth2ClientUpdate {
+	_u.mutation.SetSSOSharedWith(v)
+	return _u
+}
+
+// AppendSSOSharedWith appends value to the "sso_shared_with" field.
+func (_u *OAuth2ClientUpdate) AppendSSOSharedWith(v []string) *OAuth2ClientUpdate {
+	_u.mutation.AppendSSOSharedWith(v)
+	return _u
+}
+
+// ClearSSOSharedWith clears the value of the "sso_shared_with" field.
+func (_u *OAuth2ClientUpdate) ClearSSOSharedWith() *OAuth2ClientUpdate {
+	_u.mutation.ClearSSOSharedWith()
+	return _u
+}
+
 // Mutation returns the OAuth2ClientMutation object of the builder.
 func (_u *OAuth2ClientUpdate) Mutation() *OAuth2ClientMutation {
 	return _u.mutation
@@ -304,6 +322,17 @@ func (_u *OAuth2ClientUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if _u.mutation.PostLogoutRedirectUrisCleared() {
 		_spec.ClearField(oauth2client.FieldPostLogoutRedirectUris, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.SSOSharedWith(); ok {
+		_spec.SetField(oauth2client.FieldSSOSharedWith, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedSSOSharedWith(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, oauth2client.FieldSSOSharedWith, value)
+		})
+	}
+	if _u.mutation.SSOSharedWithCleared() {
+		_spec.ClearField(oauth2client.FieldSSOSharedWith, field.TypeJSON)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -471,6 +500,24 @@ func (_u *OAuth2ClientUpdateOne) ClearPostLogoutRedirectUris() *OAuth2ClientUpda
 	return _u
 }
 
+// SetSSOSharedWith sets the "sso_shared_with" field.
+func (_u *OAuth2ClientUpdateOne) SetSSOSharedWith(v []string) *OAuth2ClientUpdateOne {
+	_u.mutation.SetSSOSharedWith(v)
+	return _u
+}
+
+// AppendSSOSharedWith appends value to the "sso_shared_with" field.
+func (_u *OAuth2ClientUpdateOne) AppendSSOSharedWith(v []string) *OAuth2ClientUpdateOne {
+	_u.mutation.AppendSSOSharedWith(v)
+	return _u
+}
+
+// ClearSSOSharedWith clears the value of the "sso_shared_with" field.
+func (_u *OAuth2ClientUpdateOne) ClearSSOSharedWith() *OAuth2ClientUpdateOne {
+	_u.mutation.ClearSSOSharedWith()
+	return _u
+}
+
 // Mutation returns the OAuth2ClientMutation object of the builder.
 func (_u *OAuth2ClientUpdateOne) Mutation() *OAuth2ClientMutation {
 	return _u.mutation
@@ -631,6 +678,17 @@ func (_u *OAuth2ClientUpdateOne) sqlSave(ctx context.Context) (_node *OAuth2Clie
 	}
 	if _u.mutation.PostLogoutRedirectUrisCleared() {
 		_spec.ClearField(oauth2client.FieldPostLogoutRedirectUris, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.SSOSharedWith(); ok {
+		_spec.SetField(oauth2client.FieldSSOSharedWith, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedSSOSharedWith(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, oauth2client.FieldSSOSharedWith, value)
+		})
+	}
+	if _u.mutation.SSOSharedWithCleared() {
+		_spec.ClearField(oauth2client.FieldSSOSharedWith, field.TypeJSON)
 	}
 	_node = &OAuth2Client{config: _u.config}
 	_spec.Assign = _node.assignValues
