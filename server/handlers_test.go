@@ -1072,7 +1072,7 @@ func TestHandleClientCredentials(t *testing.T) {
 		wantAccessTok           bool
 		wantIDToken             bool
 		wantUsername            string
-		wantGroups             []string
+		wantGroups              []string
 	}{
 		{
 			name:          "Basic grant, no scopes",
@@ -1113,9 +1113,9 @@ func TestHandleClientCredentials(t *testing.T) {
 			wantUsername:  "Test Client",
 		},
 		{
-			name:          "With groups scope and clientCredentialsClaims groups populated",
-			clientID:      "test",
-			clientSecret:  "barfoo",
+			name:         "With groups scope and clientCredentialsClaims groups populated",
+			clientID:     "test",
+			clientSecret: "barfoo",
 			clientCredentialsClaims: &storage.ClientCredentialsClaims{
 				Groups: []string{"admin-group", "dev-group"},
 			},
@@ -1123,7 +1123,7 @@ func TestHandleClientCredentials(t *testing.T) {
 			wantCode:      200,
 			wantAccessTok: true,
 			wantIDToken:   true,
-			wantGroups:   []string{"admin-group", "dev-group"},
+			wantGroups:    []string{"admin-group", "dev-group"},
 		},
 		{
 			name:          "With groups scope but no clientCredentialsClaims configured",
@@ -1174,10 +1174,10 @@ func TestHandleClientCredentials(t *testing.T) {
 
 			// Create a confidential client for testing.
 			err := s.storage.CreateClient(ctx, storage.Client{
-				ID:                     "test",
-				Secret:                 "barfoo",
-				RedirectURIs:           []string{"https://example.com/callback"},
-				Name:                   "Test Client",
+				ID:                      "test",
+				Secret:                  "barfoo",
+				RedirectURIs:            []string{"https://example.com/callback"},
+				Name:                    "Test Client",
 				ClientCredentialsClaims: tc.clientCredentialsClaims,
 			})
 			require.NoError(t, err)
@@ -1236,7 +1236,7 @@ func TestHandleClientCredentials(t *testing.T) {
 					var claims struct {
 						Name              string   `json:"name"`
 						PreferredUsername string   `json:"preferred_username"`
-						Groups           []string `json:"groups"`
+						Groups            []string `json:"groups"`
 					}
 					require.NoError(t, idToken.Claims(&claims))
 

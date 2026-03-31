@@ -11,6 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
+	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/db/oauth2client"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
 )
@@ -192,6 +193,18 @@ func (_u *OAuth2ClientUpdate) ClearSSOSharedWith() *OAuth2ClientUpdate {
 	return _u
 }
 
+// SetClientCredentialsClaims sets the "client_credentials_claims" field.
+func (_u *OAuth2ClientUpdate) SetClientCredentialsClaims(v *storage.ClientCredentialsClaims) *OAuth2ClientUpdate {
+	_u.mutation.SetClientCredentialsClaims(v)
+	return _u
+}
+
+// ClearClientCredentialsClaims clears the value of the "client_credentials_claims" field.
+func (_u *OAuth2ClientUpdate) ClearClientCredentialsClaims() *OAuth2ClientUpdate {
+	_u.mutation.ClearClientCredentialsClaims()
+	return _u
+}
+
 // Mutation returns the OAuth2ClientMutation object of the builder.
 func (_u *OAuth2ClientUpdate) Mutation() *OAuth2ClientMutation {
 	return _u.mutation
@@ -333,6 +346,12 @@ func (_u *OAuth2ClientUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if _u.mutation.SSOSharedWithCleared() {
 		_spec.ClearField(oauth2client.FieldSSOSharedWith, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.ClientCredentialsClaims(); ok {
+		_spec.SetField(oauth2client.FieldClientCredentialsClaims, field.TypeJSON, value)
+	}
+	if _u.mutation.ClientCredentialsClaimsCleared() {
+		_spec.ClearField(oauth2client.FieldClientCredentialsClaims, field.TypeJSON)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -518,6 +537,18 @@ func (_u *OAuth2ClientUpdateOne) ClearSSOSharedWith() *OAuth2ClientUpdateOne {
 	return _u
 }
 
+// SetClientCredentialsClaims sets the "client_credentials_claims" field.
+func (_u *OAuth2ClientUpdateOne) SetClientCredentialsClaims(v *storage.ClientCredentialsClaims) *OAuth2ClientUpdateOne {
+	_u.mutation.SetClientCredentialsClaims(v)
+	return _u
+}
+
+// ClearClientCredentialsClaims clears the value of the "client_credentials_claims" field.
+func (_u *OAuth2ClientUpdateOne) ClearClientCredentialsClaims() *OAuth2ClientUpdateOne {
+	_u.mutation.ClearClientCredentialsClaims()
+	return _u
+}
+
 // Mutation returns the OAuth2ClientMutation object of the builder.
 func (_u *OAuth2ClientUpdateOne) Mutation() *OAuth2ClientMutation {
 	return _u.mutation
@@ -689,6 +720,12 @@ func (_u *OAuth2ClientUpdateOne) sqlSave(ctx context.Context) (_node *OAuth2Clie
 	}
 	if _u.mutation.SSOSharedWithCleared() {
 		_spec.ClearField(oauth2client.FieldSSOSharedWith, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.ClientCredentialsClaims(); ok {
+		_spec.SetField(oauth2client.FieldClientCredentialsClaims, field.TypeJSON, value)
+	}
+	if _u.mutation.ClientCredentialsClaimsCleared() {
+		_spec.ClearField(oauth2client.FieldClientCredentialsClaims, field.TypeJSON)
 	}
 	_node = &OAuth2Client{config: _u.config}
 	_spec.Assign = _node.assignValues

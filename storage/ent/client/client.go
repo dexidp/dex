@@ -8,7 +8,7 @@ import (
 
 // CreateClient saves provided oauth2 client settings into the database.
 func (d *Database) CreateClient(ctx context.Context, client storage.Client) error {
-	_, err := d.client.OAuth2Client.Create().
+	create := d.client.OAuth2Client.Create().
 		SetID(client.ID).
 		SetName(client.Name).
 		SetSecret(client.Secret).
@@ -19,8 +19,11 @@ func (d *Database) CreateClient(ctx context.Context, client storage.Client) erro
 		SetAllowedConnectors(client.AllowedConnectors).
 		SetMfaChain(client.MFAChain).
 		SetPostLogoutRedirectUris(client.PostLogoutRedirectURIs).
-		SetSSOSharedWith(client.SSOSharedWith).
-		Save(ctx)
+		SetSSOSharedWith(client.SSOSharedWith)
+	if client.ClientCredentialsClaims != nil {
+		create = create.SetClientCredentialsClaims(client.ClientCredentialsClaims)
+	}
+	_, err := create.Save(ctx)
 	if err != nil {
 		return convertDBError("create oauth2 client: %w", err)
 	}
@@ -76,7 +79,7 @@ func (d *Database) UpdateClient(ctx context.Context, id string, updater func(old
 		return rollback(tx, "update client updating: %w", err)
 	}
 
-	_, err = tx.OAuth2Client.UpdateOneID(newClient.ID).
+	update := tx.OAuth2Client.UpdateOneID(newClient.ID).
 		SetName(newClient.Name).
 		SetSecret(newClient.Secret).
 		SetPublic(newClient.Public).
@@ -86,8 +89,13 @@ func (d *Database) UpdateClient(ctx context.Context, id string, updater func(old
 		SetAllowedConnectors(newClient.AllowedConnectors).
 		SetMfaChain(newClient.MFAChain).
 		SetPostLogoutRedirectUris(newClient.PostLogoutRedirectURIs).
-		SetSSOSharedWith(newClient.SSOSharedWith).
-		Save(ctx)
+		SetSSOSharedWith(newClient.SSOSharedWith)
+	if newClient.ClientCredentialsClaims != nil {
+		update = update.SetClientCredentialsClaims(newClient.ClientCredentialsClaims)
+	} else {
+		update = update.ClearClientCredentialsClaims()
+	}
+	_, err = update.Save(ctx)
 	if err != nil {
 		return rollback(tx, "update client uploading: %w", err)
 	}

@@ -165,6 +165,7 @@ var (
 		{Name: "mfa_chain", Type: field.TypeJSON, Nullable: true},
 		{Name: "post_logout_redirect_uris", Type: field.TypeJSON, Nullable: true},
 		{Name: "sso_shared_with", Type: field.TypeJSON, Nullable: true},
+		{Name: "client_credentials_claims", Type: field.TypeJSON, Nullable: true},
 	}
 	// Oauth2clientsTable holds the schema information for the "oauth2clients" table.
 	Oauth2clientsTable = &schema.Table{
