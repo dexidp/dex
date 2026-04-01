@@ -36,6 +36,10 @@ var requiredTmpls = []string{
 	tmplError,
 	tmplDevice,
 	tmplDeviceSuccess,
+	tmplTOTPVerify,
+	tmplWebAuthnVerify,
+	tmplHome,
+	tmplLogout,
 }
 
 type templates struct {
@@ -403,6 +407,8 @@ func (t *templates) logout(r *http.Request, w http.ResponseWriter, backURL strin
 
 func (t *templates) webauthnVerify(r *http.Request, w http.ResponseWriter, mode, authenticatorID string) error {
 	data := struct {
+		// Mode must be server-controlled ("register" or "login") and never derived
+		// from user input to prevent XSS in the template's script context.
 		Mode            string
 		AuthenticatorID string
 		ReqPath         string

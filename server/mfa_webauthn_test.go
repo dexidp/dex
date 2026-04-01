@@ -1,10 +1,7 @@
 package server
 
 import (
-	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -21,6 +18,7 @@ func TestNewWebAuthnProvider(t *testing.T) {
 		rpDisplay   string
 		rpID        string
 		rpOrigins   []string
+		timeout     string
 		issuerURL   string
 		wantErr     bool
 		errContains string
@@ -44,6 +42,7 @@ func TestNewWebAuthnProvider(t *testing.T) {
 		{
 			name:      "invalid timeout",
 			rpDisplay: "Test",
+			timeout:   "not-a-duration",
 			issuerURL: "https://auth.example.com",
 			wantErr:   true,
 		},
@@ -51,13 +50,9 @@ func TestNewWebAuthnProvider(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			timeout := ""
-			if tc.name == "invalid timeout" {
-				timeout = "not-a-duration"
-			}
 			provider, err := NewWebAuthnProvider(
 				tc.rpDisplay, tc.rpID, tc.rpOrigins,
-				"", "", "", timeout, tc.issuerURL,
+				"", tc.timeout, tc.issuerURL,
 				nil,
 			)
 			if tc.wantErr {
@@ -71,7 +66,7 @@ func TestNewWebAuthnProvider(t *testing.T) {
 }
 
 func TestWebAuthnProviderConnectorTypeFiltering(t *testing.T) {
-	provider, err := NewWebAuthnProvider("Test", "", nil, "", "", "", "",
+	provider, err := NewWebAuthnProvider("Test", "", nil, "", "",
 		"https://example.com", []string{"ldap", "oidc"})
 	require.NoError(t, err)
 
@@ -80,7 +75,7 @@ func TestWebAuthnProviderConnectorTypeFiltering(t *testing.T) {
 	require.False(t, provider.EnabledForConnectorType("saml"))
 
 	// No filter — all types allowed.
-	providerAll, err := NewWebAuthnProvider("Test", "", nil, "", "", "", "",
+	providerAll, err := NewWebAuthnProvider("Test", "", nil, "", "",
 		"https://example.com", nil)
 	require.NoError(t, err)
 	require.True(t, providerAll.EnabledForConnectorType("anything"))
@@ -136,7 +131,7 @@ func TestCompleteMFAStep(t *testing.T) {
 	httpServer, server := newTestServer(t, func(c *Config) {
 		c.SessionConfig = &SessionConfig{AbsoluteLifetime: time.Hour, ValidIfNotUsedFor: time.Hour}
 
-		provider, err := NewWebAuthnProvider("Test", "", nil, "", "", "", "",
+		provider, err := NewWebAuthnProvider("Test", "", nil, "", "",
 			"http://127.0.0.1", nil)
 		require.NoError(t, err)
 
@@ -217,7 +212,7 @@ func TestWebAuthnVerifyPageRender(t *testing.T) {
 	httpServer, server := newTestServer(t, func(c *Config) {
 		c.SessionConfig = &SessionConfig{AbsoluteLifetime: time.Hour, ValidIfNotUsedFor: time.Hour}
 
-		provider, err := NewWebAuthnProvider("Test", "", nil, "", "", "", "",
+		provider, err := NewWebAuthnProvider("Test", "", nil, "", "",
 			"http://127.0.0.1", nil)
 		require.NoError(t, err)
 
@@ -261,9 +256,7 @@ func TestWebAuthnVerifyPageRender(t *testing.T) {
 	}))
 
 	// Generate HMAC for the request.
-	h := hmac.New(sha256.New, hmacKey)
-	h.Write([]byte(authReq.ID + "|" + "webauthn-1"))
-	hmacVal := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
+	hmacVal := computeHMAC(hmacKey, authReq.ID, "webauthn-1")
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet,

@@ -846,8 +846,7 @@ func buildMFAProviders(authenticators []MFAAuthenticator, issuerURL string, logg
 				continue
 			}
 			provider, err := server.NewWebAuthnProvider(cfg.RPDisplayName, cfg.RPID, cfg.RPOrigins,
-				cfg.AttestationPreference, cfg.UserVerification, cfg.AuthenticatorAttachment,
-				cfg.Timeout, issuerURL, auth.ConnectorTypes)
+				cfg.AttestationPreference, cfg.Timeout, issuerURL, auth.ConnectorTypes)
 			if err != nil {
 				logger.Error("failed to create WebAuthn provider", "id", auth.ID, "err", err)
 				continue

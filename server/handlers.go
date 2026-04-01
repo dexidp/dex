@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"crypto/hmac"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
@@ -925,12 +924,6 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 		s.renderError(r, w, http.StatusUnauthorized, "Unauthorized request")
 		return
 	}
-	mac, err := base64.RawURLEncoding.DecodeString(macEncoded)
-	if err != nil {
-		s.renderError(r, w, http.StatusUnauthorized, "Unauthorized request")
-		return
-	}
-
 	authReq, err := s.storage.GetAuthRequest(ctx, r.FormValue("req"))
 	if err != nil {
 		if err == storage.ErrNotFound {
@@ -947,7 +940,6 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h := hmac.New(sha256.New, authReq.HMACKey)
 	if !authReq.MFAValidated {
 		// Check if MFA is actually required — if so, redirect to TOTP instead of blocking.
 		// This handles the case where MFA was enabled after the auth flow started.
@@ -964,11 +956,7 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 		// No MFA required but flag not set — allow through (backward compat).
 	}
 
-	// build expected hmac with secret key
-	h.Write([]byte(authReq.ID))
-	expectedMAC := h.Sum(nil)
-	// constant time comparison
-	if !hmac.Equal(mac, expectedMAC) {
+	if !verifyHMAC(authReq.HMACKey, macEncoded, authReq.ID, "") {
 		s.renderError(r, w, http.StatusUnauthorized, "Unauthorized request")
 		return
 	}

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -23,7 +24,7 @@ type WebAuthnProvider struct {
 // NewWebAuthnProvider creates a new WebAuthn MFA provider.
 // If rpID or rpOrigins are empty, they are derived from the issuerURL.
 func NewWebAuthnProvider(rpDisplayName, rpID string, rpOrigins []string,
-	attestationPreference, userVerification, authenticatorAttachment, timeout, issuerURL string,
+	attestationPreference, timeout, issuerURL string,
 	connectorTypes []string,
 ) (*WebAuthnProvider, error) {
 	parsed, err := url.Parse(issuerURL)
@@ -237,6 +238,12 @@ func (s *Server) handleWebAuthnLoginBegin(w http.ResponseWriter, r *http.Request
 }
 
 // handleWebAuthnLoginFinish completes the WebAuthn login ceremony.
+//
+// TODO(nabokihms): this endpoint should be protected with a rate limit (like the auth endpoint).
+// Although WebAuthn is more resistant to brute-force than TOTP (challenges are random and
+// cryptographically signed), repeated attempts could still be used for denial-of-service.
+//
+// For now the best way is to use external rate limiting solutions.
 func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Request) {
 	mfa, provider, ok := s.validateWebAuthnAPIRequest(w, r)
 	if !ok {

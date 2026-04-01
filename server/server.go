@@ -2,9 +2,6 @@ package server
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -554,17 +551,20 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	// "authproxy" connector.
 	handleFunc("/callback/{connector}", s.handleConnectorCallback)
 	handleFunc("/approval", s.handleApproval)
+	// OIDC RP-Initiated logout endpoints, DEX_SESSIONS_ENABLED=true feature flag is required.
 	if c.SessionConfig != nil {
 		handleFunc("/logout", s.handleLogout)
 		handleFunc("/logout/callback", s.handleLogoutCallback)
 	}
-	handleFunc("/mfa/verify", s.handleMFAVerify)
-	handleFunc("/mfa/totp", s.handleTOTP)
-	handleFunc("/mfa/webauthn", s.handleWebAuthn)
-	handleFunc("/mfa/webauthn/register/begin", s.handleWebAuthnRegisterBegin)
-	handleFunc("/mfa/webauthn/register/finish", s.handleWebAuthnRegisterFinish)
-	handleFunc("/mfa/webauthn/login/begin", s.handleWebAuthnLoginBegin)
-	handleFunc("/mfa/webauthn/login/finish", s.handleWebAuthnLoginFinish)
+	// MFA verification endpoints, DEX_SESSIONS_ENABLED=true feature flag is required.
+	if c.SessionConfig != nil {
+		handleFunc("/mfa/totp", s.handleTOTP)
+		handleFunc("/mfa/webauthn", s.handleWebAuthn)
+		handleFunc("/mfa/webauthn/register/begin", s.handleWebAuthnRegisterBegin)
+		handleFunc("/mfa/webauthn/register/finish", s.handleWebAuthnRegisterFinish)
+		handleFunc("/mfa/webauthn/login/begin", s.handleWebAuthnLoginBegin)
+		handleFunc("/mfa/webauthn/login/finish", s.handleWebAuthnLoginFinish)
+	}
 	handle("/healthz", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !c.HealthChecker.IsHealthy() {
 			s.renderError(r, w, http.StatusInternalServerError, "Health check failed.")
@@ -854,11 +854,9 @@ func (s *Server) getConnector(ctx context.Context, id string) (Connector, error)
 
 // buildApprovalURL builds an HMAC-protected approval URL.
 func (s *Server) buildApprovalURL(authReq storage.AuthRequest) string {
-	h := hmac.New(sha256.New, authReq.HMACKey)
-	h.Write([]byte(authReq.ID))
 	v := url.Values{}
 	v.Set("req", authReq.ID)
-	v.Set("hmac", base64.RawURLEncoding.EncodeToString(h.Sum(nil)))
+	v.Set("hmac", computeHMAC(authReq.HMACKey, authReq.ID, ""))
 	return s.absPath("/approval") + "?" + v.Encode()
 }
 
