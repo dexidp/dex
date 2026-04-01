@@ -551,6 +551,10 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	// "authproxy" connector.
 	handleFunc("/callback/{connector}", s.handleConnectorCallback)
 	handleFunc("/approval", s.handleApproval)
+	if c.SessionConfig != nil {
+		handleFunc("/logout", s.handleLogout)
+		handleFunc("/logout/callback", s.handleLogoutCallback)
+	}
 	handleFunc("/mfa/verify", s.handleMFAVerify)
 	handle("/healthz", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !c.HealthChecker.IsHealthy() {

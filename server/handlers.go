@@ -82,6 +82,7 @@ type discovery struct {
 	UserInfo          string   `json:"userinfo_endpoint"`
 	DeviceEndpoint    string   `json:"device_authorization_endpoint"`
 	Introspect        string   `json:"introspection_endpoint"`
+	EndSession        string   `json:"end_session_endpoint,omitempty"`
 	GrantTypes        []string `json:"grant_types_supported"`
 	ResponseTypes     []string `json:"response_types_supported"`
 	Subjects          []string `json:"subject_types_supported"`
@@ -141,6 +142,11 @@ func (s *Server) constructDiscovery(ctx context.Context) discovery {
 	sort.Strings(d.ResponseTypes)
 
 	d.GrantTypes = s.supportedGrantTypes
+
+	if s.sessionConfig != nil {
+		d.EndSession = s.absURL("/logout")
+	}
+
 	return d
 }
 

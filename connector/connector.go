@@ -116,3 +116,23 @@ type RefreshConnector interface {
 type TokenIdentityConnector interface {
 	TokenIdentity(ctx context.Context, subjectTokenType, subjectToken string) (Identity, error)
 }
+
+// LogoutCallbackConnector is a connector that can initiate upstream logout and
+// optionally validate the upstream provider's logout response.
+// Connectors that implement this interface support RP-Initiated Logout by
+// returning a URL that Dex should redirect the user to in order to terminate
+// the upstream session.
+type LogoutCallbackConnector interface {
+	// LogoutURL returns the upstream provider's logout URL.
+	// connectorData is the data stored during the user's authentication session.
+	// postLogoutRedirectURI is the URL the upstream provider should redirect back to after logout.
+	// Returns the upstream logout URL or empty string if upstream logout is not available.
+	LogoutURL(ctx context.Context, connectorData []byte, postLogoutRedirectURI string) (string, error)
+
+	// HandleLogoutCallback validates the upstream provider's logout response
+	// received in the callback request. For example, SAML connectors should
+	// verify the LogoutResponse signature and status code here.
+	// Connectors that don't receive a structured response (e.g. OIDC) should
+	// return nil.
+	HandleLogoutCallback(ctx context.Context, r *http.Request) error
+}

@@ -24,6 +24,7 @@ const (
 	tmplDeviceSuccess = "device_success.html"
 	tmplTOTPVerify    = "totp_verify.html"
 	tmplHome          = "home.html"
+	tmplLogout        = "logout.html"
 )
 
 var requiredTmpls = []string{
@@ -46,6 +47,7 @@ type templates struct {
 	deviceSuccessTmpl *template.Template
 	totpVerifyTmpl    *template.Template
 	homeTmpl          *template.Template
+	logoutTmpl        *template.Template
 }
 
 type webConfig struct {
@@ -175,6 +177,7 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 		deviceSuccessTmpl: tmpls.Lookup(tmplDeviceSuccess),
 		totpVerifyTmpl:    tmpls.Lookup(tmplTOTPVerify),
 		homeTmpl:          tmpls.Lookup(tmplHome),
+		logoutTmpl:        tmpls.Lookup(tmplLogout),
 	}, nil
 }
 
@@ -384,6 +387,15 @@ type homeData struct {
 func (t *templates) home(r *http.Request, w http.ResponseWriter, data homeData) error {
 	data.ReqPath = r.URL.Path
 	return renderTemplate(w, t.homeTmpl, data)
+}
+
+func (t *templates) logout(r *http.Request, w http.ResponseWriter, backURL string, loggedOut bool) error {
+	data := struct {
+		BackURL   string
+		LoggedOut bool
+		ReqPath   string
+	}{backURL, loggedOut, r.URL.Path}
+	return renderTemplate(w, t.logoutTmpl, data)
 }
 
 func (t *templates) oob(r *http.Request, w http.ResponseWriter, code string) error {

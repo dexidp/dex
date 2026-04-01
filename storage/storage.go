@@ -170,6 +170,11 @@ type Client struct {
 	// requested to redirect to MUST match one of these values, unless the client is "public".
 	RedirectURIs []string `json:"redirectURIs"`
 
+	// PostLogoutRedirectURIs is a registered set of URIs that the client can redirect to
+	// after logout. Per OIDC RP-Initiated Logout Section 2, the post_logout_redirect_uri
+	// parameter MUST match one of these values.
+	PostLogoutRedirectURIs []string `json:"postLogoutRedirectURIs"`
+
 	// TrustedPeers are a list of peers which can issue tokens on this client's behalf using
 	// the dynamic "oauth2:server:client_id:(client_id)" scope. If a peer makes such a request,
 	// this client's ID will appear as the ID Token's audience.
@@ -388,6 +393,15 @@ type ClientAuthState struct {
 	LastTokenIssuedAt time.Time
 }
 
+// LogoutState holds RP parameters saved in the auth session during logout.
+// These are written before the upstream logout redirect and read back in the callback.
+type LogoutState struct {
+	PostLogoutRedirectURI string
+	State                 string // RP's opaque state parameter
+	ClientID              string
+	ConnectorID           string
+}
+
 // AuthSession represents a user's authentication session from a specific connector.
 // Keyed by composite (UserID, ConnectorID), similar to OfflineSessions.
 // The Nonce field is a random value included in the session cookie to prevent forgery.
@@ -409,6 +423,11 @@ type AuthSession struct {
 	AbsoluteExpiry time.Time
 	// IdleExpiry is LastActivity + ValidIfNotUsedFor, updated on every activity.
 	IdleExpiry time.Time
+
+	// LogoutState is set during RP-Initiated Logout before redirecting to the
+	// upstream provider. The callback handler reads it back to complete the flow.
+	// Nil when no logout is in progress.
+	LogoutState *LogoutState
 }
 
 // OfflineSessions objects are sessions pertaining to users with refresh tokens.

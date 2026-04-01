@@ -289,6 +289,8 @@ type Client struct {
 	AllowedConnectors []string `json:"allowedConnectors,omitempty"`
 
 	MFAChain []string `json:"mfaChain,omitempty"`
+
+	PostLogoutRedirectURIs []string `json:"postLogoutRedirectURIs,omitempty"`
 }
 
 // ClientList is a list of Clients.
@@ -308,29 +310,31 @@ func (cli *client) fromStorageClient(c storage.Client) Client {
 			Name:      cli.idToName(c.ID),
 			Namespace: cli.namespace,
 		},
-		ID:                c.ID,
-		Secret:            c.Secret,
-		RedirectURIs:      c.RedirectURIs,
-		TrustedPeers:      c.TrustedPeers,
-		Public:            c.Public,
-		Name:              c.Name,
-		LogoURL:           c.LogoURL,
-		AllowedConnectors: c.AllowedConnectors,
-		MFAChain:          c.MFAChain,
+		ID:                     c.ID,
+		Secret:                 c.Secret,
+		RedirectURIs:           c.RedirectURIs,
+		TrustedPeers:           c.TrustedPeers,
+		Public:                 c.Public,
+		Name:                   c.Name,
+		LogoURL:                c.LogoURL,
+		AllowedConnectors:      c.AllowedConnectors,
+		MFAChain:               c.MFAChain,
+		PostLogoutRedirectURIs: c.PostLogoutRedirectURIs,
 	}
 }
 
 func toStorageClient(c Client) storage.Client {
 	return storage.Client{
-		ID:                c.ID,
-		Secret:            c.Secret,
-		RedirectURIs:      c.RedirectURIs,
-		TrustedPeers:      c.TrustedPeers,
-		Public:            c.Public,
-		Name:              c.Name,
-		LogoURL:           c.LogoURL,
-		AllowedConnectors: c.AllowedConnectors,
-		MFAChain:          c.MFAChain,
+		ID:                     c.ID,
+		Secret:                 c.Secret,
+		RedirectURIs:           c.RedirectURIs,
+		TrustedPeers:           c.TrustedPeers,
+		Public:                 c.Public,
+		Name:                   c.Name,
+		LogoURL:                c.LogoURL,
+		AllowedConnectors:      c.AllowedConnectors,
+		MFAChain:               c.MFAChain,
+		PostLogoutRedirectURIs: c.PostLogoutRedirectURIs,
 	}
 }
 
@@ -1006,6 +1010,7 @@ type AuthSession struct {
 	UserAgent      string                              `json:"userAgent,omitempty"`
 	AbsoluteExpiry time.Time                           `json:"absoluteExpiry,omitempty"`
 	IdleExpiry     time.Time                           `json:"idleExpiry,omitempty"`
+	LogoutState    *storage.LogoutState                `json:"logoutState,omitempty"`
 }
 
 // AuthSessionList is a list of AuthSessions.
@@ -1035,6 +1040,7 @@ func (cli *client) fromStorageAuthSession(s storage.AuthSession) AuthSession {
 		UserAgent:      s.UserAgent,
 		AbsoluteExpiry: s.AbsoluteExpiry,
 		IdleExpiry:     s.IdleExpiry,
+		LogoutState:    s.LogoutState,
 	}
 }
 
@@ -1050,6 +1056,7 @@ func toStorageAuthSession(s AuthSession) storage.AuthSession {
 		UserAgent:      s.UserAgent,
 		AbsoluteExpiry: s.AbsoluteExpiry,
 		IdleExpiry:     s.IdleExpiry,
+		LogoutState:    s.LogoutState,
 	}
 	if result.ClientStates == nil {
 		result.ClientStates = make(map[string]*storage.ClientAuthState)
