@@ -2,7 +2,7 @@
 
 <div class="theme-panel">
   <h2 class="theme-heading">Log in to {{ issuer }} </h2>
-  <div>
+  <div id="providers">
     {{ range $c := .Connectors }}
       <div class="theme-form-row">
         <a href="{{ $c.URL }}" target="_self">
@@ -18,7 +18,7 @@
 
 <script type="text/javascript">
   if (window.location.hash) {
-    var buttons = document.querySelectorAll('div.theme-form-row a');
+    var buttons = document.querySelectorAll('#providers a');
     buttons.forEach(function(button) {
       button.href = button.href + window.location.hash;
     });
