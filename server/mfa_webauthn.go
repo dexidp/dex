@@ -263,7 +263,7 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 	if err := s.storage.UpdateUserIdentity(ctx, mfa.authReq.Claims.UserID, mfa.authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
 		creds := old.WebAuthnCredentials[mfa.authenticatorID]
 		for i := range creds {
-			if string(creds[i].CredentialID) == string(credential.ID) {
+			if bytes.Equal(creds[i].CredentialID, credential.ID) {
 				creds[i].SignCount = credential.Authenticator.SignCount
 				creds[i].CloneWarning = credential.Authenticator.CloneWarning
 				break

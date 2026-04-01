@@ -147,7 +147,7 @@ func (s *Server) handleTOTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleWebAuthn(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		s.renderError(r, w, http.StatusBadRequest, "Unsupported request method.")
+		s.renderError(r, w, http.StatusMethodNotAllowed, "Unsupported request method.")
 		return
 	}
 
