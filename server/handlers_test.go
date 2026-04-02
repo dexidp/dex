@@ -1604,6 +1604,30 @@ func TestHandleAuthorizationConnectorGrantTypeFiltering(t *testing.T) {
 	}
 }
 
+func TestHandleAuthorizationInvalidRequestWithSessions(t *testing.T) {
+	ctx := t.Context()
+	httpServer, s := newTestServerMultipleConnectors(t, func(c *Config) {
+		c.SessionConfig = &SessionConfig{
+			CookieName:        "dex_session",
+			AbsoluteLifetime:  24 * time.Hour,
+			ValidIfNotUsedFor: 1 * time.Hour,
+		}
+		c.Storage.CreateClient(ctx, storage.Client{
+			ID:           "test",
+			RedirectURIs: []string{"http://example.com/callback"},
+		})
+	})
+	defer httpServer.Close()
+
+	// Send a request with an unregistered redirect_uri — should not panic.
+	rr := httptest.NewRecorder()
+	reqURL := fmt.Sprintf("%s/auth?response_type=code&client_id=test&redirect_uri=http://evil.com/callback&scope=openid", httpServer.URL)
+	req := httptest.NewRequest(http.MethodGet, reqURL, nil)
+	s.handleAuthorization(rr, req)
+
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
 func TestHandleConnectorLoginGrantTypeRejection(t *testing.T) {
 	ctx := t.Context()
 	httpServer, s := newTestServer(t, func(c *Config) {

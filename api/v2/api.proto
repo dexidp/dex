@@ -15,6 +15,7 @@ message Client {
   string name = 6;
   string logo_url = 7;
   repeated string allowed_connectors = 8;
+  repeated string sso_shared_with = 9;
 }
 
 // ClientInfo represents an OAuth2 client without sensitive information.
@@ -26,6 +27,7 @@ message ClientInfo {
   string name = 5;
   string logo_url = 6;
   repeated string allowed_connectors = 7;
+  repeated string sso_shared_with = 8;
 }
 
 // GetClientReq is a request to retrieve client details.
@@ -69,6 +71,7 @@ message UpdateClientReq {
     string name = 4;
     string logo_url = 5;
     repeated string allowed_connectors = 6;
+    repeated string sso_shared_with = 7;
 }
 
 // UpdateClientResp returns the response from updating a client.

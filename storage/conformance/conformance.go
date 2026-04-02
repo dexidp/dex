@@ -369,6 +369,41 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 	c1.Secret = newSecret
 	getAndCompare(id1, c1)
 
+	// Verify SSOSharedWith nil vs empty slice roundtrip.
+	err = s.UpdateClient(ctx, id1, func(old storage.Client) (storage.Client, error) {
+		old.SSOSharedWith = []string{}
+		return old, nil
+	})
+	if err != nil {
+		t.Fatalf("update client ssoSharedWith to empty: %v", err)
+	}
+	gc, err := s.GetClient(ctx, id1)
+	if err != nil {
+		t.Fatalf("get client: %v", err)
+	}
+	if gc.SSOSharedWith == nil {
+		t.Error("expected empty slice for SSOSharedWith, got nil")
+	}
+	if len(gc.SSOSharedWith) != 0 {
+		t.Errorf("expected empty SSOSharedWith, got %v", gc.SSOSharedWith)
+	}
+
+	// Verify nil SSOSharedWith stays nil after roundtrip.
+	err = s.UpdateClient(ctx, id1, func(old storage.Client) (storage.Client, error) {
+		old.SSOSharedWith = nil
+		return old, nil
+	})
+	if err != nil {
+		t.Fatalf("update client ssoSharedWith to nil: %v", err)
+	}
+	gc, err = s.GetClient(ctx, id1)
+	if err != nil {
+		t.Fatalf("get client: %v", err)
+	}
+	if gc.SSOSharedWith != nil {
+		t.Errorf("expected nil SSOSharedWith, got %v", gc.SSOSharedWith)
+	}
+
 	if err := s.DeleteClient(ctx, id1); err != nil {
 		t.Fatalf("delete client: %v", err)
 	}

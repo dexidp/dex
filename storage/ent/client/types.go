@@ -97,6 +97,7 @@ func toStorageClient(c *db.OAuth2Client) storage.Client {
 		AllowedConnectors:      c.AllowedConnectors,
 		MFAChain:               c.MfaChain,
 		PostLogoutRedirectURIs: c.PostLogoutRedirectUris,
+		SSOSharedWith:          c.SSOSharedWith,
 	}
 }
 

@@ -246,6 +246,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 			default:
 				panic("unsupported error type")
 			}
+			return
 		}
 		prompt, err := ParsePrompt(authReq.Prompt)
 		if err != nil {

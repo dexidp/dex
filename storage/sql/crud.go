@@ -546,9 +546,10 @@ func (c *conn) UpdateClient(ctx context.Context, id string, updater func(old sto
 				logo_url = $6,
 				allowed_connectors = $7,
 				mfa_chain = $8,
-				post_logout_redirect_uris = $9
-			where id = $10;
-		`, nc.Secret, encoder(nc.RedirectURIs), encoder(nc.TrustedPeers), nc.Public, nc.Name, nc.LogoURL, encoder(nc.AllowedConnectors), encoder(nc.MFAChain), encoder(nc.PostLogoutRedirectURIs), id,
+				post_logout_redirect_uris = $9,
+				sso_shared_with = $10
+			where id = $11;
+		`, nc.Secret, encoder(nc.RedirectURIs), encoder(nc.TrustedPeers), nc.Public, nc.Name, nc.LogoURL, encoder(nc.AllowedConnectors), encoder(nc.MFAChain), encoder(nc.PostLogoutRedirectURIs), encoder(nc.SSOSharedWith), id,
 		)
 		if err != nil {
 			return fmt.Errorf("update client: %v", err)
@@ -560,12 +561,12 @@ func (c *conn) UpdateClient(ctx context.Context, id string, updater func(old sto
 func (c *conn) CreateClient(ctx context.Context, cli storage.Client) error {
 	_, err := c.Exec(`
 		insert into client (
-			id, secret, redirect_uris, trusted_peers, public, name, logo_url, allowed_connectors, mfa_chain, post_logout_redirect_uris
+			id, secret, redirect_uris, trusted_peers, public, name, logo_url, allowed_connectors, mfa_chain, post_logout_redirect_uris, sso_shared_with
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
 	`,
 		cli.ID, cli.Secret, encoder(cli.RedirectURIs), encoder(cli.TrustedPeers),
-		cli.Public, cli.Name, cli.LogoURL, encoder(cli.AllowedConnectors), encoder(cli.MFAChain), encoder(cli.PostLogoutRedirectURIs),
+		cli.Public, cli.Name, cli.LogoURL, encoder(cli.AllowedConnectors), encoder(cli.MFAChain), encoder(cli.PostLogoutRedirectURIs), encoder(cli.SSOSharedWith),
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -579,7 +580,7 @@ func (c *conn) CreateClient(ctx context.Context, cli storage.Client) error {
 func getClient(ctx context.Context, q querier, id string) (storage.Client, error) {
 	return scanClient(q.QueryRow(`
 		select
-			id, secret, redirect_uris, trusted_peers, public, name, logo_url, allowed_connectors, mfa_chain, post_logout_redirect_uris
+			id, secret, redirect_uris, trusted_peers, public, name, logo_url, allowed_connectors, mfa_chain, post_logout_redirect_uris, sso_shared_with
 	    from client where id = $1;
 	`, id))
 }
@@ -591,7 +592,7 @@ func (c *conn) GetClient(ctx context.Context, id string) (storage.Client, error)
 func (c *conn) ListClients(ctx context.Context) ([]storage.Client, error) {
 	rows, err := c.Query(`
 		select
-			id, secret, redirect_uris, trusted_peers, public, name, logo_url, allowed_connectors, mfa_chain, post_logout_redirect_uris
+			id, secret, redirect_uris, trusted_peers, public, name, logo_url, allowed_connectors, mfa_chain, post_logout_redirect_uris, sso_shared_with
 		from client;
 	`)
 	if err != nil {
@@ -617,9 +618,10 @@ func scanClient(s scanner) (cli storage.Client, err error) {
 	var allowedConnectors []byte
 	var mfaChain []byte
 	var postLogoutRedirectURIs []byte
+	var ssoSharedWith []byte
 	err = s.Scan(
 		&cli.ID, &cli.Secret, decoder(&cli.RedirectURIs), decoder(&cli.TrustedPeers),
-		&cli.Public, &cli.Name, &cli.LogoURL, &allowedConnectors, &mfaChain, &postLogoutRedirectURIs,
+		&cli.Public, &cli.Name, &cli.LogoURL, &allowedConnectors, &mfaChain, &postLogoutRedirectURIs, &ssoSharedWith,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -640,6 +642,11 @@ func scanClient(s scanner) (cli storage.Client, err error) {
 	if len(postLogoutRedirectURIs) > 0 {
 		if err := json.Unmarshal(postLogoutRedirectURIs, &cli.PostLogoutRedirectURIs); err != nil {
 			return cli, fmt.Errorf("unmarshal client post logout redirect uris: %v", err)
+		}
+	}
+	if len(ssoSharedWith) > 0 {
+		if err := json.Unmarshal(ssoSharedWith, &cli.SSOSharedWith); err != nil {
+			return cli, fmt.Errorf("unmarshal client sso shared with: %v", err)
 		}
 	}
 	return cli, nil

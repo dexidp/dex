@@ -73,6 +73,12 @@ func (_c *OAuth2ClientCreate) SetPostLogoutRedirectUris(v []string) *OAuth2Clien
 	return _c
 }
 
+// SetSSOSharedWith sets the "sso_shared_with" field.
+func (_c *OAuth2ClientCreate) SetSSOSharedWith(v []string) *OAuth2ClientCreate {
+	_c.mutation.SetSSOSharedWith(v)
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *OAuth2ClientCreate) SetID(v string) *OAuth2ClientCreate {
 	_c.mutation.SetID(v)
@@ -215,6 +221,10 @@ func (_c *OAuth2ClientCreate) createSpec() (*OAuth2Client, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.PostLogoutRedirectUris(); ok {
 		_spec.SetField(oauth2client.FieldPostLogoutRedirectUris, field.TypeJSON, value)
 		_node.PostLogoutRedirectUris = value
+	}
+	if value, ok := _c.mutation.SSOSharedWith(); ok {
+		_spec.SetField(oauth2client.FieldSSOSharedWith, field.TypeJSON, value)
+		_node.SSOSharedWith = value
 	}
 	return _node, _spec
 }

@@ -156,6 +156,9 @@ type SessionConfig struct {
 	AbsoluteLifetime           time.Duration
 	ValidIfNotUsedFor          time.Duration
 	RememberMeCheckedByDefault bool
+	// SSOSharedWithDefault is the default SSO sharing policy for clients without explicit SSOSharedWith.
+	// "all" = share with all clients, "none" or "" = share with no one (default).
+	SSOSharedWithDefault string
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.

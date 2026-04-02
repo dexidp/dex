@@ -807,6 +807,9 @@ func parseSessionConfig(s *Sessions) (*server.SessionConfig, error) {
 		if s.CookieEncryptionKey != "" {
 			sc.CookieEncryptionKey = []byte(s.CookieEncryptionKey)
 		}
+		if s.SSOSharedWithDefault != "" {
+			sc.SSOSharedWithDefault = s.SSOSharedWithDefault
+		}
 	}
 	if sc.AbsoluteLifetime <= 0 {
 		return nil, fmt.Errorf("absoluteLifetime must be positive, got %v", sc.AbsoluteLifetime)
@@ -819,6 +822,12 @@ func parseSessionConfig(s *Sessions) (*server.SessionConfig, error) {
 	}
 	if k := len(sc.CookieEncryptionKey); k > 0 && k != 16 && k != 24 && k != 32 {
 		return nil, fmt.Errorf("cookieEncryptionKey must be 16, 24, or 32 bytes (AES-128/192/256), got %d", k)
+	}
+	switch sc.SSOSharedWithDefault {
+	case "", "none", "all":
+		// valid
+	default:
+		return nil, fmt.Errorf("ssoSharedWithDefault must be \"none\" or \"all\", got %q", sc.SSOSharedWithDefault)
 	}
 	return sc, nil
 }

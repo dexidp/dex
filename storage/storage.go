@@ -196,6 +196,13 @@ type Client struct {
 	// MFAChain is an ordered list of MFA authenticator IDs that a user must complete
 	// during login. Empty means no MFA required.
 	MFAChain []string `json:"mfaChain"`
+
+	// SSOSharedWith defines which other clients can reuse this client's authentication session.
+	// When a user is authenticated for this client, clients listed here can skip authentication.
+	// Special value "*" means share with all clients (Keycloak-like realm-wide SSO).
+	// nil means use ssoSharedWithDefault from sessions config.
+	// Empty slice [] means explicitly share with no one.
+	SSOSharedWith []string `json:"ssoSharedWith" yaml:"ssoSharedWith"`
 }
 
 // Claims represents the ID Token claims supported by the server.

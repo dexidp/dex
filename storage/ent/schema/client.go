@@ -51,6 +51,8 @@ func (OAuth2Client) Fields() []ent.Field {
 			Optional(),
 		field.JSON("post_logout_redirect_uris", []string{}).
 			Optional(),
+		field.JSON("sso_shared_with", []string{}).
+			Optional(),
 	}
 }
 
