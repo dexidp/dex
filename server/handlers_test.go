@@ -3,9 +3,6 @@ package server
 import (
 	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -832,9 +829,7 @@ func TestConsentPersistedOnApproval(t *testing.T) {
 	}
 	require.NoError(t, s.storage.CreateAuthRequest(ctx, authReq))
 
-	h := hmac.New(sha256.New, authReq.HMACKey)
-	h.Write([]byte(authReq.ID))
-	mac := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
+	mac := computeHMAC(authReq.HMACKey, authReq.ID, "")
 
 	form := url.Values{
 		"approval": {"approve"},

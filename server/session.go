@@ -4,15 +4,12 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"path"
 	"time"
 
 	"github.com/dexidp/dex/server/internal"
@@ -375,11 +372,6 @@ func (s *Server) trySessionLoginWithSession(ctx context.Context, r *http.Request
 		return old, nil
 	})
 
-	// Build HMAC for approval URL.
-	h := hmac.New(sha256.New, authReq.HMACKey)
-	h.Write([]byte(authReq.ID))
-	mac := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
-
 	// Skip approval if globally configured or user already consented to the requested scopes.
 	if !authReq.ForceApprovalPrompt && (s.skipApproval || scopesCoveredByConsent(ui.Consents[authReq.ClientID], authReq.Scopes)) {
 		// Re-read to get the updated AuthRequest (LoggedIn, Claims, ConnectorID set above).
@@ -392,8 +384,7 @@ func (s *Server) trySessionLoginWithSession(ctx context.Context, r *http.Request
 		return "", true
 	}
 
-	returnURL := path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID + "&hmac=" + mac
-	return returnURL, true
+	return s.buildApprovalURL(*authReq), true
 }
 
 // updateSessionTokenIssuedAt updates the session's LastTokenIssuedAt for the given client.

@@ -15,16 +15,17 @@ import (
 )
 
 const (
-	tmplApproval      = "approval.html"
-	tmplLogin         = "login.html"
-	tmplPassword      = "password.html"
-	tmplOOB           = "oob.html"
-	tmplError         = "error.html"
-	tmplDevice        = "device.html"
-	tmplDeviceSuccess = "device_success.html"
-	tmplTOTPVerify    = "totp_verify.html"
-	tmplHome          = "home.html"
-	tmplLogout        = "logout.html"
+	tmplApproval       = "approval.html"
+	tmplLogin          = "login.html"
+	tmplPassword       = "password.html"
+	tmplOOB            = "oob.html"
+	tmplError          = "error.html"
+	tmplDevice         = "device.html"
+	tmplDeviceSuccess  = "device_success.html"
+	tmplTOTPVerify     = "totp_verify.html"
+	tmplWebAuthnVerify = "webauthn_verify.html"
+	tmplHome           = "home.html"
+	tmplLogout         = "logout.html"
 )
 
 var requiredTmpls = []string{
@@ -35,19 +36,24 @@ var requiredTmpls = []string{
 	tmplError,
 	tmplDevice,
 	tmplDeviceSuccess,
+	tmplTOTPVerify,
+	tmplWebAuthnVerify,
+	tmplHome,
+	tmplLogout,
 }
 
 type templates struct {
-	loginTmpl         *template.Template
-	approvalTmpl      *template.Template
-	passwordTmpl      *template.Template
-	oobTmpl           *template.Template
-	errorTmpl         *template.Template
-	deviceTmpl        *template.Template
-	deviceSuccessTmpl *template.Template
-	totpVerifyTmpl    *template.Template
-	homeTmpl          *template.Template
-	logoutTmpl        *template.Template
+	loginTmpl          *template.Template
+	approvalTmpl       *template.Template
+	passwordTmpl       *template.Template
+	oobTmpl            *template.Template
+	errorTmpl          *template.Template
+	deviceTmpl         *template.Template
+	deviceSuccessTmpl  *template.Template
+	totpVerifyTmpl     *template.Template
+	webauthnVerifyTmpl *template.Template
+	homeTmpl           *template.Template
+	logoutTmpl         *template.Template
 }
 
 type webConfig struct {
@@ -168,16 +174,17 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 		return nil, fmt.Errorf("missing template(s): %s", missingTmpls)
 	}
 	return &templates{
-		loginTmpl:         tmpls.Lookup(tmplLogin),
-		approvalTmpl:      tmpls.Lookup(tmplApproval),
-		passwordTmpl:      tmpls.Lookup(tmplPassword),
-		oobTmpl:           tmpls.Lookup(tmplOOB),
-		errorTmpl:         tmpls.Lookup(tmplError),
-		deviceTmpl:        tmpls.Lookup(tmplDevice),
-		deviceSuccessTmpl: tmpls.Lookup(tmplDeviceSuccess),
-		totpVerifyTmpl:    tmpls.Lookup(tmplTOTPVerify),
-		homeTmpl:          tmpls.Lookup(tmplHome),
-		logoutTmpl:        tmpls.Lookup(tmplLogout),
+		loginTmpl:          tmpls.Lookup(tmplLogin),
+		approvalTmpl:       tmpls.Lookup(tmplApproval),
+		passwordTmpl:       tmpls.Lookup(tmplPassword),
+		oobTmpl:            tmpls.Lookup(tmplOOB),
+		errorTmpl:          tmpls.Lookup(tmplError),
+		deviceTmpl:         tmpls.Lookup(tmplDevice),
+		deviceSuccessTmpl:  tmpls.Lookup(tmplDeviceSuccess),
+		totpVerifyTmpl:     tmpls.Lookup(tmplTOTPVerify),
+		webauthnVerifyTmpl: tmpls.Lookup(tmplWebAuthnVerify),
+		homeTmpl:           tmpls.Lookup(tmplHome),
+		logoutTmpl:         tmpls.Lookup(tmplLogout),
 	}, nil
 }
 
@@ -396,6 +403,17 @@ func (t *templates) logout(r *http.Request, w http.ResponseWriter, backURL strin
 		ReqPath   string
 	}{backURL, loggedOut, r.URL.Path}
 	return renderTemplate(w, t.logoutTmpl, data)
+}
+
+func (t *templates) webauthnVerify(r *http.Request, w http.ResponseWriter, mode, authenticatorID string) error {
+	data := struct {
+		// Mode must be server-controlled ("register" or "login") and never derived
+		// from user input to prevent XSS in the template's script context.
+		Mode            string
+		AuthenticatorID string
+		ReqPath         string
+	}{mode, authenticatorID, r.URL.Path}
+	return renderTemplate(w, t.webauthnVerifyTmpl, data)
 }
 
 func (t *templates) oob(r *http.Request, w http.ResponseWriter, code string) error {

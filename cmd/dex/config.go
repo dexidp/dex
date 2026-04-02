@@ -143,7 +143,7 @@ func (c Config) validateMFA() error {
 		return fmt.Errorf("mfa requires sessions to be enabled (DEX_SESSIONS_ENABLED=true)")
 	}
 
-	knownTypes := map[string]bool{"TOTP": true}
+	knownTypes := map[string]bool{"TOTP": true, "WebAuthn": true}
 	ids := make(map[string]bool, len(mfa.Authenticators))
 
 	for _, auth := range mfa.Authenticators {
@@ -704,4 +704,37 @@ type MFAAuthenticator struct {
 type TOTPConfig struct {
 	// Issuer is the name of the service shown in the authenticator app.
 	Issuer string `json:"issuer"`
+}
+
+// WebAuthnConfig holds configuration for a WebAuthn authenticator.
+type WebAuthnConfig struct {
+	// RPDisplayName is the human-readable relying party name shown in the browser
+	// dialog during key registration and authentication (e.g., "My Company SSO").
+	RPDisplayName string `json:"rpDisplayName"`
+	// RPID is the relying party identifier — must match the domain in the browser
+	// address bar. If empty, derived from the issuer URL hostname.
+	// Example: "auth.example.com"
+	RPID string `json:"rpID"`
+	// RPOrigins is the list of allowed origins for WebAuthn ceremonies.
+	// If empty, derived from the issuer URL (scheme + host).
+	// Example: ["https://auth.example.com"]
+	RPOrigins []string `json:"rpOrigins"`
+	// AttestationPreference controls what attestation data the authenticator should provide:
+	//   "none"     — don't request attestation (simpler, more private)
+	//   "indirect" — authenticator may anonymize attestation (default)
+	//   "direct"   — request full attestation (for enterprise key model verification)
+	AttestationPreference string `json:"attestationPreference"`
+	// UserVerification controls whether PIN or biometric verification is required:
+	//   "required"    — always require (PIN, fingerprint, etc.)
+	//   "preferred"   — request if the authenticator supports it (default)
+	//   "discouraged" — skip verification, presence check only
+	UserVerification string `json:"userVerification"`
+	// AuthenticatorAttachment restricts which authenticator types are allowed:
+	//   "platform"      — built-in only (Touch ID, Windows Hello)
+	//   "cross-platform" — external only (YubiKey, USB security keys)
+	//   ""              — any authenticator (default)
+	AuthenticatorAttachment string `json:"authenticatorAttachment"`
+	// Timeout is the duration allowed for the browser WebAuthn ceremony
+	// (registration or login). Defaults to "60s".
+	Timeout string `json:"timeout"`
 }

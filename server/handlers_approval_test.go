@@ -2,9 +2,6 @@ package server
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -89,9 +86,7 @@ func TestHandleApprovalDoubleSubmitPOST(t *testing.T) {
 	}
 	require.NoError(t, server.storage.CreateAuthRequest(ctx, authReq))
 
-	h := hmac.New(sha256.New, authReq.HMACKey)
-	h.Write([]byte(authReq.ID))
-	mac := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
+	mac := computeHMAC(authReq.HMACKey, authReq.ID, "")
 
 	form := url.Values{
 		"approval": {"approve"},

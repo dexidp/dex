@@ -89,11 +89,11 @@ func init() {
 	// authrequest.DefaultMfaValidated holds the default value on creation for the mfa_validated field.
 	authrequest.DefaultMfaValidated = authrequestDescMfaValidated.Default.(bool)
 	// authrequestDescPrompt is the schema descriptor for prompt field.
-	authrequestDescPrompt := authrequestFields[22].Descriptor()
+	authrequestDescPrompt := authrequestFields[23].Descriptor()
 	// authrequest.DefaultPrompt holds the default value on creation for the prompt field.
 	authrequest.DefaultPrompt = authrequestDescPrompt.Default.(string)
 	// authrequestDescMaxAge is the schema descriptor for max_age field.
-	authrequestDescMaxAge := authrequestFields[23].Descriptor()
+	authrequestDescMaxAge := authrequestFields[24].Descriptor()
 	// authrequest.DefaultMaxAge holds the default value on creation for the max_age field.
 	authrequest.DefaultMaxAge = authrequestDescMaxAge.Default.(int)
 	// authrequestDescID is the schema descriptor for id field.

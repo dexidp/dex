@@ -141,21 +141,32 @@ telemetry:
 # Multi-factor authentication configuration.
 # Requires DEX_SESSIONS_ENABLED=true feature flag.
 # mfa:
-#   authenticators:
-#   - id: totp-1
-#     type: TOTP
-#     config:
-#       issuer: "dex-1"
-#     # Optional: limit this authenticator to specific connector types (e.g., ldap, oidc, saml).
-#     # If omitted or empty, applies to all connector types.
-#     # It is recommended to use this option to prevent MFA from being used for connectors
-#     # with their own MFA mechanisms, e.g., OIDC, Google, etc. (but technically, it is possible).
-#     connectorTypes:
-#     - mockCallback
-#   # Default MFA chain applied to clients that don't specify their own mfaChain.
-#   # If omitted or empty, no MFA is required by default.
-#   defaultMFAChain:
-#   - totp-1
+#  authenticators:
+#  - id: totp-1
+#    type: TOTP
+#    config:
+#      issuer: "dex-1"
+#    # Optional: limit this authenticator to specific connector types (e.g., ldap, oidc, saml).
+#    # If omitted or empty, applies to all connector types.
+#    # It is recommended to use this option to prevent MFA from being used for connectors
+#    # with their own MFA mechanisms, e.g., OIDC, Google, etc. (but technically, it is possible).
+#    connectorTypes:
+#    - mockCallback
+#  - id: webauthn-1
+#    type: WebAuthn
+#    config:
+#      rpDisplayName: "Dex Dev"
+#      # rpID defaults to the hostname of the issuer URL.
+#      # rpID: "127.0.0.1"
+#      # rpOrigins defaults to the issuer URL.
+#      # rpOrigins:
+#      # - "http://127.0.0.1:5556"
+#      attestationPreference: "indirect"  # none, indirect, or direct
+#      userVerification: "preferred"      # required, preferred, or discouraged
+#      # authenticatorAttachment: ""      # platform, cross-platform, or empty (any)
+#      timeout: "60s"
+#  defaultMFAChain:
+#  - totp-1
 
 # Instead of reading from an external storage, use this list of clients.
 #

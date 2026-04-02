@@ -93,6 +93,8 @@ type AuthRequest struct {
 
 	MFAValidated bool `json:"mfa_validated"`
 
+	WebAuthnSessionData []byte `json:"webauthn_session_data,omitempty"`
+
 	Prompt   string    `json:"prompt,omitempty"`
 	MaxAge   int       `json:"max_age"`
 	AuthTime time.Time `json:"auth_time"`
@@ -117,6 +119,7 @@ func fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		CodeChallengeMethod: a.PKCE.CodeChallengeMethod,
 		HMACKey:             a.HMACKey,
 		MFAValidated:        a.MFAValidated,
+		WebAuthnSessionData: a.WebAuthnSessionData,
 		Prompt:              a.Prompt,
 		MaxAge:              a.MaxAge,
 		AuthTime:            a.AuthTime,
@@ -142,11 +145,12 @@ func toStorageAuthRequest(a AuthRequest) storage.AuthRequest {
 			CodeChallenge:       a.CodeChallenge,
 			CodeChallengeMethod: a.CodeChallengeMethod,
 		},
-		HMACKey:      a.HMACKey,
-		MFAValidated: a.MFAValidated,
-		Prompt:       a.Prompt,
-		MaxAge:       a.MaxAge,
-		AuthTime:     a.AuthTime,
+		HMACKey:             a.HMACKey,
+		MFAValidated:        a.MFAValidated,
+		WebAuthnSessionData: a.WebAuthnSessionData,
+		Prompt:              a.Prompt,
+		MaxAge:              a.MaxAge,
+		AuthTime:            a.AuthTime,
 	}
 }
 
@@ -276,39 +280,42 @@ func toStorageOfflineSessions(o OfflineSessions) storage.OfflineSessions {
 
 // UserIdentity is a mirrored struct from storage with JSON struct tags
 type UserIdentity struct {
-	UserID       string                        `json:"user_id,omitempty"`
-	ConnectorID  string                        `json:"connector_id,omitempty"`
-	Claims       Claims                        `json:"claims,omitempty"`
-	Consents     map[string][]string           `json:"consents,omitempty"`
-	MFASecrets   map[string]*storage.MFASecret `json:"mfa_secrets,omitempty"`
-	CreatedAt    time.Time                     `json:"created_at"`
-	LastLogin    time.Time                     `json:"last_login"`
-	BlockedUntil time.Time                     `json:"blocked_until"`
+	UserID              string                                  `json:"user_id,omitempty"`
+	ConnectorID         string                                  `json:"connector_id,omitempty"`
+	Claims              Claims                                  `json:"claims,omitempty"`
+	Consents            map[string][]string                     `json:"consents,omitempty"`
+	MFASecrets          map[string]*storage.MFASecret           `json:"mfa_secrets,omitempty"`
+	WebAuthnCredentials map[string][]storage.WebAuthnCredential `json:"webauthn_credentials,omitempty"`
+	CreatedAt           time.Time                               `json:"created_at"`
+	LastLogin           time.Time                               `json:"last_login"`
+	BlockedUntil        time.Time                               `json:"blocked_until"`
 }
 
 func fromStorageUserIdentity(u storage.UserIdentity) UserIdentity {
 	return UserIdentity{
-		UserID:       u.UserID,
-		ConnectorID:  u.ConnectorID,
-		Claims:       fromStorageClaims(u.Claims),
-		Consents:     u.Consents,
-		MFASecrets:   u.MFASecrets,
-		CreatedAt:    u.CreatedAt,
-		LastLogin:    u.LastLogin,
-		BlockedUntil: u.BlockedUntil,
+		UserID:              u.UserID,
+		ConnectorID:         u.ConnectorID,
+		Claims:              fromStorageClaims(u.Claims),
+		Consents:            u.Consents,
+		MFASecrets:          u.MFASecrets,
+		WebAuthnCredentials: u.WebAuthnCredentials,
+		CreatedAt:           u.CreatedAt,
+		LastLogin:           u.LastLogin,
+		BlockedUntil:        u.BlockedUntil,
 	}
 }
 
 func toStorageUserIdentity(u UserIdentity) storage.UserIdentity {
 	s := storage.UserIdentity{
-		UserID:       u.UserID,
-		ConnectorID:  u.ConnectorID,
-		Claims:       toStorageClaims(u.Claims),
-		Consents:     u.Consents,
-		MFASecrets:   u.MFASecrets,
-		CreatedAt:    u.CreatedAt,
-		LastLogin:    u.LastLogin,
-		BlockedUntil: u.BlockedUntil,
+		UserID:              u.UserID,
+		ConnectorID:         u.ConnectorID,
+		Claims:              toStorageClaims(u.Claims),
+		Consents:            u.Consents,
+		MFASecrets:          u.MFASecrets,
+		WebAuthnCredentials: u.WebAuthnCredentials,
+		CreatedAt:           u.CreatedAt,
+		LastLogin:           u.LastLogin,
+		BlockedUntil:        u.BlockedUntil,
 	}
 	if s.Consents == nil {
 		// Server code assumes this will be non-nil.
