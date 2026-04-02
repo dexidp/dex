@@ -7,6 +7,9 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body class="token-page">
+    <div class="token-header">
+        <a href="/" class="header-back-link">&larr; Back to Home</a>
+    </div>
     {{ if .IDToken }}
     <div class="token-block">
         <div class="token-title">
@@ -75,8 +78,6 @@
         <div class="hint">Copy this key and paste it into jwt.io's "Verify Signature" section to validate the token signature.</div>
     </div>
     {{ end }}
-
-    <a href="/" class="back-button">Back to Home</a>
 
     <script src="/static/token.js"></script>
 </body>
