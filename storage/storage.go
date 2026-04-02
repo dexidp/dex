@@ -202,7 +202,7 @@ type Client struct {
 	// Special value "*" means share with all clients (Keycloak-like realm-wide SSO).
 	// nil means use ssoSharedWithDefault from sessions config.
 	// Empty slice [] means explicitly share with no one.
-	SSOSharedWith []string `json:"ssoSharedWith,omitempty" yaml:"ssoSharedWith,omitempty"`
+	SSOSharedWith []string `json:"ssoSharedWith" yaml:"ssoSharedWith"`
 }
 
 // Claims represents the ID Token claims supported by the server.

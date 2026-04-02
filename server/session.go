@@ -342,7 +342,7 @@ func (s *Server) clientSharesSessionWith(sourceClient storage.Client, targetClie
 // clients the user previously authenticated for, and their ssoSharedWith
 // policies determine whether SSO is allowed. These are different clients,
 // so the GetClient calls below are not redundant.
-func (s *Server) findSSOSession(ctx context.Context, session *storage.AuthSession, targetClientID string) bool {
+func (s *Server) findSSOSession(ctx context.Context, session *storage.AuthSession, targetClientID string) *storage.ClientAuthState {
 	now := s.now()
 
 	for sourceClientID, state := range session.ClientStates {
@@ -358,11 +358,11 @@ func (s *Server) findSSOSession(ctx context.Context, session *storage.AuthSessio
 		}
 
 		if s.clientSharesSessionWith(sourceClient, targetClientID) {
-			return true
+			return state
 		}
 	}
 
-	return false
+	return nil
 }
 
 // trySessionLoginWithSession is like trySessionLogin but accepts a pre-retrieved session.
@@ -376,12 +376,19 @@ func (s *Server) trySessionLoginWithSession(ctx context.Context, r *http.Request
 	now := s.now()
 
 	clientState, ok := session.ClientStates[authReq.ClientID]
-	isSSO := !ok || !clientState.Active || now.After(clientState.ExpiresAt)
+	fallbackToSSO := !ok || !clientState.Active || now.After(clientState.ExpiresAt)
 
-	if isSSO {
+	if fallbackToSSO {
 		// No direct session for this client — try SSO from a sharing client.
-		if !s.findSSOSession(ctx, session, authReq.ClientID) {
+		sourceState := s.findSSOSession(ctx, session, authReq.ClientID)
+		if sourceState == nil {
 			return "", false
+		}
+
+		// Cap the derived state expiry at min(configured lifetime, source state expiry).
+		expiresAt := now.Add(s.sessionConfig.AbsoluteLifetime)
+		if sourceState.ExpiresAt.Before(expiresAt) {
+			expiresAt = sourceState.ExpiresAt
 		}
 
 		// Create a new client state for the target client via SSO.
@@ -391,7 +398,7 @@ func (s *Server) trySessionLoginWithSession(ctx context.Context, r *http.Request
 			}
 			old.ClientStates[authReq.ClientID] = &storage.ClientAuthState{
 				Active:       true,
-				ExpiresAt:    now.Add(s.sessionConfig.AbsoluteLifetime),
+				ExpiresAt:    expiresAt,
 				LastActivity: now,
 			}
 			old.LastActivity = now
@@ -420,7 +427,7 @@ func (s *Server) trySessionLoginWithSession(ctx context.Context, r *http.Request
 		}
 	}
 
-	if !isSSO {
+	if !fallbackToSSO {
 		s.logger.DebugContext(ctx, "session: re-authenticated from session",
 			"user_id", session.UserID, "connector_id", session.ConnectorID)
 	}

@@ -292,7 +292,7 @@ type Client struct {
 
 	PostLogoutRedirectURIs []string `json:"postLogoutRedirectURIs,omitempty"`
 
-	SSOSharedWith []string `json:"ssoSharedWith,omitempty"`
+	SSOSharedWith []string `json:"ssoSharedWith"`
 }
 
 // ClientList is a list of Clients.
