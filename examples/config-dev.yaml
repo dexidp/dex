@@ -179,6 +179,8 @@ staticClients:
   redirectURIs:
   - 'http://127.0.0.1:5555/callback'
   - '/dex/device/callback'
+  postLogoutRedirectURIs:
+  - 'http://127.0.0.1:5555/'
   name: 'Example App'
   secret: ZXhhbXBsZS1hcHAtc2VjcmV0
   # Optional: restrict which connectors this client can use for authentication.
