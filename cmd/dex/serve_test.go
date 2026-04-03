@@ -9,19 +9,19 @@ import (
 
 func TestNewLogger(t *testing.T) {
 	t.Run("JSON", func(t *testing.T) {
-		logger, err := newLogger(slog.LevelInfo, "json")
+		logger, err := newLogger(slog.LevelInfo, "json", nil)
 		require.NoError(t, err)
 		require.NotEqual(t, (*slog.Logger)(nil), logger)
 	})
 
 	t.Run("Text", func(t *testing.T) {
-		logger, err := newLogger(slog.LevelError, "text")
+		logger, err := newLogger(slog.LevelError, "text", nil)
 		require.NoError(t, err)
 		require.NotEqual(t, (*slog.Logger)(nil), logger)
 	})
 
 	t.Run("Unknown", func(t *testing.T) {
-		logger, err := newLogger(slog.LevelError, "gofmt")
+		logger, err := newLogger(slog.LevelError, "gofmt", nil)
 		require.Error(t, err)
 		require.Equal(t, "log format is not one of the supported values (json, text): gofmt", err.Error())
 		require.Equal(t, (*slog.Logger)(nil), logger)

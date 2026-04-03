@@ -65,6 +65,11 @@ type client struct {
 	// storage opening.
 	crdAPIVersion string
 
+	// CRD handling behavior controls how missing Custom Resource Definitions are handled:
+	// - "ensure": Attempt to create all missing CRDs. Fails if any CRD creation fails. (default)
+	// - "check": Fail if any CRDs are missing, with error "storage is not initialized, CRDs are not created"
+	crdHandling string
+
 	// This is called once the client's Close method is called to signal goroutines,
 	// such as the one creating third party resources, to stop.
 	cancel context.CancelFunc
@@ -369,7 +374,7 @@ func defaultTLSConfig() *tls.Config {
 	}
 }
 
-func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, logger *slog.Logger, inCluster bool) (*client, error) {
+func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, logger *slog.Logger, inCluster bool, crdHandling string) (*client, error) {
 	tlsConfig := defaultTLSConfig()
 	data := func(b string, file string) ([]byte, error) {
 		if b != "" {
@@ -440,6 +445,7 @@ func newClient(cluster k8sapi.Cluster, user k8sapi.AuthInfo, namespace string, l
 		namespace:     namespace,
 		apiVersion:    apiVersion,
 		crdAPIVersion: crdAPIVersion,
+		crdHandling:   crdHandling,
 		logger:        logger,
 	}, nil
 }

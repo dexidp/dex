@@ -168,9 +168,9 @@ func (c *googleConnector) Close() error {
 	return nil
 }
 
-func (c *googleConnector) LoginURL(s connector.Scopes, callbackURL, state string) (string, error) {
+func (c *googleConnector) LoginURL(s connector.Scopes, callbackURL, state string) (string, []byte, error) {
 	if c.redirectURI != callbackURL {
-		return "", fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
+		return "", nil, fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
 	}
 
 	var opts []oauth2.AuthCodeOption
@@ -186,7 +186,7 @@ func (c *googleConnector) LoginURL(s connector.Scopes, callbackURL, state string
 		opts = append(opts, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", c.promptType))
 	}
 
-	return c.oauth2Config.AuthCodeURL(state, opts...), nil
+	return c.oauth2Config.AuthCodeURL(state, opts...), nil, nil
 }
 
 type oauth2Error struct {
@@ -201,7 +201,7 @@ func (e *oauth2Error) Error() string {
 	return e.error + ": " + e.errorDescription
 }
 
-func (c *googleConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
+func (c *googleConnector) HandleCallback(s connector.Scopes, connData []byte, r *http.Request) (identity connector.Identity, err error) {
 	q := r.URL.Query()
 	if errType := q.Get("error"); errType != "" {
 		return identity, &oauth2Error{errType, q.Get("error_description")}

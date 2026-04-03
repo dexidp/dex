@@ -1,0 +1,53 @@
+#!/bin/sh -e
+# Script to check for a new gomplate version and update it in Dockerfile
+
+GOMPLATE_REPO="hairyhenderson/gomplate"
+DOCKERFILE="${1:-.}/Dockerfile"
+
+# Check if Dockerfile exists
+if [ ! -f "$DOCKERFILE" ]; then
+    echo "Error: Dockerfile not found at $DOCKERFILE"
+    exit 1
+fi
+
+# Get the latest release version from GitHub
+echo "Checking for the latest gomplate version on GitHub..."
+LATEST_VERSION=$(curl -s "https://api.github.com/repos/${GOMPLATE_REPO}/releases/latest" | grep -o '"tag_name": "[^"]*"' | head -1 | cut -d'"' -f4)
+
+if [ -z "$LATEST_VERSION" ]; then
+    echo "Error: Could not fetch the latest version from GitHub"
+    exit 1
+fi
+
+echo "Latest gomplate version: $LATEST_VERSION"
+
+# Get the current version from Dockerfile
+CURRENT_VERSION=$(grep 'ENV GOMPLATE_VERSION' "$DOCKERFILE" | sed 's/.*GOMPLATE_VERSION=//;s/[[:space:]]*$//')
+
+echo "Current gomplate version in Dockerfile: $CURRENT_VERSION"
+
+# Check if versions are different
+if [ "$LATEST_VERSION" = "$CURRENT_VERSION" ]; then
+    echo "✓ Already on the latest version ($LATEST_VERSION)"
+    exit 0
+fi
+
+echo "✓ New version available: $LATEST_VERSION"
+echo "Updating Dockerfile..."
+
+# Update the Dockerfile - use a more specific pattern to avoid multiple replacements
+sed -i '' "s/ENV GOMPLATE_VERSION=.*/ENV GOMPLATE_VERSION=${LATEST_VERSION}/" "$DOCKERFILE"
+
+if grep -q "ENV GOMPLATE_VERSION=${LATEST_VERSION}" "$DOCKERFILE"; then
+    echo "✓ Successfully updated Dockerfile to version $LATEST_VERSION"
+    echo ""
+    echo "Changes made:"
+    echo "  - GOMPLATE_VERSION: $CURRENT_VERSION → $LATEST_VERSION"
+else
+    echo "Error: Failed to update Dockerfile"
+    exit 1
+fi
+
+
+
+

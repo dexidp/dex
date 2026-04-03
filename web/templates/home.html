@@ -1,0 +1,98 @@
+{{ define "info-value" }}
+  {{ if gt (len .) 24 }}
+  <details class="dex-info-details">
+    <summary>{{ . }}</summary>
+    <div>{{ . }}</div>
+  </details>
+  {{ else }}
+  <span class="dex-info-value">{{ . }}</span>
+  {{ end }}
+{{ end }}
+
+{{ template "header.html" . }}
+
+<div class="theme-panel">
+  <div style="text-align: center; margin-bottom: 16px;">
+    <img src="{{ url .ReqPath logo }}" alt="{{ issuer }}" style="max-height: 36px;">
+  </div>
+
+  {{ if .LoggedIn }}
+  <hr class="dex-separator">
+  <div class="dex-info-table">
+    {{ if .Username }}
+    <div class="dex-info-row">
+      <span class="dex-info-label">Username</span>
+      {{ template "info-value" .Username }}
+    </div>
+    {{ end }}
+    {{ if .Email }}
+    <div class="dex-info-row">
+      <span class="dex-info-label">Email</span>
+      <span class="dex-info-value">{{ .Email }}{{ if .EmailVerified }} &#10003;{{ end }}</span>
+    </div>
+    {{ end }}
+    {{ if .Groups }}
+    <div class="dex-info-row">
+      <span class="dex-info-label">Groups</span>
+      <details class="dex-info-details">
+        <summary>{{ len .Groups }} group{{ if gt (len .Groups) 1 }}s{{ end }}</summary>
+        <ul class="dex-info-details__list">
+          {{ range .Groups }}<li>{{ . }}</li>{{ end }}
+        </ul>
+      </details>
+    </div>
+    {{ end }}
+    {{ if .ConnectorName }}
+    <div class="dex-info-row">
+      <span class="dex-info-label">Connector</span>
+      {{ template "info-value" .ConnectorName }}
+    </div>
+    {{ end }}
+    {{ if .IPAddress }}
+    <div class="dex-info-row">
+      <span class="dex-info-label">IP address</span>
+      {{ template "info-value" .IPAddress }}
+    </div>
+    {{ end }}
+    {{ if .UserAgent }}
+    <div class="dex-info-row">
+      <span class="dex-info-label">Browser</span>
+      {{ template "info-value" .UserAgent }}
+    </div>
+    {{ end }}
+    {{ if .LastLoginEpoch }}
+    <div class="dex-info-row">
+      <span class="dex-info-label">Last login</span>
+      <span class="dex-info-value" id="last-login"></span>
+    </div>
+    {{ end }}
+  </div>
+  <hr class="dex-separator">
+
+  <div class="theme-form-row">
+    <a href="{{ .LogoutURL }}" class="dex-btn theme-btn--primary" style="display: inline-block; text-decoration: none; padding: 8px 16px;">Logout</a>
+  </div>
+  {{ else }}
+  <div>
+    <div class="dex-subtle-text">Not logged in</div>
+  </div>
+  {{ end }}
+
+  <div class="theme-form-row">
+    <a href="{{ .DiscoveryURL }}" class="dex-subtle-text">Discovery</a>
+  </div>
+</div>
+
+{{ if .LastLoginEpoch }}
+<script>
+  (function() {
+    var epoch = {{ .LastLoginEpoch }};
+    var el = document.getElementById('last-login');
+    if (el && epoch) {
+      el.textContent = new Date(epoch * 1000).toLocaleString();
+    }
+  })();
+</script>
+{{ end }}
+
+{{ template "footer.html" . }}

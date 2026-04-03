@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"crypto/rsa"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -45,6 +45,8 @@ import (
 	"github.com/dexidp/dex/connector/oidc"
 	"github.com/dexidp/dex/connector/openshift"
 	"github.com/dexidp/dex/connector/saml"
+	"github.com/dexidp/dex/pkg/featureflags"
+	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/web"
 )
@@ -55,8 +57,16 @@ const LocalConnector = "local"
 
 // Connector is a connector with resource version metadata.
 type Connector struct {
+	Type            string
 	ResourceVersion string
 	Connector       connector.Connector
+	GrantTypes      []string
+}
+
+// GrantTypeAllowed checks if the given grant type is allowed for this connector.
+// If no grant types are configured, all are allowed.
+func GrantTypeAllowed(configuredTypes []string, grantType string) bool {
+	return len(configuredTypes) == 0 || slices.Contains(configuredTypes, grantType)
 }
 
 // Config holds the server's configuration options.
@@ -96,7 +106,6 @@ type Config struct {
 	// If enabled, the connectors selection page will always be shown even if there's only one
 	AlwaysShowLoginScreen bool
 
-	RotateKeysAfter        time.Duration // Defaults to 6 hours.
 	IDTokensValidFor       time.Duration // Defaults to 24 hours
 	AuthRequestsValidFor   time.Duration // Defaults to 24 hours
 	DeviceRequestsValidFor time.Duration // Defaults to 5 minutes
@@ -107,6 +116,9 @@ type Config struct {
 	// If set, the server will use this connector to handle password grants
 	PasswordConnector string
 
+	// PKCE configuration
+	PKCE PKCEConfig
+
 	GCFrequency time.Duration // Defaults to 5 minutes
 
 	// If specified, the server will use this function for determining time.
@@ -116,6 +128,9 @@ type Config struct {
 
 	Logger *slog.Logger
 
+	// Signer is used to sign tokens.
+	Signer signer.Signer
+
 	PrometheusRegistry *prometheus.Registry
 
 	HealthChecker gosundheit.Health
@@ -123,6 +138,27 @@ type Config struct {
 	// If enabled, the server will continue starting even if some connectors fail to initialize.
 	// This allows the server to operate with a subset of connectors if some are misconfigured.
 	ContinueOnConnectorFailure bool
+
+	// SessionConfig holds session settings. Nil when sessions are disabled.
+	SessionConfig *SessionConfig
+
+	// MFAProviders maps authenticator IDs to their provider implementations.
+	MFAProviders map[string]MFAProvider
+
+	// DefaultMFAChain is applied to clients that don't specify their own mfaChain.
+	DefaultMFAChain []string
+}
+
+// SessionConfig holds resolved session configuration.
+type SessionConfig struct {
+	CookieName                 string
+	CookieEncryptionKey        []byte
+	AbsoluteLifetime           time.Duration
+	ValidIfNotUsedFor          time.Duration
+	RememberMeCheckedByDefault bool
+	// SSOSharedWithDefault is the default SSO sharing policy for clients without explicit SSOSharedWith.
+	// "all" = share with all clients, "none" or "" = share with no one (default).
+	SSOSharedWithDefault string
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
@@ -154,6 +190,14 @@ type WebConfig struct {
 
 	// Map of extra values passed into the templates
 	Extra map[string]string
+}
+
+// PKCEConfig holds PKCE (Proof Key for Code Exchange) settings.
+type PKCEConfig struct {
+	// If true, PKCE is required for all authorization code flows.
+	Enforce bool
+	// Supported code challenge methods. Defaults to ["S256", "plain"].
+	CodeChallengeMethodsSupported []string
 }
 
 func value(val, defaultValue time.Duration) time.Duration {
@@ -191,6 +235,8 @@ type Server struct {
 
 	supportedGrantTypes []string
 
+	pkce PKCEConfig
+
 	now func() time.Time
 
 	idTokensValidFor       time.Duration
@@ -200,24 +246,21 @@ type Server struct {
 	refreshTokenPolicy *RefreshTokenPolicy
 
 	logger *slog.Logger
+
+	signer signer.Signer
+
+	sessionConfig *SessionConfig
+
+	mfaProviders    map[string]MFAProvider
+	defaultMFAChain []string
 }
 
 // NewServer constructs a server from the provided config.
 func NewServer(ctx context.Context, c Config) (*Server, error) {
-	return newServer(ctx, c, defaultRotationStrategy(
-		value(c.RotateKeysAfter, 6*time.Hour),
-		value(c.IDTokensValidFor, 24*time.Hour),
-	))
+	return newServer(ctx, c)
 }
 
-// NewServerWithKey constructs a server from the provided config and a static signing key.
-func NewServerWithKey(ctx context.Context, c Config, privateKey *rsa.PrivateKey) (*Server, error) {
-	return newServer(ctx, c, staticRotationStrategy(
-		privateKey,
-	))
-}
-
-func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy) (*Server, error) {
+func newServer(ctx context.Context, c Config) (*Server, error) {
 	issuerURL, err := url.Parse(c.Issuer)
 	if err != nil {
 		return nil, fmt.Errorf("server: can't parse issuer URL")
@@ -232,6 +275,19 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	}
 	if len(c.AllowedHeaders) == 0 {
 		c.AllowedHeaders = []string{"Authorization"}
+	}
+
+	supportedChallengeMethods := map[string]bool{
+		codeChallengeMethodS256:  true,
+		codeChallengeMethodPlain: true,
+	}
+	if len(c.PKCE.CodeChallengeMethodsSupported) == 0 {
+		c.PKCE.CodeChallengeMethodsSupported = []string{codeChallengeMethodS256, codeChallengeMethodPlain}
+	}
+	for _, m := range c.PKCE.CodeChallengeMethodsSupported {
+		if !supportedChallengeMethods[m] {
+			return nil, fmt.Errorf("unsupported PKCE challenge method %q", m)
+		}
 	}
 
 	allSupportedGrants := map[string]bool{
@@ -259,6 +315,8 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	if c.PasswordConnector != "" {
 		allSupportedGrants[grantTypePassword] = true
 	}
+
+	allSupportedGrants[grantTypeClientCredentials] = true
 
 	var supportedGrants []string
 	if len(c.AllowedGrantTypes) > 0 {
@@ -306,6 +364,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		storage:                newKeyCacher(c.Storage, now),
 		supportedResponseTypes: supportedRes,
 		supportedGrantTypes:    supportedGrants,
+		pkce:                   c.PKCE,
 		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
 		authRequestsValidFor:   value(c.AuthRequestsValidFor, 24*time.Hour),
 		deviceRequestsValidFor: value(c.DeviceRequestsValidFor, 5*time.Minute),
@@ -316,6 +375,10 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		templates:              tmpls,
 		passwordConnector:      c.PasswordConnector,
 		logger:                 c.Logger,
+		signer:                 c.Signer,
+		sessionConfig:          c.SessionConfig,
+		mfaProviders:           c.MFAProviders,
+		defaultMFAChain:        c.DefaultMFAChain,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
@@ -343,6 +406,10 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 	if c.ContinueOnConnectorFailure && failedCount == len(storageConnectors) {
 		return nil, fmt.Errorf("server: failed to open all connectors (%d/%d)", failedCount, len(storageConnectors))
+	}
+
+	if featureflags.SessionsEnabled.Enabled() {
+		s.logger.InfoContext(ctx, "sessions feature flag is enabled")
 	}
 
 	instrumentHandler := func(_ string, handler http.Handler) http.HandlerFunc {
@@ -452,25 +519,12 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	}
 	r.NotFoundHandler = http.NotFoundHandler()
 
-	discoveryHandler, err := s.discoveryHandler()
+	discoveryHandler, err := s.discoveryHandler(ctx)
 	if err != nil {
 		return nil, err
 	}
 	handleWithCORS("/.well-known/openid-configuration", discoveryHandler)
-	// Handle the root path for the better user experience.
-	handleWithCORS("/", func(w http.ResponseWriter, r *http.Request) {
-		_, err := fmt.Fprintf(w, `<!DOCTYPE html>
-			<title>Dex</title>
-			<h1>Dex IdP</h1>
-			<h3>A Federated OpenID Connect Provider</h3>
-			<p><a href=%q>Discovery</a></p>`,
-			s.issuerURL.JoinPath(".well-known", "openid-configuration").String())
-		if err != nil {
-			s.logger.Error("failed to write response", "err", err)
-			s.renderError(r, w, http.StatusInternalServerError, "Handling the / path error.")
-			return
-		}
-	})
+	handleWithCORS("/", s.handleHome)
 
 	// TODO(ericchiang): rate limit certain paths based on IP.
 	handleWithCORS("/token", s.handleToken)
@@ -500,6 +554,20 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	// "authproxy" connector.
 	handleFunc("/callback/{connector}", s.handleConnectorCallback)
 	handleFunc("/approval", s.handleApproval)
+	// OIDC RP-Initiated logout endpoints, DEX_SESSIONS_ENABLED=true feature flag is required.
+	if c.SessionConfig != nil {
+		handleFunc("/logout", s.handleLogout)
+		handleFunc("/logout/callback", s.handleLogoutCallback)
+	}
+	// MFA verification endpoints, DEX_SESSIONS_ENABLED=true feature flag is required.
+	if c.SessionConfig != nil {
+		handleFunc("/mfa/totp", s.handleTOTP)
+		handleFunc("/mfa/webauthn", s.handleWebAuthn)
+		handleFunc("/mfa/webauthn/register/begin", s.handleWebAuthnRegisterBegin)
+		handleFunc("/mfa/webauthn/register/finish", s.handleWebAuthnRegisterFinish)
+		handleFunc("/mfa/webauthn/login/begin", s.handleWebAuthnLoginBegin)
+		handleFunc("/mfa/webauthn/login/finish", s.handleWebAuthnLoginFinish)
+	}
 	handle("/healthz", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !c.HealthChecker.IsHealthy() {
 			s.renderError(r, w, http.StatusInternalServerError, "Health check failed.")
@@ -514,7 +582,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 
 	s.mux = r
 
-	s.startKeyRotation(ctx, rotationStrategy, now)
+	s.signer.Start(ctx)
 	s.startGarbageCollection(ctx, value(c.GCFrequency, 5*time.Minute), now)
 
 	return s, nil
@@ -548,6 +616,20 @@ type passwordDB struct {
 	s storage.Storage
 }
 
+func resolvePasswordName(p storage.Password) string {
+	if p.Name != "" {
+		return p.Name
+	}
+	return p.Username
+}
+
+func resolvePasswordEmailVerified(p storage.Password) bool {
+	if p.EmailVerified != nil {
+		return *p.EmailVerified
+	}
+	return true
+}
+
 func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, password string) (connector.Identity, bool, error) {
 	p, err := db.s.GetPassword(ctx, email)
 	if err != nil {
@@ -565,10 +647,12 @@ func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, passw
 		return connector.Identity{}, false, nil
 	}
 	return connector.Identity{
-		UserID:        p.UserID,
-		Username:      p.Username,
-		Email:         p.Email,
-		EmailVerified: true,
+		UserID:            p.UserID,
+		Username:          resolvePasswordName(p),
+		PreferredUsername: p.PreferredUsername,
+		Email:             p.Email,
+		EmailVerified:     resolvePasswordEmailVerified(p),
+		Groups:            p.Groups,
 	}, true, nil
 }
 
@@ -591,8 +675,11 @@ func (db passwordDB) Refresh(ctx context.Context, s connector.Scopes, identity c
 	// refreshed token.
 	//
 	// No other fields are expected to be refreshable as email is effectively used
-	// as an ID and this implementation doesn't deal with groups.
-	identity.Username = p.Username
+	// as an ID.
+	identity.Username = resolvePasswordName(p)
+	identity.PreferredUsername = p.PreferredUsername
+	identity.EmailVerified = resolvePasswordEmailVerified(p)
+	identity.Groups = p.Groups
 
 	return identity, nil
 }
@@ -645,7 +732,8 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 				} else if !r.IsEmpty() {
 					s.logger.InfoContext(ctx, "garbage collection run, delete auth",
 						"requests", r.AuthRequests, "auth_codes", r.AuthCodes,
-						"device_requests", r.DeviceRequests, "device_tokens", r.DeviceTokens)
+						"device_requests", r.DeviceRequests, "device_tokens", r.DeviceTokens,
+						"auth_sessions", r.AuthSessions)
 				}
 			}
 		}
@@ -721,14 +809,23 @@ func (s *Server) OpenConnector(conn storage.Connector) (Connector, error) {
 	}
 
 	connector := Connector{
+		Type:            conn.Type,
 		ResourceVersion: conn.ResourceVersion,
 		Connector:       c,
+		GrantTypes:      conn.GrantTypes,
 	}
 	s.mu.Lock()
 	s.connectors[conn.ID] = connector
 	s.mu.Unlock()
 
 	return connector, nil
+}
+
+// CloseConnector removes the connector from the server's in-memory map.
+func (s *Server) CloseConnector(id string) {
+	s.mu.Lock()
+	delete(s.connectors, id)
+	s.mu.Unlock()
 }
 
 // getConnector retrieves the connector object with the given id from the storage
@@ -756,6 +853,14 @@ func (s *Server) getConnector(ctx context.Context, id string) (Connector, error)
 	}
 
 	return conn, nil
+}
+
+// buildApprovalURL builds an HMAC-protected approval URL.
+func (s *Server) buildApprovalURL(authReq storage.AuthRequest) string {
+	v := url.Values{}
+	v.Set("req", authReq.ID)
+	v.Set("hmac", computeHMAC(authReq.HMACKey, authReq.ID, ""))
+	return s.absPath("/approval") + "?" + v.Encode()
 }
 
 type logRequestKey string

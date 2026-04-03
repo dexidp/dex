@@ -15,13 +15,17 @@ import (
 )
 
 const (
-	tmplApproval      = "approval.html"
-	tmplLogin         = "login.html"
-	tmplPassword      = "password.html"
-	tmplOOB           = "oob.html"
-	tmplError         = "error.html"
-	tmplDevice        = "device.html"
-	tmplDeviceSuccess = "device_success.html"
+	tmplApproval       = "approval.html"
+	tmplLogin          = "login.html"
+	tmplPassword       = "password.html"
+	tmplOOB            = "oob.html"
+	tmplError          = "error.html"
+	tmplDevice         = "device.html"
+	tmplDeviceSuccess  = "device_success.html"
+	tmplTOTPVerify     = "totp_verify.html"
+	tmplWebAuthnVerify = "webauthn_verify.html"
+	tmplHome           = "home.html"
+	tmplLogout         = "logout.html"
 )
 
 var requiredTmpls = []string{
@@ -32,16 +36,24 @@ var requiredTmpls = []string{
 	tmplError,
 	tmplDevice,
 	tmplDeviceSuccess,
+	tmplTOTPVerify,
+	tmplWebAuthnVerify,
+	tmplHome,
+	tmplLogout,
 }
 
 type templates struct {
-	loginTmpl         *template.Template
-	approvalTmpl      *template.Template
-	passwordTmpl      *template.Template
-	oobTmpl           *template.Template
-	errorTmpl         *template.Template
-	deviceTmpl        *template.Template
-	deviceSuccessTmpl *template.Template
+	loginTmpl          *template.Template
+	approvalTmpl       *template.Template
+	passwordTmpl       *template.Template
+	oobTmpl            *template.Template
+	errorTmpl          *template.Template
+	deviceTmpl         *template.Template
+	deviceSuccessTmpl  *template.Template
+	totpVerifyTmpl     *template.Template
+	webauthnVerifyTmpl *template.Template
+	homeTmpl           *template.Template
+	logoutTmpl         *template.Template
 }
 
 type webConfig struct {
@@ -162,13 +174,17 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 		return nil, fmt.Errorf("missing template(s): %s", missingTmpls)
 	}
 	return &templates{
-		loginTmpl:         tmpls.Lookup(tmplLogin),
-		approvalTmpl:      tmpls.Lookup(tmplApproval),
-		passwordTmpl:      tmpls.Lookup(tmplPassword),
-		oobTmpl:           tmpls.Lookup(tmplOOB),
-		errorTmpl:         tmpls.Lookup(tmplError),
-		deviceTmpl:        tmpls.Lookup(tmplDevice),
-		deviceSuccessTmpl: tmpls.Lookup(tmplDeviceSuccess),
+		loginTmpl:          tmpls.Lookup(tmplLogin),
+		approvalTmpl:       tmpls.Lookup(tmplApproval),
+		passwordTmpl:       tmpls.Lookup(tmplPassword),
+		oobTmpl:            tmpls.Lookup(tmplOOB),
+		errorTmpl:          tmpls.Lookup(tmplError),
+		deviceTmpl:         tmpls.Lookup(tmplDevice),
+		deviceSuccessTmpl:  tmpls.Lookup(tmplDeviceSuccess),
+		totpVerifyTmpl:     tmpls.Lookup(tmplTOTPVerify),
+		webauthnVerifyTmpl: tmpls.Lookup(tmplWebAuthnVerify),
+		homeTmpl:           tmpls.Lookup(tmplHome),
+		logoutTmpl:         tmpls.Lookup(tmplLogout),
 	}, nil
 }
 
@@ -224,6 +240,13 @@ func relativeURL(serverPath, reqPath, assetPath string) string {
 
 	// Remove common prefix of request path with server path
 	_, req = stripCommonParts(server, req)
+
+	// When the request is at the server root (e.g., reqPath == "/dex"),
+	// the browser treats the last path segment as a file, not a directory.
+	// Prepend the server path so relative URLs resolve correctly.
+	if len(req) == 0 && len(server) > 0 {
+		asset = append(server, asset...)
+	}
 
 	// Remove common prefix of request path with asset path
 	asset, req = stripCommonParts(asset, req)
@@ -291,18 +314,31 @@ func (t *templates) login(r *http.Request, w http.ResponseWriter, connectors []c
 	return renderTemplate(w, t.loginTmpl, data)
 }
 
-func (t *templates) password(r *http.Request, w http.ResponseWriter, postURL, lastUsername, usernamePrompt string, lastWasInvalid bool, backLink string) error {
+func (t *templates) password(r *http.Request, w http.ResponseWriter, postURL, lastUsername, usernamePrompt string, lastWasInvalid bool, backLink string, rememberMe *bool) error {
 	if lastWasInvalid {
 		w.WriteHeader(http.StatusUnauthorized)
 	}
 	data := struct {
-		PostURL        string
-		BackLink       string
-		Username       string
-		UsernamePrompt string
-		Invalid        bool
-		ReqPath        string
-	}{postURL, backLink, lastUsername, usernamePrompt, lastWasInvalid, r.URL.Path}
+		PostURL           string
+		BackLink          string
+		Username          string
+		UsernamePrompt    string
+		Invalid           bool
+		ReqPath           string
+		ShowRememberMe    bool
+		RememberMeChecked bool
+	}{
+		PostURL:        postURL,
+		BackLink:       backLink,
+		Username:       lastUsername,
+		UsernamePrompt: usernamePrompt,
+		Invalid:        lastWasInvalid,
+		ReqPath:        r.URL.Path,
+		ShowRememberMe: rememberMe != nil,
+	}
+	if rememberMe != nil {
+		data.RememberMeChecked = *rememberMe
+	}
 	return renderTemplate(w, t.passwordTmpl, data)
 }
 
@@ -323,6 +359,61 @@ func (t *templates) approval(r *http.Request, w http.ResponseWriter, authReqID, 
 		ReqPath   string
 	}{username, clientName, authReqID, accesses, r.URL.Path}
 	return renderTemplate(w, t.approvalTmpl, data)
+}
+
+func (t *templates) totpVerify(r *http.Request, w http.ResponseWriter, postURL, issuer, connector, qrCode string, lastWasInvalid bool) error {
+	if lastWasInvalid {
+		w.WriteHeader(http.StatusUnauthorized)
+	}
+	data := struct {
+		PostURL   string
+		Invalid   bool
+		Issuer    string
+		Connector string
+		QRCode    string
+		ReqPath   string
+	}{postURL, lastWasInvalid, issuer, connector, qrCode, r.URL.Path}
+	return renderTemplate(w, t.totpVerifyTmpl, data)
+}
+
+type homeData struct {
+	LoggedIn       bool
+	Username       string
+	Email          string
+	EmailVerified  bool
+	Groups         []string
+	ConnectorName  string
+	LastLoginEpoch int64
+	IPAddress      string
+	UserAgent      string
+	LogoutURL      string
+	DiscoveryURL   string
+	ReqPath        string
+}
+
+func (t *templates) home(r *http.Request, w http.ResponseWriter, data homeData) error {
+	data.ReqPath = r.URL.Path
+	return renderTemplate(w, t.homeTmpl, data)
+}
+
+func (t *templates) logout(r *http.Request, w http.ResponseWriter, backURL string, loggedOut bool) error {
+	data := struct {
+		BackURL   string
+		LoggedOut bool
+		ReqPath   string
+	}{backURL, loggedOut, r.URL.Path}
+	return renderTemplate(w, t.logoutTmpl, data)
+}
+
+func (t *templates) webauthnVerify(r *http.Request, w http.ResponseWriter, mode, authenticatorID string) error {
+	data := struct {
+		// Mode must be server-controlled ("register" or "login") and never derived
+		// from user input to prevent XSS in the template's script context.
+		Mode            string
+		AuthenticatorID string
+		ReqPath         string
+	}{mode, authenticatorID, r.URL.Path}
+	return renderTemplate(w, t.webauthnVerifyTmpl, data)
 }
 
 func (t *templates) oob(r *http.Request, w http.ResponseWriter, code string) error {

@@ -6,3 +6,4 @@
 /docker-compose.override.yaml
 /var/
 /vendor/
+*.db

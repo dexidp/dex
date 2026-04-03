@@ -72,6 +72,8 @@ web:
 # logger:
 #   level: "debug"
 #   format: "text" # can also be "json"
+#   # Drop these attribute keys from all log output (useful for GDPR/PII suppression).
+#   # excludeFields: [email, username, preferred_username, groups]
 
 # gRPC API configuration
 # Uncomment this block to enable the gRPC API.
@@ -85,13 +87,33 @@ web:
 # Expiration configuration for tokens, signing keys, etc.
 # expiry:
 #   deviceRequests: "5m"
-#   signingKeys: "6h"
+#   signingKeys: "6h" # deprecated, use signer.config.keysRotationPeriod
 #   idTokens: "24h"
 #   refreshTokens:
 #     disableRotation: false
 #     reuseInterval: "3s"
 #     validIfNotUsedFor: "2160h" # 90 days
 #     absoluteLifetime: "3960h" # 165 days
+#
+# signer:
+#   type: local
+#   config:
+#     keysRotationPeriod: "6h"
+#     algorithm: "RS256" # supported values: "RS256" (default) and "ES256"; changes apply on the next key rotation
+
+# Authentication sessions configuration.
+# Requires DEX_SESSIONS_ENABLED=true feature flag.
+# sessions:
+#   cookieName: "dex_session"
+#   absoluteLifetime: "24h"
+#   validIfNotUsedFor: "1h"
+#   rememberMeCheckedByDefault: false
+#   # AES key for encrypting session cookies. Must be 16, 24, or 32 bytes.
+#   # If empty, cookies are not encrypted.
+#   cookieEncryptionKey: ""
+#   # Default SSO sharing policy for clients without explicit ssoSharedWith.
+#   # "all" = share with all clients (Keycloak-like), "none" = no sharing (default).
+#   ssoSharedWithDefault: "none"
 
 # OAuth2 configuration
 # oauth2:
@@ -109,6 +131,13 @@ web:
 #
 #   # Uncomment to use a specific connector for password grants
 #   passwordConnector: local
+#
+#   # PKCE (Proof Key for Code Exchange) configuration
+#   pkce:
+#     # If true, PKCE is required for all authorization code flows (OAuth 2.1).
+#     enforce: false
+#     # Supported code challenge methods. Defaults to ["S256", "plain"].
+#     codeChallengeMethodsSupported: ["S256", "plain"]
 
 # Static clients registered in Dex by default.
 #
@@ -119,10 +148,51 @@ web:
 #       - 'http://127.0.0.1:5555/callback'
 #     name: 'Example App'
 #     secret: ZXhhbXBsZS1hcHAtc2VjcmV0
+#
+#   # Example using environment variables
+#   # These fields are mutually exclusive with id and secret respectively.
+#   - idEnv: DEX_CLIENT_ID
+#     secretEnv: DEX_CLIENT_SECRET
+#     redirectURIs:
+#       - 'https://app.example.com/callback'
+#     name: 'Production App'
+#
+#   # Example of a public client (no secret required)
+#   - id: example-device-client
+#     redirectURIs:
+#       - /device/callback
+#     name: 'Static Client for Device Flow'
+#     public: true
+#
+#   # Example of a client restricted to specific connectors
+#   - id: restricted-client
+#     secret: restricted-client-secret
+#     redirectURIs:
+#       - 'https://app.example.com/callback'
+#     name: 'Restricted Client'
+#     allowedConnectors:
+#       - github
+#       - google
+#
+#   # Example of SSO sharing between clients.
+#   # ssoSharedWith defines which other clients can reuse this client's session.
+#   # ["*"] = share with all, [] = share with no one.
+#   # If omitted, ssoSharedWithDefault from sessions config is used.
+#   - id: portal-app
+#     secret: portal-secret
+#     redirectURIs:
+#       - 'https://portal.example.com/callback'
+#     name: 'Portal'
+#     ssoSharedWith:
+#       - "dashboard-app"
+#       - "admin-app"
 
 # Connectors are used to authenticate users against upstream identity providers.
 #
 # See the documentation (https://dexidp.io/docs/connectors/) for further information.
+#
+# For LDAP nested group resolution, set groupSearch.userMatchers[].recursionGroupAttr
+# in the connector config. See: https://dexidp.io/docs/connectors/ldap/
 # connectors: []
 
 # Enable the password database.
@@ -135,4 +205,19 @@ enablePasswordDB: true
 # A static list of passwords for the password connector.
 #
 # Alternatively, passwords my be added/updated through the gRPC API.
-# staticPasswords: []
+# staticPasswords:
+#  - email: "user@example.com"
+#    # bcrypt hash of the string "password"
+#    hash: "$2a$10$examplehash..."
+#    username: "user-login"
+#    # Optional. Maps to OIDC "name" claim. Defaults to username.
+#    name: "User Full Name"
+#    # Optional. Maps to OIDC "email_verified" claim. Defaults to true.
+#    emailVerified: true
+#    # Optional. Maps to OIDC "preferred_username" claim.
+#    preferredUsername: "user-public"
+#    # Optional. Maps to OIDC "groups" claim (when 'groups' scope is requested).
+#    groups:
+#      - "team-a"
+#      - "team-a/admins"
+#    userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"

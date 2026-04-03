@@ -49,30 +49,28 @@ type connectorData struct {
 	AccessToken string `json:"accessToken"`
 }
 
-type linkedInConnector struct {
-	oauth2Config *oauth2.Config
-	logger       *slog.Logger
-}
-
-// LinkedIn doesn't provide refresh tokens, so refresh tokens issued by Dex
-// will expire in 60 days (default LinkedIn token lifetime).
 var (
 	_ connector.CallbackConnector = (*linkedInConnector)(nil)
 	_ connector.RefreshConnector  = (*linkedInConnector)(nil)
 )
 
+type linkedInConnector struct {
+	oauth2Config *oauth2.Config
+	logger       *slog.Logger
+}
+
 // LoginURL returns an access token request URL
-func (c *linkedInConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (string, error) {
+func (c *linkedInConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (string, []byte, error) {
 	if c.oauth2Config.RedirectURL != callbackURL {
-		return "", fmt.Errorf("expected callback URL %q did not match the URL in the config %q",
+		return "", nil, fmt.Errorf("expected callback URL %q did not match the URL in the config %q",
 			callbackURL, c.oauth2Config.RedirectURL)
 	}
 
-	return c.oauth2Config.AuthCodeURL(state), nil
+	return c.oauth2Config.AuthCodeURL(state), nil, nil
 }
 
 // HandleCallback handles HTTP redirect from LinkedIn
-func (c *linkedInConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
+func (c *linkedInConnector) HandleCallback(s connector.Scopes, connData []byte, r *http.Request) (identity connector.Identity, err error) {
 	q := r.URL.Query()
 	if errType := q.Get("error"); errType != "" {
 		return identity, &oauth2Error{errType, q.Get("error_description")}

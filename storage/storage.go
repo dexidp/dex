@@ -60,6 +60,7 @@ type GCResult struct {
 	AuthCodes      int64
 	DeviceRequests int64
 	DeviceTokens   int64
+	AuthSessions   int64
 }
 
 // IsEmpty returns whether the garbage collection result is empty or not.
@@ -67,7 +68,8 @@ func (g *GCResult) IsEmpty() bool {
 	return g.AuthRequests == 0 &&
 		g.AuthCodes == 0 &&
 		g.DeviceRequests == 0 &&
-		g.DeviceTokens == 0
+		g.DeviceTokens == 0 &&
+		g.AuthSessions == 0
 }
 
 // Storage is the storage interface used by the server. Implementations are
@@ -83,6 +85,8 @@ type Storage interface {
 	CreateRefresh(ctx context.Context, r RefreshToken) error
 	CreatePassword(ctx context.Context, p Password) error
 	CreateOfflineSessions(ctx context.Context, s OfflineSessions) error
+	CreateUserIdentity(ctx context.Context, u UserIdentity) error
+	CreateAuthSession(ctx context.Context, s AuthSession) error
 	CreateConnector(ctx context.Context, c Connector) error
 	CreateDeviceRequest(ctx context.Context, d DeviceRequest) error
 	CreateDeviceToken(ctx context.Context, d DeviceToken) error
@@ -96,6 +100,8 @@ type Storage interface {
 	GetRefresh(ctx context.Context, id string) (RefreshToken, error)
 	GetPassword(ctx context.Context, email string) (Password, error)
 	GetOfflineSessions(ctx context.Context, userID string, connID string) (OfflineSessions, error)
+	GetUserIdentity(ctx context.Context, userID, connectorID string) (UserIdentity, error)
+	GetAuthSession(ctx context.Context, userID, connectorID string) (AuthSession, error)
 	GetConnector(ctx context.Context, id string) (Connector, error)
 	GetDeviceRequest(ctx context.Context, userCode string) (DeviceRequest, error)
 	GetDeviceToken(ctx context.Context, deviceCode string) (DeviceToken, error)
@@ -104,6 +110,8 @@ type Storage interface {
 	ListRefreshTokens(ctx context.Context) ([]RefreshToken, error)
 	ListPasswords(ctx context.Context) ([]Password, error)
 	ListConnectors(ctx context.Context) ([]Connector, error)
+	ListUserIdentities(ctx context.Context) ([]UserIdentity, error)
+	ListAuthSessions(ctx context.Context) ([]AuthSession, error)
 
 	// Delete methods MUST be atomic.
 	DeleteAuthRequest(ctx context.Context, id string) error
@@ -112,6 +120,8 @@ type Storage interface {
 	DeleteRefresh(ctx context.Context, id string) error
 	DeletePassword(ctx context.Context, email string) error
 	DeleteOfflineSessions(ctx context.Context, userID string, connID string) error
+	DeleteUserIdentity(ctx context.Context, userID, connectorID string) error
+	DeleteAuthSession(ctx context.Context, userID, connectorID string) error
 	DeleteConnector(ctx context.Context, id string) error
 
 	// Update methods take a function for updating an object then performs that update within
@@ -134,6 +144,8 @@ type Storage interface {
 	UpdateRefreshToken(ctx context.Context, id string, updater func(r RefreshToken) (RefreshToken, error)) error
 	UpdatePassword(ctx context.Context, email string, updater func(p Password) (Password, error)) error
 	UpdateOfflineSessions(ctx context.Context, userID string, connID string, updater func(s OfflineSessions) (OfflineSessions, error)) error
+	UpdateUserIdentity(ctx context.Context, userID, connectorID string, updater func(u UserIdentity) (UserIdentity, error)) error
+	UpdateAuthSession(ctx context.Context, userID, connectorID string, updater func(s AuthSession) (AuthSession, error)) error
 	UpdateConnector(ctx context.Context, id string, updater func(c Connector) (Connector, error)) error
 	UpdateDeviceToken(ctx context.Context, deviceCode string, updater func(t DeviceToken) (DeviceToken, error)) error
 
@@ -149,28 +161,48 @@ type Storage interface {
 //   - Public clients: https://developers.google.com/api-client-library/python/auth/installed-app
 type Client struct {
 	// Client ID and secret used to identify the client.
-	ID        string `json:"id" yaml:"id"`
-	IDEnv     string `json:"idEnv" yaml:"idEnv"`
-	Secret    string `json:"secret" yaml:"secret"`
-	SecretEnv string `json:"secretEnv" yaml:"secretEnv"`
+	ID        string `json:"id"`
+	IDEnv     string `json:"idEnv"`
+	Secret    string `json:"secret"`
+	SecretEnv string `json:"secretEnv"`
 
 	// A registered set of redirect URIs. When redirecting from dex to the client, the URI
 	// requested to redirect to MUST match one of these values, unless the client is "public".
-	RedirectURIs []string `json:"redirectURIs" yaml:"redirectURIs"`
+	RedirectURIs []string `json:"redirectURIs"`
+
+	// PostLogoutRedirectURIs is a registered set of URIs that the client can redirect to
+	// after logout. Per OIDC RP-Initiated Logout Section 2, the post_logout_redirect_uri
+	// parameter MUST match one of these values.
+	PostLogoutRedirectURIs []string `json:"postLogoutRedirectURIs"`
 
 	// TrustedPeers are a list of peers which can issue tokens on this client's behalf using
 	// the dynamic "oauth2:server:client_id:(client_id)" scope. If a peer makes such a request,
 	// this client's ID will appear as the ID Token's audience.
 	//
 	// Clients inherently trust themselves.
-	TrustedPeers []string `json:"trustedPeers" yaml:"trustedPeers"`
+	TrustedPeers []string `json:"trustedPeers"`
 
 	// Public clients must use either use a redirectURL 127.0.0.1:X or "urn:ietf:wg:oauth:2.0:oob"
-	Public bool `json:"public" yaml:"public"`
+	Public bool `json:"public"`
 
 	// Name and LogoURL used when displaying this client to the end user.
-	Name    string `json:"name" yaml:"name"`
-	LogoURL string `json:"logoURL" yaml:"logoURL"`
+	Name    string `json:"name"`
+	LogoURL string `json:"logoURL"`
+
+	// AllowedConnectors is a list of connector IDs that the client is allowed to use for authentication.
+	// If empty, all connectors are allowed.
+	AllowedConnectors []string `json:"allowedConnectors"`
+
+	// MFAChain is an ordered list of MFA authenticator IDs that a user must complete
+	// during login. Empty means no MFA required.
+	MFAChain []string `json:"mfaChain"`
+
+	// SSOSharedWith defines which other clients can reuse this client's authentication session.
+	// When a user is authenticated for this client, clients listed here can skip authentication.
+	// Special value "*" means share with all clients (Keycloak-like realm-wide SSO).
+	// nil means use ssoSharedWithDefault from sessions config.
+	// Empty slice [] means explicitly share with no one.
+	SSOSharedWith []string `json:"ssoSharedWith" yaml:"ssoSharedWith"`
 }
 
 // Claims represents the ID Token claims supported by the server.
@@ -212,6 +244,20 @@ type AuthRequest struct {
 	// attempts.
 	ForceApprovalPrompt bool
 
+	// OIDC prompt parameter. Controls authentication and consent UI behavior.
+	// Values: "none", "login", "consent", "select_account".
+	Prompt string
+
+	// MaxAge is the OIDC max_age parameter — maximum allowable elapsed time
+	// in seconds since the user last actively authenticated.
+	// -1 means not specified.
+	MaxAge int
+
+	// AuthTime is when the user last actively authenticated (entered credentials).
+	// Set during finalizeLogin (= now) or trySessionLogin (= UserIdentity.LastLogin).
+	// Used in ID token as "auth_time" claim.
+	AuthTime time.Time
+
 	Expiry time.Time
 
 	// Has the user proved their identity through a backing identity provider?
@@ -233,6 +279,13 @@ type AuthRequest struct {
 
 	// HMACKey is used when generating an AuthRequest-specific HMAC
 	HMACKey []byte
+
+	// MFAValidated is set to true if the user has completed multi-factor authentication.
+	MFAValidated bool
+
+	// WebAuthnSessionData stores temporary WebAuthn ceremony data (challenge, etc.)
+	// between Begin and Finish calls. JSON-encoded webauthn.SessionData.
+	WebAuthnSessionData []byte
 }
 
 // AuthCode represents a code which can be exchanged for an OAuth2 token response.
@@ -268,6 +321,10 @@ type AuthCode struct {
 	Claims        Claims
 
 	Expiry time.Time
+
+	// AuthTime is when the user last actively authenticated.
+	// Carried over from AuthRequest to include in ID tokens.
+	AuthTime time.Time
 
 	// PKCE CodeChallenge and CodeChallengeMethod
 	PKCE PKCE
@@ -316,6 +373,90 @@ type RefreshTokenRef struct {
 	LastUsed  time.Time
 }
 
+// MFASecret stores the enrollment state and secret for an MFA authenticator.
+// Note: Secret is stored without encryption. Encrypting secrets at rest is the
+// responsibility of the storage backend (e.g., encrypted etcd, disk encryption).
+type MFASecret struct {
+	AuthenticatorID string    `json:"authenticatorID"`
+	Type            string    `json:"type"`
+	Secret          string    `json:"secret"`
+	Confirmed       bool      `json:"confirmed"`
+	CreatedAt       time.Time `json:"createdAt"`
+}
+
+// WebAuthnCredential stores a registered WebAuthn credential for a user.
+type WebAuthnCredential struct {
+	CredentialID    []byte    `json:"credentialID"`
+	PublicKey       []byte    `json:"publicKey"`
+	AttestationType string    `json:"attestationType"`
+	AAGUID          []byte    `json:"aaguid"`
+	SignCount       uint32    `json:"signCount"`
+	CloneWarning    bool      `json:"cloneWarning"`
+	Transport       []string  `json:"transport"`
+	BackupEligible  bool      `json:"backupEligible"`
+	BackupState     bool      `json:"backupState"`
+	DisplayName     string    `json:"displayName"`
+	CreatedAt       time.Time `json:"createdAt"`
+}
+
+// UserIdentity represents persistent per-user identity data.
+type UserIdentity struct {
+	UserID              string
+	ConnectorID         string
+	Claims              Claims
+	Consents            map[string][]string             // clientID -> approved scopes
+	MFASecrets          map[string]*MFASecret           // authenticatorID -> secret
+	WebAuthnCredentials map[string][]WebAuthnCredential // authenticatorID -> credentials
+	CreatedAt           time.Time
+	LastLogin           time.Time
+	BlockedUntil        time.Time
+}
+
+// ClientAuthState represents authentication state for a specific client within an auth session.
+type ClientAuthState struct {
+	Active            bool
+	ExpiresAt         time.Time
+	LastActivity      time.Time
+	LastTokenIssuedAt time.Time
+}
+
+// LogoutState holds RP parameters saved in the auth session during logout.
+// These are written before the upstream logout redirect and read back in the callback.
+type LogoutState struct {
+	PostLogoutRedirectURI string
+	State                 string // RP's opaque state parameter
+	ClientID              string
+	ConnectorID           string
+}
+
+// AuthSession represents a user's authentication session from a specific connector.
+// Keyed by composite (UserID, ConnectorID), similar to OfflineSessions.
+// The Nonce field is a random value included in the session cookie to prevent forgery.
+//
+// TODO(nabokihms): support multiple sessions in one browser by storing multiple
+// session references in the cookie (e.g. "ref1|ref2") so that different users
+// can maintain independent sessions in the same browser.
+type AuthSession struct {
+	UserID       string
+	ConnectorID  string
+	Nonce        string                      // random, included in cookie for verification
+	ClientStates map[string]*ClientAuthState // clientID -> auth state
+	CreatedAt    time.Time
+	LastActivity time.Time
+	IPAddress    string
+	UserAgent    string
+
+	// AbsoluteExpiry is CreatedAt + AbsoluteLifetime, set once at creation.
+	AbsoluteExpiry time.Time
+	// IdleExpiry is LastActivity + ValidIfNotUsedFor, updated on every activity.
+	IdleExpiry time.Time
+
+	// LogoutState is set during RP-Initiated Logout before redirecting to the
+	// upstream provider. The callback handler reads it back to complete the flow.
+	// Nil when no logout is in progress.
+	LogoutState *LogoutState
+}
+
 // OfflineSessions objects are sessions pertaining to users with refresh tokens.
 type OfflineSessions struct {
 	// UserID of an end user who has logged into the server.
@@ -352,8 +493,22 @@ type Password struct {
 	// Optional username to display. NOT used during login.
 	Username string `json:"username"`
 
+	// Optional full name for OIDC "name" claim.
+	// Defaults to Username when empty.
+	Name string `json:"name"`
+
+	// Optional preferred username for OIDC "preferred_username" claim.
+	PreferredUsername string `json:"preferredUsername"`
+
+	// Optional value for OIDC "email_verified" claim.
+	// Defaults to true for backwards compatibility when nil.
+	EmailVerified *bool `json:"emailVerified,omitempty"`
+
 	// Randomly generated user ID. This is NOT the primary ID of the Password object.
 	UserID string `json:"userID"`
+
+	// Groups assigned to the user
+	Groups []string `json:"groups"`
 }
 
 // Connector is an object that contains the metadata about connectors used to login to Dex.
@@ -374,6 +529,10 @@ type Connector struct {
 	// However, fixing this requires migrating Kubernetes objects for all previously created connectors,
 	// or making Dex reading both tags and act accordingly.
 	Config []byte `json:"email"`
+
+	// GrantTypes is a list of grant types that this connector is allowed to be used with.
+	// If empty, all grant types are allowed.
+	GrantTypes []string `json:"grantTypes,omitempty"`
 }
 
 // VerificationKey is a rotated signing key which can still be used to verify

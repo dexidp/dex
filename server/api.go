@@ -58,13 +58,15 @@ func (d dexAPI) GetClient(ctx context.Context, req *api.GetClientReq) (*api.GetC
 
 	return &api.GetClientResp{
 		Client: &api.Client{
-			Id:           c.ID,
-			Name:         c.Name,
-			Secret:       c.Secret,
-			RedirectUris: c.RedirectURIs,
-			TrustedPeers: c.TrustedPeers,
-			Public:       c.Public,
-			LogoUrl:      c.LogoURL,
+			Id:                c.ID,
+			Name:              c.Name,
+			Secret:            c.Secret,
+			RedirectUris:      c.RedirectURIs,
+			TrustedPeers:      c.TrustedPeers,
+			Public:            c.Public,
+			LogoUrl:           c.LogoURL,
+			AllowedConnectors: c.AllowedConnectors,
+			SsoSharedWith:     c.SSOSharedWith,
 		},
 	}, nil
 }
@@ -82,13 +84,15 @@ func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*ap
 	}
 
 	c := storage.Client{
-		ID:           req.Client.Id,
-		Secret:       req.Client.Secret,
-		RedirectURIs: req.Client.RedirectUris,
-		TrustedPeers: req.Client.TrustedPeers,
-		Public:       req.Client.Public,
-		Name:         req.Client.Name,
-		LogoURL:      req.Client.LogoUrl,
+		ID:                req.Client.Id,
+		Secret:            req.Client.Secret,
+		RedirectURIs:      req.Client.RedirectUris,
+		TrustedPeers:      req.Client.TrustedPeers,
+		Public:            req.Client.Public,
+		Name:              req.Client.Name,
+		LogoURL:           req.Client.LogoUrl,
+		AllowedConnectors: req.Client.AllowedConnectors,
+		SSOSharedWith:     req.Client.SsoSharedWith,
 	}
 	if err := d.s.CreateClient(ctx, c); err != nil {
 		if err == storage.ErrAlreadyExists {
@@ -120,6 +124,12 @@ func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*ap
 		}
 		if req.LogoUrl != "" {
 			old.LogoURL = req.LogoUrl
+		}
+		if req.AllowedConnectors != nil {
+			old.AllowedConnectors = req.AllowedConnectors
+		}
+		if req.SsoSharedWith != nil {
+			old.SSOSharedWith = req.SsoSharedWith
 		}
 		return old, nil
 	})
@@ -155,12 +165,14 @@ func (d dexAPI) ListClients(ctx context.Context, req *api.ListClientReq) (*api.L
 	clients := make([]*api.ClientInfo, 0, len(clientList))
 	for _, client := range clientList {
 		c := api.ClientInfo{
-			Id:           client.ID,
-			Name:         client.Name,
-			RedirectUris: client.RedirectURIs,
-			TrustedPeers: client.TrustedPeers,
-			Public:       client.Public,
-			LogoUrl:      client.LogoURL,
+			Id:                client.ID,
+			Name:              client.Name,
+			RedirectUris:      client.RedirectURIs,
+			TrustedPeers:      client.TrustedPeers,
+			Public:            client.Public,
+			LogoUrl:           client.LogoURL,
+			AllowedConnectors: client.AllowedConnectors,
+			SsoSharedWith:     client.SSOSharedWith,
 		}
 		clients = append(clients, &c)
 	}
@@ -279,7 +291,7 @@ func (d dexAPI) GetVersion(ctx context.Context, req *api.VersionReq) (*api.Versi
 }
 
 func (d dexAPI) GetDiscovery(ctx context.Context, req *api.DiscoveryReq) (*api.DiscoveryResp, error) {
-	discoveryDoc := d.server.constructDiscovery()
+	discoveryDoc := d.server.constructDiscovery(ctx)
 	data, err := json.Marshal(discoveryDoc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal discovery data: %v", err)
@@ -455,12 +467,19 @@ func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq
 		return nil, errors.New("invalid config supplied")
 	}
 
+	for _, gt := range req.Connector.GrantTypes {
+		if !ConnectorGrantTypes[gt] {
+			return nil, fmt.Errorf("unknown grant type %q", gt)
+		}
+	}
+
 	c := storage.Connector{
 		ID:              req.Connector.Id,
 		Name:            req.Connector.Name,
 		Type:            req.Connector.Type,
 		ResourceVersion: "1",
 		Config:          req.Connector.Config,
+		GrantTypes:      req.Connector.GrantTypes,
 	}
 	if err := d.s.CreateConnector(ctx, c); err != nil {
 		if err == storage.ErrAlreadyExists {
@@ -468,6 +487,11 @@ func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq
 		}
 		d.logger.Error("api: failed to create connector", "err", err)
 		return nil, fmt.Errorf("create connector: %v", err)
+	}
+
+	// Make sure we don't reuse stale entries in the cache
+	if d.server != nil {
+		d.server.CloseConnector(req.Connector.Id)
 	}
 
 	return &api.CreateConnectorResp{}, nil
@@ -482,12 +506,24 @@ func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq
 		return nil, errors.New("no email supplied")
 	}
 
-	if len(req.NewConfig) == 0 && req.NewName == "" && req.NewType == "" {
+	hasUpdate := len(req.NewConfig) != 0 ||
+		req.NewName != "" ||
+		req.NewType != "" ||
+		req.NewGrantTypes != nil
+	if !hasUpdate {
 		return nil, errors.New("nothing to update")
 	}
 
-	if !json.Valid(req.NewConfig) {
+	if len(req.NewConfig) != 0 && !json.Valid(req.NewConfig) {
 		return nil, errors.New("invalid config supplied")
+	}
+
+	if req.NewGrantTypes != nil {
+		for _, gt := range req.NewGrantTypes.GrantTypes {
+			if !ConnectorGrantTypes[gt] {
+				return nil, fmt.Errorf("unknown grant type %q", gt)
+			}
+		}
 	}
 
 	updater := func(old storage.Connector) (storage.Connector, error) {
@@ -501,6 +537,10 @@ func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq
 
 		if len(req.NewConfig) != 0 {
 			old.Config = req.NewConfig
+		}
+
+		if req.NewGrantTypes != nil {
+			old.GrantTypes = req.NewGrantTypes.GrantTypes
 		}
 
 		if rev, err := strconv.Atoi(defaultTo(old.ResourceVersion, "0")); err == nil {
@@ -538,6 +578,7 @@ func (d dexAPI) DeleteConnector(ctx context.Context, req *api.DeleteConnectorReq
 		d.logger.Error("api: failed to delete connector", "err", err)
 		return nil, fmt.Errorf("delete connector: %v", err)
 	}
+
 	return &api.DeleteConnectorResp{}, nil
 }
 
@@ -555,10 +596,11 @@ func (d dexAPI) ListConnectors(ctx context.Context, req *api.ListConnectorReq) (
 	connectors := make([]*api.Connector, 0, len(connectorList))
 	for _, connector := range connectorList {
 		c := api.Connector{
-			Id:     connector.ID,
-			Name:   connector.Name,
-			Type:   connector.Type,
-			Config: connector.Config,
+			Id:         connector.ID,
+			Name:       connector.Name,
+			Type:       connector.Type,
+			Config:     connector.Config,
+			GrantTypes: connector.GrantTypes,
 		}
 		connectors = append(connectors, &c)
 	}

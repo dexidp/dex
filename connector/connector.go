@@ -3,8 +3,21 @@ package connector
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 )
+
+// UserNotInRequiredGroupsError is returned by a connector when a user
+// successfully authenticates but is not a member of any of the required groups.
+// The server will respond with HTTP 403 Forbidden instead of 500.
+type UserNotInRequiredGroupsError struct {
+	UserID string
+	Groups []string
+}
+
+func (e *UserNotInRequiredGroupsError) Error() string {
+	return fmt.Sprintf("user %q is not in any of the required groups %v", e.UserID, e.Groups)
+}
 
 // Connector is a mechanism for federating login to a remote identity service.
 //
@@ -63,10 +76,10 @@ type CallbackConnector interface {
 	// requested if one has already been issues. There's no good general answer
 	// for these kind of restrictions, and may require this package to become more
 	// aware of the global set of user/connector interactions.
-	LoginURL(s Scopes, callbackURL, state string) (string, error)
+	LoginURL(s Scopes, callbackURL, state string) (string, []byte, error)
 
 	// Handle the callback to the server and return an identity.
-	HandleCallback(s Scopes, r *http.Request) (identity Identity, err error)
+	HandleCallback(s Scopes, connData []byte, r *http.Request) (identity Identity, err error)
 }
 
 // SAMLConnector represents SAML connectors which implement the HTTP POST binding.
@@ -102,4 +115,24 @@ type RefreshConnector interface {
 
 type TokenIdentityConnector interface {
 	TokenIdentity(ctx context.Context, subjectTokenType, subjectToken string) (Identity, error)
+}
+
+// LogoutCallbackConnector is a connector that can initiate upstream logout and
+// optionally validate the upstream provider's logout response.
+// Connectors that implement this interface support RP-Initiated Logout by
+// returning a URL that Dex should redirect the user to in order to terminate
+// the upstream session.
+type LogoutCallbackConnector interface {
+	// LogoutURL returns the upstream provider's logout URL.
+	// connectorData is the data stored during the user's authentication session.
+	// postLogoutRedirectURI is the URL the upstream provider should redirect back to after logout.
+	// Returns the upstream logout URL or empty string if upstream logout is not available.
+	LogoutURL(ctx context.Context, connectorData []byte, postLogoutRedirectURI string) (string, error)
+
+	// HandleLogoutCallback validates the upstream provider's logout response
+	// received in the callback request. For example, SAML connectors should
+	// verify the LogoutResponse signature and status code here.
+	// Connectors that don't receive a structured response (e.g. OIDC) should
+	// return nil.
+	HandleLogoutCallback(ctx context.Context, r *http.Request) error
 }

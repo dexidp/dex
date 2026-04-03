@@ -51,19 +51,21 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-tags: true
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
       - name: Set up Syft
-        uses: anchore/sbom-action/download-syft@8e94d75ddd33f69f691467e42275782e4bfefe84 # v0.20.9
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
+        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
 
       - name: Set image name
         id: image-name
@@ -71,7 +73,7 @@ jobs:
 
       - name: Gather build metadata
         id: meta
-        uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5.9.0
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
         with:
           images: |
             ${{ steps.image-name.outputs.value }}
@@ -92,6 +94,12 @@ jobs:
 
       # Multiple exporters are not supported yet
       # See https://github.com/moby/buildkit/pull/2760
+      - name: Get version from git-version script
+        id: version
+        run: echo "value=$(bash ./scripts/git-version)" >> "$GITHUB_OUTPUT"
+
+      # Multiple exporters are not supported yet
+      # See https://github.com/moby/buildkit/pull/2760
       - name: Determine build output
         uses: haya14busa/action-cond@94f77f7a80cd666cb3155084e428254fea4281fd # v1.2.1
         id: build-output
@@ -101,7 +109,7 @@ jobs:
           if_false: type=oci,dest=image.tar
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -109,7 +117,7 @@ jobs:
         if: inputs.publish
 
       - name: Login to Docker Hub
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
@@ -117,17 +125,18 @@ jobs:
 
       - name: Build and push image
         id: build
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
           platforms: linux/amd64,linux/arm/v7,linux/arm64,linux/ppc64le,linux/s390x
           tags: ${{ steps.meta.outputs.tags }}
           build-args: |
             BASE_IMAGE=${{ matrix.variant }}
-            VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
+            VERSION=${{ steps.version.outputs.value }}
             COMMIT_HASH=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
             BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
           # cache-from: type=gha
           # cache-to: type=gha,mode=max
           outputs: ${{ steps.build-output.outputs.value }}
@@ -154,9 +163,20 @@ jobs:
       #     path: image.tar
 
       - name: Extract OCI tarball
+        id: extract-oci
         run: |
           mkdir -p image
           tar -xf image.tar -C image
+
+          image_name=$(jq -r '.manifests[0].annotations["io.containerd.image.name"]' image/index.json)
+          image_tag=$(jq -r '.manifests[0].annotations["org.opencontainers.image.ref.name"]' image/index.json)
+
+          echo "Copying $image_tag -> $image_name"
+          skopeo copy "oci:image:$image_tag" "docker-daemon:$image_name"
+
+          echo "value=$image_name" >> "$GITHUB_OUTPUT"
+        if: ${{ !inputs.publish }}
+
 
       # - name: List tags
       #   run: skopeo --insecure-policy list-tags oci:image
@@ -177,19 +197,27 @@ jobs:
 
       # TODO: uncomment when the action is working for non ghcr.io pushes. GH Issue: https://github.com/actions/attest-build-provenance/issues/80
       # - name: Generate build provenance attestation
-      #   uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
+      #   uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
       #   with:
       #     subject-name: dexidp/dex
       #     subject-digest: ${{ steps.build.outputs.digest }}
       #     push-to-registry: true
 
       - name: Generate build provenance attestation
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-name: ghcr.io/${{ github.repository }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
         if: inputs.publish
+
+      - name: Prepare image fs for scanning
+        run: |
+          image_ref=${{ steps.extract-oci.outputs.value != '' && steps.extract-oci.outputs.value || steps.image-ref.outputs.value }}
+          docker export $(docker create --rm $image_ref) -o docker-image.tar
+
+          mkdir -p docker-image
+          tar -xf docker-image.tar -C docker-image
 
       ## Use cache for the trivy-db to avoid the TOOMANYREQUESTS error https://github.com/aquasecurity/trivy-action/pull/397
       ## To avoid the trivy-db becoming outdated, we save the cache for one day
@@ -198,25 +226,25 @@ jobs:
         run: echo "date=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
 
       - name: Restore trivy cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: cache/db
           key: trivy-cache-${{ steps.date.outputs.date }}
           restore-keys: trivy-cache-
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
-          input: image
+          input: docker-image
           format: sarif
           output: trivy-results.sarif
-          scan-type: "fs"
+          scan-type: "rootfs"
           scan-ref: "."
           cache-dir: "./cache"
         # Disable skipping trivy cache for now
-        # env:
-        #   TRIVY_SKIP_DB_UPDATE: true
-        #   TRIVY_SKIP_JAVA_DB_UPDATE: true
+        env:
+          TRIVY_SKIP_DB_UPDATE: true
+          TRIVY_SKIP_JAVA_DB_UPDATE: true
 
       ## Trivy-db uses `0600` permissions.
       ## But `action/cache` use `runner` user by default
@@ -224,8 +252,11 @@ jobs:
       - name: change permissions for trivy.db
         run: sudo chmod 0644 ./cache/db/trivy.db
 
+      - name: Check Trivy sarif
+        run: cat trivy-results.sarif
+
       - name: Upload Trivy scan results as artifact
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: "[${{ github.job }}] Trivy scan results"
           path: trivy-results.sarif
@@ -233,6 +264,6 @@ jobs:
           overwrite: true
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@014f16e7ab1402f30e7c3329d33797e7948572db # v3.29.5
+        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v3.29.5
         with:
           sarif_file: trivy-results.sarif

@@ -28,6 +28,8 @@ const (
 	// GitHub requires this scope to access '/user/teams' and '/orgs' API endpoints
 	// which are used when a client includes the 'groups' scope.
 	scopeOrgs = "read:org"
+	// githubAPIVersion pins the GitHub REST API version used in requests.
+	githubAPIVersion = "2022-11-28"
 )
 
 // Pagination URL patterns
@@ -194,12 +196,12 @@ func (c *githubConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
 	}
 }
 
-func (c *githubConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (string, error) {
+func (c *githubConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (string, []byte, error) {
 	if c.redirectURI != callbackURL {
-		return "", fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
+		return "", nil, fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
 	}
 
-	return c.oauth2Config(scopes).AuthCodeURL(state), nil
+	return c.oauth2Config(scopes).AuthCodeURL(state), nil, nil
 }
 
 type oauth2Error struct {
@@ -214,7 +216,7 @@ func (e *oauth2Error) Error() string {
 	return e.error + ": " + e.errorDescription
 }
 
-func (c *githubConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
+func (c *githubConnector) HandleCallback(s connector.Scopes, connData []byte, r *http.Request) (identity connector.Identity, err error) {
 	q := r.URL.Query()
 	if errType := q.Get("error"); errType != "" {
 		return identity, &oauth2Error{errType, q.Get("error_description")}
@@ -462,6 +464,7 @@ func get(ctx context.Context, client *http.Client, apiURL string, v interface{})
 		return "", fmt.Errorf("github: new req: %v", err)
 	}
 	req = req.WithContext(ctx)
+	req.Header.Set("X-GitHub-Api-Version", githubAPIVersion)
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("github: get URL %v", err)
@@ -659,6 +662,7 @@ func (c *githubConnector) userInOrg(ctx context.Context, client *http.Client, us
 		return false, fmt.Errorf("github: new req: %v", err)
 	}
 	req = req.WithContext(ctx)
+	req.Header.Set("X-GitHub-Api-Version", githubAPIVersion)
 	resp, err := client.Do(req)
 	if err != nil {
 		return false, fmt.Errorf("github: get teams: %v", err)

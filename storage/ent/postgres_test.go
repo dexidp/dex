@@ -65,6 +65,11 @@ func TestPostgres(t *testing.T) {
 	}
 	conformance.RunTests(t, newStorage)
 	conformance.RunTransactionTests(t, newStorage)
+
+	// TODO(nabokihms): ent Postgres uses SERIALIZABLE transaction isolation for UpdateRefreshToken,
+	// but does not retry on serialization failures (pq: could not serialize access due to
+	// concurrent update, SQLSTATE 40001). Under high contention most updates fail immediately.
+	// conformance.RunConcurrencyTests(t, newStorage)
 }
 
 func TestPostgresDSN(t *testing.T) {
