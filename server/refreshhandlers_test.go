@@ -351,7 +351,7 @@ func TestRefreshTokenAuthTime(t *testing.T) {
 }
 
 // failingRefreshConnector implements connector.CallbackConnector and connector.RefreshConnector
-// but always returns an error on Refresh, simulating an upstream provider failure.
+// but always returns an error on Refresh, proving that the upstream is not contacted.
 type failingRefreshConnector struct {
 	identity connector.Identity
 }
@@ -372,7 +372,7 @@ func (f *failingRefreshConnector) Refresh(_ context.Context, _ connector.Scopes,
 	return connector.Identity{}, errors.New("upstream: refresh token expired")
 }
 
-func TestUpstreamRefreshFailureFallsBackToUserIdentity(t *testing.T) {
+func TestRefreshDisconnectsUpstreamWhenSessionsEnabled(t *testing.T) {
 	t0 := time.Now().UTC().Round(time.Second)
 	loginTime := t0.Add(-10 * time.Minute)
 
@@ -383,19 +383,19 @@ func TestUpstreamRefreshFailureFallsBackToUserIdentity(t *testing.T) {
 		wantOK             bool
 	}{
 		{
-			name:               "sessions enabled with user identity - fallback succeeds",
+			name:               "sessions enabled - uses user identity, skips upstream",
 			sessionsEnabled:    true,
 			createUserIdentity: true,
 			wantOK:             true,
 		},
 		{
-			name:               "sessions enabled without user identity - fallback fails",
+			name:               "sessions enabled without user identity - fails",
 			sessionsEnabled:    true,
 			createUserIdentity: false,
 			wantOK:             false,
 		},
 		{
-			name:               "sessions disabled - no fallback, error returned",
+			name:               "sessions disabled - upstream failure returns error",
 			sessionsEnabled:    false,
 			createUserIdentity: false,
 			wantOK:             false,
@@ -421,8 +421,8 @@ func TestUpstreamRefreshFailureFallsBackToUserIdentity(t *testing.T) {
 			mockRefreshTokenTestStorage(t, s.storage, false)
 
 			// Replace the connector with one that always fails on Refresh.
-			// ResourceVersion must match the storage connector (empty by default in
-			// mockRefreshTokenTestStorage) to prevent getConnector from re-opening it.
+			// When sessions are enabled this connector should never be called;
+			// when sessions are disabled, the failure proves the error path works.
 			s.mu.Lock()
 			s.connectors["test"] = Connector{
 				Connector: &failingRefreshConnector{
@@ -485,7 +485,7 @@ func TestUpstreamRefreshFailureFallsBackToUserIdentity(t *testing.T) {
 				assert.Equal(t, "jane", claims["name"])
 			} else {
 				require.NotEqual(t, http.StatusOK, rr.Code,
-					"expected error when upstream fails without fallback")
+					"expected error when sessions disabled or user identity missing")
 			}
 		})
 	}

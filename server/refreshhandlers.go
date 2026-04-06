@@ -332,18 +332,17 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 		Groups:            rCtx.storageToken.Claims.Groups,
 	}
 
-	// Pre-fetch UserIdentity outside the storage transaction to avoid deadlocks with
-	// storage backends that use a single lock (e.g., memory storage).
-	// This is used as a fallback when the upstream connector refresh fails.
-	var cachedIdentity *storage.UserIdentity
+	// When sessions are enabled, use claims from UserIdentity instead of refreshing
+	// the upstream token. This disconnects downstream refresh from the upstream provider.
+	var userIdent *storage.UserIdentity
 	if featureflags.SessionsEnabled.Enabled() {
 		ui, err := s.storage.GetUserIdentity(ctx, rCtx.storageToken.Claims.UserID, rCtx.storageToken.ConnectorID)
 		if err != nil {
-			s.logger.WarnContext(ctx, "failed to pre-fetch user identity for upstream refresh fallback",
+			s.logger.ErrorContext(ctx, "failed to get user identity for refresh",
 				"user_id", rCtx.storageToken.Claims.UserID, "connector_id", rCtx.storageToken.ConnectorID, "err", err)
-		} else {
-			cachedIdentity = &ui
+			return nil, ident, newInternalServerError()
 		}
+		userIdent = &ui
 	}
 
 	refreshTokenUpdater := func(old storage.RefreshToken) (storage.RefreshToken, error) {
@@ -390,25 +389,18 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 		// Call  only once if there is a request which is not in the reuse interval.
 		// This is required to avoid multiple calls to the external IdP for concurrent requests.
 		// Dex will call the connector's Refresh method only once if request is not in reuse interval.
-		ident, rerr = s.refreshWithConnector(ctx, rCtx, ident)
-		if rerr != nil {
-			// When sessions are enabled and the upstream provider fails (e.g., expired upstream
-			// refresh token), fall back to claims stored in UserIdentity instead of failing the
-			// entire refresh. This matches the behavior of other identity brokers (Keycloak, Auth0)
-			// that do not contact the upstream on every downstream refresh.
-			if cachedIdentity != nil {
-				s.logger.WarnContext(ctx, "upstream refresh failed, using cached identity from last login",
-					"err", rerr, "user_id", cachedIdentity.Claims.UserID, "connector_id", rCtx.storageToken.ConnectorID)
-				ident = connector.Identity{
-					UserID:            cachedIdentity.Claims.UserID,
-					Username:          cachedIdentity.Claims.Username,
-					PreferredUsername: cachedIdentity.Claims.PreferredUsername,
-					Email:             cachedIdentity.Claims.Email,
-					EmailVerified:     cachedIdentity.Claims.EmailVerified,
-					Groups:            cachedIdentity.Claims.Groups,
-				}
-				rerr = nil
+		// When sessions are enabled, use cached identity instead of refreshing upstream.
+		if userIdent != nil {
+			ident = connector.Identity{
+				UserID:            userIdent.Claims.UserID,
+				Username:          userIdent.Claims.Username,
+				PreferredUsername: userIdent.Claims.PreferredUsername,
+				Email:             userIdent.Claims.Email,
+				EmailVerified:     userIdent.Claims.EmailVerified,
+				Groups:            userIdent.Claims.Groups,
 			}
+		} else {
+			ident, rerr = s.refreshWithConnector(ctx, rCtx, ident)
 			if rerr != nil {
 				return old, rerr
 			}
