@@ -279,17 +279,17 @@ func TestRefreshTokenAuthTime(t *testing.T) {
 			mockRefreshTokenTestStorage(t, s.storage, false)
 
 			if tc.createUserIdentity {
-				// The mock connector returns UserID "0-385-28089-0" on Refresh,
-				// so the UserIdentity must use that ID to be found by handleRefreshToken.
+				// UserIdentity must match the refresh token's Claims.UserID ("1")
+				// because updateRefreshToken looks it up by that ID.
 				err := s.storage.CreateUserIdentity(t.Context(), storage.UserIdentity{
-					UserID:      "0-385-28089-0",
+					UserID:      "1",
 					ConnectorID: "test",
 					Claims: storage.Claims{
-						UserID:        "0-385-28089-0",
-						Username:      "Kilgore Trout",
-						Email:         "kilgore@kilgore.trout",
+						UserID:        "1",
+						Username:      "jane",
+						Email:         "jane.doe@example.com",
 						EmailVerified: true,
-						Groups:        []string{"authors"},
+						Groups:        []string{"a", "b"},
 					},
 					CreatedAt: loginTime,
 					LastLogin: loginTime,
@@ -404,8 +404,6 @@ func TestRefreshDisconnectsUpstreamWhenSessionsEnabled(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			setSessionsEnabled(t, tc.sessionsEnabled)
-
 			httpServer, s := newTestServer(t, func(c *Config) {
 				c.Now = func() time.Time { return t0 }
 			})

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
@@ -108,8 +107,8 @@ func newInternalServerError() *refreshError {
 	return &refreshError{msg: errInvalidRequest, desc: "", code: http.StatusInternalServerError}
 }
 
-func newUpstreamRefreshError(desc string) *refreshError {
-	return &refreshError{msg: errInvalidGrant, desc: desc, code: http.StatusBadGateway}
+func newUpstreamRefreshError() *refreshError {
+	return &refreshError{msg: errInvalidGrant, desc: "Upstream identity provider refresh failed.", code: http.StatusBadGateway}
 }
 
 func newBadRequestError(desc string) *refreshError {
@@ -276,7 +275,7 @@ func (s *Server) refreshWithConnector(ctx context.Context, rCtx *refreshContext,
 		newIdent, err := refreshConn.Refresh(ctx, parseScopes(rCtx.scopes), ident)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "failed to refresh identity", "err", err)
-			return ident, newUpstreamRefreshError(err.Error())
+			return ident, newUpstreamRefreshError()
 		}
 
 		return newIdent, nil
@@ -332,10 +331,14 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 		Groups:            rCtx.storageToken.Claims.Groups,
 	}
 
-	// When sessions are enabled, use claims from UserIdentity instead of refreshing
-	// the upstream token. This disconnects downstream refresh from the upstream provider.
+	// When sessions are enabled, downstream token refresh is disconnected from the upstream
+	// identity provider. Instead of calling the connector's Refresh method (which would contact
+	// the upstream IdP and may fail if the upstream refresh token has expired), we use the claims
+	// stored in UserIdentity at the time of the last interactive login. This aligns with the
+	// behavior of other identity brokers (e.g., Keycloak, Auth0) that treat downstream sessions
+	// independently from the upstream provider session lifetime.
 	var userIdent *storage.UserIdentity
-	if featureflags.SessionsEnabled.Enabled() {
+	if s.sessionConfig != nil {
 		ui, err := s.storage.GetUserIdentity(ctx, rCtx.storageToken.Claims.UserID, rCtx.storageToken.ConnectorID)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "failed to get user identity for refresh",
