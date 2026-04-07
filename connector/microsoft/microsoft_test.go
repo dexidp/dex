@@ -96,7 +96,7 @@ func TestUserIdentityFromGraphAPI(t *testing.T) {
 	expectNil(t, err)
 	expectEquals(t, identity.Username, "Jane Doe")
 	expectEquals(t, identity.UserID, "S56767889")
-	expectEquals(t, identity.PreferredUsername, "")
+	expectEquals(t, identity.PreferredUsername, "jane.doe@example.com")
 	expectEquals(t, identity.Email, "jane.doe@example.com")
 	expectEquals(t, identity.EmailVerified, true)
 	expectEquals(t, len(identity.Groups), 0)

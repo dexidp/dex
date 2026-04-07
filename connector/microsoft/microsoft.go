@@ -218,10 +218,11 @@ func (c *microsoftConnector) HandleCallback(s connector.Scopes, connData []byte,
 	}
 
 	identity = connector.Identity{
-		UserID:        user.ID,
-		Username:      user.Name,
-		Email:         user.Email,
-		EmailVerified: true,
+		UserID:            user.ID,
+		Username:          user.Name,
+		PreferredUsername: user.Email,
+		Email:             user.Email,
+		EmailVerified:     true,
 	}
 
 	if c.groupsRequired(s.Groups) {
@@ -313,6 +314,7 @@ func (c *microsoftConnector) Refresh(ctx context.Context, s connector.Scopes, id
 	}
 
 	identity.Username = user.Name
+	identity.PreferredUsername = user.Email
 	identity.Email = user.Email
 
 	if c.groupsRequired(s.Groups) {
