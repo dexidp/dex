@@ -345,6 +345,14 @@ func formatTeamName(org string, team string) string {
 func (c *githubConnector) groupsForOrgs(ctx context.Context, client *http.Client, userName string) ([]string, error) {
 	groups := make([]string, 0)
 	var inOrgNoTeams bool
+
+	// Fetch all user teams once to avoid redundant API calls across multiple orgs.
+	// This prevents fetching the same team data repeatedly when iterating through orgs.
+	allTeamsByOrg, err := c.userOrgTeams(ctx, client)
+	if err != nil {
+		return nil, fmt.Errorf("github: get teams: %v", err)
+	}
+
 	for _, org := range c.orgs {
 		inOrg, err := c.userInOrg(ctx, client, userName, org.Name)
 		if err != nil {
@@ -354,10 +362,9 @@ func (c *githubConnector) groupsForOrgs(ctx context.Context, client *http.Client
 			continue
 		}
 
-		teams, err := c.teamsForOrg(ctx, client, org.Name)
-		if err != nil {
-			return nil, err
-		}
+		// Use cached teams from the single fetch above instead of fetching per-org
+		teams := allTeamsByOrg[org.Name]
+
 		// User is in at least one org. User is authorized if no teams are specified
 		// in config; include all teams in claim. Otherwise filter out teams not in
 		// 'teams' list in config.
