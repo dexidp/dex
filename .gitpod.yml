@@ -1,3 +1,0 @@
-tasks:
-  - init: go get && go build ./... && go test ./... && make
-    command: go run

@@ -1355,3 +1355,79 @@ func TestTrySessionLogin_SSO(t *testing.T) {
 		assert.False(t, ok, "SSO login should fail when client does not share")
 	})
 }
+
+func TestFinishSessionLogin_MFA(t *testing.T) {
+	ctx := t.Context()
+
+	setupMFAFixture := func(t *testing.T, mfaProviders map[string]MFAProvider, clientMFAChain []string) (*Server, storage.AuthRequest) {
+		t.Helper()
+		s := newTestSessionServer(t)
+		s.skipApproval = true
+		s.mfaProviders = mfaProviders
+
+		// Create connector in storage and register it in the connectors map.
+		require.NoError(t, s.storage.CreateConnector(ctx, storage.Connector{
+			ID:              "mock",
+			Type:            "ldap",
+			Name:            "Mock LDAP",
+			ResourceVersion: "1",
+		}))
+		s.mu.Lock()
+		s.connectors = map[string]Connector{
+			"mock": {Type: "ldap", ResourceVersion: "1"},
+		}
+		s.mu.Unlock()
+
+		// Create client with MFA chain.
+		require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+			ID:       "client-1",
+			Secret:   "secret",
+			Name:     "Test Client",
+			MFAChain: clientMFAChain,
+		}))
+
+		authReq := setupSessionLoginFixture(t, s)
+		return s, authReq
+	}
+
+	t.Run("MFA required redirects to MFA page", func(t *testing.T) {
+		s, authReq := setupMFAFixture(t, map[string]MFAProvider{
+			"totp": NewTOTPProvider("test-issuer", nil), // nil connectorTypes = enabled for all
+		}, []string{"totp"})
+
+		r := sessionCookieRequest("user-1", "mock", "test-nonce")
+		w := httptest.NewRecorder()
+
+		redirectURL, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		require.True(t, ok)
+		assert.Contains(t, redirectURL, "/mfa/totp", "should redirect to MFA page")
+		assert.Contains(t, redirectURL, "req="+authReq.ID, "redirect should include auth request ID")
+		assert.Contains(t, redirectURL, "authenticator=totp", "redirect should include authenticator ID")
+
+		// MFAValidated should NOT be set.
+		updated, err := s.storage.GetAuthRequest(ctx, authReq.ID)
+		require.NoError(t, err)
+		assert.False(t, updated.MFAValidated, "MFAValidated should be false when MFA is required")
+		// LoggedIn should still be set even though MFA is pending.
+		assert.True(t, updated.LoggedIn, "LoggedIn should be true even when MFA is pending")
+	})
+
+	t.Run("MFA provider not enabled for connector type skips MFA", func(t *testing.T) {
+		// TOTP provider only enabled for "oidc" connectors, but our connector is "ldap".
+		s, authReq := setupMFAFixture(t, map[string]MFAProvider{
+			"totp": NewTOTPProvider("test-issuer", []string{"oidc"}),
+		}, []string{"totp"})
+		require.NoError(t, s.storage.UpdateAuthRequest(ctx, authReq.ID, func(a storage.AuthRequest) (storage.AuthRequest, error) {
+			a.ForceApprovalPrompt = true
+			return a, nil
+		}))
+		authReq.ForceApprovalPrompt = true
+
+		r := sessionCookieRequest("user-1", "mock", "test-nonce")
+		w := httptest.NewRecorder()
+
+		redirectURL, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		require.True(t, ok)
+		assert.Contains(t, redirectURL, "/approval")
+	})
+}

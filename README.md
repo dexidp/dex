@@ -3,7 +3,7 @@
 ![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/dexidp/dex/ci.yaml?style=flat-square&branch=master)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/dexidp/dex/badge?style=flat-square)](https://api.securityscorecards.dev/projects/github.com/dexidp/dex)
 [![Go Report Card](https://goreportcard.com/badge/github.com/dexidp/dex?style=flat-square)](https://goreportcard.com/report/github.com/dexidp/dex)
-[![Gitpod ready-to-code](https://img.shields.io/badge/Gitpod-ready--to--code-blue?logo=gitpod&style=flat-square)](https://gitpod.io/#https://github.com/dexidp/dex)
+[![Maintainers](https://img.shields.io/badge/Maintainers-CNCF-green?style=flat-square)](MAINTAINERS.md)
 
 ![logo](docs/logos/dex-horizontal-color.png)
 
@@ -44,11 +44,11 @@ Because these tokens are signed by dex and [contain standard-based claims][stand
 * [Kubernetes][kubernetes]
 * [AWS STS][aws-sts]
 
-For details on how to request or validate an ID Token, see [_"Writing apps that use dex"_][using-dex].
+For details on how to request or validate an ID Token, see [_"Writing apps that use dex"_](https://dexidp.io/docs/using-dex/).
 
 ## Kubernetes and Dex
 
-Dex runs natively on top of any Kubernetes cluster using Custom Resource Definitions and can drive API server authentication through the OpenID Connect plugin. Clients, such as the [`kubernetes-dashboard`](https://github.com/kubernetes/dashboard) and `kubectl`, can act on behalf of users who can login to the cluster through any identity provider dex supports.
+Dex runs natively on top of any Kubernetes cluster using Custom Resource Definitions and can drive API server authentication through the OpenID Connect plugin. Clients, such as [`kubelogin`](https://github.com/int128/kubelogin) and `kubectl`, can act on behalf of users who can login to the cluster through any identity provider dex supports.
 
 * More docs for running dex as a Kubernetes authenticator can be found [here](https://dexidp.io/docs/guides/kubernetes/).
 * You can find more about companies and projects which use dex, [here](./ADOPTERS.md).
@@ -93,16 +93,7 @@ All changes or deprecations of connector features will be announced in the [rele
 
 ## Documentation
 
-* [Getting started](https://dexidp.io/docs/getting-started/)
-* [Intro to OpenID Connect](https://dexidp.io/docs/openid-connect/)
-* [Writing apps that use dex][using-dex]
-* [What's new in v2](https://dexidp.io/docs/archive/v2/)
-* [Custom scopes, claims, and client features](https://dexidp.io/docs/custom-scopes-claims-clients/)
-* [Storage options](https://dexidp.io/docs/storage/)
-* [gRPC API](https://dexidp.io/docs/api/)
-* [Using Kubernetes with dex](https://dexidp.io/docs/kubernetes/)
-* Client libraries
-  * [Go][go-oidc]
+See the [official documentation](https://dexidp.io/docs/) for getting started, configuration, and usage guides.
 
 ## Reporting a vulnerability
 
@@ -114,32 +105,18 @@ Please see our [security policy](.github/SECURITY.md) for details about reportin
 - For general discussion about both using and developing Dex:
     - join the [#dexidp](https://cloud-native.slack.com/messages/dexidp) on the CNCF Slack
     - open a new [discussion](https://github.com/dexidp/dex/discussions)
-    - join the [dex-dev](https://groups.google.com/forum/#!forum/dex-dev) mailing list
 
 [openid-connect]: https://openid.net/connect/
 [standard-claims]: https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims
 [scopes]: https://dexidp.io/docs/custom-scopes-claims-clients/#scopes
-[using-dex]: https://dexidp.io/docs/using-dex/
 [jwt-io]: https://jwt.io/
 [kubernetes]: https://kubernetes.io/docs/reference/access-authn-authz/authentication/#openid-connect-tokens
 [aws-sts]: https://docs.aws.amazon.com/STS/latest/APIReference/Welcome.html
-[go-oidc]: https://github.com/coreos/go-oidc
-[issue-1065]: https://github.com/dexidp/dex/issues/1065
 [release-notes]: https://github.com/dexidp/dex/releases
 
-## Development
+## Contributing
 
-When all coding and testing is done, please run the test suite:
-
-```shell
-make testall
-```
-
-For the best developer experience, install [Nix](https://builtwithnix.org/) and [direnv](https://direnv.net/).
-
-Alternatively, install Go and Docker manually or using a package manager. Install the rest of the dependencies by running `make deps`.
-
-For release process, please read the [release documentation](https://dexidp.io/docs/development/releases/).
+Please see [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, guidelines, and how to submit pull requests.
 
 ## License
 

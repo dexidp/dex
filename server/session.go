@@ -469,6 +469,22 @@ func (s *Server) finishSessionLogin(ctx context.Context, r *http.Request, w http
 		return old, nil
 	})
 
+	// Check if the client requires MFA.
+	mfaChain, err := s.mfaChainForClient(ctx, authReq.ClientID, session.ConnectorID)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "session: failed to get MFA chain", "err", err)
+		return "", false
+	}
+	if len(mfaChain) > 0 {
+		// Re-read auth request to get the updated state (LoggedIn, Claims, ConnectorID).
+		updated, err := s.storage.GetAuthRequest(ctx, authReq.ID)
+		if err != nil {
+			s.logger.ErrorContext(ctx, "session: failed to get auth request", "err", err)
+			return "", false
+		}
+		return s.buildMFARedirectURL(updated, mfaChain[0]), true
+	}
+
 	// Skip approval if globally configured or user already consented to the requested scopes.
 	if !authReq.ForceApprovalPrompt && (s.skipApproval || scopesCoveredByConsent(ui.Consents[authReq.ClientID], authReq.Scopes)) {
 		// Re-read to get the updated AuthRequest (LoggedIn, Claims, ConnectorID set above).
