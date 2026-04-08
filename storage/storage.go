@@ -170,6 +170,11 @@ type Client struct {
 	// requested to redirect to MUST match one of these values, unless the client is "public".
 	RedirectURIs []string `json:"redirectURIs"`
 
+	// PostLogoutRedirectURIs is a registered set of URIs that the client can redirect to
+	// after logout. Per OIDC RP-Initiated Logout Section 2, the post_logout_redirect_uri
+	// parameter MUST match one of these values.
+	PostLogoutRedirectURIs []string `json:"postLogoutRedirectURIs"`
+
 	// TrustedPeers are a list of peers which can issue tokens on this client's behalf using
 	// the dynamic "oauth2:server:client_id:(client_id)" scope. If a peer makes such a request,
 	// this client's ID will appear as the ID Token's audience.
@@ -191,6 +196,13 @@ type Client struct {
 	// MFAChain is an ordered list of MFA authenticator IDs that a user must complete
 	// during login. Empty means no MFA required.
 	MFAChain []string `json:"mfaChain"`
+
+	// SSOSharedWith defines which other clients can reuse this client's authentication session.
+	// When a user is authenticated for this client, clients listed here can skip authentication.
+	// Special value "*" means share with all clients (Keycloak-like realm-wide SSO).
+	// nil means use ssoSharedWithDefault from sessions config.
+	// Empty slice [] means explicitly share with no one.
+	SSOSharedWith []string `json:"ssoSharedWith" yaml:"ssoSharedWith"`
 }
 
 // Claims represents the ID Token claims supported by the server.
@@ -270,6 +282,10 @@ type AuthRequest struct {
 
 	// MFAValidated is set to true if the user has completed multi-factor authentication.
 	MFAValidated bool
+
+	// WebAuthnSessionData stores temporary WebAuthn ceremony data (challenge, etc.)
+	// between Begin and Finish calls. JSON-encoded webauthn.SessionData.
+	WebAuthnSessionData []byte
 }
 
 // AuthCode represents a code which can be exchanged for an OAuth2 token response.
@@ -368,16 +384,32 @@ type MFASecret struct {
 	CreatedAt       time.Time `json:"createdAt"`
 }
 
+// WebAuthnCredential stores a registered WebAuthn credential for a user.
+type WebAuthnCredential struct {
+	CredentialID    []byte    `json:"credentialID"`
+	PublicKey       []byte    `json:"publicKey"`
+	AttestationType string    `json:"attestationType"`
+	AAGUID          []byte    `json:"aaguid"`
+	SignCount       uint32    `json:"signCount"`
+	CloneWarning    bool      `json:"cloneWarning"`
+	Transport       []string  `json:"transport"`
+	BackupEligible  bool      `json:"backupEligible"`
+	BackupState     bool      `json:"backupState"`
+	DisplayName     string    `json:"displayName"`
+	CreatedAt       time.Time `json:"createdAt"`
+}
+
 // UserIdentity represents persistent per-user identity data.
 type UserIdentity struct {
-	UserID       string
-	ConnectorID  string
-	Claims       Claims
-	Consents     map[string][]string   // clientID -> approved scopes
-	MFASecrets   map[string]*MFASecret // authenticatorID -> secret
-	CreatedAt    time.Time
-	LastLogin    time.Time
-	BlockedUntil time.Time
+	UserID              string
+	ConnectorID         string
+	Claims              Claims
+	Consents            map[string][]string             // clientID -> approved scopes
+	MFASecrets          map[string]*MFASecret           // authenticatorID -> secret
+	WebAuthnCredentials map[string][]WebAuthnCredential // authenticatorID -> credentials
+	CreatedAt           time.Time
+	LastLogin           time.Time
+	BlockedUntil        time.Time
 }
 
 // ClientAuthState represents authentication state for a specific client within an auth session.
@@ -386,6 +418,15 @@ type ClientAuthState struct {
 	ExpiresAt         time.Time
 	LastActivity      time.Time
 	LastTokenIssuedAt time.Time
+}
+
+// LogoutState holds RP parameters saved in the auth session during logout.
+// These are written before the upstream logout redirect and read back in the callback.
+type LogoutState struct {
+	PostLogoutRedirectURI string
+	State                 string // RP's opaque state parameter
+	ClientID              string
+	ConnectorID           string
 }
 
 // AuthSession represents a user's authentication session from a specific connector.
@@ -409,6 +450,11 @@ type AuthSession struct {
 	AbsoluteExpiry time.Time
 	// IdleExpiry is LastActivity + ValidIfNotUsedFor, updated on every activity.
 	IdleExpiry time.Time
+
+	// LogoutState is set during RP-Initiated Logout before redirecting to the
+	// upstream provider. The callback handler reads it back to complete the flow.
+	// Nil when no logout is in progress.
+	LogoutState *LogoutState
 }
 
 // OfflineSessions objects are sessions pertaining to users with refresh tokens.

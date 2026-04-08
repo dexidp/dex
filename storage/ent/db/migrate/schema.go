@@ -58,6 +58,7 @@ var (
 		{Name: "code_challenge_method", Type: field.TypeString, Size: 2147483647, Default: "", SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "hmac_key", Type: field.TypeBytes},
 		{Name: "mfa_validated", Type: field.TypeBool, Default: false},
+		{Name: "webauthn_session_data", Type: field.TypeBytes, Nullable: true},
 		{Name: "prompt", Type: field.TypeString, Size: 2147483647, Default: "", SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "max_age", Type: field.TypeInt, Default: -1},
 		{Name: "auth_time", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(3)", "postgres": "timestamptz", "sqlite3": "timestamp"}},
@@ -162,6 +163,8 @@ var (
 		{Name: "logo_url", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "allowed_connectors", Type: field.TypeJSON, Nullable: true},
 		{Name: "mfa_chain", Type: field.TypeJSON, Nullable: true},
+		{Name: "post_logout_redirect_uris", Type: field.TypeJSON, Nullable: true},
+		{Name: "sso_shared_with", Type: field.TypeJSON, Nullable: true},
 	}
 	// Oauth2clientsTable holds the schema information for the "oauth2clients" table.
 	Oauth2clientsTable = &schema.Table{
@@ -239,6 +242,7 @@ var (
 		{Name: "claims_groups", Type: field.TypeJSON, Nullable: true},
 		{Name: "consents", Type: field.TypeBytes},
 		{Name: "mfa_secrets", Type: field.TypeBytes, Nullable: true},
+		{Name: "webauthn_credentials", Type: field.TypeBytes, Nullable: true},
 		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)", "postgres": "timestamptz", "sqlite3": "timestamp"}},
 		{Name: "last_login", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)", "postgres": "timestamptz", "sqlite3": "timestamp"}},
 		{Name: "blocked_until", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)", "postgres": "timestamptz", "sqlite3": "timestamp"}},

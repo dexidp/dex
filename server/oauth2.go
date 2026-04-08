@@ -503,8 +503,8 @@ func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage
 
 // validateIDTokenHint verifies the signature and issuer of an id_token_hint.
 // Expired tokens are accepted per OIDC Core 1.0 §3.1.2.1.
-// Returns the raw subject claim from the token.
-func (s *Server) validateIDTokenHint(ctx context.Context, hint string) (string, error) {
+// Returns the verified token so callers can extract Subject, Audience, etc.
+func (s *Server) validateIDTokenHint(ctx context.Context, hint string) (*oidc.IDToken, error) {
 	verifier := oidc.NewVerifier(s.issuerURL.String(), &signerKeySet{s.signer}, &oidc.Config{
 		SkipExpiryCheck: true,
 		// SkipClientIDCheck is set because the hint may originate from any client that
@@ -514,11 +514,7 @@ func (s *Server) validateIDTokenHint(ctx context.Context, hint string) (string, 
 		// Dex does the client id check later in the scope of the session validation.
 		SkipClientIDCheck: true,
 	})
-	idToken, err := verifier.Verify(ctx, hint)
-	if err != nil {
-		return "", err
-	}
-	return idToken.Subject, nil
+	return verifier.Verify(ctx, hint)
 }
 
 // sessionMatchesHint checks whether the session's user identity matches the
@@ -721,11 +717,11 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	// Validate id_token_hint if provided (OIDC Core 1.0 §3.1.2.1).
 	var idTokenHintSubject string
 	if hint := q.Get("id_token_hint"); hint != "" {
-		sub, err := s.validateIDTokenHint(ctx, hint)
+		idToken, err := s.validateIDTokenHint(ctx, hint)
 		if err != nil {
 			return nil, "", newRedirectedErr(errInvalidRequest, "Invalid id_token_hint.")
 		}
-		idTokenHintSubject = sub
+		idTokenHintSubject = idToken.Subject
 	}
 
 	return &storage.AuthRequest{

@@ -146,6 +146,85 @@ body {
   text-align: left;
 }
 
+.dex-info-table {
+  margin: 12px auto;
+  text-align: left;
+  max-width: 300px;
+}
+
+.dex-info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 13px;
+}
+
+.dex-info-row:last-child {
+  border-bottom: none;
+}
+
+.dex-info-label {
+  color: #888;
+  font-weight: 500;
+}
+
+.dex-info-value {
+  color: #333;
+  text-align: right;
+  word-break: break-word;
+  min-width: 0;
+  max-width: 200px;
+}
+
+.dex-info-details {
+  color: #333;
+  font-size: 13px;
+  min-width: 0;
+  max-width: 200px;
+  text-align: right;
+}
+
+.dex-info-details summary {
+  cursor: pointer;
+  list-style: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #4A90D9;
+}
+
+.dex-info-details summary:hover {
+  text-decoration: underline;
+}
+
+.dex-info-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.dex-info-details summary::after {
+  content: " \25B8";
+  color: #aaa;
+}
+
+.dex-info-details[open] summary::after {
+  content: " \25BE";
+}
+
+.dex-info-details[open] > :not(summary) {
+  text-align: left;
+}
+
+.dex-info-details[open] summary {
+  margin-bottom: 4px;
+}
+
+.dex-info-details .dex-info-details__list {
+  margin: 0;
+  padding-left: 16px;
+  line-height: 1.8;
+}
+
 .dex-error-box {
   background-color: #e5383b;
   border-radius: 6px;

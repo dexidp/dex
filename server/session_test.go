@@ -869,3 +869,565 @@ func TestParseAuthRequest_PromptAndMaxAge(t *testing.T) {
 		assert.Equal(t, -1, authReq.MaxAge)
 	})
 }
+
+func TestClientSharesSessionWith(t *testing.T) {
+	tests := []struct {
+		name           string
+		ssoSharedWith  []string
+		defaultPolicy  string
+		targetClientID string
+		want           bool
+	}{
+		{
+			name:           "nil uses default none",
+			ssoSharedWith:  nil,
+			defaultPolicy:  "none",
+			targetClientID: "client-b",
+			want:           false,
+		},
+		{
+			name:           "nil uses default all",
+			ssoSharedWith:  nil,
+			defaultPolicy:  "all",
+			targetClientID: "client-b",
+			want:           true,
+		},
+		{
+			name:           "nil with empty default",
+			ssoSharedWith:  nil,
+			defaultPolicy:  "",
+			targetClientID: "client-b",
+			want:           false,
+		},
+		{
+			name:           "empty slice means no sharing",
+			ssoSharedWith:  []string{},
+			defaultPolicy:  "all",
+			targetClientID: "client-b",
+			want:           false,
+		},
+		{
+			name:           "wildcard shares with everyone",
+			ssoSharedWith:  []string{"*"},
+			defaultPolicy:  "none",
+			targetClientID: "any-client",
+			want:           true,
+		},
+		{
+			name:           "explicit match",
+			ssoSharedWith:  []string{"client-b", "client-c"},
+			defaultPolicy:  "none",
+			targetClientID: "client-b",
+			want:           true,
+		},
+		{
+			name:           "no match in list",
+			ssoSharedWith:  []string{"client-b", "client-c"},
+			defaultPolicy:  "none",
+			targetClientID: "client-d",
+			want:           false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newTestSessionServer(t)
+			s.sessionConfig.SSOSharedWithDefault = tt.defaultPolicy
+
+			client := storage.Client{
+				ID:            "source-client",
+				SSOSharedWith: tt.ssoSharedWith,
+			}
+			got := s.clientSharesSessionWith(client, tt.targetClientID)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestFindSSOSession(t *testing.T) {
+	ctx := t.Context()
+
+	t.Run("finds SSO session from sharing client", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		now := s.now()
+
+		require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+			ID:            "client-a",
+			Secret:        "secret",
+			Name:          "Client A",
+			SSOSharedWith: []string{"client-b"},
+		}))
+
+		session := &storage.AuthSession{
+			UserID:      "user-1",
+			ConnectorID: "mock",
+			ClientStates: map[string]*storage.ClientAuthState{
+				"client-a": {
+					Active:       true,
+					ExpiresAt:    now.Add(24 * time.Hour),
+					LastActivity: now.Add(-5 * time.Minute),
+				},
+			},
+		}
+
+		assert.NotNil(t, s.findSSOSession(ctx, session, "client-b"))
+	})
+
+	t.Run("no SSO when client does not share", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		now := s.now()
+
+		require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+			ID:            "client-a",
+			Secret:        "secret",
+			Name:          "Client A",
+			SSOSharedWith: []string{"client-c"}, // Does not share with client-b
+		}))
+
+		session := &storage.AuthSession{
+			UserID:      "user-1",
+			ConnectorID: "mock",
+			ClientStates: map[string]*storage.ClientAuthState{
+				"client-a": {
+					Active:       true,
+					ExpiresAt:    now.Add(24 * time.Hour),
+					LastActivity: now.Add(-5 * time.Minute),
+				},
+			},
+		}
+
+		assert.Nil(t, s.findSSOSession(ctx, session, "client-b"))
+	})
+
+	t.Run("skips inactive client states", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		now := s.now()
+
+		require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+			ID:            "client-a",
+			Secret:        "secret",
+			Name:          "Client A",
+			SSOSharedWith: []string{"*"},
+		}))
+
+		session := &storage.AuthSession{
+			UserID:      "user-1",
+			ConnectorID: "mock",
+			ClientStates: map[string]*storage.ClientAuthState{
+				"client-a": {
+					Active:       false, // Inactive
+					ExpiresAt:    now.Add(24 * time.Hour),
+					LastActivity: now.Add(-5 * time.Minute),
+				},
+			},
+		}
+
+		assert.Nil(t, s.findSSOSession(ctx, session, "client-b"))
+	})
+
+	t.Run("skips expired client states", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		now := s.now()
+
+		require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+			ID:            "client-a",
+			Secret:        "secret",
+			Name:          "Client A",
+			SSOSharedWith: []string{"*"},
+		}))
+
+		session := &storage.AuthSession{
+			UserID:      "user-1",
+			ConnectorID: "mock",
+			ClientStates: map[string]*storage.ClientAuthState{
+				"client-a": {
+					Active:       true,
+					ExpiresAt:    now.Add(-1 * time.Hour), // Expired
+					LastActivity: now.Add(-5 * time.Minute),
+				},
+			},
+		}
+
+		assert.Nil(t, s.findSSOSession(ctx, session, "client-b"))
+	})
+
+	t.Run("wildcard SSO with default all", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		s.sessionConfig.SSOSharedWithDefault = "all"
+		now := s.now()
+
+		// Client with nil SSOSharedWith — uses default "all"
+		require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+			ID:     "client-a",
+			Secret: "secret",
+			Name:   "Client A",
+			// SSOSharedWith is nil → uses ssoSharedWithDefault="all"
+		}))
+
+		session := &storage.AuthSession{
+			UserID:      "user-1",
+			ConnectorID: "mock",
+			ClientStates: map[string]*storage.ClientAuthState{
+				"client-a": {
+					Active:       true,
+					ExpiresAt:    now.Add(24 * time.Hour),
+					LastActivity: now.Add(-5 * time.Minute),
+				},
+			},
+		}
+
+		assert.NotNil(t, s.findSSOSession(ctx, session, "client-b"))
+	})
+}
+
+func TestTrySessionLogin_SSO(t *testing.T) {
+	ctx := t.Context()
+
+	t.Run("SSO login from sharing client", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		s.skipApproval = true
+		now := s.now()
+
+		// Create source client that shares with target
+		require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+			ID:            "client-a",
+			Secret:        "secret",
+			Name:          "Client A",
+			SSOSharedWith: []string{"client-b"},
+		}))
+
+		// Create session with client-a authenticated
+		require.NoError(t, s.storage.CreateAuthSession(ctx, storage.AuthSession{
+			UserID:      "user-1",
+			ConnectorID: "mock",
+			Nonce:       "test-nonce",
+			ClientStates: map[string]*storage.ClientAuthState{
+				"client-a": {
+					Active:       true,
+					ExpiresAt:    now.Add(24 * time.Hour),
+					LastActivity: now.Add(-1 * time.Minute),
+				},
+			},
+			CreatedAt:      now.Add(-30 * time.Minute),
+			LastActivity:   now.Add(-1 * time.Minute),
+			IPAddress:      "127.0.0.1",
+			UserAgent:      "test",
+			AbsoluteExpiry: now.Add(24 * time.Hour),
+			IdleExpiry:     now.Add(59 * time.Minute),
+		}))
+
+		require.NoError(t, s.storage.CreateUserIdentity(ctx, storage.UserIdentity{
+			UserID:      "user-1",
+			ConnectorID: "mock",
+			Claims: storage.Claims{
+				UserID:   "user-1",
+				Username: "testuser",
+				Email:    "test@example.com",
+			},
+			Consents:  map[string][]string{"client-b": {"openid", "email"}},
+			CreatedAt: now.Add(-1 * time.Hour),
+			LastLogin: now.Add(-30 * time.Minute),
+		}))
+
+		// Auth request for client-b (not directly in session)
+		authReq := storage.AuthRequest{
+			ID:          storage.NewID(),
+			ClientID:    "client-b",
+			ConnectorID: "mock",
+			Scopes:      []string{"openid", "email"},
+			RedirectURI: "http://localhost/callback",
+			MaxAge:      -1,
+			HMACKey:     storage.NewHMACKey(crypto.SHA256),
+			Expiry:      now.Add(10 * time.Minute),
+		}
+		require.NoError(t, s.storage.CreateAuthRequest(ctx, authReq))
+
+		r := sessionCookieRequest("user-1", "mock", "test-nonce")
+		w := httptest.NewRecorder()
+
+		session := s.getValidAuthSession(ctx, w, r, &authReq)
+		require.NotNil(t, session)
+
+		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		assert.True(t, ok, "SSO login should succeed")
+
+		// Verify client-b state was created in session
+		updated, err := s.storage.GetAuthSession(ctx, "user-1", "mock")
+		require.NoError(t, err)
+		assert.Contains(t, updated.ClientStates, "client-b")
+		assert.True(t, updated.ClientStates["client-b"].Active)
+	})
+
+	t.Run("SSO derived state capped by source expiry", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		s.skipApproval = true
+		now := s.now()
+
+		require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+			ID:            "client-a",
+			Secret:        "secret",
+			Name:          "Client A",
+			SSOSharedWith: []string{"client-b"},
+		}))
+
+		// Source state expires in 1 hour — less than AbsoluteLifetime (24h).
+		sourceExpiry := now.Add(1 * time.Hour)
+		require.NoError(t, s.storage.CreateAuthSession(ctx, storage.AuthSession{
+			UserID:      "user-1",
+			ConnectorID: "mock",
+			Nonce:       "test-nonce",
+			ClientStates: map[string]*storage.ClientAuthState{
+				"client-a": {
+					Active:       true,
+					ExpiresAt:    sourceExpiry,
+					LastActivity: now.Add(-1 * time.Minute),
+				},
+			},
+			CreatedAt:      now.Add(-30 * time.Minute),
+			LastActivity:   now.Add(-1 * time.Minute),
+			IPAddress:      "127.0.0.1",
+			UserAgent:      "test",
+			AbsoluteExpiry: now.Add(24 * time.Hour),
+			IdleExpiry:     now.Add(59 * time.Minute),
+		}))
+
+		require.NoError(t, s.storage.CreateUserIdentity(ctx, storage.UserIdentity{
+			UserID:      "user-1",
+			ConnectorID: "mock",
+			Claims: storage.Claims{
+				UserID:   "user-1",
+				Username: "testuser",
+				Email:    "test@example.com",
+			},
+			Consents:  map[string][]string{"client-b": {"openid", "email"}},
+			CreatedAt: now.Add(-1 * time.Hour),
+			LastLogin: now.Add(-30 * time.Minute),
+		}))
+
+		authReq := storage.AuthRequest{
+			ID:          storage.NewID(),
+			ClientID:    "client-b",
+			ConnectorID: "mock",
+			Scopes:      []string{"openid", "email"},
+			RedirectURI: "http://localhost/callback",
+			MaxAge:      -1,
+			HMACKey:     storage.NewHMACKey(crypto.SHA256),
+			Expiry:      now.Add(10 * time.Minute),
+		}
+		require.NoError(t, s.storage.CreateAuthRequest(ctx, authReq))
+
+		r := sessionCookieRequest("user-1", "mock", "test-nonce")
+		w := httptest.NewRecorder()
+
+		session := s.getValidAuthSession(ctx, w, r, &authReq)
+		require.NotNil(t, session)
+
+		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		assert.True(t, ok, "SSO login should succeed")
+
+		updated, err := s.storage.GetAuthSession(ctx, "user-1", "mock")
+		require.NoError(t, err)
+		require.Contains(t, updated.ClientStates, "client-b")
+		assert.Equal(t, sourceExpiry, updated.ClientStates["client-b"].ExpiresAt,
+			"derived state expiry should be capped at source state expiry")
+	})
+
+	t.Run("SSO derived state uses configured lifetime when source expires later", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		s.skipApproval = true
+		now := s.now()
+
+		require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+			ID:            "client-a",
+			Secret:        "secret",
+			Name:          "Client A",
+			SSOSharedWith: []string{"client-b"},
+		}))
+
+		// Source state expires in 48 hours — more than AbsoluteLifetime (24h).
+		require.NoError(t, s.storage.CreateAuthSession(ctx, storage.AuthSession{
+			UserID:      "user-1",
+			ConnectorID: "mock",
+			Nonce:       "test-nonce",
+			ClientStates: map[string]*storage.ClientAuthState{
+				"client-a": {
+					Active:       true,
+					ExpiresAt:    now.Add(48 * time.Hour),
+					LastActivity: now.Add(-1 * time.Minute),
+				},
+			},
+			CreatedAt:      now.Add(-30 * time.Minute),
+			LastActivity:   now.Add(-1 * time.Minute),
+			IPAddress:      "127.0.0.1",
+			UserAgent:      "test",
+			AbsoluteExpiry: now.Add(24 * time.Hour),
+			IdleExpiry:     now.Add(59 * time.Minute),
+		}))
+
+		require.NoError(t, s.storage.CreateUserIdentity(ctx, storage.UserIdentity{
+			UserID:      "user-1",
+			ConnectorID: "mock",
+			Claims: storage.Claims{
+				UserID:   "user-1",
+				Username: "testuser",
+				Email:    "test@example.com",
+			},
+			Consents:  map[string][]string{"client-b": {"openid", "email"}},
+			CreatedAt: now.Add(-1 * time.Hour),
+			LastLogin: now.Add(-30 * time.Minute),
+		}))
+
+		authReq := storage.AuthRequest{
+			ID:          storage.NewID(),
+			ClientID:    "client-b",
+			ConnectorID: "mock",
+			Scopes:      []string{"openid", "email"},
+			RedirectURI: "http://localhost/callback",
+			MaxAge:      -1,
+			HMACKey:     storage.NewHMACKey(crypto.SHA256),
+			Expiry:      now.Add(10 * time.Minute),
+		}
+		require.NoError(t, s.storage.CreateAuthRequest(ctx, authReq))
+
+		r := sessionCookieRequest("user-1", "mock", "test-nonce")
+		w := httptest.NewRecorder()
+
+		session := s.getValidAuthSession(ctx, w, r, &authReq)
+		require.NotNil(t, session)
+
+		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		assert.True(t, ok, "SSO login should succeed")
+
+		updated, err := s.storage.GetAuthSession(ctx, "user-1", "mock")
+		require.NoError(t, err)
+		require.Contains(t, updated.ClientStates, "client-b")
+		assert.Equal(t, now.Add(s.sessionConfig.AbsoluteLifetime), updated.ClientStates["client-b"].ExpiresAt,
+			"derived state expiry should use configured AbsoluteLifetime when source expires later")
+	})
+
+	t.Run("no SSO when client does not share", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		now := s.now()
+
+		require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+			ID:            "client-a",
+			Secret:        "secret",
+			Name:          "Client A",
+			SSOSharedWith: []string{}, // Shares with nobody
+		}))
+
+		require.NoError(t, s.storage.CreateAuthSession(ctx, storage.AuthSession{
+			UserID:      "user-1",
+			ConnectorID: "mock",
+			Nonce:       "test-nonce",
+			ClientStates: map[string]*storage.ClientAuthState{
+				"client-a": {
+					Active:       true,
+					ExpiresAt:    now.Add(24 * time.Hour),
+					LastActivity: now.Add(-1 * time.Minute),
+				},
+			},
+			CreatedAt:      now.Add(-30 * time.Minute),
+			LastActivity:   now.Add(-1 * time.Minute),
+			IPAddress:      "127.0.0.1",
+			UserAgent:      "test",
+			AbsoluteExpiry: now.Add(24 * time.Hour),
+			IdleExpiry:     now.Add(59 * time.Minute),
+		}))
+
+		authReq := storage.AuthRequest{
+			ID:          storage.NewID(),
+			ClientID:    "client-b",
+			ConnectorID: "mock",
+			MaxAge:      -1,
+			HMACKey:     storage.NewHMACKey(crypto.SHA256),
+			Expiry:      now.Add(10 * time.Minute),
+		}
+		require.NoError(t, s.storage.CreateAuthRequest(ctx, authReq))
+
+		r := sessionCookieRequest("user-1", "mock", "test-nonce")
+		w := httptest.NewRecorder()
+
+		session := s.getValidAuthSession(ctx, w, r, &authReq)
+		require.NotNil(t, session)
+
+		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		assert.False(t, ok, "SSO login should fail when client does not share")
+	})
+}
+
+func TestFinishSessionLogin_MFA(t *testing.T) {
+	ctx := t.Context()
+
+	setupMFAFixture := func(t *testing.T, mfaProviders map[string]MFAProvider, clientMFAChain []string) (*Server, storage.AuthRequest) {
+		t.Helper()
+		s := newTestSessionServer(t)
+		s.skipApproval = true
+		s.mfaProviders = mfaProviders
+
+		// Create connector in storage and register it in the connectors map.
+		require.NoError(t, s.storage.CreateConnector(ctx, storage.Connector{
+			ID:              "mock",
+			Type:            "ldap",
+			Name:            "Mock LDAP",
+			ResourceVersion: "1",
+		}))
+		s.mu.Lock()
+		s.connectors = map[string]Connector{
+			"mock": {Type: "ldap", ResourceVersion: "1"},
+		}
+		s.mu.Unlock()
+
+		// Create client with MFA chain.
+		require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+			ID:       "client-1",
+			Secret:   "secret",
+			Name:     "Test Client",
+			MFAChain: clientMFAChain,
+		}))
+
+		authReq := setupSessionLoginFixture(t, s)
+		return s, authReq
+	}
+
+	t.Run("MFA required redirects to MFA page", func(t *testing.T) {
+		s, authReq := setupMFAFixture(t, map[string]MFAProvider{
+			"totp": NewTOTPProvider("test-issuer", nil), // nil connectorTypes = enabled for all
+		}, []string{"totp"})
+
+		r := sessionCookieRequest("user-1", "mock", "test-nonce")
+		w := httptest.NewRecorder()
+
+		redirectURL, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		require.True(t, ok)
+		assert.Contains(t, redirectURL, "/mfa/totp", "should redirect to MFA page")
+		assert.Contains(t, redirectURL, "req="+authReq.ID, "redirect should include auth request ID")
+		assert.Contains(t, redirectURL, "authenticator=totp", "redirect should include authenticator ID")
+
+		// MFAValidated should NOT be set.
+		updated, err := s.storage.GetAuthRequest(ctx, authReq.ID)
+		require.NoError(t, err)
+		assert.False(t, updated.MFAValidated, "MFAValidated should be false when MFA is required")
+		// LoggedIn should still be set even though MFA is pending.
+		assert.True(t, updated.LoggedIn, "LoggedIn should be true even when MFA is pending")
+	})
+
+	t.Run("MFA provider not enabled for connector type skips MFA", func(t *testing.T) {
+		// TOTP provider only enabled for "oidc" connectors, but our connector is "ldap".
+		s, authReq := setupMFAFixture(t, map[string]MFAProvider{
+			"totp": NewTOTPProvider("test-issuer", []string{"oidc"}),
+		}, []string{"totp"})
+		require.NoError(t, s.storage.UpdateAuthRequest(ctx, authReq.ID, func(a storage.AuthRequest) (storage.AuthRequest, error) {
+			a.ForceApprovalPrompt = true
+			return a, nil
+		}))
+		authReq.ForceApprovalPrompt = true
+
+		r := sessionCookieRequest("user-1", "mock", "test-nonce")
+		w := httptest.NewRecorder()
+
+		redirectURL, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		require.True(t, ok)
+		assert.Contains(t, redirectURL, "/approval")
+	})
+}

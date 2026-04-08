@@ -450,6 +450,21 @@ var migrations = []migration{
 			`
 			alter table auth_session
 				add column idle_expiry timestamptz not null default '1970-01-01 00:00:00';`,
+			`alter table client add column post_logout_redirect_uris bytea;`,
+			`alter table auth_session add column logout_state bytea;`,
+		},
+	},
+	{
+		stmts: []string{
+			`alter table auth_request add column webauthn_session_data bytea;`,
+			`alter table user_identity add column webauthn_credentials bytea;`,
+		},
+	},
+	{
+		stmts: []string{
+			`
+			alter table client
+				add column sso_shared_with bytea;`,
 		},
 	},
 }

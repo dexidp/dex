@@ -3,8 +3,6 @@ package server
 import (
 	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -875,9 +873,7 @@ func TestConsentPersistedOnApproval(t *testing.T) {
 	}
 	require.NoError(t, s.storage.CreateAuthRequest(ctx, authReq))
 
-	h := hmac.New(sha256.New, authReq.HMACKey)
-	h.Write([]byte(authReq.ID))
-	mac := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
+	mac := computeHMAC(authReq.HMACKey, authReq.ID, "")
 
 	form := url.Values{
 		"approval": {"approve"},
@@ -1650,6 +1646,30 @@ func TestHandleAuthorizationConnectorGrantTypeFiltering(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHandleAuthorizationInvalidRequestWithSessions(t *testing.T) {
+	ctx := t.Context()
+	httpServer, s := newTestServerMultipleConnectors(t, func(c *Config) {
+		c.SessionConfig = &SessionConfig{
+			CookieName:        "dex_session",
+			AbsoluteLifetime:  24 * time.Hour,
+			ValidIfNotUsedFor: 1 * time.Hour,
+		}
+		c.Storage.CreateClient(ctx, storage.Client{
+			ID:           "test",
+			RedirectURIs: []string{"http://example.com/callback"},
+		})
+	})
+	defer httpServer.Close()
+
+	// Send a request with an unregistered redirect_uri — should not panic.
+	rr := httptest.NewRecorder()
+	reqURL := fmt.Sprintf("%s/auth?response_type=code&client_id=test&redirect_uri=http://evil.com/callback&scope=openid", httpServer.URL)
+	req := httptest.NewRequest(http.MethodGet, reqURL, nil)
+	s.handleAuthorization(rr, req)
+
+	require.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
 func TestHandleConnectorLoginGrantTypeRejection(t *testing.T) {
@@ -2631,4 +2651,53 @@ func TestHandleAuthorizationWithoutAllowedConnectors(t *testing.T) {
 
 	// With multiple connectors and no filter, the login page should be rendered (200 OK)
 	require.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestBackLinkIncludesPromptSelectAccount(t *testing.T) {
+	ctx := t.Context()
+
+	httpServer, s := newTestServerMultipleConnectors(t, nil)
+	defer httpServer.Close()
+
+	// select_account prompt only works with the sessions feature flag enabled.
+	s.sessionConfig = &SessionConfig{}
+
+	// Add a password connector so handleConnectorLogin passes the backlink via redirect.
+	pwConn := storage.Connector{
+		ID:              "mockPw",
+		Type:            "mockPassword",
+		Name:            "MockPassword",
+		ResourceVersion: "1",
+		Config:          []byte(`{"username": "foo", "password": "bar"}`),
+	}
+	require.NoError(t, s.storage.CreateConnector(ctx, pwConn))
+	_, err := s.OpenConnector(pwConn)
+	require.NoError(t, err)
+
+	client := storage.Client{
+		ID:           "test-client",
+		Secret:       "secret",
+		RedirectURIs: []string{"https://example.com/callback"},
+		Name:         "Test Client",
+	}
+	require.NoError(t, s.storage.CreateClient(ctx, client))
+
+	rr := httptest.NewRecorder()
+	authURL := fmt.Sprintf("/auth/mockPw?client_id=%s&redirect_uri=%s&response_type=code&scope=openid",
+		client.ID, url.QueryEscape("https://example.com/callback"))
+	req := httptest.NewRequest("GET", authURL, nil)
+	s.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusFound, rr.Code)
+
+	loc, err := url.Parse(rr.Header().Get("Location"))
+	require.NoError(t, err)
+
+	backLink := loc.Query().Get("back")
+	require.NotEmpty(t, backLink, "back link should be set when multiple connectors exist")
+
+	backURL, err := url.Parse(backLink)
+	require.NoError(t, err)
+	require.Equal(t, "select_account", backURL.Query().Get("prompt"),
+		"back link should include prompt=select_account")
 }

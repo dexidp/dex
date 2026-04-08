@@ -32,8 +32,12 @@ type OAuth2Client struct {
 	// AllowedConnectors holds the value of the "allowed_connectors" field.
 	AllowedConnectors []string `json:"allowed_connectors,omitempty"`
 	// MfaChain holds the value of the "mfa_chain" field.
-	MfaChain     []string `json:"mfa_chain,omitempty"`
-	selectValues sql.SelectValues
+	MfaChain []string `json:"mfa_chain,omitempty"`
+	// PostLogoutRedirectUris holds the value of the "post_logout_redirect_uris" field.
+	PostLogoutRedirectUris []string `json:"post_logout_redirect_uris,omitempty"`
+	// SSOSharedWith holds the value of the "sso_shared_with" field.
+	SSOSharedWith []string `json:"sso_shared_with,omitempty"`
+	selectValues  sql.SelectValues
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -41,7 +45,7 @@ func (*OAuth2Client) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case oauth2client.FieldRedirectUris, oauth2client.FieldTrustedPeers, oauth2client.FieldAllowedConnectors, oauth2client.FieldMfaChain:
+		case oauth2client.FieldRedirectUris, oauth2client.FieldTrustedPeers, oauth2client.FieldAllowedConnectors, oauth2client.FieldMfaChain, oauth2client.FieldPostLogoutRedirectUris, oauth2client.FieldSSOSharedWith:
 			values[i] = new([]byte)
 		case oauth2client.FieldPublic:
 			values[i] = new(sql.NullBool)
@@ -124,6 +128,22 @@ func (_m *OAuth2Client) assignValues(columns []string, values []any) error {
 					return fmt.Errorf("unmarshal field mfa_chain: %w", err)
 				}
 			}
+		case oauth2client.FieldPostLogoutRedirectUris:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field post_logout_redirect_uris", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.PostLogoutRedirectUris); err != nil {
+					return fmt.Errorf("unmarshal field post_logout_redirect_uris: %w", err)
+				}
+			}
+		case oauth2client.FieldSSOSharedWith:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field sso_shared_with", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.SSOSharedWith); err != nil {
+					return fmt.Errorf("unmarshal field sso_shared_with: %w", err)
+				}
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -183,6 +203,12 @@ func (_m *OAuth2Client) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("mfa_chain=")
 	builder.WriteString(fmt.Sprintf("%v", _m.MfaChain))
+	builder.WriteString(", ")
+	builder.WriteString("post_logout_redirect_uris=")
+	builder.WriteString(fmt.Sprintf("%v", _m.PostLogoutRedirectUris))
+	builder.WriteString(", ")
+	builder.WriteString("sso_shared_with=")
+	builder.WriteString(fmt.Sprintf("%v", _m.SSOSharedWith))
 	builder.WriteByte(')')
 	return builder.String()
 }

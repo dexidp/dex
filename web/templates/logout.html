@@ -1,0 +1,24 @@
+{{ template "header.html" . }}
+
+<div class="theme-panel">
+  {{ if .LoggedOut }}
+  <h2 class="theme-heading">Logged Out</h2>
+  <div>
+    <div class="dex-subtle-text">You have been successfully logged out.</div>
+  </div>
+  {{ else }}
+  <h2 class="theme-heading">Session Not Found</h2>
+  <div>
+    <div class="dex-subtle-text">No active session found.</div>
+  </div>
+  {{ end }}
+
+  {{ if .BackURL }}
+  <div class="theme-form-row">
+    <a href="{{ .BackURL }}" class="dex-subtle-text">&larr; Back to Application</a>
+  </div>
+  {{ end }}
+
+</div>
+
+{{ template "footer.html" . }}

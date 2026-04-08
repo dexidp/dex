@@ -49,7 +49,7 @@ make deps
 
 This installs `golangci-lint`, `gotestsum`, `protoc`, `protoc-gen-go`, `protoc-gen-go-grpc`, and `kind`.
 
-You can also [use Gitpod](https://gitpod.io/#https://github.com/dexidp/dex) for a ready-to-code cloud environment.
+You can also use [GitHub Codespaces](https://github.com/codespaces/new?repo=dexidp/dex) for a ready-to-code cloud environment.
 
 ## Making changes
 

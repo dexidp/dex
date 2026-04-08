@@ -47,9 +47,15 @@ func toStorageAuthRequest(a *db.AuthRequest) storage.AuthRequest {
 		},
 		HMACKey:      a.HmacKey,
 		MFAValidated: a.MfaValidated,
-		Prompt:       a.Prompt,
-		MaxAge:       a.MaxAge,
-		AuthTime:     a.AuthTime,
+		WebAuthnSessionData: func() []byte {
+			if a.WebauthnSessionData != nil {
+				return *a.WebauthnSessionData
+			}
+			return nil
+		}(),
+		Prompt:   a.Prompt,
+		MaxAge:   a.MaxAge,
+		AuthTime: a.AuthTime,
 	}
 }
 
@@ -81,15 +87,17 @@ func toStorageAuthCode(a *db.AuthCode) storage.AuthCode {
 
 func toStorageClient(c *db.OAuth2Client) storage.Client {
 	return storage.Client{
-		ID:                c.ID,
-		Secret:            c.Secret,
-		RedirectURIs:      c.RedirectUris,
-		TrustedPeers:      c.TrustedPeers,
-		Public:            c.Public,
-		Name:              c.Name,
-		LogoURL:           c.LogoURL,
-		AllowedConnectors: c.AllowedConnectors,
-		MFAChain:          c.MfaChain,
+		ID:                     c.ID,
+		Secret:                 c.Secret,
+		RedirectURIs:           c.RedirectUris,
+		TrustedPeers:           c.TrustedPeers,
+		Public:                 c.Public,
+		Name:                   c.Name,
+		LogoURL:                c.LogoURL,
+		AllowedConnectors:      c.AllowedConnectors,
+		MFAChain:               c.MfaChain,
+		PostLogoutRedirectURIs: c.PostLogoutRedirectUris,
+		SSOSharedWith:          c.SSOSharedWith,
 	}
 }
 
@@ -210,6 +218,15 @@ func toStorageUserIdentity(u *db.UserIdentity) storage.UserIdentity {
 		}
 	} else {
 		s.MFASecrets = make(map[string]*storage.MFASecret)
+	}
+
+	if wc := u.WebauthnCredentials; wc != nil {
+		if err := json.Unmarshal(*wc, &s.WebAuthnCredentials); err != nil {
+			panic(err)
+		}
+	}
+	if s.WebAuthnCredentials == nil {
+		s.WebAuthnCredentials = make(map[string][]storage.WebAuthnCredential)
 	}
 	return s
 }

@@ -18,6 +18,8 @@ func (d *Database) CreateClient(ctx context.Context, client storage.Client) erro
 		SetTrustedPeers(client.TrustedPeers).
 		SetAllowedConnectors(client.AllowedConnectors).
 		SetMfaChain(client.MFAChain).
+		SetPostLogoutRedirectUris(client.PostLogoutRedirectURIs).
+		SetSSOSharedWith(client.SSOSharedWith).
 		Save(ctx)
 	if err != nil {
 		return convertDBError("create oauth2 client: %w", err)
@@ -83,6 +85,8 @@ func (d *Database) UpdateClient(ctx context.Context, id string, updater func(old
 		SetTrustedPeers(newClient.TrustedPeers).
 		SetAllowedConnectors(newClient.AllowedConnectors).
 		SetMfaChain(newClient.MFAChain).
+		SetPostLogoutRedirectUris(newClient.PostLogoutRedirectURIs).
+		SetSSOSharedWith(newClient.SSOSharedWith).
 		Save(ctx)
 	if err != nil {
 		return rollback(tx, "update client uploading: %w", err)

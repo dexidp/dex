@@ -4,15 +4,12 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"path"
 	"time"
 
 	"github.com/dexidp/dex/server/internal"
@@ -309,6 +306,65 @@ func (s *Server) trySessionLogin(ctx context.Context, r *http.Request, w http.Re
 	return s.trySessionLoginWithSession(ctx, r, w, authReq, session)
 }
 
+// clientSharesSessionWith checks if sourceClient shares its session with targetClientID.
+// SSO sharing is unidirectional: source sharing with target does NOT mean target shares with source.
+func (s *Server) clientSharesSessionWith(sourceClient storage.Client, targetClientID string) bool {
+	ssoSharedWith := sourceClient.SSOSharedWith
+
+	// If client has no explicit ssoSharedWith, use default from session config.
+	if ssoSharedWith == nil {
+		switch s.sessionConfig.SSOSharedWithDefault {
+		case "all":
+			return true
+		default: // "none" or ""
+			return false
+		}
+	}
+
+	// Explicit empty slice means share with no one.
+	if len(ssoSharedWith) == 0 {
+		return false
+	}
+
+	for _, peer := range ssoSharedWith {
+		if peer == "*" || peer == targetClientID {
+			return true
+		}
+	}
+	return false
+}
+
+// findSSOSession checks whether any active client in the session shares its
+// authentication with targetClientID via the ssoSharedWith policy.
+//
+// Note: the caller already has the target client loaded (for AllowedConnectors
+// validation), but here we need the *source* client configs - those are the
+// clients the user previously authenticated for, and their ssoSharedWith
+// policies determine whether SSO is allowed. These are different clients,
+// so the GetClient calls below are not redundant.
+func (s *Server) findSSOSession(ctx context.Context, session *storage.AuthSession, targetClientID string) *storage.ClientAuthState {
+	now := s.now()
+
+	for sourceClientID, state := range session.ClientStates {
+		if !state.Active || now.After(state.ExpiresAt) {
+			continue
+		}
+
+		sourceClient, err := s.storage.GetClient(ctx, sourceClientID)
+		if err != nil {
+			s.logger.DebugContext(ctx, "session: SSO lookup failed to get source client",
+				"source_client_id", sourceClientID, "err", err)
+			continue
+		}
+
+		if s.clientSharesSessionWith(sourceClient, targetClientID) {
+			return state
+		}
+	}
+
+	return nil
+}
+
 // trySessionLoginWithSession is like trySessionLogin but accepts a pre-retrieved session.
 // This allows callers to inspect the session (e.g., for id_token_hint comparison) before
 // attempting session-based login.
@@ -317,17 +373,47 @@ func (s *Server) trySessionLoginWithSession(ctx context.Context, r *http.Request
 		return "", false
 	}
 
-	clientState, ok := session.ClientStates[authReq.ClientID]
-	if !ok || !clientState.Active {
-		return "", false
-	}
-
 	now := s.now()
-	if now.After(clientState.ExpiresAt) {
-		return "", false
+
+	clientState, ok := session.ClientStates[authReq.ClientID]
+	fallbackToSSO := !ok || !clientState.Active || now.After(clientState.ExpiresAt)
+
+	if fallbackToSSO {
+		// No direct session for this client — try SSO from a sharing client.
+		sourceState := s.findSSOSession(ctx, session, authReq.ClientID)
+		if sourceState == nil {
+			return "", false
+		}
+
+		// Cap the derived state expiry at min(configured lifetime, source state expiry).
+		expiresAt := now.Add(s.sessionConfig.AbsoluteLifetime)
+		if sourceState.ExpiresAt.Before(expiresAt) {
+			expiresAt = sourceState.ExpiresAt
+		}
+
+		// Create a new client state for the target client via SSO.
+		if err := s.storage.UpdateAuthSession(ctx, session.UserID, session.ConnectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
+			if old.ClientStates == nil {
+				old.ClientStates = make(map[string]*storage.ClientAuthState)
+			}
+			old.ClientStates[authReq.ClientID] = &storage.ClientAuthState{
+				Active:       true,
+				ExpiresAt:    expiresAt,
+				LastActivity: now,
+			}
+			old.LastActivity = now
+			old.IdleExpiry = now.Add(s.sessionConfig.ValidIfNotUsedFor)
+			return old, nil
+		}); err != nil {
+			s.logger.ErrorContext(ctx, "session: failed to create SSO client state", "err", err)
+			return "", false
+		}
+
+		s.logger.DebugContext(ctx, "session: SSO login from sharing client",
+			"user_id", session.UserID, "connector_id", session.ConnectorID, "client_id", authReq.ClientID)
 	}
 
-	// Load identity from storage.
+	// Load identity from storage (same path for direct and SSO login).
 	ui, err := s.storage.GetUserIdentity(ctx, session.UserID, session.ConnectorID)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "session: failed to get user identity", "err", err)
@@ -341,6 +427,17 @@ func (s *Server) trySessionLoginWithSession(ctx context.Context, r *http.Request
 		}
 	}
 
+	if !fallbackToSSO {
+		s.logger.DebugContext(ctx, "session: re-authenticated from session",
+			"user_id", session.UserID, "connector_id", session.ConnectorID)
+	}
+
+	return s.finishSessionLogin(ctx, r, w, authReq, session, &ui, now)
+}
+
+// finishSessionLogin completes a session-based login (direct or SSO) by updating the auth request
+// with the user's identity, refreshing session activity, and returning the appropriate redirect URL.
+func (s *Server) finishSessionLogin(ctx context.Context, r *http.Request, w http.ResponseWriter, authReq *storage.AuthRequest, session *storage.AuthSession, ui *storage.UserIdentity, now time.Time) (string, bool) {
 	claims := storage.Claims{
 		UserID:            ui.Claims.UserID,
 		Username:          ui.Claims.Username,
@@ -362,9 +459,6 @@ func (s *Server) trySessionLoginWithSession(ctx context.Context, r *http.Request
 		return "", false
 	}
 
-	s.logger.DebugContext(ctx, "session: re-authenticated from session",
-		"user_id", session.UserID, "connector_id", session.ConnectorID)
-
 	// Update session activity.
 	_ = s.storage.UpdateAuthSession(ctx, session.UserID, session.ConnectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
 		old.LastActivity = now
@@ -375,10 +469,21 @@ func (s *Server) trySessionLoginWithSession(ctx context.Context, r *http.Request
 		return old, nil
 	})
 
-	// Build HMAC for approval URL.
-	h := hmac.New(sha256.New, authReq.HMACKey)
-	h.Write([]byte(authReq.ID))
-	mac := base64.RawURLEncoding.EncodeToString(h.Sum(nil))
+	// Check if the client requires MFA.
+	mfaChain, err := s.mfaChainForClient(ctx, authReq.ClientID, session.ConnectorID)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "session: failed to get MFA chain", "err", err)
+		return "", false
+	}
+	if len(mfaChain) > 0 {
+		// Re-read auth request to get the updated state (LoggedIn, Claims, ConnectorID).
+		updated, err := s.storage.GetAuthRequest(ctx, authReq.ID)
+		if err != nil {
+			s.logger.ErrorContext(ctx, "session: failed to get auth request", "err", err)
+			return "", false
+		}
+		return s.buildMFARedirectURL(updated, mfaChain[0]), true
+	}
 
 	// Skip approval if globally configured or user already consented to the requested scopes.
 	if !authReq.ForceApprovalPrompt && (s.skipApproval || scopesCoveredByConsent(ui.Consents[authReq.ClientID], authReq.Scopes)) {
@@ -392,8 +497,7 @@ func (s *Server) trySessionLoginWithSession(ctx context.Context, r *http.Request
 		return "", true
 	}
 
-	returnURL := path.Join(s.issuerURL.Path, "/approval") + "?req=" + authReq.ID + "&hmac=" + mac
-	return returnURL, true
+	return s.buildApprovalURL(*authReq), true
 }
 
 // updateSessionTokenIssuedAt updates the session's LastTokenIssuedAt for the given client.

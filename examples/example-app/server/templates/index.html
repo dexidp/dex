@@ -3,12 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Example App - Login</title>
+    <title>Example App</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <div class="container">
         <img class="logo" src="{{.LogoURI}}" alt="Dex">
+        {{if .User}}
+        <div class="user-card">
+            <div class="user-card-title">Authenticated User</div>
+            <div class="user-info-grid">
+                {{if .User.PreferredUsername}}
+                <div class="user-info-label">Username:</div>
+                <div class="user-info-value">{{.User.PreferredUsername}}</div>
+                {{end}}
+                {{if .User.Name}}
+                <div class="user-info-label">Name:</div>
+                <div class="user-info-value">{{.User.Name}}</div>
+                {{end}}
+                {{if .User.Email}}
+                <div class="user-info-label">Email:</div>
+                <div class="user-info-value">{{.User.Email}}</div>
+                {{end}}
+                <div class="user-info-label">Subject:</div>
+                <div class="user-info-value user-info-sub">{{.User.Subject}}</div>
+            </div>
+            {{if .LogoutURL}}
+            <a href="{{.LogoutURL}}" class="logout-button">Logout</a>
+            {{end}}
+        </div>
+        {{else if .NotLoggedIn}}
+        <div class="guest-message">No active session. Log in to get started.</div>
+        {{end}}
         <form id="login-form" action="/login" method="post">
             <div class="app-description">
                 This is an example application for <b>Dex</b> OpenID Connect provider.<br>

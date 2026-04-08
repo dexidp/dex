@@ -177,6 +177,9 @@ type SessionConfig struct {
 	AbsoluteLifetime           time.Duration
 	ValidIfNotUsedFor          time.Duration
 	RememberMeCheckedByDefault bool
+	// SSOSharedWithDefault is the default SSO sharing policy for clients without explicit SSOSharedWith.
+	// "all" = share with all clients, "none" or "" = share with no one (default).
+	SSOSharedWithDefault string
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
@@ -576,20 +579,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		return nil, err
 	}
 	handleWithCORS("/.well-known/openid-configuration", discoveryHandler)
-	// Handle the root path for the better user experience.
-	handleWithCORS("/", func(w http.ResponseWriter, r *http.Request) {
-		_, err := fmt.Fprintf(w, `<!DOCTYPE html>
-			<title>Dex</title>
-			<h1>Dex IdP</h1>
-			<h3>A Federated OpenID Connect Provider</h3>
-			<p><a href=%q>Discovery</a></p>`,
-			s.issuerURL.JoinPath(".well-known", "openid-configuration").String())
-		if err != nil {
-			s.logger.Error("failed to write response", "err", err)
-			s.renderError(r, w, http.StatusInternalServerError, "Handling the / path error.")
-			return
-		}
-	})
+	handleWithCORS("/", s.handleHome)
 
 	// TODO(ericchiang): rate limit certain paths based on IP.
 	handleWithCORS("/token", s.handleToken)
@@ -619,7 +609,20 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	// "authproxy" connector.
 	handleFunc("/callback/{connector}", s.handleConnectorCallback)
 	handleFunc("/approval", s.handleApproval)
-	handleFunc("/mfa/verify", s.handleMFAVerify)
+	// OIDC RP-Initiated logout endpoints, DEX_SESSIONS_ENABLED=true feature flag is required.
+	if c.SessionConfig != nil {
+		handleFunc("/logout", s.handleLogout)
+		handleFunc("/logout/callback", s.handleLogoutCallback)
+	}
+	// MFA verification endpoints, DEX_SESSIONS_ENABLED=true feature flag is required.
+	if c.SessionConfig != nil {
+		handleFunc("/mfa/totp", s.handleTOTP)
+		handleFunc("/mfa/webauthn", s.handleWebAuthn)
+		handleFunc("/mfa/webauthn/register/begin", s.handleWebAuthnRegisterBegin)
+		handleFunc("/mfa/webauthn/register/finish", s.handleWebAuthnRegisterFinish)
+		handleFunc("/mfa/webauthn/login/begin", s.handleWebAuthnLoginBegin)
+		handleFunc("/mfa/webauthn/login/finish", s.handleWebAuthnLoginFinish)
+	}
 	handle("/healthz", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !c.HealthChecker.IsHealthy() {
 			s.renderError(r, w, http.StatusInternalServerError, "Health check failed.")
@@ -905,6 +908,14 @@ func (s *Server) getConnector(ctx context.Context, id string) (Connector, error)
 	}
 
 	return conn, nil
+}
+
+// buildApprovalURL builds an HMAC-protected approval URL.
+func (s *Server) buildApprovalURL(authReq storage.AuthRequest) string {
+	v := url.Values{}
+	v.Set("req", authReq.ID)
+	v.Set("hmac", computeHMAC(authReq.HMACKey, authReq.ID, ""))
+	return s.absPath("/approval") + "?" + v.Encode()
 }
 
 type logRequestKey string

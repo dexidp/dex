@@ -388,7 +388,7 @@ func runServe(options serveOptions) error {
 		ContinueOnConnectorFailure: featureflags.ContinueOnConnectorFailure.Enabled(),
 		Signer:                     signerInstance,
 		IDTokensValidFor:           idTokensValidFor,
-		MFAProviders:               buildMFAProviders(c.MFA.Authenticators, logger),
+		MFAProviders:               buildMFAProviders(c.MFA.Authenticators, c.Issuer, logger),
 		DefaultMFAChain:            c.MFA.DefaultMFAChain,
 		TokenExchange:              c.OAuth2.TokenExchange,
 	}
@@ -835,6 +835,9 @@ func parseSessionConfig(s *Sessions) (*server.SessionConfig, error) {
 		if s.CookieEncryptionKey != "" {
 			sc.CookieEncryptionKey = []byte(s.CookieEncryptionKey)
 		}
+		if s.SSOSharedWithDefault != "" {
+			sc.SSOSharedWithDefault = s.SSOSharedWithDefault
+		}
 	}
 	if sc.AbsoluteLifetime <= 0 {
 		return nil, fmt.Errorf("absoluteLifetime must be positive, got %v", sc.AbsoluteLifetime)
@@ -848,10 +851,16 @@ func parseSessionConfig(s *Sessions) (*server.SessionConfig, error) {
 	if k := len(sc.CookieEncryptionKey); k > 0 && k != 16 && k != 24 && k != 32 {
 		return nil, fmt.Errorf("cookieEncryptionKey must be 16, 24, or 32 bytes (AES-128/192/256), got %d", k)
 	}
+	switch sc.SSOSharedWithDefault {
+	case "", "none", "all":
+		// valid
+	default:
+		return nil, fmt.Errorf("ssoSharedWithDefault must be \"none\" or \"all\", got %q", sc.SSOSharedWithDefault)
+	}
 	return sc, nil
 }
 
-func buildMFAProviders(authenticators []MFAAuthenticator, logger *slog.Logger) map[string]server.MFAProvider {
+func buildMFAProviders(authenticators []MFAAuthenticator, issuerURL string, logger *slog.Logger) map[string]server.MFAProvider {
 	if len(authenticators) == 0 {
 		return nil
 	}
@@ -866,6 +875,20 @@ func buildMFAProviders(authenticators []MFAAuthenticator, logger *slog.Logger) m
 				continue
 			}
 			providers[auth.ID] = server.NewTOTPProvider(cfg.Issuer, auth.ConnectorTypes)
+			logger.Info("MFA authenticator configured", "id", auth.ID, "type", auth.Type)
+		case "WebAuthn":
+			var cfg WebAuthnConfig
+			if err := json.Unmarshal(auth.Config, &cfg); err != nil {
+				logger.Error("failed to parse WebAuthn config", "id", auth.ID, "err", err)
+				continue
+			}
+			provider, err := server.NewWebAuthnProvider(cfg.RPDisplayName, cfg.RPID, cfg.RPOrigins,
+				cfg.AttestationPreference, cfg.Timeout, issuerURL, auth.ConnectorTypes)
+			if err != nil {
+				logger.Error("failed to create WebAuthn provider", "id", auth.ID, "err", err)
+				continue
+			}
+			providers[auth.ID] = provider
 			logger.Info("MFA authenticator configured", "id", auth.ID, "type", auth.Type)
 		default:
 			logger.Error("unknown MFA authenticator type, skipping", "id", auth.ID, "type", auth.Type)

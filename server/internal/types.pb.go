@@ -191,6 +191,53 @@ func (x *SessionCookie) GetNonce() string {
 	return ""
 }
 
+// HMACPayload is the structured message used as HMAC input.
+// Using protobuf encoding instead of string concatenation avoids
+// delimiter-based ambiguities in the HMAC message.
+type HMACPayload struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Values        []string               `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HMACPayload) Reset() {
+	*x = HMACPayload{}
+	mi := &file_server_internal_types_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HMACPayload) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HMACPayload) ProtoMessage() {}
+
+func (x *HMACPayload) ProtoReflect() protoreflect.Message {
+	mi := &file_server_internal_types_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HMACPayload.ProtoReflect.Descriptor instead.
+func (*HMACPayload) Descriptor() ([]byte, []int) {
+	return file_server_internal_types_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *HMACPayload) GetValues() []string {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
 var File_server_internal_types_proto protoreflect.FileDescriptor
 
 var file_server_internal_types_proto_rawDesc = string([]byte{
@@ -211,10 +258,12 @@ var file_server_internal_types_proto_rawDesc = string([]byte{
 	0x6e, 0x6e, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09,
 	0x52, 0x0b, 0x63, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x49, 0x64, 0x12, 0x14, 0x0a,
 	0x05, 0x6e, 0x6f, 0x6e, 0x63, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x6e, 0x6f,
-	0x6e, 0x63, 0x65, 0x42, 0x27, 0x5a, 0x25, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f,
-	0x6d, 0x2f, 0x64, 0x65, 0x78, 0x69, 0x64, 0x70, 0x2f, 0x64, 0x65, 0x78, 0x2f, 0x73, 0x65, 0x72,
-	0x76, 0x65, 0x72, 0x2f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x62, 0x06, 0x70, 0x72,
-	0x6f, 0x74, 0x6f, 0x33,
+	0x6e, 0x63, 0x65, 0x22, 0x25, 0x0a, 0x0b, 0x48, 0x4d, 0x41, 0x43, 0x50, 0x61, 0x79, 0x6c, 0x6f,
+	0x61, 0x64, 0x12, 0x16, 0x0a, 0x06, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x73, 0x18, 0x01, 0x20, 0x03,
+	0x28, 0x09, 0x52, 0x06, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x73, 0x42, 0x27, 0x5a, 0x25, 0x67, 0x69,
+	0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x64, 0x65, 0x78, 0x69, 0x64, 0x70, 0x2f,
+	0x64, 0x65, 0x78, 0x2f, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2f, 0x69, 0x6e, 0x74, 0x65, 0x72,
+	0x6e, 0x61, 0x6c, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 })
 
 var (
@@ -229,11 +278,12 @@ func file_server_internal_types_proto_rawDescGZIP() []byte {
 	return file_server_internal_types_proto_rawDescData
 }
 
-var file_server_internal_types_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_server_internal_types_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_server_internal_types_proto_goTypes = []any{
 	(*RefreshToken)(nil),   // 0: internal.RefreshToken
 	(*IDTokenSubject)(nil), // 1: internal.IDTokenSubject
 	(*SessionCookie)(nil),  // 2: internal.SessionCookie
+	(*HMACPayload)(nil),    // 3: internal.HMACPayload
 }
 var file_server_internal_types_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
@@ -254,7 +304,7 @@ func file_server_internal_types_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_server_internal_types_proto_rawDesc), len(file_server_internal_types_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"encoding/json"
@@ -7,13 +7,8 @@ import (
 	"net/http"
 )
 
-func (a *app) handleUserInfo(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Parse form to get access token
+// handleUserInfo fetches user information from the provider's UserInfo endpoint.
+func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to parse form: %v", err), http.StatusBadRequest)
 		return
@@ -25,25 +20,15 @@ func (a *app) handleUserInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get UserInfo endpoint from provider
-	userInfoEndpoint := a.provider.Endpoint().AuthURL
-	if len(userInfoEndpoint) > 5 {
-		// Replace /auth with /userinfo
-		userInfoEndpoint = userInfoEndpoint[:len(userInfoEndpoint)-5] + "/userinfo"
-	}
-
-	// Create request to UserInfo endpoint
-	req, err := http.NewRequestWithContext(r.Context(), "GET", userInfoEndpoint, nil)
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, s.userInfoURL, nil)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to create request: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	// Add Authorization header with access token
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
-	// Make the request
-	resp, err := a.client.Do(req)
+	resp, err := s.client.Do(req)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to fetch userinfo: %v", err), http.StatusInternalServerError)
 		return
@@ -56,8 +41,7 @@ func (a *app) handleUserInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse and return the userinfo
-	var userInfo map[string]interface{}
+	var userInfo map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to decode userinfo: %v", err), http.StatusInternalServerError)
 		return

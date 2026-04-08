@@ -178,6 +178,12 @@ func (_c *AuthRequestCreate) SetNillableMfaValidated(v *bool) *AuthRequestCreate
 	return _c
 }
 
+// SetWebauthnSessionData sets the "webauthn_session_data" field.
+func (_c *AuthRequestCreate) SetWebauthnSessionData(v []byte) *AuthRequestCreate {
+	_c.mutation.SetWebauthnSessionData(v)
+	return _c
+}
+
 // SetPrompt sets the "prompt" field.
 func (_c *AuthRequestCreate) SetPrompt(v string) *AuthRequestCreate {
 	_c.mutation.SetPrompt(v)
@@ -469,6 +475,10 @@ func (_c *AuthRequestCreate) createSpec() (*AuthRequest, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.MfaValidated(); ok {
 		_spec.SetField(authrequest.FieldMfaValidated, field.TypeBool, value)
 		_node.MfaValidated = value
+	}
+	if value, ok := _c.mutation.WebauthnSessionData(); ok {
+		_spec.SetField(authrequest.FieldWebauthnSessionData, field.TypeBytes, value)
+		_node.WebauthnSessionData = &value
 	}
 	if value, ok := _c.mutation.Prompt(); ok {
 		_spec.SetField(authrequest.FieldPrompt, field.TypeString, value)
