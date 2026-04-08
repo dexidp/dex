@@ -1909,8 +1909,10 @@ func TestIdleExpiryExtension(t *testing.T) {
 
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
-		authReq := storage.AuthRequest{ClientID: "client-1", ConnectorID: "mock",
-			Claims: storage.Claims{UserID: "user-1"}}
+		authReq := storage.AuthRequest{
+			ClientID: "client-1", ConnectorID: "mock",
+			Claims: storage.Claims{UserID: "user-1"},
+		}
 
 		err := s.createOrUpdateAuthSession(ctx, r, w, authReq, false)
 		require.NoError(t, err)
