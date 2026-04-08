@@ -5,6 +5,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -178,7 +179,9 @@ func (s *Server) getValidSession(ctx context.Context, w http.ResponseWriter, r *
 	}
 
 	// Verify nonce to prevent cookie forgery.
-	if session.Nonce != nonce {
+	// Use constant-time comparison to prevent timing attacks that could
+	// allow an attacker to recover the nonce byte-by-byte.
+	if subtle.ConstantTimeCompare([]byte(session.Nonce), []byte(nonce)) != 1 {
 		s.logger.DebugContext(ctx, "auth session nonce mismatch")
 		s.clearSessionCookie(w)
 		return nil

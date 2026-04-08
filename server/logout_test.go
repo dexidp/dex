@@ -293,6 +293,62 @@ func TestDiscoveryWithoutSessions(t *testing.T) {
 	require.Empty(t, d.EndSession)
 }
 
+// TestHandleLogoutFromCookie tests logout without id_token_hint,
+// where the user is identified by their session cookie alone.
+func TestHandleLogoutFromCookie(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	ctx := t.Context()
+	userID := "test-user"
+	connectorID := "mock"
+	nonce := "testnonce"
+
+	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
+		UserID: userID, ConnectorID: connectorID, Nonce: nonce,
+		CreatedAt: time.Now(), LastActivity: time.Now(),
+	}))
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/logout", nil)
+	req.AddCookie(&http.Cookie{
+		Name:  "dex_session",
+		Value: sessionCookieValue(userID, connectorID, nonce, server.sessionConfig.CookieEncryptionKey),
+	})
+	server.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	require.Contains(t, rr.Body.String(), "successfully logged out")
+
+	// Session should be deleted.
+	_, err := server.storage.GetAuthSession(ctx, userID, connectorID)
+	require.ErrorIs(t, err, storage.ErrNotFound)
+
+	// Cookie should be cleared.
+	for _, c := range rr.Result().Cookies() {
+		if c.Name == "dex_session" {
+			require.Equal(t, -1, c.MaxAge)
+		}
+	}
+}
+
+// TestLogoutCallbackWithExpiredSession tests that /logout/callback
+// returns an error when the session has expired or been deleted.
+func TestLogoutCallbackWithExpiredSession(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	// No session created — cookie points to nonexistent session.
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/logout/callback", nil)
+	req.AddCookie(&http.Cookie{
+		Name:  "dex_session",
+		Value: sessionCookieValue("user-1", "mock", "nonce", server.sessionConfig.CookieEncryptionKey),
+	})
+	server.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
 func TestRevokeRefreshTokensReturnsConnectorData(t *testing.T) {
 	httpServer, server := newTestServerWithSessions(t, nil)
 	defer httpServer.Close()
