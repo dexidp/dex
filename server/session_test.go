@@ -1432,6 +1432,56 @@ func TestFinishSessionLogin_MFA(t *testing.T) {
 	})
 }
 
+// TestNonceVerificationRejectsForgedCookie verifies that a session cookie
+// with a valid (userID, connectorID) but wrong nonce is rejected.
+// The nonce comparison uses constant-time comparison to prevent timing attacks.
+func TestNonceVerificationRejectsForgedCookie(t *testing.T) {
+	ctx := t.Context()
+	s := newTestSessionServer(t)
+	now := s.now()
+
+	require.NoError(t, s.storage.CreateAuthSession(ctx, storage.AuthSession{
+		UserID: "user-1", ConnectorID: "mock", Nonce: "real-nonce",
+		CreatedAt: now.Add(-10 * time.Minute), LastActivity: now.Add(-1 * time.Minute),
+		AbsoluteExpiry: now.Add(24 * time.Hour), IdleExpiry: now.Add(59 * time.Minute),
+	}))
+
+	tests := []struct {
+		name  string
+		nonce string
+	}{
+		{"wrong nonce", "wrong-nonce"},
+		{"empty nonce", ""},
+		{"prefix of real nonce", "real"},
+		{"real nonce with suffix", "real-nonce-extra"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := sessionCookieRequest("user-1", "mock", tc.nonce)
+			w := httptest.NewRecorder()
+
+			session := s.getValidSession(ctx, w, r)
+			assert.Nil(t, session, "session with forged nonce %q should be rejected", tc.nonce)
+
+			// Cookie should be cleared on nonce mismatch.
+			for _, c := range w.Result().Cookies() {
+				if c.Name == "dex_session" {
+					assert.Equal(t, -1, c.MaxAge, "cookie should be cleared")
+				}
+			}
+		})
+	}
+
+	t.Run("correct nonce accepted", func(t *testing.T) {
+		r := sessionCookieRequest("user-1", "mock", "real-nonce")
+		w := httptest.NewRecorder()
+
+		session := s.getValidSession(ctx, w, r)
+		require.NotNil(t, session)
+		assert.Equal(t, "user-1", session.UserID)
+	})
+}
+
 // TestPromptNone tests the prompt=none silent authentication scenarios.
 // These verify the code paths in handleConnectorLogin (handlers.go:444-457)
 // where prompt=none requires session-based login without any UI.
