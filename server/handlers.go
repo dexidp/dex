@@ -449,8 +449,8 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if redirectURL != "" {
-				// Session found but consent required — no UI allowed.
-				s.redirectWithError(w, r, authReq, errInteractionRequired, "Consent required")
+				// Session found but user interaction is needed (consent or MFA) — no UI allowed.
+				s.redirectWithError(w, r, authReq, errInteractionRequired, "User interaction required")
 				return
 			}
 			return
