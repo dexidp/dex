@@ -82,6 +82,7 @@ Dex implements the following connectors:
 | [Atlassian Crowd](https://dexidp.io/docs/connectors/atlassian-crowd/) | yes | yes | yes * | beta | preferred_username claim must be configured through config |
 | [Gitea](https://dexidp.io/docs/connectors/gitea/) | yes | no | yes | beta | |
 | [OpenStack Keystone](https://dexidp.io/docs/connectors/keystone/) | yes | yes | no | alpha | |
+| [Cloud Foundry](https://dexidp.io/docs/connectors/cloudfoundry/) | no | yes | no | alpha | This connector is community maintained by [Concourse](https://github.com/concourse) |
 
 Stable, beta, and alpha are defined as:
 
