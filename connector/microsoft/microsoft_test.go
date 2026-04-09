@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -82,7 +83,7 @@ func TestLoginURLWithOptions(t *testing.T) {
 
 func TestUserIdentityFromGraphAPI(t *testing.T) {
 	s := newTestServer(map[string]testResponse{
-		"/v1.0/me?$select=id,displayName,userPrincipalName": {
+		"/v1.0/me?$select=id,displayName,userPrincipalName,mailNickname,onPremisesSamAccountName": {
 			data: user{ID: "S56767889", Name: "Jane Doe", Email: "jane.doe@example.com"},
 		},
 		"/" + tenant + "/oauth2/v2.0/token": dummyToken,
@@ -96,15 +97,45 @@ func TestUserIdentityFromGraphAPI(t *testing.T) {
 	expectNil(t, err)
 	expectEquals(t, identity.Username, "Jane Doe")
 	expectEquals(t, identity.UserID, "S56767889")
-	expectEquals(t, identity.PreferredUsername, "jane.doe@example.com")
+	expectEquals(t, identity.PreferredUsername, "")
 	expectEquals(t, identity.Email, "jane.doe@example.com")
 	expectEquals(t, identity.EmailVerified, true)
 	expectEquals(t, len(identity.Groups), 0)
 }
 
+func TestPreferredUsernameField(t *testing.T) {
+	s := newTestServer(map[string]testResponse{
+		"/v1.0/me?$select=id,displayName,userPrincipalName,mailNickname,onPremisesSamAccountName": {
+			data: user{ID: "S56767889", Name: "Jane Doe", Email: "jane.doe@example.com", MailNickname: "janedoe", OnPremisesSamAccountName: "DOMAIN\\janedoe"},
+		},
+		"/" + tenant + "/oauth2/v2.0/token": dummyToken,
+	})
+	defer s.Close()
+
+	tests := []struct {
+		field    string
+		expected string
+	}{
+		{"", ""},
+		{"name", "Jane Doe"},
+		{"email", "jane.doe@example.com"},
+		{"mailNickname", "janedoe"},
+		{"onPremisesSamAccountName", "DOMAIN\\janedoe"},
+		{"invalidstring", ""},
+	}
+
+	for _, tt := range tests {
+		req, _ := http.NewRequest("GET", s.URL, nil)
+		c := microsoftConnector{apiURL: s.URL, graphURL: s.URL, tenant: tenant, preferredUsernameField: tt.field, logger: slog.Default()}
+		identity, err := c.HandleCallback(connector.Scopes{Groups: false}, nil, req)
+		expectNil(t, err)
+		expectEquals(t, identity.PreferredUsername, tt.expected)
+	}
+}
+
 func TestUserGroupsFromGraphAPI(t *testing.T) {
 	s := newTestServer(map[string]testResponse{
-		"/v1.0/me?$select=id,displayName,userPrincipalName": {data: user{}},
+		"/v1.0/me?$select=id,displayName,userPrincipalName,mailNickname,onPremisesSamAccountName": {data: user{}},
 		"/v1.0/me/getMemberGroups": {data: map[string]interface{}{
 			"value": []string{"a", "b"},
 		}},
@@ -122,7 +153,7 @@ func TestUserGroupsFromGraphAPI(t *testing.T) {
 
 func TestUserNotInRequiredGroupFromGraphAPI(t *testing.T) {
 	s := newTestServer(map[string]testResponse{
-		"/v1.0/me?$select=id,displayName,userPrincipalName": {
+		"/v1.0/me?$select=id,displayName,userPrincipalName,mailNickname,onPremisesSamAccountName": {
 			data: user{ID: "user-id-123", Name: "Jane Doe", Email: "jane.doe@example.com"},
 		},
 		// The user is a member of groups "c" and "d", but the connector only
