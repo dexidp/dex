@@ -107,6 +107,7 @@ type Config struct {
 	AlwaysShowLoginScreen bool
 
 	IDTokensValidFor       time.Duration // Defaults to 24 hours
+	IDJAGTokensValidFor    time.Duration // Defaults to 5 minutes
 	AuthRequestsValidFor   time.Duration // Defaults to 24 hours
 	DeviceRequestsValidFor time.Duration // Defaults to 5 minutes
 
@@ -139,6 +140,11 @@ type Config struct {
 	// This allows the server to operate with a subset of connectors if some are misconfigured.
 	ContinueOnConnectorFailure bool
 
+	// TokenExchange configures Token Exchange support.
+	TokenExchange TokenExchangeConfig
+
+	IDJAGPolicies []TokenExchangePolicy
+
 	// SessionConfig holds session settings. Nil when sessions are disabled.
 	SessionConfig *SessionConfig
 
@@ -147,6 +153,21 @@ type Config struct {
 
 	// DefaultMFAChain is applied to clients that don't specify their own mfaChain.
 	DefaultMFAChain []string
+}
+
+// TokenExchangeConfig holds configuration for Token Exchange support.
+type TokenExchangeConfig struct {
+	TokenTypes []string `json:"tokenTypes"`
+}
+
+// IDJAGEnabled reports whether the ID-JAG token type is enabled.
+func (c TokenExchangeConfig) IDJAGEnabled() bool {
+	for _, t := range c.TokenTypes {
+		if t == tokenTypeIDJAG {
+			return true
+		}
+	}
+	return false
 }
 
 // SessionConfig holds resolved session configuration.
@@ -248,6 +269,15 @@ type Server struct {
 	logger *slog.Logger
 
 	signer signer.Signer
+
+	enableIDJAG           bool
+	idJAGTokensValidFor   time.Duration
+	tokenExchangePolicies []TokenExchangePolicy
+
+	// ID-JAG Prometheus metrics (nil when PrometheusRegistry is not set).
+	idJAGRequestsTotal           *prometheus.CounterVec
+	idJAGPolicyRejectionsTotal   *prometheus.CounterVec
+	idJAGScopeModificationsTotal prometheus.Counter
 
 	sessionConfig *SessionConfig
 
@@ -358,6 +388,8 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		now = time.Now
 	}
 
+	idJAGTokensValidFor := value(c.IDJAGTokensValidFor, 5*time.Minute)
+
 	s := &Server{
 		issuerURL:              *issuerURL,
 		connectors:             make(map[string]Connector),
@@ -376,6 +408,9 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		passwordConnector:      c.PasswordConnector,
 		logger:                 c.Logger,
 		signer:                 c.Signer,
+		enableIDJAG:            c.TokenExchange.IDJAGEnabled(),
+		idJAGTokensValidFor:    idJAGTokensValidFor,
+		tokenExchangePolicies:  c.IDJAGPolicies,
 		sessionConfig:          c.SessionConfig,
 		mfaProviders:           c.MFAProviders,
 		defaultMFAChain:        c.DefaultMFAChain,
@@ -435,6 +470,26 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		}, []string{"code", "method", "handler"})
 
 		c.PrometheusRegistry.MustRegister(requestCounter, durationHist, sizeHist)
+
+		if s.enableIDJAG {
+			s.idJAGRequestsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+				Name: "dex_id_jag_requests_total",
+				Help: "Total number of ID-JAG token exchange requests.",
+			}, []string{"result"})
+			s.idJAGPolicyRejectionsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+				Name: "dex_id_jag_policy_rejections_total",
+				Help: "Total number of ID-JAG policy rejections by reason.",
+			}, []string{"reason"})
+			s.idJAGScopeModificationsTotal = prometheus.NewCounter(prometheus.CounterOpts{
+				Name: "dex_id_jag_scope_modifications_total",
+				Help: "Total number of ID-JAG requests where policy reduced the requested scopes.",
+			})
+			c.PrometheusRegistry.MustRegister(
+				s.idJAGRequestsTotal,
+				s.idJAGPolicyRejectionsTotal,
+				s.idJAGScopeModificationsTotal,
+			)
+		}
 
 		instrumentHandler = func(handlerName string, handler http.Handler) http.HandlerFunc {
 			return promhttp.InstrumentHandlerDuration(durationHist.MustCurryWith(prometheus.Labels{"handler": handlerName}),

@@ -184,15 +184,15 @@ additionalFeatures: [
 				"foo": "bar",
 			},
 		},
-		StaticClients: []storage.Client{
-			{
+		StaticClients: []staticClient{
+			{Client: storage.Client{
 				ID:     "example-app",
 				Secret: "ZXhhbXBsZS1hcHAtc2VjcmV0",
 				Name:   "Example App",
 				RedirectURIs: []string{
 					"http://127.0.0.1:5555/callback",
 				},
-			},
+			}},
 		},
 		OAuth2: OAuth2{
 			AlwaysShowLoginScreen: true,
@@ -413,15 +413,15 @@ logger:
 				"foo": "bar",
 			},
 		},
-		StaticClients: []storage.Client{
-			{
+		StaticClients: []staticClient{
+			{Client: storage.Client{
 				ID:     "example-app",
 				Secret: "ZXhhbXBsZS1hcHAtc2VjcmV0",
 				Name:   "Example App",
 				RedirectURIs: []string{
 					"http://127.0.0.1:5555/callback",
 				},
-			},
+			}},
 		},
 		OAuth2: OAuth2{
 			AlwaysShowLoginScreen: true,
@@ -673,5 +673,101 @@ enablePasswordDB: true
 				}
 			}
 		})
+	}
+}
+
+func TestUnmarshalConfigWithIDJAGPolicies(t *testing.T) {
+	rawConfig := []byte(`
+issuer: http://127.0.0.1:5556/dex
+storage:
+  type: memory
+web:
+  http: 0.0.0.0:5556
+
+oauth2:
+  grantTypes:
+    - authorization_code
+    - "urn:ietf:params:oauth:grant-type:token-exchange"
+  tokenExchange:
+    tokenTypes:
+      - "urn:ietf:params:oauth:token-type:id_token"
+      - "urn:ietf:params:oauth:token-type:id-jag"
+
+expiry:
+  idJAGTokens: "10m"
+
+staticClients:
+  - id: wiki-app
+    secret: wiki-secret
+    name: "Wiki Application"
+    redirectURIs:
+      - "https://wiki.example/callback"
+    idJAGPolicies:
+      allowedAudiences:
+        - "https://chat.example/"
+        - "https://calendar.example/"
+      allowedScopes:
+        - "chat.read"
+        - "calendar.read"
+  - id: plain-app
+    secret: plain-secret
+    name: "Plain Application"
+    redirectURIs:
+      - "https://plain.example/callback"
+
+enablePasswordDB: true
+`)
+
+	var c Config
+	data, err := yaml.YAMLToJSON(rawConfig)
+	if err != nil {
+		t.Fatalf("failed to convert yaml to json: %v", err)
+	}
+	if err := json.Unmarshal(data, &c); err != nil {
+		t.Fatalf("failed to unmarshal config: %v", err)
+	}
+
+	// Verify tokenExchange config.
+	if len(c.OAuth2.TokenExchange.TokenTypes) != 2 {
+		t.Fatalf("expected 2 token types, got %d", len(c.OAuth2.TokenExchange.TokenTypes))
+	}
+	if !c.OAuth2.TokenExchange.IDJAGEnabled() {
+		t.Fatal("expected ID-JAG to be enabled")
+	}
+
+	// Verify expiry.
+	if c.Expiry.IDJAGTokens != "10m" {
+		t.Errorf("expected IDJAGTokens=10m, got %q", c.Expiry.IDJAGTokens)
+	}
+
+	// Verify static clients with idJAGPolicies.
+	if len(c.StaticClients) != 2 {
+		t.Fatalf("expected 2 static clients, got %d", len(c.StaticClients))
+	}
+
+	wikiClient := c.StaticClients[0]
+	if wikiClient.Client.ID != "wiki-app" {
+		t.Errorf("expected wiki-app, got %q", wikiClient.Client.ID)
+	}
+	if wikiClient.IDJAGPolicies == nil {
+		t.Fatal("expected idJAGPolicies for wiki-app, got nil")
+	}
+	if len(wikiClient.IDJAGPolicies.AllowedAudiences) != 2 {
+		t.Fatalf("expected 2 allowed audiences, got %d", len(wikiClient.IDJAGPolicies.AllowedAudiences))
+	}
+	if wikiClient.IDJAGPolicies.AllowedAudiences[0] != "https://chat.example/" {
+		t.Errorf("expected first audience https://chat.example/, got %q", wikiClient.IDJAGPolicies.AllowedAudiences[0])
+	}
+	if len(wikiClient.IDJAGPolicies.AllowedScopes) != 2 {
+		t.Fatalf("expected 2 allowed scopes, got %d", len(wikiClient.IDJAGPolicies.AllowedScopes))
+	}
+	if wikiClient.IDJAGPolicies.AllowedScopes[0] != "chat.read" {
+		t.Errorf("expected first scope chat.read, got %q", wikiClient.IDJAGPolicies.AllowedScopes[0])
+	}
+
+	// Client without idJAGPolicies.
+	plainClient := c.StaticClients[1]
+	if plainClient.IDJAGPolicies != nil {
+		t.Errorf("expected nil idJAGPolicies for plain-app, got %+v", plainClient.IDJAGPolicies)
 	}
 }

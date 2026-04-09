@@ -73,22 +73,24 @@ func (s *Server) handlePublicKeys(w http.ResponseWriter, r *http.Request) {
 }
 
 type discovery struct {
-	Issuer            string   `json:"issuer"`
-	Auth              string   `json:"authorization_endpoint"`
-	Token             string   `json:"token_endpoint"`
-	Keys              string   `json:"jwks_uri"`
-	UserInfo          string   `json:"userinfo_endpoint"`
-	DeviceEndpoint    string   `json:"device_authorization_endpoint"`
-	Introspect        string   `json:"introspection_endpoint"`
-	EndSession        string   `json:"end_session_endpoint,omitempty"`
-	GrantTypes        []string `json:"grant_types_supported"`
-	ResponseTypes     []string `json:"response_types_supported"`
-	Subjects          []string `json:"subject_types_supported"`
-	IDTokenAlgs       []string `json:"id_token_signing_alg_values_supported"`
-	CodeChallengeAlgs []string `json:"code_challenge_methods_supported"`
-	Scopes            []string `json:"scopes_supported"`
-	AuthMethods       []string `json:"token_endpoint_auth_methods_supported"`
-	Claims            []string `json:"claims_supported"`
+	Issuer                     string   `json:"issuer"`
+	Auth                       string   `json:"authorization_endpoint"`
+	Token                      string   `json:"token_endpoint"`
+	Keys                       string   `json:"jwks_uri"`
+	UserInfo                   string   `json:"userinfo_endpoint"`
+	DeviceEndpoint             string   `json:"device_authorization_endpoint"`
+	Introspect                 string   `json:"introspection_endpoint"`
+	EndSession                 string   `json:"end_session_endpoint,omitempty"`
+	GrantTypes                 []string `json:"grant_types_supported"`
+	ResponseTypes              []string `json:"response_types_supported"`
+	Subjects                   []string `json:"subject_types_supported"`
+	IDTokenAlgs                []string `json:"id_token_signing_alg_values_supported"`
+	CodeChallengeAlgs          []string `json:"code_challenge_methods_supported"`
+	Scopes                     []string `json:"scopes_supported"`
+	AuthMethods                []string `json:"token_endpoint_auth_methods_supported"`
+	Claims                     []string `json:"claims_supported"`
+	IDJAGSigningAlgs           []string `json:"id_jag_signing_alg_values_supported,omitempty"`
+	IdentityChainingTokenTypes []string `json:"identity_chaining_requested_token_types_supported,omitempty"`
 }
 
 func (s *Server) discoveryHandler(ctx context.Context) (http.HandlerFunc, error) {
@@ -132,6 +134,11 @@ func (s *Server) constructDiscovery(ctx context.Context) discovery {
 		s.logger.Error("failed to get signing algorithm", "err", err)
 	} else {
 		d.IDTokenAlgs = []string{string(signingAlg)}
+	}
+
+	if s.enableIDJAG {
+		d.IDJAGSigningAlgs = d.IDTokenAlgs
+		d.IdentityChainingTokenTypes = []string{tokenTypeIDJAG}
 	}
 
 	for responseType := range s.supportedResponseTypes {
@@ -1793,6 +1800,15 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 		return
 	}
 
+	if requestedTokenType == tokenTypeIDJAG {
+		if !s.enableIDJAG {
+			s.tokenErrHelper(w, errRequestNotSupported, "ID-JAG token exchange is not enabled on this server.", http.StatusBadRequest)
+			return
+		}
+		s.handleIDJAGExchange(w, r, client, subjectToken, subjectTokenType, connID, scopes)
+		return
+	}
+
 	conn, err := s.getConnector(ctx, connID)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to get connector", "err", err)
@@ -1851,6 +1867,134 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+// handleIDJAGExchange handles a Token Exchange request with requested_token_type=ID-JAG.
+// See: https://datatracker.ietf.org/doc/draft-ietf-oauth-identity-assertion-authz-grant/
+func (s *Server) handleIDJAGExchange(w http.ResponseWriter, r *http.Request, client storage.Client, subjectToken, subjectTokenType string, connectorID string, scopes []string) {
+	ctx := r.Context()
+	q := r.Form
+
+	audience := q.Get("audience")
+	resource := q.Get("resource")
+	requestedScope := strings.Join(scopes, " ")
+
+	// Reject public clients (Section 8.1).
+	if client.Public {
+		s.idJAGReject(ctx, w, "rejected", errUnauthorizedClient, "Public clients cannot use ID-JAG token exchange.", http.StatusBadRequest,
+			"client_id", client.ID, "connector_id", connectorID, "audience", audience, "resource", resource, "requested_scope", requestedScope, "reason", "public_client")
+		return
+	}
+
+	// connector_id is required for identifying the upstream connector.
+	if connectorID == "" {
+		s.idJAGReject(ctx, w, "rejected", errInvalidRequest, "Missing required parameter connector_id for ID-JAG token exchange.", http.StatusBadRequest,
+			"client_id", client.ID, "connector_id", connectorID, "audience", audience, "resource", resource, "requested_scope", requestedScope, "reason", "missing_connector_id")
+		return
+	}
+
+	// Only checking existence; the connector value is not needed for token exchange.
+	if _, err := s.getConnector(ctx, connectorID); err != nil {
+		s.idJAGReject(ctx, w, "rejected", errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest,
+			"client_id", client.ID, "connector_id", connectorID, "audience", audience, "resource", resource, "requested_scope", requestedScope, "reason", "connector_not_found")
+		return
+	}
+
+	// audience is required.
+	if audience == "" {
+		s.idJAGReject(ctx, w, "rejected", errInvalidRequest, "Missing required parameter audience for ID-JAG token exchange.", http.StatusBadRequest,
+			"client_id", client.ID, "connector_id", connectorID, "audience", audience, "resource", resource, "requested_scope", requestedScope, "reason", "missing_audience")
+		return
+	}
+
+	// subject_token_type must be id_token.
+	if subjectTokenType != tokenTypeID {
+		s.idJAGReject(ctx, w, "rejected", errRequestNotSupported, "ID-JAG token exchange requires subject_token_type=urn:ietf:params:oauth:token-type:id_token.", http.StatusBadRequest,
+			"client_id", client.ID, "connector_id", connectorID, "audience", audience, "resource", resource, "requested_scope", requestedScope, "reason", "invalid_subject_token_type")
+		return
+	}
+
+	// Verify the subject_token signature and expiry against this server's signing keys.
+	verifier := oidc.NewVerifier(s.issuerURL.String(), &signerKeySet{s.signer}, &oidc.Config{ClientID: client.ID})
+	idToken, err := verifier.Verify(ctx, subjectToken)
+	if err != nil {
+		s.idJAGReject(ctx, w, "rejected", errInvalidRequest, "Invalid subject_token.", http.StatusBadRequest,
+			"client_id", client.ID, "connector_id", connectorID, "audience", audience, "resource", resource, "requested_scope", requestedScope, "reason", "invalid_subject_token")
+		return
+	}
+	sub := idToken.Subject
+
+	policyResult := evaluateIDJAGPolicy(s.tokenExchangePolicies, client.ID, audience, scopes)
+	if policyResult.Denied {
+		if s.idJAGPolicyRejectionsTotal != nil {
+			s.idJAGPolicyRejectionsTotal.WithLabelValues(string(policyResult.DenialReason)).Inc()
+		}
+		s.idJAGReject(ctx, w, "denied", errAccessDenied, "", http.StatusForbidden,
+			"client_id", client.ID, "connector_id", connectorID, "audience", audience, "resource", resource, "requested_scope", requestedScope, "sub", sub, "reason", string(policyResult.DenialReason))
+		return
+	}
+
+	grantedScopes := policyResult.GrantedScopes
+	grantedScope := strings.Join(grantedScopes, " ")
+
+	scopeModified := requestedScope != grantedScope
+	if scopeModified && s.idJAGScopeModificationsTotal != nil {
+		s.idJAGScopeModificationsTotal.Inc()
+	}
+
+	idJAGToken, jti, expiry, err := s.newIDJAG(ctx, client.ID, sub, audience, resource, grantedScopes)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to create ID-JAG token", "err", err)
+		s.idJAGReject(ctx, w, "rejected", errServerError, "", http.StatusInternalServerError,
+			"client_id", client.ID, "connector_id", connectorID, "audience", audience, "resource", resource, "requested_scope", requestedScope, "sub", sub, "reason", "token_creation_failed")
+		return
+	}
+
+	s.logger.InfoContext(ctx, "ID-JAG token issued",
+		"client_id", client.ID,
+		"connector_id", connectorID,
+		"audience", audience,
+		"resource", resource,
+		"requested_scope", requestedScope,
+		"granted_scope", grantedScope,
+		"sub", sub,
+		"jti", jti,
+		"decision", "approved",
+	)
+
+	if s.idJAGRequestsTotal != nil {
+		s.idJAGRequestsTotal.WithLabelValues("issued").Inc()
+	}
+
+	// RFC 8693 §2.2.1: token_type is "N_A" for non-access tokens.
+	resp := accessTokenResponse{
+		AccessToken:     idJAGToken,
+		IssuedTokenType: tokenTypeIDJAG,
+		TokenType:       "N_A",
+		ExpiresIn:       int(time.Until(expiry).Seconds()),
+	}
+
+	// Per Section 4.3.2: include scope in response if granted scope differs from requested.
+	if scopeModified {
+		resp.Scope = grantedScope
+	}
+
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+// idJAGReject is a helper for ID-JAG rejection responses with structured logging and metrics.
+func (s *Server) idJAGReject(ctx context.Context, w http.ResponseWriter, result string, errType, errDesc string, status int, logKVs ...any) {
+	logKVs = append(logKVs, "decision", "denied")
+	s.logger.InfoContext(ctx, "ID-JAG token exchange rejected", logKVs...)
+
+	if s.idJAGRequestsTotal != nil {
+		s.idJAGRequestsTotal.WithLabelValues(result).Inc()
+	}
+
+	s.tokenErrHelper(w, errType, errDesc, status)
 }
 
 func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Request, client storage.Client) {
