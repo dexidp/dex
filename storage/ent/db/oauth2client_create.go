@@ -9,6 +9,7 @@ import (
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/db/oauth2client"
 )
 
@@ -76,6 +77,12 @@ func (_c *OAuth2ClientCreate) SetPostLogoutRedirectUris(v []string) *OAuth2Clien
 // SetSSOSharedWith sets the "sso_shared_with" field.
 func (_c *OAuth2ClientCreate) SetSSOSharedWith(v []string) *OAuth2ClientCreate {
 	_c.mutation.SetSSOSharedWith(v)
+	return _c
+}
+
+// SetClientCredentialsClaims sets the "client_credentials_claims" field.
+func (_c *OAuth2ClientCreate) SetClientCredentialsClaims(v *storage.ClientCredentialsClaims) *OAuth2ClientCreate {
+	_c.mutation.SetClientCredentialsClaims(v)
 	return _c
 }
 
@@ -225,6 +232,10 @@ func (_c *OAuth2ClientCreate) createSpec() (*OAuth2Client, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.SSOSharedWith(); ok {
 		_spec.SetField(oauth2client.FieldSSOSharedWith, field.TypeJSON, value)
 		_node.SSOSharedWith = value
+	}
+	if value, ok := _c.mutation.ClientCredentialsClaims(); ok {
+		_spec.SetField(oauth2client.FieldClientCredentialsClaims, field.TypeJSON, value)
+		_node.ClientCredentialsClaims = value
 	}
 	return _node, _spec
 }

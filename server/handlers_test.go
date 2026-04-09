@@ -1118,14 +1118,16 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 
 func TestHandleClientCredentials(t *testing.T) {
 	tests := []struct {
-		name          string
-		clientID      string
-		clientSecret  string
-		scopes        string
-		wantCode      int
-		wantAccessTok bool
-		wantIDToken   bool
-		wantUsername  string
+		name                    string
+		clientID                string
+		clientSecret            string
+		clientCredentialsClaims *storage.ClientCredentialsClaims
+		scopes                  string
+		wantCode                int
+		wantAccessTok           bool
+		wantIDToken             bool
+		wantUsername            string
+		wantGroups              []string
 	}{
 		{
 			name:          "Basic grant, no scopes",
@@ -1164,6 +1166,28 @@ func TestHandleClientCredentials(t *testing.T) {
 			wantAccessTok: true,
 			wantIDToken:   true,
 			wantUsername:  "Test Client",
+		},
+		{
+			name:         "With groups scope and clientCredentialsClaims groups populated",
+			clientID:     "test",
+			clientSecret: "barfoo",
+			clientCredentialsClaims: &storage.ClientCredentialsClaims{
+				Groups: []string{"admin-group", "dev-group"},
+			},
+			scopes:        "openid groups",
+			wantCode:      200,
+			wantAccessTok: true,
+			wantIDToken:   true,
+			wantGroups:    []string{"admin-group", "dev-group"},
+		},
+		{
+			name:          "With groups scope but no clientCredentialsClaims configured",
+			clientID:      "test",
+			clientSecret:  "barfoo",
+			scopes:        "openid groups",
+			wantCode:      200,
+			wantAccessTok: true,
+			wantIDToken:   true,
 		},
 		{
 			name:         "Invalid client secret",
@@ -1205,10 +1229,11 @@ func TestHandleClientCredentials(t *testing.T) {
 
 			// Create a confidential client for testing.
 			err := s.storage.CreateClient(ctx, storage.Client{
-				ID:           "test",
-				Secret:       "barfoo",
-				RedirectURIs: []string{"https://example.com/callback"},
-				Name:         "Test Client",
+				ID:                      "test",
+				Secret:                  "barfoo",
+				RedirectURIs:            []string{"https://example.com/callback"},
+				Name:                    "Test Client",
+				ClientCredentialsClaims: tc.clientCredentialsClaims,
 			})
 			require.NoError(t, err)
 
@@ -1264,8 +1289,9 @@ func TestHandleClientCredentials(t *testing.T) {
 					require.Equal(t, tc.clientID, sub.UserId)
 
 					var claims struct {
-						Name              string `json:"name"`
-						PreferredUsername string `json:"preferred_username"`
+						Name              string   `json:"name"`
+						PreferredUsername string   `json:"preferred_username"`
+						Groups            []string `json:"groups"`
 					}
 					require.NoError(t, idToken.Claims(&claims))
 
@@ -1275,6 +1301,12 @@ func TestHandleClientCredentials(t *testing.T) {
 					} else {
 						require.Empty(t, claims.Name)
 						require.Empty(t, claims.PreferredUsername)
+					}
+
+					if tc.wantGroups != nil {
+						require.Equal(t, tc.wantGroups, claims.Groups)
+					} else {
+						require.Empty(t, claims.Groups)
 					}
 				} else {
 					require.Empty(t, resp.IDToken)

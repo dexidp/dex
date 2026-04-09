@@ -347,6 +347,16 @@ func SSOSharedWithNotNil() predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.FieldNotNull(FieldSSOSharedWith))
 }
 
+// ClientCredentialsClaimsIsNil applies the IsNil predicate on the "client_credentials_claims" field.
+func ClientCredentialsClaimsIsNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldIsNull(FieldClientCredentialsClaims))
+}
+
+// ClientCredentialsClaimsNotNil applies the NotNil predicate on the "client_credentials_claims" field.
+func ClientCredentialsClaimsNotNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNotNull(FieldClientCredentialsClaims))
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.OAuth2Client) predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.AndPredicates(predicates...))

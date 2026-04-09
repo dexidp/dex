@@ -1919,12 +1919,16 @@ func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Req
 		UserID: client.ID,
 	}
 
-	// Only populate Username/PreferredUsername when the profile scope is requested.
+	// Populate optional claims based on requested scopes.
 	for _, scope := range scopes {
-		if scope == scopeProfile {
+		switch scope {
+		case scopeProfile:
 			claims.Username = client.Name
 			claims.PreferredUsername = client.Name
-			break
+		case scopeGroups:
+			if client.ClientCredentialsClaims != nil {
+				claims.Groups = client.ClientCredentialsClaims.Groups
+			}
 		}
 	}
 

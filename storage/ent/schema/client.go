@@ -3,6 +3,8 @@ package schema
 import (
 	"entgo.io/ent"
 	"entgo.io/ent/schema/field"
+
+	"github.com/dexidp/dex/storage"
 )
 
 /* Original SQL table:
@@ -52,6 +54,8 @@ func (OAuth2Client) Fields() []ent.Field {
 		field.JSON("post_logout_redirect_uris", []string{}).
 			Optional(),
 		field.JSON("sso_shared_with", []string{}).
+			Optional(),
+		field.JSON("client_credentials_claims", &storage.ClientCredentialsClaims{}).
 			Optional(),
 	}
 }
