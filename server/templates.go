@@ -396,12 +396,13 @@ func (t *templates) home(r *http.Request, w http.ResponseWriter, data homeData) 
 	return renderTemplate(w, t.homeTmpl, data)
 }
 
-func (t *templates) logout(r *http.Request, w http.ResponseWriter, backURL string, loggedOut bool) error {
+func (t *templates) logout(r *http.Request, w http.ResponseWriter, backURL string, loggedOut bool, showConfirmation bool) error {
 	data := struct {
-		BackURL   string
-		LoggedOut bool
-		ReqPath   string
-	}{backURL, loggedOut, r.URL.Path}
+		BackURL          string
+		LoggedOut        bool
+		ShowConfirmation bool
+		ReqPath          string
+	}{backURL, loggedOut, showConfirmation, r.URL.Path}
 	return renderTemplate(w, t.logoutTmpl, data)
 }
 
