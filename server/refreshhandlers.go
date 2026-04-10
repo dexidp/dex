@@ -107,6 +107,10 @@ func newInternalServerError() *refreshError {
 	return &refreshError{msg: errInvalidRequest, desc: "", code: http.StatusInternalServerError}
 }
 
+func newUpstreamRefreshError() *refreshError {
+	return &refreshError{msg: errInvalidGrant, desc: "Upstream identity provider refresh failed.", code: http.StatusBadGateway}
+}
+
 func newBadRequestError(desc string) *refreshError {
 	return &refreshError{msg: errInvalidRequest, desc: desc, code: http.StatusBadRequest}
 }
@@ -271,7 +275,7 @@ func (s *Server) refreshWithConnector(ctx context.Context, rCtx *refreshContext,
 		newIdent, err := refreshConn.Refresh(ctx, parseScopes(rCtx.scopes), ident)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "failed to refresh identity", "err", err)
-			return ident, newInternalServerError()
+			return ident, newUpstreamRefreshError()
 		}
 
 		return newIdent, nil
@@ -327,6 +331,23 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 		Groups:            rCtx.storageToken.Claims.Groups,
 	}
 
+	// When sessions are enabled, downstream token refresh is disconnected from the upstream
+	// identity provider. Instead of calling the connector's Refresh method (which would contact
+	// the upstream IdP and may fail if the upstream refresh token has expired), we use the claims
+	// stored in UserIdentity at the time of the last interactive login. This aligns with the
+	// behavior of other identity brokers (e.g., Keycloak, Auth0) that treat downstream sessions
+	// independently from the upstream provider session lifetime.
+	var userIdent *storage.UserIdentity
+	if s.sessionConfig != nil {
+		ui, err := s.storage.GetUserIdentity(ctx, rCtx.storageToken.Claims.UserID, rCtx.storageToken.ConnectorID)
+		if err != nil {
+			s.logger.ErrorContext(ctx, "failed to get user identity for refresh",
+				"user_id", rCtx.storageToken.Claims.UserID, "connector_id", rCtx.storageToken.ConnectorID, "err", err)
+			return nil, ident, newInternalServerError()
+		}
+		userIdent = &ui
+	}
+
 	refreshTokenUpdater := func(old storage.RefreshToken) (storage.RefreshToken, error) {
 		rotationEnabled := s.refreshTokenPolicy.RotationEnabled()
 		reusingAllowed := s.refreshTokenPolicy.AllowedToReuse(old.LastUsed)
@@ -371,9 +392,21 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 		// Call  only once if there is a request which is not in the reuse interval.
 		// This is required to avoid multiple calls to the external IdP for concurrent requests.
 		// Dex will call the connector's Refresh method only once if request is not in reuse interval.
-		ident, rerr = s.refreshWithConnector(ctx, rCtx, ident)
-		if rerr != nil {
-			return old, rerr
+		// When sessions are enabled, use cached identity instead of refreshing upstream.
+		if userIdent != nil {
+			ident = connector.Identity{
+				UserID:            userIdent.Claims.UserID,
+				Username:          userIdent.Claims.Username,
+				PreferredUsername: userIdent.Claims.PreferredUsername,
+				Email:             userIdent.Claims.Email,
+				EmailVerified:     userIdent.Claims.EmailVerified,
+				Groups:            userIdent.Claims.Groups,
+			}
+		} else {
+			ident, rerr = s.refreshWithConnector(ctx, rCtx, ident)
+			if rerr != nil {
+				return old, rerr
+			}
 		}
 
 		// Update the claims of the refresh token.

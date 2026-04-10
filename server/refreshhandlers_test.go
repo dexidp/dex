@@ -2,8 +2,10 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
@@ -276,17 +279,17 @@ func TestRefreshTokenAuthTime(t *testing.T) {
 			mockRefreshTokenTestStorage(t, s.storage, false)
 
 			if tc.createUserIdentity {
-				// The mock connector returns UserID "0-385-28089-0" on Refresh,
-				// so the UserIdentity must use that ID to be found by handleRefreshToken.
+				// UserIdentity must match the refresh token's Claims.UserID ("1")
+				// because updateRefreshToken looks it up by that ID.
 				err := s.storage.CreateUserIdentity(t.Context(), storage.UserIdentity{
-					UserID:      "0-385-28089-0",
+					UserID:      "1",
 					ConnectorID: "test",
 					Claims: storage.Claims{
-						UserID:        "0-385-28089-0",
-						Username:      "Kilgore Trout",
-						Email:         "kilgore@kilgore.trout",
+						UserID:        "1",
+						Username:      "jane",
+						Email:         "jane.doe@example.com",
 						EmailVerified: true,
-						Groups:        []string{"authors"},
+						Groups:        []string{"a", "b"},
 					},
 					CreatedAt: loginTime,
 					LastLogin: loginTime,
@@ -340,6 +343,145 @@ func TestRefreshTokenAuthTime(t *testing.T) {
 				idClaims := decodeJWTClaims(t, resp.IDToken)
 				assert.Equal(t, float64(loginTime.Unix()), idClaims["auth_time"],
 					"id token auth_time should match UserIdentity.LastLogin")
+			}
+		})
+	}
+}
+
+// failingRefreshConnector implements connector.CallbackConnector and connector.RefreshConnector
+// but always returns an error on Refresh, proving that the upstream is not contacted.
+type failingRefreshConnector struct {
+	identity connector.Identity
+}
+
+func (f *failingRefreshConnector) LoginURL(_ connector.Scopes, callbackURL, state string) (string, []byte, error) {
+	u, _ := url.Parse(callbackURL)
+	v := u.Query()
+	v.Set("state", state)
+	u.RawQuery = v.Encode()
+	return u.String(), nil, nil
+}
+
+func (f *failingRefreshConnector) HandleCallback(_ connector.Scopes, _ []byte, _ *http.Request) (connector.Identity, error) {
+	return f.identity, nil
+}
+
+func (f *failingRefreshConnector) Refresh(_ context.Context, _ connector.Scopes, _ connector.Identity) (connector.Identity, error) {
+	return connector.Identity{}, errors.New("upstream: refresh token expired")
+}
+
+func TestRefreshDisconnectsUpstreamWhenSessionsEnabled(t *testing.T) {
+	t0 := time.Now().UTC().Round(time.Second)
+	loginTime := t0.Add(-10 * time.Minute)
+
+	tests := []struct {
+		name               string
+		sessionsEnabled    bool
+		createUserIdentity bool
+		wantOK             bool
+	}{
+		{
+			name:               "sessions enabled - uses user identity, skips upstream",
+			sessionsEnabled:    true,
+			createUserIdentity: true,
+			wantOK:             true,
+		},
+		{
+			name:               "sessions enabled without user identity - fails",
+			sessionsEnabled:    true,
+			createUserIdentity: false,
+			wantOK:             false,
+		},
+		{
+			name:               "sessions disabled - upstream failure returns error",
+			sessionsEnabled:    false,
+			createUserIdentity: false,
+			wantOK:             false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			httpServer, s := newTestServer(t, func(c *Config) {
+				c.Now = func() time.Time { return t0 }
+			})
+			defer httpServer.Close()
+
+			if tc.sessionsEnabled {
+				s.sessionConfig = &SessionConfig{
+					CookieName:       "dex_session",
+					AbsoluteLifetime: 24 * time.Hour,
+				}
+			}
+
+			mockRefreshTokenTestStorage(t, s.storage, false)
+
+			// Replace the connector with one that always fails on Refresh.
+			// When sessions are enabled this connector should never be called;
+			// when sessions are disabled, the failure proves the error path works.
+			s.mu.Lock()
+			s.connectors["test"] = Connector{
+				Connector: &failingRefreshConnector{
+					identity: connector.Identity{
+						UserID:   "0-385-28089-0",
+						Username: "Kilgore Trout",
+						Email:    "kilgore@kilgore.trout",
+					},
+				},
+			}
+			s.mu.Unlock()
+
+			if tc.createUserIdentity {
+				err := s.storage.CreateUserIdentity(t.Context(), storage.UserIdentity{
+					UserID:      "1",
+					ConnectorID: "test",
+					Claims: storage.Claims{
+						UserID:        "1",
+						Username:      "jane",
+						Email:         "jane.doe@example.com",
+						EmailVerified: true,
+						Groups:        []string{"a", "b"},
+					},
+					CreatedAt: loginTime,
+					LastLogin: loginTime,
+				})
+				require.NoError(t, err)
+			}
+
+			u, err := url.Parse(s.issuerURL.String())
+			require.NoError(t, err)
+
+			tokenData, err := internal.Marshal(&internal.RefreshToken{RefreshId: "test", Token: "bar"})
+			require.NoError(t, err)
+
+			u.Path = path.Join(u.Path, "/token")
+			v := url.Values{}
+			v.Add("grant_type", "refresh_token")
+			v.Add("refresh_token", tokenData)
+
+			req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(v.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded; param=value")
+			req.SetBasicAuth("test", "barfoo")
+
+			rr := httptest.NewRecorder()
+			s.ServeHTTP(rr, req)
+
+			if tc.wantOK {
+				require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+
+				var resp struct {
+					IDToken string `json:"id_token"`
+				}
+				err = json.Unmarshal(rr.Body.Bytes(), &resp)
+				require.NoError(t, err)
+
+				// Verify the returned claims match UserIdentity, not the connector.
+				claims := decodeJWTClaims(t, resp.IDToken)
+				assert.Equal(t, "jane.doe@example.com", claims["email"])
+				assert.Equal(t, "jane", claims["name"])
+			} else {
+				require.NotEqual(t, http.StatusOK, rr.Code,
+					"expected error when sessions disabled or user identity missing")
 			}
 		})
 	}
