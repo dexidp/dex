@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"compress/flate"
 	"context"
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
@@ -1268,7 +1271,14 @@ func signXMLDocument(t *testing.T, doc *etree.Document) []byte {
 	return out
 }
 
-func TestHandleLogoutCallbackSignatureValidation(t *testing.T) {
+func postSAMLResponse(encoded string) *http.Request {
+	form := url.Values{"SAMLResponse": {encoded}}
+	req := httptest.NewRequest(http.MethodPost, "/logout/callback", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	return req
+}
+
+func TestHandleLogoutCallbackPOSTSignatureValidation(t *testing.T) {
 	conn, err := (&Config{
 		CA:                                 "testdata/ca.crt",
 		UsernameAttr:                       "Name",
@@ -1287,19 +1297,16 @@ func TestHandleLogoutCallbackSignatureValidation(t *testing.T) {
 			t.Fatal(err)
 		}
 		signedXML := signXMLDocument(t, doc)
-
 		encoded := base64.StdEncoding.EncodeToString(signedXML)
-		req := httptest.NewRequest(http.MethodGet, "/logout/callback?SAMLResponse="+url.QueryEscape(encoded), nil)
-		if err := conn.HandleLogoutCallback(context.Background(), req); err != nil {
+
+		if err := conn.HandleLogoutCallback(context.Background(), postSAMLResponse(encoded)); err != nil {
 			t.Errorf("expected no error for validly signed response, got: %v", err)
 		}
 	})
 
 	t.Run("InvalidSignature", func(t *testing.T) {
-		// Use unsigned XML — should fail signature validation
 		encoded := base64.StdEncoding.EncodeToString([]byte(successLogoutResponseXML))
-		req := httptest.NewRequest(http.MethodGet, "/logout/callback?SAMLResponse="+url.QueryEscape(encoded), nil)
-		if err := conn.HandleLogoutCallback(context.Background(), req); err == nil {
+		if err := conn.HandleLogoutCallback(context.Background(), postSAMLResponse(encoded)); err == nil {
 			t.Error("expected error for unsigned response when signature validation is enabled")
 		}
 	})
@@ -1322,11 +1329,108 @@ func TestHandleLogoutCallbackSignatureValidation(t *testing.T) {
 			t.Fatal(err)
 		}
 		signedXML := signXMLDocument(t, doc)
-
 		encoded := base64.StdEncoding.EncodeToString(signedXML)
-		req := httptest.NewRequest(http.MethodGet, "/logout/callback?SAMLResponse="+url.QueryEscape(encoded), nil)
-		if err := connBadCA.HandleLogoutCallback(context.Background(), req); err == nil {
+
+		if err := connBadCA.HandleLogoutCallback(context.Background(), postSAMLResponse(encoded)); err == nil {
 			t.Error("expected error when response is signed with different CA")
+		}
+	})
+}
+
+// signRedirectBinding builds a complete URL for a GET LogoutResponse with
+// SAML HTTP-Redirect binding signature. The XML is deflated, base64-encoded,
+// and a query-string RSA-SHA256 signature is appended.
+func signRedirectBinding(t *testing.T, xmlPayload string, keyFile, certFile string) string {
+	t.Helper()
+
+	var buf bytes.Buffer
+	fw, err := flate.NewWriter(&buf, flate.DefaultCompression)
+	if err != nil {
+		t.Fatalf("deflate writer: %v", err)
+	}
+	if _, err := fw.Write([]byte(xmlPayload)); err != nil {
+		t.Fatalf("deflate write: %v", err)
+	}
+	if err := fw.Close(); err != nil {
+		t.Fatalf("deflate close: %v", err)
+	}
+	samlResp := base64.StdEncoding.EncodeToString(buf.Bytes())
+
+	sigAlg := "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"
+	signedContent := "SAMLResponse=" + url.QueryEscape(samlResp) +
+		"&SigAlg=" + url.QueryEscape(sigAlg)
+
+	tlsCert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		t.Fatalf("load key pair: %v", err)
+	}
+	rsaKey, ok := tlsCert.PrivateKey.(*rsa.PrivateKey)
+	if !ok {
+		t.Fatal("test key is not RSA")
+	}
+
+	h := crypto.SHA256.New()
+	h.Write([]byte(signedContent))
+	sig, err := rsa.SignPKCS1v15(rand.Reader, rsaKey, crypto.SHA256, h.Sum(nil))
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	sigB64 := base64.StdEncoding.EncodeToString(sig)
+
+	return "/logout/callback?" + signedContent +
+		"&Signature=" + url.QueryEscape(sigB64)
+}
+
+func TestHandleLogoutCallbackRedirectSignatureValidation(t *testing.T) {
+	conn, err := (&Config{
+		CA:                                 "testdata/ca.crt",
+		UsernameAttr:                       "Name",
+		EmailAttr:                          "email",
+		RedirectURI:                        "http://127.0.0.1:5556/dex/callback",
+		SSOURL:                             "http://foo.bar/",
+		InsecureSkipSLOSignatureValidation: false,
+	}).openConnector(slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("ValidSignature", func(t *testing.T) {
+		u := signRedirectBinding(t, successLogoutResponseXML, "testdata/ca.key", "testdata/ca.crt")
+		req := httptest.NewRequest(http.MethodGet, u, nil)
+		if err := conn.HandleLogoutCallback(context.Background(), req); err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+	})
+
+	t.Run("MissingSignature", func(t *testing.T) {
+		var buf bytes.Buffer
+		fw, _ := flate.NewWriter(&buf, flate.DefaultCompression)
+		fw.Write([]byte(successLogoutResponseXML))
+		fw.Close()
+		encoded := base64.StdEncoding.EncodeToString(buf.Bytes())
+
+		req := httptest.NewRequest(http.MethodGet,
+			"/logout/callback?SAMLResponse="+url.QueryEscape(encoded), nil)
+		if err := conn.HandleLogoutCallback(context.Background(), req); err == nil {
+			t.Error("expected error for missing Signature parameter")
+		}
+	})
+
+	t.Run("WrongCA", func(t *testing.T) {
+		u := signRedirectBinding(t, successLogoutResponseXML, "testdata/bad-ca.key", "testdata/bad-ca.crt")
+		req := httptest.NewRequest(http.MethodGet, u, nil)
+		if err := conn.HandleLogoutCallback(context.Background(), req); err == nil {
+			t.Error("expected error when signed with wrong CA")
+		}
+	})
+
+	t.Run("TamperedPayload", func(t *testing.T) {
+		u := signRedirectBinding(t, successLogoutResponseXML, "testdata/ca.key", "testdata/ca.crt")
+		// Replace part of the SAMLResponse value to simulate tampering.
+		u = strings.Replace(u, "SAMLResponse=", "SAMLResponse=AAAA", 1)
+		req := httptest.NewRequest(http.MethodGet, u, nil)
+		if err := conn.HandleLogoutCallback(context.Background(), req); err == nil {
+			t.Error("expected error for tampered payload")
 		}
 	})
 }

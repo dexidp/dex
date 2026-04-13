@@ -5,7 +5,9 @@ import (
 	"bytes"
 	"compress/flate"
 	"context"
+	"crypto"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -246,6 +248,7 @@ func (c *Config) openConnector(logger *slog.Logger) (*provider, error) {
 			return nil, errors.New("no certificates found in ca data")
 		}
 		p.validator = dsig.NewDefaultValidationContext(certStore{certs})
+		p.certs = certs
 	}
 	return p, nil
 }
@@ -265,6 +268,9 @@ type provider struct {
 
 	// If nil, don't do signature validation.
 	validator *dsig.ValidationContext
+	// Stored separately for HTTP-Redirect binding signature verification,
+	// which uses raw RSA/ECDSA over query string rather than XML digital signatures.
+	certs []*x509.Certificate
 
 	// Attribute mappings
 	usernameAttr  string
@@ -865,9 +871,17 @@ func (p *provider) HandleLogoutCallback(_ context.Context, r *http.Request) erro
 		return fmt.Errorf("saml slo: %w", xrvErr)
 	}
 
-	if p.validator != nil && !p.insecureSkipSLOSignatureValidation {
-		if _, err := p.validateSignature(rawResp); err != nil {
-			return fmt.Errorf("saml slo: %v", err)
+	if !p.insecureSkipSLOSignatureValidation {
+		if r.Method == http.MethodGet && len(p.certs) > 0 {
+			// HTTP-Redirect binding: signature is in query parameters.
+			if err := p.validateRedirectSignature(r); err != nil {
+				return fmt.Errorf("saml slo: %v", err)
+			}
+		} else if r.Method != http.MethodGet && p.validator != nil {
+			// HTTP-POST binding: signature is embedded in XML.
+			if _, err := p.validateSignature(rawResp); err != nil {
+				return fmt.Errorf("saml slo: %v", err)
+			}
 		}
 	}
 
@@ -883,6 +897,101 @@ func (p *provider) HandleLogoutCallback(_ context.Context, r *http.Request) erro
 	}
 
 	return nil
+}
+
+// redirectSigAlgToHash maps XML Signature algorithm URIs used in SAML HTTP-Redirect
+// binding to Go crypto.Hash values. Only RSA algorithms are supported.
+// See: https://www.w3.org/TR/xmldsig-core1/#sec-AlgID
+var redirectSigAlgToHash = map[string]crypto.Hash{
+	"http://www.w3.org/2000/09/xmldsig#rsa-sha1":        crypto.SHA1,
+	"http://www.w3.org/2001/04/xmldsig-more#rsa-sha256": crypto.SHA256,
+	"http://www.w3.org/2001/04/xmldsig-more#rsa-sha384": crypto.SHA384,
+	"http://www.w3.org/2001/04/xmldsig-more#rsa-sha512": crypto.SHA512,
+}
+
+// rawQueryParam extracts the raw (still URL-encoded) value of a query parameter
+// from a raw query string. This is needed for SAML HTTP-Redirect binding signature
+// validation, which signs over the URL-encoded parameter values.
+func rawQueryParam(rawQuery, key string) (string, bool) {
+	prefix := key + "="
+	for rawQuery != "" {
+		var pair string
+		if i := strings.IndexByte(rawQuery, '&'); i >= 0 {
+			pair, rawQuery = rawQuery[:i], rawQuery[i+1:]
+		} else {
+			pair, rawQuery = rawQuery, ""
+		}
+		if strings.HasPrefix(pair, prefix) {
+			return pair[len(prefix):], true
+		}
+	}
+	return "", false
+}
+
+// validateRedirectSignature verifies the query-string signature used in SAML
+// HTTP-Redirect binding. Unlike HTTP-POST where the signature is embedded in
+// the XML (<ds:Signature>), HTTP-Redirect carries it as Signature and SigAlg
+// query parameters. The signed content is reconstructed per SAML 2.0 Bindings
+// Section 3.4.4.1: SAMLResponse=value&RelayState=value&SigAlg=value (using
+// the original URL-encoded values).
+func (p *provider) validateRedirectSignature(r *http.Request) error {
+	rawQuery := r.URL.RawQuery
+
+	sigEncoded, ok := rawQueryParam(rawQuery, "Signature")
+	if !ok || sigEncoded == "" {
+		return fmt.Errorf("missing Signature query parameter")
+	}
+
+	sigAlgEncoded, ok := rawQueryParam(rawQuery, "SigAlg")
+	if !ok || sigAlgEncoded == "" {
+		return fmt.Errorf("missing SigAlg query parameter")
+	}
+
+	sigAlg, err := url.QueryUnescape(sigAlgEncoded)
+	if err != nil {
+		return fmt.Errorf("failed to decode SigAlg: %v", err)
+	}
+
+	hashAlg, ok := redirectSigAlgToHash[sigAlg]
+	if !ok {
+		return fmt.Errorf("unsupported signature algorithm: %s", sigAlg)
+	}
+
+	// Reconstruct the signed content in the spec-mandated order.
+	var parts []string
+	if v, ok := rawQueryParam(rawQuery, "SAMLResponse"); ok {
+		parts = append(parts, "SAMLResponse="+v)
+	}
+	if v, ok := rawQueryParam(rawQuery, "RelayState"); ok {
+		parts = append(parts, "RelayState="+v)
+	}
+	parts = append(parts, "SigAlg="+sigAlgEncoded)
+	signedContent := strings.Join(parts, "&")
+
+	sigB64, err := url.QueryUnescape(sigEncoded)
+	if err != nil {
+		return fmt.Errorf("failed to URL-decode Signature: %v", err)
+	}
+	sig, err := base64.StdEncoding.DecodeString(sigB64)
+	if err != nil {
+		return fmt.Errorf("failed to base64-decode Signature: %v", err)
+	}
+
+	h := hashAlg.New()
+	h.Write([]byte(signedContent))
+	hashed := h.Sum(nil)
+
+	for _, cert := range p.certs {
+		rsaPub, ok := cert.PublicKey.(*rsa.PublicKey)
+		if !ok {
+			continue
+		}
+		if rsa.VerifyPKCS1v15(rsaPub, hashAlg, hashed, sig) == nil {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("redirect binding signature validation failed")
 }
 
 // validateSignature validates the XML digital signature of the given raw XML.
