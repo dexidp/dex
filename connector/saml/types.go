@@ -306,6 +306,7 @@ type logoutResponse struct {
 	ID           string      `xml:"ID,attr"`
 	InResponseTo string      `xml:"InResponseTo,attr,omitempty"`
 	Version      samlVersion `xml:"Version,attr"`
+	IssueInstant xmlTime     `xml:"IssueInstant,attr,omitempty"`
 	Destination  string      `xml:"Destination,attr,omitempty"`
 
 	Issuer *issuer `xml:"Issuer,omitempty"`
