@@ -3,6 +3,7 @@ package google
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -364,38 +365,6 @@ func (c *googleConnector) extractDomainFromEmail(email string) string {
 	return wildcardDomainToAdminEmail
 }
 
-// getCredentialsFromFilePath reads and returns the service account credentials from the file at the provided path.
-// If an error occurs during the read, it is returned.
-func getCredentialsFromFilePath(serviceAccountFilePath string) ([]byte, error) {
-	jsonCredentials, err := os.ReadFile(serviceAccountFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("error reading credentials from file: %v", err)
-	}
-	return jsonCredentials, nil
-}
-
-// getCredentialsFromDefault retrieves the application's default credentials.
-// If the default credential is empty, it attempts to create a new service with metadata credentials.
-// If successful, it returns the service and nil error.
-// If unsuccessful, it returns the error and a nil service.
-func getCredentialsFromDefault(ctx context.Context, email string, logger *slog.Logger) ([]byte, *admin.Service, error) {
-	credential, err := google.FindDefaultCredentials(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to fetch application default credentials: %w", err)
-	}
-
-	if credential.JSON == nil {
-		logger.Info("JSON is empty, using flow for GCE")
-		service, err := createServiceWithMetadataServer(ctx, email, logger)
-		if err != nil {
-			return nil, nil, err
-		}
-		return nil, service, nil
-	}
-
-	return credential.JSON, nil, nil
-}
-
 // createServiceWithMetadataServer creates a new service using metadata server.
 // If an error occurs during the process, it is returned along with a nil service.
 func createServiceWithMetadataServer(ctx context.Context, adminEmail string, logger *slog.Logger) (*admin.Service, error) {
@@ -424,34 +393,90 @@ func createServiceWithMetadataServer(ctx context.Context, adminEmail string, log
 // createDirectoryService sets up super user impersonation and creates an admin client for calling
 // the google admin api. If no serviceAccountFilePath is defined, the application default credential
 // is used.
-func createDirectoryService(serviceAccountFilePath, email string, logger *slog.Logger) (service *admin.Service, err error) {
-	var jsonCredentials []byte
-
+func createDirectoryService(serviceAccountFilePath, email string, logger *slog.Logger) (*admin.Service, error) {
 	ctx := context.Background()
+
+	var jsonCredentials []byte
+	var err error
+
 	if serviceAccountFilePath == "" {
 		logger.Warn("the application default credential is used since the service account file path is not used")
-		jsonCredentials, service, err = getCredentialsFromDefault(ctx, email, logger)
+		creds, err := google.FindDefaultCredentialsWithParams(ctx, google.CredentialsParams{
+			Scopes: []string{admin.AdminDirectoryGroupReadonlyScope},
+		})
 		if err != nil {
-			return
+			return nil, fmt.Errorf("failed to fetch application default credentials: %v", err)
 		}
-		if service != nil {
-			return
+		if creds.JSON == nil {
+			logger.Info("JSON is empty, using flow for GCE")
+			return createServiceWithMetadataServer(ctx, email, logger)
 		}
+		jsonCredentials = creds.JSON
 	} else {
-		jsonCredentials, err = getCredentialsFromFilePath(serviceAccountFilePath)
+		jsonCredentials, err = os.ReadFile(serviceAccountFilePath)
 		if err != nil {
-			return
+			return nil, fmt.Errorf("error reading credentials from file: %v", err)
 		}
 	}
-	config, err := google.JWTConfigFromJSON(jsonCredentials, admin.AdminDirectoryGroupReadonlyScope)
+
+	// For service_account credentials, JWTConfigFromJSON handles Subject (domain-wide delegation)
+	// natively by signing JWTs with the private key.
+	config, jwtErr := google.JWTConfigFromJSON(jsonCredentials, admin.AdminDirectoryGroupReadonlyScope)
+	if jwtErr == nil {
+		if email != "" {
+			config.Subject = email
+		}
+		return admin.NewService(ctx, option.WithHTTPClient(config.Client(ctx)))
+	}
+
+	// For other credential types (e.g. external_account), the oauth2 library does not support
+	// Subject (domain-wide delegation). Use impersonate.CredentialsTokenSource which handles
+	// domain-wide delegation by calling the signJwt API on the target service account.
+	var extCred struct {
+		ServiceAccountImpersonationURL string `json:"service_account_impersonation_url"`
+	}
+	if err := json.Unmarshal(jsonCredentials, &extCred); err != nil {
+		return nil, fmt.Errorf("unable to parse credentials: %v", err)
+	}
+
+	targetPrincipal, err := extractServiceAccountEmail(extCred.ServiceAccountImpersonationURL)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse client secret file to config: %v", err)
+		return nil, fmt.Errorf("unable to extract service account from credentials: %v", err)
 	}
 
-	// Only attempt impersonation when there is a user configured
-	if email != "" {
-		config.Subject = email
+	logger.Info("using workload identity federation", "targetPrincipal", targetPrincipal)
+
+	impConfig := impersonate.CredentialsConfig{
+		TargetPrincipal: targetPrincipal,
+		Scopes:          []string{admin.AdminDirectoryGroupReadonlyScope},
+		Subject:         email,
 	}
 
-	return admin.NewService(ctx, option.WithHTTPClient(config.Client(ctx)))
+	tokenSource, err := impersonate.CredentialsTokenSource(ctx, impConfig, option.WithCredentialsJSON(jsonCredentials))
+	if err != nil {
+		return nil, fmt.Errorf("unable to create impersonated token source: %v", err)
+	}
+
+	return admin.NewService(ctx, option.WithHTTPClient(oauth2.NewClient(ctx, tokenSource)))
+}
+
+// extractServiceAccountEmail extracts the service account email from a service account impersonation URL.
+// The URL format is: https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/EMAIL:generateAccessToken
+func extractServiceAccountEmail(impersonationURL string) (string, error) {
+	if impersonationURL == "" {
+		return "", fmt.Errorf("service_account_impersonation_url is empty in credentials")
+	}
+
+	parts := strings.Split(impersonationURL, "/")
+	for i, part := range parts {
+		if part == "serviceAccounts" && i+1 < len(parts) {
+			sa := parts[i+1]
+			if idx := strings.Index(sa, ":"); idx != -1 {
+				sa = sa[:idx]
+			}
+			return sa, nil
+		}
+	}
+
+	return "", fmt.Errorf("unable to extract service account email from URL: %s", impersonationURL)
 }
