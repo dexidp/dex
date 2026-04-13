@@ -47,7 +47,7 @@ func TestHandleLogoutPOST(t *testing.T) {
 	require.Contains(t, body, "No active session")
 }
 
-func TestHandleLogoutNoHint(t *testing.T) {
+func TestHandleLogoutNoHintGETShowsConfirmation(t *testing.T) {
 	httpServer, server := newTestServerWithSessions(t, nil)
 	defer httpServer.Close()
 
@@ -56,8 +56,39 @@ func TestHandleLogoutNoHint(t *testing.T) {
 	server.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
 	body := rr.Body.String()
-	require.Contains(t, body, "No active session")
+	require.Contains(t, body, "Do you want to log out?")
+	require.Contains(t, body, `method="post"`)
 	require.NotContains(t, body, "successfully logged out")
+}
+
+func TestHandleLogoutNoHintPOSTPerformsLogout(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	ctx := t.Context()
+	userID := "test-user"
+	connectorID := "mock"
+	nonce := "testnonce"
+
+	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
+		UserID: userID, ConnectorID: connectorID, Nonce: nonce,
+		CreatedAt: time.Now(), LastActivity: time.Now(),
+	}))
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/logout", nil)
+	req.AddCookie(&http.Cookie{
+		Name:  "dex_session",
+		Value: sessionCookieValue(userID, connectorID, nonce, server.sessionConfig.CookieEncryptionKey),
+	})
+	server.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	require.Contains(t, rr.Body.String(), "successfully logged out")
+
+	// Session should be deleted.
+	_, err := server.storage.GetAuthSession(ctx, userID, connectorID)
+	require.ErrorIs(t, err, storage.ErrNotFound)
 }
 
 func TestHandleLogoutInvalidHint(t *testing.T) {
@@ -156,8 +187,16 @@ func TestHandleLogoutRedirectURIWithoutHint(t *testing.T) {
 	httpServer, server := newTestServerWithSessions(t, nil)
 	defer httpServer.Close()
 
+	// GET without hint shows confirmation page regardless of other params.
 	rr := httptest.NewRecorder()
 	server.ServeHTTP(rr, httptest.NewRequest("GET", "/logout?post_logout_redirect_uri=https://example.com/done", nil))
+	require.Equal(t, http.StatusOK, rr.Code)
+	require.Contains(t, rr.Body.String(), "Do you want to log out?")
+
+	// POST without hint but with post_logout_redirect_uri returns 400
+	// because post_logout_redirect_uri requires client_id from id_token_hint.
+	rr = httptest.NewRecorder()
+	server.ServeHTTP(rr, httptest.NewRequest("POST", "/logout?post_logout_redirect_uri=https://example.com/done", nil))
 	require.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
@@ -309,8 +348,9 @@ func TestHandleLogoutFromCookie(t *testing.T) {
 		CreatedAt: time.Now(), LastActivity: time.Now(),
 	}))
 
+	// POST performs logout (GET without hint shows confirmation).
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/logout", nil)
+	req := httptest.NewRequest("POST", "/logout", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  "dex_session",
 		Value: sessionCookieValue(userID, connectorID, nonce, server.sessionConfig.CookieEncryptionKey),

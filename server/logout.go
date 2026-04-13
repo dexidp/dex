@@ -44,6 +44,17 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	postLogoutRedirectURI := r.FormValue("post_logout_redirect_uri")
 	state := r.FormValue("state")
 
+	// When no id_token_hint is provided and this is a GET request,
+	// show a confirmation page instead of logging out immediately.
+	// This follows the OIDC spec recommendation and prevents CSRF via
+	// cross-site image/link requests (e.g. <img src="/logout">).
+	if idTokenHint == "" && r.Method == http.MethodGet {
+		if err := s.templates.logout(r, w, "", false, true); err != nil {
+			s.logger.ErrorContext(ctx, "server template error", "err", err)
+		}
+		return
+	}
+
 	var userID, connectorID, clientID string
 
 	if idTokenHint != "" {
@@ -226,7 +237,7 @@ func (s *Server) finishLogout(w http.ResponseWriter, r *http.Request, postLogout
 		}
 	}
 
-	if err := s.templates.logout(r, w, backURL, loggedOut); err != nil {
+	if err := s.templates.logout(r, w, backURL, loggedOut, false); err != nil {
 		s.logger.ErrorContext(r.Context(), "server template error", "err", err)
 	}
 }
