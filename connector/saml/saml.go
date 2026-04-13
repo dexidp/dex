@@ -3,14 +3,19 @@ package saml
 
 import (
 	"bytes"
+	"compress/flate"
 	"context"
+	"crypto/rand"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"encoding/xml"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -83,6 +88,15 @@ type Config struct {
 	CAData []byte `json:"caData"`
 
 	InsecureSkipSignatureValidation bool `json:"insecureSkipSignatureValidation"`
+
+	// SLOURL is the IdP's Single Logout Service URL (HTTP-Redirect binding).
+	// If empty, SLO is not available for this connector.
+	SLOURL string `json:"sloURL"`
+
+	// InsecureSkipSLOSignatureValidation skips signature validation on SLO responses.
+	// This is insecure and should only be used for testing or when the IdP
+	// does not sign LogoutResponses.
+	InsecureSkipSLOSignatureValidation bool `json:"insecureSkipSLOSignatureValidation"`
 
 	// Assertion attribute names to lookup various claims with.
 	UsernameAttr string `json:"usernameAttr"`
@@ -164,6 +178,9 @@ func (c *Config) openConnector(logger *slog.Logger) (*provider, error) {
 		logger:        logger,
 
 		nameIDPolicyFormat: c.NameIDPolicyFormat,
+
+		sloURL:                             c.SLOURL,
+		insecureSkipSLOSignatureValidation: c.InsecureSkipSLOSignatureValidation,
 	}
 
 	if p.nameIDPolicyFormat == "" {
@@ -189,7 +206,8 @@ func (c *Config) openConnector(logger *slog.Logger) (*provider, error) {
 		}
 	}
 
-	if !c.InsecureSkipSignatureValidation {
+	needsSLOSigValidation := c.SLOURL != "" && !c.InsecureSkipSLOSignatureValidation
+	if !c.InsecureSkipSignatureValidation || needsSLOSigValidation {
 		if (c.CA == "") == (c.CAData == nil) {
 			return nil, errors.New("must provide either 'ca' or 'caData'")
 		}
@@ -233,8 +251,9 @@ func (c *Config) openConnector(logger *slog.Logger) (*provider, error) {
 }
 
 var (
-	_ connector.SAMLConnector    = (*provider)(nil)
-	_ connector.RefreshConnector = (*provider)(nil)
+	_ connector.SAMLConnector           = (*provider)(nil)
+	_ connector.RefreshConnector        = (*provider)(nil)
+	_ connector.LogoutCallbackConnector = (*provider)(nil)
 )
 
 type provider struct {
@@ -259,12 +278,15 @@ type provider struct {
 
 	nameIDPolicyFormat string
 
+	sloURL                             string
+	insecureSkipSLOSignatureValidation bool
+
 	logger *slog.Logger
 }
 
-// cachedIdentity stores the identity from SAML assertion for refresh token support.
-// Since SAML has no native refresh mechanism, we cache the identity obtained during
-// the initial authentication and return it on subsequent refresh requests.
+// cachedIdentity stores the identity from SAML assertion for refresh token support
+// and SLO (Single Logout). The NameID/NameIDFormat/SessionIndex fields are used
+// to build a SAML LogoutRequest when the user logs out.
 type cachedIdentity struct {
 	UserID            string   `json:"userId"`
 	Username          string   `json:"username"`
@@ -272,10 +294,15 @@ type cachedIdentity struct {
 	Email             string   `json:"email"`
 	EmailVerified     bool     `json:"emailVerified"`
 	Groups            []string `json:"groups,omitempty"`
+	NameID            string   `json:"nameId,omitempty"`
+	NameIDFormat      string   `json:"nameIdFormat,omitempty"`
+	SessionIndex      string   `json:"sessionIndex,omitempty"`
 }
 
-// marshalCachedIdentity serializes the identity into ConnectorData for refresh token support.
-func marshalCachedIdentity(ident connector.Identity) (connector.Identity, error) {
+// marshalCachedIdentity serializes the identity along with SAML-specific SLO
+// fields into ConnectorData. The nameIDFormat and sessionIdx parameters come
+// from the parsed SAML assertion and are needed to construct a LogoutRequest.
+func marshalCachedIdentity(ident connector.Identity, nameIDFormat, sessionIdx string) (connector.Identity, error) {
 	ci := cachedIdentity{
 		UserID:            ident.UserID,
 		Username:          ident.Username,
@@ -283,6 +310,9 @@ func marshalCachedIdentity(ident connector.Identity) (connector.Identity, error)
 		Email:             ident.Email,
 		EmailVerified:     ident.EmailVerified,
 		Groups:            ident.Groups,
+		NameID:            ident.UserID,
+		NameIDFormat:      nameIDFormat,
+		SessionIndex:      sessionIdx,
 	}
 	connectorData, err := json.Marshal(ci)
 	if err != nil {
@@ -407,13 +437,20 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 		}
 	}
 
+	var nameIDFormat string
 	switch {
 	case subject.NameID != nil:
 		if ident.UserID = subject.NameID.Value; ident.UserID == "" {
 			return ident, fmt.Errorf("element NameID does not contain a value")
 		}
+		nameIDFormat = subject.NameID.Format
 	default:
 		return ident, fmt.Errorf("subject does not contain an NameID element")
+	}
+
+	var sessionIdx string
+	if len(assertion.AuthnStatements) > 0 {
+		sessionIdx = assertion.AuthnStatements[0].SessionIndex
 	}
 
 	// After verifying the assertion, map data in the attribute statements to
@@ -442,7 +479,7 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 
 	if len(p.allowedGroups) == 0 && (!s.Groups || p.groupsAttr == "") {
 		// Groups not requested or not configured. We're done.
-		return marshalCachedIdentity(ident)
+		return marshalCachedIdentity(ident, nameIDFormat, sessionIdx)
 	}
 
 	if len(p.allowedGroups) > 0 && (!s.Groups || p.groupsAttr == "") {
@@ -468,7 +505,7 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 
 	if len(p.allowedGroups) == 0 {
 		// No allowed groups set, just return the ident
-		return marshalCachedIdentity(ident)
+		return marshalCachedIdentity(ident, nameIDFormat, sessionIdx)
 	}
 
 	// Look for membership in one of the allowed groups
@@ -484,7 +521,7 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 	}
 
 	// Otherwise, we're good
-	return marshalCachedIdentity(ident)
+	return marshalCachedIdentity(ident, nameIDFormat, sessionIdx)
 }
 
 // Refresh implements connector.RefreshConnector.
@@ -710,4 +747,163 @@ func before(now, notBefore time.Time) bool {
 // allowed clock drift.
 func after(now, notOnOrAfter time.Time) bool {
 	return now.After(notOnOrAfter.Add(allowedClockDrift))
+}
+
+// newRequestID generates a random ID suitable for SAML request IDs.
+func newRequestID() string {
+	buf := make([]byte, 16)
+	if _, err := io.ReadFull(rand.Reader, buf); err != nil {
+		panic("crypto/rand failed: " + err.Error())
+	}
+	return fmt.Sprintf("_%x", buf)
+}
+
+// LogoutURL builds a SAML LogoutRequest and returns the IdP's SLO endpoint URL
+// with the request encoded using HTTP-Redirect binding (deflate + base64).
+//
+// See: https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf
+// "3.4 HTTP Redirect Binding"
+func (p *provider) LogoutURL(_ context.Context, connectorData []byte, postLogoutRedirectURI string) (string, error) {
+	if p.sloURL == "" {
+		return "", nil
+	}
+
+	var ci cachedIdentity
+	if len(connectorData) > 0 {
+		if err := json.Unmarshal(connectorData, &ci); err != nil {
+			return "", fmt.Errorf("saml: failed to unmarshal connector data for logout: %v", err)
+		}
+	}
+
+	if ci.NameID == "" {
+		return "", nil
+	}
+
+	req := &logoutRequest{
+		ID:           newRequestID(),
+		IssueInstant: xmlTime(p.now()),
+		Destination:  p.sloURL,
+		NameID: nameID{
+			Format: ci.NameIDFormat,
+			Value:  ci.NameID,
+		},
+	}
+	if p.entityIssuer != "" {
+		req.Issuer = &issuer{Issuer: p.entityIssuer}
+	}
+	if ci.SessionIndex != "" {
+		req.SessionIndex = []sessionIndex{{Value: ci.SessionIndex}}
+	}
+
+	data, err := xml.Marshal(req)
+	if err != nil {
+		return "", fmt.Errorf("saml: failed to marshal LogoutRequest: %v", err)
+	}
+
+	// HTTP-Redirect binding: deflate then base64-encode.
+	var buf bytes.Buffer
+	fw, err := flate.NewWriter(&buf, flate.DefaultCompression)
+	if err != nil {
+		return "", fmt.Errorf("saml: failed to create deflate writer: %v", err)
+	}
+	if _, err := fw.Write(data); err != nil {
+		return "", fmt.Errorf("saml: failed to deflate LogoutRequest: %v", err)
+	}
+	if err := fw.Close(); err != nil {
+		return "", fmt.Errorf("saml: failed to close deflate writer: %v", err)
+	}
+
+	encoded := base64.StdEncoding.EncodeToString(buf.Bytes())
+
+	u, err := url.Parse(p.sloURL)
+	if err != nil {
+		return "", fmt.Errorf("saml: failed to parse SLO URL: %v", err)
+	}
+	q := u.Query()
+	q.Set("SAMLRequest", encoded)
+	if postLogoutRedirectURI != "" {
+		q.Set("RelayState", postLogoutRedirectURI)
+	}
+	u.RawQuery = q.Encode()
+
+	return u.String(), nil
+}
+
+// HandleLogoutCallback validates the IdP's LogoutResponse received after
+// an SP-initiated logout redirect. The response arrives as a SAMLResponse
+// parameter via either GET query (HTTP-Redirect binding: deflated + base64)
+// or POST form (HTTP-POST binding: base64 only).
+func (p *provider) HandleLogoutCallback(_ context.Context, r *http.Request) error {
+	var samlResponse string
+	if r.Method == http.MethodGet {
+		samlResponse = r.URL.Query().Get("SAMLResponse")
+	} else {
+		if err := r.ParseForm(); err != nil {
+			return fmt.Errorf("saml slo: failed to parse form: %v", err)
+		}
+		samlResponse = r.FormValue("SAMLResponse")
+	}
+
+	if samlResponse == "" {
+		return nil
+	}
+
+	compressed, err := base64.StdEncoding.DecodeString(samlResponse)
+	if err != nil {
+		return fmt.Errorf("saml slo: failed to decode SAMLResponse: %v", err)
+	}
+
+	// HTTP-Redirect binding uses DEFLATE compression; HTTP-POST does not.
+	// Try to inflate; if it fails, treat the data as uncompressed XML.
+	rawResp, err := io.ReadAll(flate.NewReader(bytes.NewReader(compressed)))
+	if err != nil {
+		rawResp = compressed
+	}
+
+	byteReader := bytes.NewReader(rawResp)
+	if xrvErr := xrv.Validate(byteReader); xrvErr != nil {
+		return fmt.Errorf("saml slo: %w", xrvErr)
+	}
+
+	if p.validator != nil && !p.insecureSkipSLOSignatureValidation {
+		if _, err := p.validateSignature(rawResp); err != nil {
+			return fmt.Errorf("saml slo: %v", err)
+		}
+	}
+
+	var resp logoutResponse
+	if err := xml.Unmarshal(rawResp, &resp); err != nil {
+		return fmt.Errorf("saml slo: failed to unmarshal LogoutResponse: %v", err)
+	}
+
+	if resp.Status != nil {
+		if err := p.validateStatus(resp.Status); err != nil {
+			return fmt.Errorf("saml slo: %v", err)
+		}
+	}
+
+	return nil
+}
+
+// validateSignature validates the XML digital signature of the given raw XML.
+func (p *provider) validateSignature(rawXML []byte) ([]byte, error) {
+	if p.validator == nil {
+		return nil, fmt.Errorf("signature validation unavailable (no validator configured)")
+	}
+
+	doc := etree.NewDocument()
+	if err := doc.ReadFromBytes(rawXML); err != nil {
+		return nil, fmt.Errorf("failed to parse XML: %v", err)
+	}
+
+	root := doc.Root()
+	if root == nil {
+		return nil, fmt.Errorf("empty XML document")
+	}
+
+	if _, err := p.validator.Validate(root); err != nil {
+		return nil, fmt.Errorf("signature validation failed: %v", err)
+	}
+
+	return rawXML, nil
 }
