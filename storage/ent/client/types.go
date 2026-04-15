@@ -244,6 +244,10 @@ func toStorageAuthSession(s *db.AuthSession) storage.AuthSession {
 		IdleExpiry:     s.IdleExpiry,
 	}
 
+	if s.ConnectorData != nil {
+		result.ConnectorData = *s.ConnectorData
+	}
+
 	if s.ClientStates != nil {
 		if err := json.Unmarshal(s.ClientStates, &result.ClientStates); err != nil {
 			panic(err)

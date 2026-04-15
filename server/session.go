@@ -5,6 +5,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -178,7 +179,9 @@ func (s *Server) getValidSession(ctx context.Context, w http.ResponseWriter, r *
 	}
 
 	// Verify nonce to prevent cookie forgery.
-	if session.Nonce != nonce {
+	// Use constant-time comparison to prevent timing attacks that could
+	// allow an attacker to recover the nonce byte-by-byte.
+	if subtle.ConstantTimeCompare([]byte(session.Nonce), []byte(nonce)) != 1 {
 		s.logger.DebugContext(ctx, "auth session nonce mismatch")
 		s.clearSessionCookie(w)
 		return nil
@@ -258,6 +261,7 @@ func (s *Server) createOrUpdateAuthSession(ctx context.Context, r *http.Request,
 				old.ClientStates = make(map[string]*storage.ClientAuthState)
 			}
 			old.ClientStates[authReq.ClientID] = clientState
+			old.ConnectorData = authReq.ConnectorData
 			return old, nil
 		}); err != nil {
 			return fmt.Errorf("update auth session: %w", err)
@@ -286,6 +290,7 @@ func (s *Server) createOrUpdateAuthSession(ctx context.Context, r *http.Request,
 		UserAgent:      r.UserAgent(),
 		AbsoluteExpiry: now.Add(s.sessionConfig.AbsoluteLifetime),
 		IdleExpiry:     now.Add(s.sessionConfig.ValidIfNotUsedFor),
+		ConnectorData:  authReq.ConnectorData,
 	}
 
 	if err := s.storage.CreateAuthSession(ctx, newSession); err != nil {

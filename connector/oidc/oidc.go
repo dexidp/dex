@@ -228,6 +228,7 @@ var brokenAuthHeaderDomains = []string{
 // connectorData stores information for sessions authenticated by this connector
 type connectorData struct {
 	RefreshToken []byte
+	IDToken      []byte // raw upstream id_token JWT for RP-Initiated logout
 }
 
 // Detect auth header provider issues for known providers. This lets users
@@ -736,6 +737,9 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	cd := connectorData{
 		RefreshToken: []byte(token.RefreshToken),
 	}
+	if rawIDToken, ok := token.Extra("id_token").(string); ok {
+		cd.IDToken = []byte(rawIDToken)
+	}
 
 	connData, err := json.Marshal(&cd)
 	if err != nil {
@@ -766,7 +770,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 // LogoutURL returns the upstream OIDC provider's end_session_endpoint URL.
 // Per the OIDC RP-Initiated Logout spec, the post_logout_redirect_uri parameter
 // tells the upstream where to redirect after logout.
-func (c *oidcConnector) LogoutURL(_ context.Context, _ []byte, postLogoutRedirectURI string) (string, error) {
+func (c *oidcConnector) LogoutURL(_ context.Context, rawConnectorData []byte, postLogoutRedirectURI string) (string, error) {
 	if c.endSessionURL == "" {
 		return "", nil
 	}
@@ -780,6 +784,16 @@ func (c *oidcConnector) LogoutURL(_ context.Context, _ []byte, postLogoutRedirec
 	if postLogoutRedirectURI != "" {
 		q.Set("post_logout_redirect_uri", postLogoutRedirectURI)
 		q.Set("client_id", c.oauth2Config.ClientID)
+	}
+	// Per the RP-Initiated Logout spec, id_token_hint is independently valid
+	// of post_logout_redirect_uri — include it whenever we have one.
+	if len(rawConnectorData) > 0 {
+		var cd connectorData
+		if err := json.Unmarshal(rawConnectorData, &cd); err == nil {
+			if len(cd.IDToken) > 0 {
+				q.Set("id_token_hint", string(cd.IDToken))
+			}
+		}
 	}
 	u.RawQuery = q.Encode()
 

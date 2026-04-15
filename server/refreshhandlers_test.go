@@ -336,13 +336,11 @@ func TestRefreshTokenAuthTime(t *testing.T) {
 					"access token should not have auth_time when sessions are disabled")
 			}
 
-			// TODO: newIDToken in handleRefreshToken is currently called with time.Time{},
-			// so the ID token does not include auth_time. Once fixed, uncomment:
-			// if tc.wantAuthTime {
-			// 	idClaims := decodeJWTClaims(t, resp.IDToken)
-			// 	assert.Equal(t, float64(loginTime.Unix()), idClaims["auth_time"],
-			// 		"id token auth_time should match UserIdentity.LastLogin")
-			// }
+			if tc.wantAuthTime {
+				idClaims := decodeJWTClaims(t, resp.IDToken)
+				assert.Equal(t, float64(loginTime.Unix()), idClaims["auth_time"],
+					"id token auth_time should match UserIdentity.LastLogin")
+			}
 		})
 	}
 }

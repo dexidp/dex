@@ -908,6 +908,61 @@ func TestScopesCoveredByConsent(t *testing.T) {
 	}
 }
 
+// TestConsentSurvivesSessionDeletion verifies that UserIdentity.Consents
+// persists independently from AuthSession lifecycle (logout should not
+// clear consent decisions).
+func TestConsentSurvivesSessionDeletion(t *testing.T) {
+	ctx := t.Context()
+
+	httpServer, s := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	userID := "test-user"
+	connectorID := "mock"
+	clientID := "test-client"
+
+	// Create UserIdentity with existing consents.
+	require.NoError(t, s.storage.CreateUserIdentity(ctx, storage.UserIdentity{
+		UserID:      userID,
+		ConnectorID: connectorID,
+		Claims:      storage.Claims{UserID: userID, Username: "testuser"},
+		Consents:    map[string][]string{clientID: {"openid", "email", "profile"}},
+		CreatedAt:   time.Now(),
+		LastLogin:   time.Now(),
+	}))
+
+	// Create and then delete the session (simulating logout).
+	require.NoError(t, s.storage.CreateAuthSession(ctx, storage.AuthSession{
+		UserID: userID, ConnectorID: connectorID, Nonce: "nonce",
+		CreatedAt: time.Now(), LastActivity: time.Now(),
+	}))
+	require.NoError(t, s.storage.DeleteAuthSession(ctx, userID, connectorID))
+
+	// Session is gone.
+	_, err := s.storage.GetAuthSession(ctx, userID, connectorID)
+	require.ErrorIs(t, err, storage.ErrNotFound)
+
+	// Consent survives.
+	ui, err := s.storage.GetUserIdentity(ctx, userID, connectorID)
+	require.NoError(t, err)
+	require.Equal(t, []string{"openid", "email", "profile"}, ui.Consents[clientID],
+		"consent should survive session deletion")
+}
+
+// TestConsentIsolatedBetweenClients verifies that consent given for
+// client-A does not satisfy scope check for client-B.
+func TestConsentIsolatedBetweenClients(t *testing.T) {
+	approvedForA := map[string][]string{"client-a": {"openid", "email"}}
+
+	// client-b should not have consent.
+	require.False(t, scopesCoveredByConsent(approvedForA["client-b"], []string{"openid", "email"}),
+		"consent for client-a should not cover client-b")
+
+	// client-a should have consent.
+	require.True(t, scopesCoveredByConsent(approvedForA["client-a"], []string{"openid", "email"}),
+		"consent for client-a should cover client-a's requested scopes")
+}
+
 func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 	ctx := t.Context()
 

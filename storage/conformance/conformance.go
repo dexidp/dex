@@ -2,6 +2,7 @@
 package conformance
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"reflect"
 	"sort"
@@ -1388,6 +1389,7 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 		UserAgent:      "TestBrowser/1.0",
 		AbsoluteExpiry: now.Add(24 * time.Hour),
 		IdleExpiry:     now.Add(1 * time.Hour),
+		ConnectorData:  []byte(`{"RefreshToken":"dGVzdA==","IDToken":"ZXlKaGJHY21PaUpTVXpJMU5pSjk="}`),
 	}
 
 	// Create.
@@ -1418,8 +1420,9 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 		t.Errorf("auth session retrieved from storage did not match: %s", diff)
 	}
 
-	// Update: add a new client state.
+	// Update: add a new client state and rotate connector data.
 	newNow := now.Add(time.Minute)
+	updatedConnectorData := []byte(`{"RefreshToken":"bmV3","IDToken":"bmV3LWlk"}`)
 	if err := s.UpdateAuthSession(ctx, session.UserID, session.ConnectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
 		old.ClientStates["client2"] = &storage.ClientAuthState{
 			Active:       true,
@@ -1427,6 +1430,7 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 			LastActivity: newNow,
 		}
 		old.LastActivity = newNow
+		old.ConnectorData = updatedConnectorData
 		return old, nil
 	}); err != nil {
 		t.Fatalf("update auth session: %v", err)
@@ -1442,6 +1446,9 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 	}
 	if got.ClientStates["client2"] == nil {
 		t.Fatal("expected client2 state to exist")
+	}
+	if !bytes.Equal(got.ConnectorData, updatedConnectorData) {
+		t.Fatalf("expected updated connector data %q, got %q", updatedConnectorData, got.ConnectorData)
 	}
 
 	// List and verify.

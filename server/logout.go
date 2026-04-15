@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"net/http"
 	"net/url"
@@ -94,7 +95,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 		if cookie, err := r.Cookie(s.sessionConfig.CookieName); err == nil && cookie.Value != "" {
 			if uid, cid, nonce, err := parseSessionCookie(cookie.Value, s.sessionConfig.CookieEncryptionKey); err == nil {
 				// Verify the session exists and nonce matches before trusting the cookie.
-				if session, err := s.storage.GetAuthSession(ctx, uid, cid); err == nil && session.Nonce == nonce {
+				if session, err := s.storage.GetAuthSession(ctx, uid, cid); err == nil && subtle.ConstantTimeCompare([]byte(session.Nonce), []byte(nonce)) == 1 {
 					userID = uid
 					connectorID = cid
 					s.logger.DebugContext(ctx, "logout: identified user from session cookie",
@@ -178,7 +179,7 @@ func (s *Server) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if session.Nonce != nonce {
+	if subtle.ConstantTimeCompare([]byte(session.Nonce), []byte(nonce)) != 1 {
 		s.renderError(r, w, http.StatusBadRequest, "Invalid session.")
 		return
 	}
@@ -250,11 +251,19 @@ func (s *Server) tryUpstreamLogout(ctx context.Context, userID, connectorID stri
 	}
 
 	// Check that the session exists — we need it to store logout state.
-	_, err = s.storage.GetAuthSession(ctx, userID, connectorID)
+	session, err := s.storage.GetAuthSession(ctx, userID, connectorID)
 	if err != nil {
 		s.logger.DebugContext(ctx, "logout: no auth session for upstream logout, skipping",
 			"user_id", userID, "connector_id", connectorID)
 		return "", false
+	}
+
+	// The auth session connector data should keep an id_token that will be used as hint for RP-Initiated logout
+	if len(session.ConnectorData) > 0 {
+		connectorData = session.ConnectorData
+		s.logger.DebugContext(ctx, "logout: using auth_session.ConnectorData", "connector_id", connectorID)
+	} else if len(connectorData) == 0 {
+		s.logger.DebugContext(ctx, "logout: no connector data available", "connector_id", connectorID)
 	}
 
 	// Store logout parameters in the session.

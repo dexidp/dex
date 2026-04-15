@@ -12,8 +12,28 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/storage"
 )
+
+// recordingLogoutConnector implements connector.LogoutCallbackConnector and
+// records the connectorData it was invoked with so tests can assert what was
+// passed down.
+type recordingLogoutConnector struct {
+	gotConnectorData []byte
+	returnURL        string
+}
+
+func (c *recordingLogoutConnector) LogoutURL(_ context.Context, connectorData []byte, _ string) (string, error) {
+	c.gotConnectorData = connectorData
+	return c.returnURL, nil
+}
+
+func (c *recordingLogoutConnector) HandleLogoutCallback(_ context.Context, _ *http.Request) error {
+	return nil
+}
+
+var _ connector.LogoutCallbackConnector = (*recordingLogoutConnector)(nil)
 
 func TestHandleLogoutNoSessions(t *testing.T) {
 	httpServer, server := newTestServer(t, nil)
@@ -293,6 +313,62 @@ func TestDiscoveryWithoutSessions(t *testing.T) {
 	require.Empty(t, d.EndSession)
 }
 
+// TestHandleLogoutFromCookie tests logout without id_token_hint,
+// where the user is identified by their session cookie alone.
+func TestHandleLogoutFromCookie(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	ctx := t.Context()
+	userID := "test-user"
+	connectorID := "mock"
+	nonce := "testnonce"
+
+	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
+		UserID: userID, ConnectorID: connectorID, Nonce: nonce,
+		CreatedAt: time.Now(), LastActivity: time.Now(),
+	}))
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/logout", nil)
+	req.AddCookie(&http.Cookie{
+		Name:  "dex_session",
+		Value: sessionCookieValue(userID, connectorID, nonce, server.sessionConfig.CookieEncryptionKey),
+	})
+	server.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	require.Contains(t, rr.Body.String(), "successfully logged out")
+
+	// Session should be deleted.
+	_, err := server.storage.GetAuthSession(ctx, userID, connectorID)
+	require.ErrorIs(t, err, storage.ErrNotFound)
+
+	// Cookie should be cleared.
+	for _, c := range rr.Result().Cookies() {
+		if c.Name == "dex_session" {
+			require.Equal(t, -1, c.MaxAge)
+		}
+	}
+}
+
+// TestLogoutCallbackWithExpiredSession tests that /logout/callback
+// returns an error when the session has expired or been deleted.
+func TestLogoutCallbackWithExpiredSession(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	// No session created — cookie points to nonexistent session.
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/logout/callback", nil)
+	req.AddCookie(&http.Cookie{
+		Name:  "dex_session",
+		Value: sessionCookieValue("user-1", "mock", "nonce", server.sessionConfig.CookieEncryptionKey),
+	})
+	server.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
 func TestRevokeRefreshTokensReturnsConnectorData(t *testing.T) {
 	httpServer, server := newTestServerWithSessions(t, nil)
 	defer httpServer.Close()
@@ -323,4 +399,69 @@ func TestRevokeRefreshTokensReturnsConnectorData(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, os.Refresh)
 	require.Equal(t, expectedConnData, os.ConnectorData)
+}
+
+// TestTryUpstreamLogoutPrefersSessionConnectorData verifies that when the auth
+// session has ConnectorData stored (from login), it takes precedence over the
+// connectorData the caller passes in (which originates from the offline session).
+func TestTryUpstreamLogoutPrefersSessionConnectorData(t *testing.T) {
+	tests := []struct {
+		name            string
+		sessionConnData []byte
+		callerConnData  []byte
+		wantConnData    []byte
+	}{
+		{
+			name:            "session data wins over caller data",
+			sessionConnData: []byte(`{"IDToken":"session-token"}`),
+			callerConnData:  []byte(`{"IDToken":"caller-token"}`),
+			wantConnData:    []byte(`{"IDToken":"session-token"}`),
+		},
+		{
+			name:            "caller data used when session data is empty",
+			sessionConnData: nil,
+			callerConnData:  []byte(`{"IDToken":"caller-token"}`),
+			wantConnData:    []byte(`{"IDToken":"caller-token"}`),
+		},
+		{
+			name:            "empty when neither source has data",
+			sessionConnData: nil,
+			callerConnData:  nil,
+			wantConnData:    nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			httpServer, server := newTestServerWithSessions(t, nil)
+			defer httpServer.Close()
+
+			ctx := t.Context()
+			userID := "test-user"
+			connectorID := "mock"
+
+			// Inject a recording connector with matching ResourceVersion so
+			// getConnector returns our mock instead of re-opening from storage.
+			rec := &recordingLogoutConnector{returnURL: "https://upstream.example.com/logout"}
+			server.mu.Lock()
+			server.connectors[connectorID] = Connector{
+				Type:            "mockCallback",
+				ResourceVersion: "1",
+				Connector:       rec,
+			}
+			server.mu.Unlock()
+
+			require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
+				UserID: userID, ConnectorID: connectorID, Nonce: "nonce",
+				CreatedAt: time.Now(), LastActivity: time.Now(),
+				ConnectorData: tc.sessionConnData,
+			}))
+
+			redirectURL, ok := server.tryUpstreamLogout(ctx, userID, connectorID, tc.callerConnData,
+				"https://dex.example.com/cb", "state-123", "client-123")
+			require.True(t, ok)
+			require.Equal(t, "https://upstream.example.com/logout", redirectURL)
+			require.Equal(t, tc.wantConnData, rec.gotConnectorData)
+		})
+	}
 }

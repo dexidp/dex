@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"net/http"
@@ -24,7 +25,7 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie(s.sessionConfig.CookieName); err == nil && cookie.Value != "" {
 		if userID, connectorID, nonce, err := parseSessionCookie(cookie.Value, s.sessionConfig.CookieEncryptionKey); err == nil {
 			session, err := s.storage.GetAuthSession(ctx, userID, connectorID)
-			if err == nil && session.Nonce == nonce {
+			if err == nil && subtle.ConstantTimeCompare([]byte(session.Nonce), []byte(nonce)) == 1 {
 				data.LoggedIn = true
 				data.IPAddress = session.IPAddress
 				data.UserAgent = session.UserAgent
