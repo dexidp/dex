@@ -2,6 +2,7 @@
 
 ![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/dexidp/dex/ci.yaml?style=flat-square&branch=master)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/dexidp/dex/badge?style=flat-square)](https://api.securityscorecards.dev/projects/github.com/dexidp/dex)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12566/badge)](https://www.bestpractices.dev/projects/12566)
 [![Go Report Card](https://goreportcard.com/badge/github.com/dexidp/dex?style=flat-square)](https://goreportcard.com/report/github.com/dexidp/dex)
 [![Maintainers](https://img.shields.io/badge/Maintainers-CNCF-green?style=flat-square)](MAINTAINERS.md)
 
