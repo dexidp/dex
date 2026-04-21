@@ -16,7 +16,7 @@ require (
 	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/go-ldap/ldap/v3 v3.4.13
 	github.com/go-sql-driver/mysql v1.9.3
-	github.com/go-webauthn/webauthn v0.16.5
+	github.com/go-webauthn/webauthn v0.17.0
 	github.com/google/cel-go v0.28.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/handlers v1.5.2
