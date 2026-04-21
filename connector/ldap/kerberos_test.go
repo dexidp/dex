@@ -13,43 +13,34 @@ import (
 	"github.com/dexidp/dex/connector"
 )
 
+// mockKrbValidator is a deterministic KerberosValidator for unit tests.
+//
+// Two modes:
+//   - step < 0: single-shot — returns principal/realm/ok/err as configured.
+//   - step >= 0: multi-step SPNEGO handshake — first call returns
+//     ContinueToken (when set) or bare challenge, subsequent calls return
+//     principal/realm with OK=true.
 type mockKrbValidator struct {
-	principal  string
-	realm      string
-	ok         bool
-	err        error
-	challenged bool
-	contToken  []byte
-	step       int // -1 means disabled; 0->continue, then success
+	principal string
+	realm     string
+	ok        bool
+	err       error
+	contToken []byte
+	step      int
 }
 
-func (m *mockKrbValidator) ValidateRequest(r *http.Request) (string, string, bool, error) {
+func (m *mockKrbValidator) ValidateRequest(r *http.Request) KerberosResult {
 	if m.step >= 0 {
 		if m.step == 0 {
-			return "", "", false, nil
-		}
-		return m.principal, m.realm, true, nil
-	}
-	return m.principal, m.realm, m.ok, m.err
-}
-
-func (m *mockKrbValidator) Challenge(w http.ResponseWriter) {
-	m.challenged = true
-	writeNegotiateChallenge(w)
-}
-
-func (m *mockKrbValidator) ContinueToken(r *http.Request) ([]byte, bool) {
-	if m.step >= 0 {
-		if m.step == 0 && len(m.contToken) > 0 {
 			m.step++
-			return m.contToken, true
+			if len(m.contToken) > 0 {
+				return KerberosResult{ContinueToken: m.contToken}
+			}
+			return KerberosResult{}
 		}
-		return nil, false
+		return KerberosResult{Principal: m.principal, Realm: m.realm, OK: true}
 	}
-	if len(m.contToken) > 0 {
-		return m.contToken, true
-	}
-	return nil, false
+	return KerberosResult{Principal: m.principal, Realm: m.realm, OK: m.ok, Err: m.err}
 }
 
 func TestKerberos_NoHeader_Returns401Negotiate(t *testing.T) {

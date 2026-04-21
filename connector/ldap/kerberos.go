@@ -24,20 +24,60 @@ import (
 	"github.com/dexidp/dex/connector"
 )
 
-// KerberosValidator abstracts SPNEGO validation for unit-testing.
-type KerberosValidator interface {
-	// ValidateRequest returns (principal, realm, ok, err). ok=false means header missing/invalid.
-	ValidateRequest(r *http.Request) (string, string, bool, error)
-	// Challenge writes a 401 Negotiate challenge.
-	Challenge(w http.ResponseWriter)
-	// ContinueToken tries to advance SPNEGO handshake and returns a response token to include
-	// in WWW-Authenticate: Negotiate <token>. Returns (nil, false) if no continuation is needed/possible.
-	ContinueToken(r *http.Request) ([]byte, bool)
+// KerberosResult carries the outcome of a single SPNEGO validation attempt.
+//
+// Exactly one of the following states holds:
+//   - Authenticated:        OK == true, Principal/Realm set.
+//   - Continuation needed:  len(ContinueToken) > 0.
+//   - No/invalid header:    OK == false, Err == nil, no ContinueToken.
+//   - Validation error:     Err != nil.
+type KerberosResult struct {
+	Principal     string
+	Realm         string
+	OK            bool
+	Err           error
+	ContinueToken []byte
 }
 
-// writeNegotiateChallenge writes a standard 401 Negotiate challenge.
+// KerberosValidator abstracts SPNEGO validation for unit-testing.
+//
+// Implementations MUST call the underlying GSSAPI AcceptSecContext at most
+// once per request to avoid replay detection (KRB_AP_ERR_REPEAT) on valid
+// AP-REQ tokens.
+type KerberosValidator interface {
+	ValidateRequest(r *http.Request) KerberosResult
+}
+
+// ctxCredentialsKey is the context key used by gokrb5 to store credentials.
+//
+// gokrb5/v8/spnego declares this as an untyped string const, which is passed
+// into context.WithValue and therefore stored with concrete type `string`.
+// To retrieve credentials the key MUST be a plain string (not a typed alias),
+// otherwise context.Value returns nil because keys are compared by both type
+// and value.
+//
+//nolint:revive,staticcheck // gokrb5 stores credentials under a plain string key; we must match it.
+const ctxCredentialsKey = "github.com/jcmturner/gokrb5/v8/ctxCredentials"
+
+// spnegoIncompleteKRB5B64 is a pre-encoded SPNEGO NegTokenResp with
+// AcceptIncomplete status and KRB5 mech, matching what gokrb5 sends when the
+// handshake needs to continue. Used as the response body for the second step
+// of a multi-leg SPNEGO exchange only (never as the initial challenge).
+const spnegoIncompleteKRB5B64 = "oRQwEqADCgEBoQsGCSqGSIb3EgECAg=="
+
+// writeNegotiateChallenge writes a bare RFC 4559 Negotiate challenge.
+// This is the correct response when the client has not yet sent an
+// Authorization: Negotiate header.
 func writeNegotiateChallenge(w http.ResponseWriter) {
 	w.Header().Set("WWW-Authenticate", "Negotiate")
+	w.WriteHeader(http.StatusUnauthorized)
+}
+
+// writeNegotiateContinuation writes a 401 with a SPNEGO continuation token.
+// Used only when the client already initiated SPNEGO and gokrb5 reported
+// StatusContinueNeeded.
+func writeNegotiateContinuation(w http.ResponseWriter, token []byte) {
+	w.Header().Set("WWW-Authenticate", "Negotiate "+base64.StdEncoding.EncodeToString(token))
 	w.WriteHeader(http.StatusUnauthorized)
 }
 
@@ -46,7 +86,6 @@ func writeNegotiateChallenge(w http.ResponseWriter) {
 //   - "localpart" / "samaccountname": extracts username before @ (default)
 //   - "userprincipalname": uses full principal as-is
 func mapPrincipal(principal, mapping string) string {
-	// Extract localpart (before @) from principal
 	localpart := principal
 	if i := strings.IndexByte(principal, '@'); i >= 0 {
 		localpart = principal[:i]
@@ -62,20 +101,7 @@ func mapPrincipal(principal, mapping string) string {
 	}
 }
 
-// gokrb5 implementation of KerberosValidator
-
-// ctxCredentialsKeyType is the type for gokrb5 context key.
-// gokrb5 uses a string constant as context key for storing credentials.
-type ctxCredentialsKeyType string
-
-// ctxCredentialsKey is the context key used by gokrb5 to store credentials.
-// This must match the exact string used in gokrb5/v8/spnego package.
-const ctxCredentialsKey ctxCredentialsKeyType = "github.com/jcmturner/gokrb5/v8/ctxCredentials"
-
-// SPNEGO NegTokenResp (AcceptIncomplete + KRB5 mech) base64 payload used by gokrb5's HTTP server
-// to prompt the client to continue the handshake.
-const spnegoIncompleteKRB5B64 = "oRQwEqADCgEBoQsGCSqGSIb3EgECAg=="
-
+// gokrb5Validator is the default KerberosValidator backed by jcmturner/gokrb5.
 type gokrb5Validator struct {
 	kt     *keytab.Keytab
 	logger *slog.Logger
@@ -99,8 +125,9 @@ func newGokrb5ValidatorWithLogger(keytabPath string, logger *slog.Logger) (Kerbe
 	return &gokrb5Validator{kt: kt, logger: logger}, nil
 }
 
-// parseNegotiateHeader extracts and decodes the SPNEGO token from Authorization header.
-// Returns (token, ok). If ok is false, the header is missing, malformed, or not Negotiate.
+// parseNegotiateHeader extracts and decodes the SPNEGO token from the
+// Authorization header. Returns (token, true) on success, (nil, false) when
+// the header is absent, malformed or not a valid SPNEGO/KRB5 token.
 func (v *gokrb5Validator) parseNegotiateHeader(r *http.Request) (*spnego.SPNEGOToken, bool) {
 	h := r.Header.Get("Authorization")
 	if h == "" || !strings.HasPrefix(h, "Negotiate ") {
@@ -112,19 +139,15 @@ func (v *gokrb5Validator) parseNegotiateHeader(r *http.Request) (*spnego.SPNEGOT
 	}
 	data, err := base64.StdEncoding.DecodeString(b64)
 	if err != nil {
-		if v.logger != nil {
-			v.logger.Info("kerberos: invalid base64 in Authorization", "err", err)
-		}
+		v.logger.Info("kerberos: invalid base64 in Authorization", "err", err)
 		return nil, false
 	}
 	var tok spnego.SPNEGOToken
 	if err := tok.Unmarshal(data); err != nil {
-		// Try raw KRB5 token and wrap it as SPNEGO
+		// Fall back to raw KRB5 token, wrap as SPNEGO NegTokenInit.
 		var k5 spnego.KRB5Token
 		if k5.Unmarshal(data) != nil {
-			if v.logger != nil {
-				v.logger.Info("kerberos: failed to unmarshal SPNEGO/KRB5 token", "err", err)
-			}
+			v.logger.Info("kerberos: failed to unmarshal SPNEGO/KRB5 token", "err", err)
 			return nil, false
 		}
 		tok.Init = true
@@ -136,155 +159,108 @@ func (v *gokrb5Validator) parseNegotiateHeader(r *http.Request) (*spnego.SPNEGOT
 	return &tok, true
 }
 
-// createSPNEGOService creates a SPNEGO service with optional client address binding.
+// createSPNEGOService creates a SPNEGO service, binding the client address
+// when it can be parsed from RemoteAddr (required for address-bound tickets).
 func (v *gokrb5Validator) createSPNEGOService(r *http.Request) *spnego.SPNEGO {
 	if ha, err := types.GetHostAddress(r.RemoteAddr); err == nil {
 		return spnego.SPNEGOService(v.kt, service.ClientAddress(ha), service.DecodePAC(false))
 	}
-	if v.logger != nil {
-		v.logger.Info("kerberos: cannot parse client address", "remote", r.RemoteAddr)
-	}
+	v.logger.Info("kerberos: cannot parse client address", "remote", r.RemoteAddr)
 	return spnego.SPNEGOService(v.kt, service.DecodePAC(false))
 }
 
-func (v *gokrb5Validator) ValidateRequest(r *http.Request) (string, string, bool, error) {
+// ValidateRequest performs a single AcceptSecContext call and translates the
+// GSSAPI status into a KerberosResult. It never retries the same AP-REQ.
+func (v *gokrb5Validator) ValidateRequest(r *http.Request) KerberosResult {
 	tok, ok := v.parseNegotiateHeader(r)
 	if !ok {
-		if v.logger != nil {
-			v.logger.Info("kerberos: missing or invalid Negotiate header", "path", r.URL.Path)
-		}
-		return "", "", false, nil
+		v.logger.Info("kerberos: missing or invalid Negotiate header", "path", r.URL.Path)
+		return KerberosResult{}
 	}
 
 	sp := v.createSPNEGOService(r)
 	authed, ctx, status := sp.AcceptSecContext(tok)
-	if status.Code != gssapi.StatusComplete {
-		if v.logger != nil {
-			v.logger.Info("kerberos: AcceptSecContext not complete", "code", status.Code, "message", status.Message)
+
+	switch status.Code {
+	case gssapi.StatusComplete:
+		// Handled below.
+	case gssapi.StatusContinueNeeded:
+		v.logger.Info("kerberos: continuation needed", "message", status.Message)
+		tokb, err := base64.StdEncoding.DecodeString(spnegoIncompleteKRB5B64)
+		if err != nil {
+			return KerberosResult{Err: fmt.Errorf("decode continuation token: %w", err)}
 		}
-		return "", "", false, nil
+		return KerberosResult{ContinueToken: tokb}
+	default:
+		v.logger.Info("kerberos: AcceptSecContext rejected", "code", status.Code, "message", status.Message)
+		return KerberosResult{}
 	}
+
 	if !authed || ctx == nil {
-		if v.logger != nil {
-			v.logger.Info("kerberos: not authenticated or no context")
-		}
-		return "", "", false, nil
+		v.logger.Info("kerberos: not authenticated or no context")
+		return KerberosResult{}
 	}
+
 	id, _ := ctx.Value(ctxCredentialsKey).(*credentials.Credentials)
 	if id == nil {
-		if v.logger != nil {
-			v.logger.Info("kerberos: credentials missing in context")
-		}
-		return "", "", false, fmt.Errorf("no credentials in context")
+		v.logger.Info("kerberos: credentials missing in context")
+		return KerberosResult{Err: fmt.Errorf("no credentials in context")}
 	}
-	return id.UserName(), id.Domain(), true, nil
-}
-
-func (v *gokrb5Validator) Challenge(w http.ResponseWriter) { writeNegotiateChallenge(w) }
-
-// ContinueToken attempts to continue the SPNEGO handshake and returns a response token
-// (to be placed into WWW-Authenticate: Negotiate <b64>) if available.
-func (v *gokrb5Validator) ContinueToken(r *http.Request) ([]byte, bool) {
-	tok, ok := v.parseNegotiateHeader(r)
-	if !ok {
-		// No valid token; return incomplete response to prompt client
-		return v.incompleteResponse()
-	}
-
-	sp := v.createSPNEGOService(r)
-	_, ctx, status := sp.AcceptSecContext(tok)
-	if status.Code != gssapi.StatusContinueNeeded || ctx == nil {
-		if v.logger != nil {
-			v.logger.Info("kerberos: no continuation required", "code", status.Code, "message", status.Message)
-		}
-		return nil, false
-	}
-	return v.incompleteResponse()
-}
-
-// incompleteResponse returns the standard NegTokenResp to prompt client continuation.
-func (v *gokrb5Validator) incompleteResponse() ([]byte, bool) {
-	tokb, err := base64.StdEncoding.DecodeString(spnegoIncompleteKRB5B64)
-	if err != nil {
-		return nil, false
-	}
-	if v.logger != nil {
-		v.logger.Info("kerberos: sending incomplete KRB5 response for continuation")
-	}
-	return tokb, true
+	return KerberosResult{Principal: id.UserName(), Realm: id.Domain(), OK: true}
 }
 
 // LDAP connector SPNEGO integration
 
-// TrySPNEGO attempts Kerberos auth and builds identity on success.
+// TrySPNEGO attempts Kerberos authentication on the current request. Returns
+// handled=true when the response has been fully written (either a challenge,
+// a continuation token or a terminal error) and the caller MUST NOT render
+// the password form. handled=false means the caller should continue with the
+// default login flow.
 func (c *ldapConnector) TrySPNEGO(ctx context.Context, s connector.Scopes, w http.ResponseWriter, r *http.Request) (*connector.Identity, connector.Handled, error) {
 	if !c.krbEnabled || c.krbValidator == nil {
 		return nil, false, nil
 	}
 
-	principal, realm, ok, err := c.krbValidator.ValidateRequest(r)
-	if err != nil || !ok {
-		if !c.krbConf.FallbackToPassword {
-			// Try to get a continuation token to advance SPNEGO handshake
-			if tok, ok2 := c.krbValidator.ContinueToken(r); ok2 && len(tok) > 0 {
-				c.logger.Info("kerberos SPNEGO continuation required; sending response token")
-				w.Header().Set("WWW-Authenticate", "Negotiate "+base64.StdEncoding.EncodeToString(tok))
-				w.WriteHeader(http.StatusUnauthorized)
-				return nil, true, nil
-			}
-			if err != nil {
-				c.logger.Info("kerberos SPNEGO validation error; sending Negotiate challenge", "err", err)
-			} else {
-				c.logger.Info("kerberos SPNEGO not completed or header missing; sending Negotiate challenge")
-			}
-			c.krbValidator.Challenge(w)
-			return nil, true, nil
+	res := c.krbValidator.ValidateRequest(r)
+
+	if !res.OK {
+		if c.krbConf.FallbackToPassword {
+			c.logger.Info("kerberos SPNEGO not completed; falling back to password form")
+			return nil, false, nil
 		}
-		c.logger.Info("kerberos SPNEGO fallback to password enabled; rendering login form")
-		return nil, false, nil
-	}
 
-	if c.krbConf.ExpectedRealm != "" && !strings.EqualFold(c.krbConf.ExpectedRealm, realm) {
-		c.logger.Info("kerberos realm mismatch", "expected", c.krbConf.ExpectedRealm, "actual", realm)
-		if !c.krbConf.FallbackToPassword {
-			c.krbValidator.Challenge(w)
-			return nil, true, nil
+		switch {
+		case len(res.ContinueToken) > 0:
+			c.logger.Info("kerberos SPNEGO continuation required; sending response token")
+			writeNegotiateContinuation(w, res.ContinueToken)
+		case res.Err != nil:
+			c.logger.Info("kerberos SPNEGO validation error; sending Negotiate challenge", "err", res.Err)
+			writeNegotiateChallenge(w)
+		default:
+			c.logger.Info("kerberos SPNEGO header missing or invalid; sending Negotiate challenge")
+			writeNegotiateChallenge(w)
 		}
-		c.logger.Info("kerberos realm mismatch but fallback enabled; rendering login form")
-		return nil, false, nil
+		return nil, true, nil
 	}
 
-	mapped := mapPrincipal(principal, c.krbConf.UsernameFromPrincipal)
-	c.logger.Info("kerberos principal mapped", "principal", principal, "realm", realm, "mapped_username", mapped)
-
-	var userEntry ldap.Entry
-	// Allow test hook override
-	if c.krbLookupUserHook != nil {
-		if v, found, herr := c.krbLookupUserHook(c, mapped); found {
-			if herr != nil {
-				return nil, true, herr
-			}
-			userEntry = v
+	if c.krbConf.ExpectedRealm != "" && !strings.EqualFold(c.krbConf.ExpectedRealm, res.Realm) {
+		c.logger.Info("kerberos realm mismatch", "expected", c.krbConf.ExpectedRealm, "actual", res.Realm)
+		if c.krbConf.FallbackToPassword {
+			c.logger.Info("kerberos realm mismatch but fallback enabled; rendering login form")
+			return nil, false, nil
 		}
+		writeNegotiateChallenge(w)
+		return nil, true, nil
 	}
 
-	if userEntry.DN == "" {
-		// Reuse existing search logic via do() and userEntry
-		err = c.do(ctx, func(conn *ldap.Conn) error {
-			entry, found, err := c.userEntry(conn, mapped)
-			if err != nil {
-				return err
-			}
-			if !found {
-				return fmt.Errorf("user not found for principal")
-			}
-			userEntry = entry
-			return nil
-		})
-	}
+	mapped := mapPrincipal(res.Principal, c.krbConf.UsernameFromPrincipal)
+	c.logger.Info("kerberos principal mapped",
+		"principal", res.Principal, "realm", res.Realm, "mapped_username", mapped)
+
+	userEntry, err := c.lookupKerberosUser(ctx, mapped)
 	if err != nil {
-		c.logger.Error("kerberos user lookup failed", "principal", principal, "mapped", mapped, "err", err)
-		return nil, true, fmt.Errorf("ldap: user lookup failed for kerberos principal %q: %v", principal, err)
+		c.logger.Error("kerberos user lookup failed", "principal", res.Principal, "mapped", mapped, "err", err)
+		return nil, true, fmt.Errorf("ldap: user lookup failed for kerberos principal %q: %v", res.Principal, err)
 	}
 	c.logger.Info("kerberos user lookup succeeded", "dn", userEntry.DN)
 
@@ -302,7 +278,8 @@ func (c *ldapConnector) TrySPNEGO(ctx context.Context, s connector.Scopes, w htt
 		ident.Groups = groups
 	}
 
-	// No password -> no user bind; do not set ConnectorData unless OfflineAccess requested
+	// No password means no user bind happened; only populate ConnectorData when
+	// OfflineAccess was requested so refresh can query groups later.
 	if s.OfflineAccess {
 		refresh := refreshData{Username: mapped, Entry: userEntry}
 		if data, mErr := json.Marshal(refresh); mErr == nil {
@@ -310,6 +287,31 @@ func (c *ldapConnector) TrySPNEGO(ctx context.Context, s connector.Scopes, w htt
 		}
 	}
 
-	c.logger.Info("kerberos SPNEGO authentication succeeded", "username", ident.Username, "email", ident.Email, "groups_count", len(ident.Groups))
+	c.logger.Info("kerberos SPNEGO authentication succeeded",
+		"username", ident.Username, "email", ident.Email, "groups_count", len(ident.Groups))
 	return &ident, true, nil
+}
+
+// lookupKerberosUser resolves an LDAP user entry by username. Tests may
+// override the lookup via krbLookupUserHook.
+func (c *ldapConnector) lookupKerberosUser(ctx context.Context, username string) (ldap.Entry, error) {
+	if c.krbLookupUserHook != nil {
+		if entry, found, err := c.krbLookupUserHook(c, username); found {
+			return entry, err
+		}
+	}
+
+	var userEntry ldap.Entry
+	err := c.do(ctx, func(conn *ldap.Conn) error {
+		entry, found, err := c.userEntry(conn, username)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return fmt.Errorf("user not found for principal")
+		}
+		userEntry = entry
+		return nil
+	})
+	return userEntry, err
 }
