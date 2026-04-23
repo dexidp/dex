@@ -1,0 +1,36 @@
+# Dex configuration for OIDC Conformance Testing.
+# See https://dexidp.io/docs/development/oidc-certification/
+#
+# This template is processed by run.sh which replaces ISSUER_URL and ALIAS
+# with actual values before starting Dex.
+
+issuer: ISSUER_URL/dex
+
+storage:
+  type: sqlite3
+  config:
+    file: examples/oidc-conformance/dex.db
+
+web:
+  http: 0.0.0.0:5556
+
+enablePasswordDB: true
+
+staticPasswords:
+- email: "admin@example.com"
+  # bcrypt hash of the string "password"
+  hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+  username: "admin"
+
+staticClients:
+  - id: first_client
+    secret: 89d6205220381728e85c4cf5
+    redirectURIs:
+      - https://www.certification.openid.net/test/a/ALIAS/callback
+    name: First client
+
+  - id: second_client
+    secret: 51c612288018fd384b05d6ad
+    redirectURIs:
+      - https://www.certification.openid.net/test/a/ALIAS/callback
+    name: Second client

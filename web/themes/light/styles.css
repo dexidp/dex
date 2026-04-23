@@ -1,113 +1,129 @@
 .theme-body {
-  background-color: #efefef;
-  color: #333;
-  font-family: 'Source Sans Pro', Helvetica, sans-serif;
+  background-color: #f4f5f7;
+  color: #1a1a1a;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
 .theme-navbar {
   background-color: #fff;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-  color: #333;
+  border-bottom: 1px solid #e1e4e8;
+  color: #1a1a1a;
   font-size: 13px;
-  font-weight: 100;
-  height: 46px;
+  font-weight: 400;
+  height: 52px;
   overflow: hidden;
-  padding: 0 10px;
+  padding: 0 16px;
 }
 
 .theme-navbar__logo-wrap {
   display: inline-block;
   height: 100%;
   overflow: hidden;
-  padding: 10px 15px;
+  padding: 12px 15px;
   width: 300px;
 }
 
 .theme-navbar__logo {
   height: 100%;
-  max-height: 25px;
+  max-height: 26px;
 }
 
 .theme-heading {
   font-size: 20px;
-  font-weight: 500;
-  margin-bottom: 10px;
+  font-weight: 600;
+  margin-bottom: 16px;
   margin-top: 0;
 }
 
 .theme-panel {
   background-color: #fff;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
-  padding: 30px;
+  border: 1px solid #e1e4e8;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+  padding: 32px;
 }
 
 .theme-btn-provider {
   background-color: #fff;
-  color: #333;
-  min-width: 250px;
+  border: 1px solid #d0d5dd;
+  color: #1a1a1a;
+  min-width: 260px;
 }
 
 .theme-btn-provider:hover {
-  color: #999;
+  background-color: #f9fafb;
+  border-color: #b0b5bd;
+  color: #1a1a1a;
 }
 
 .theme-btn--primary {
-  background-color: #333;
+  background-color: #1a1a1a;
   border: none;
   color: #fff;
   min-width: 200px;
-  padding: 6px 12px;
+  padding: 8px 16px;
 }
 
 .theme-btn--primary:hover {
-  background-color: #666;
+  background-color: #333;
   color: #fff;
 }
 
 .theme-btn--success {
-  background-color: #2FC98E;
+  background-color: #16a34a;
   color: #fff;
-  width: 250px;
+  width: 260px;
 }
 
 .theme-btn--success:hover {
-  background-color: #49E3A8;
+  background-color: #15803d;
 }
 
 .theme-form-row {
   display: block;
-  margin: 20px auto;
+  margin: 16px auto;
 }
 
 .theme-form-input {
-  border-radius: 4px;
-  border: 1px solid #CCC;
-  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
-  color: #666;
+  border-radius: 8px;
+  border: 1px solid #d0d5dd;
+  color: #1a1a1a;
   display: block;
   font-size: 14px;
-  height: 36px;
-  line-height: 1.42857143;
+  height: 40px;
+  line-height: 1.5;
   margin: auto;
-  padding: 6px 12px;
-  width: 250px;
+  padding: 8px 12px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  width: 260px;
 }
 
 .theme-form-input:focus,
 .theme-form-input:active {
-  border-color: #66AFE9;
+  border-color: #4A90D9;
+  box-shadow: 0 0 0 3px rgba(74, 144, 217, 0.15);
   outline: none;
 }
 
 .theme-form-label {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
   margin: 4px auto;
   position: relative;
   text-align: left;
-  width: 250px;
+  width: 260px;
 }
 
 .theme-link-back {
-  margin-top: 4px;
+  margin-top: 8px;
+}
+
+.theme-remember-me {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  width: 260px;
+  margin: 4px auto;
 }

@@ -17,3 +17,17 @@ message IDTokenSubject {
   string user_id = 1;
   string conn_id = 2;
 }
+
+// SessionCookie holds session identity encoded into the session cookie value.
+message SessionCookie {
+  string user_id = 1;
+  string connector_id = 2;
+  string nonce = 3;
+}
+
+// HMACPayload is the structured message used as HMAC input.
+// Using protobuf encoding instead of string concatenation avoids
+// delimiter-based ambiguities in the HMAC message.
+message HMACPayload {
+  repeated string values = 1;
+}

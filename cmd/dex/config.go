@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -10,10 +11,12 @@ import (
 	"os"
 	"strings"
 
+	"github.com/go-jose/go-jose/v4"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server"
+	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent"
 	"github.com/dexidp/dex/storage/etcd"
@@ -21,6 +24,15 @@ import (
 	"github.com/dexidp/dex/storage/memory"
 	"github.com/dexidp/dex/storage/sql"
 )
+
+func configUnmarshaller(b []byte, v interface{}) error {
+	if !featureflags.ConfigDisallowUnknownFields.Enabled() {
+		return json.Unmarshal(b, v)
+	}
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+	return dec.Decode(v)
+}
 
 // Config is the config format for the main application.
 type Config struct {
@@ -34,6 +46,9 @@ type Config struct {
 	Logger    Logger    `json:"logger"`
 
 	Frontend server.WebConfig `json:"frontend"`
+
+	// Signer configuration controls signing of JWT tokens issued by Dex.
+	Signer Signer `json:"signer"`
 
 	// StaticConnectors are user defined connectors specified in the ConfigMap
 	// Write operations, like updating a connector, will fail.
@@ -51,6 +66,23 @@ type Config struct {
 	// querying the storage. Cannot be specified without enabling a passwords
 	// database.
 	StaticPasswords []password `json:"staticPasswords"`
+
+	// Sessions holds authentication session configuration.
+	// Requires DEX_SESSIONS_ENABLED=true feature flag.
+	Sessions *Sessions `json:"sessions"`
+
+	// MFA holds multi-factor authentication configuration.
+	MFA MFAConfig `json:"mfa"`
+}
+
+// MFAConfig holds multi-factor authentication settings.
+type MFAConfig struct {
+	// Authenticators defines MFA providers available for clients to reference.
+	Authenticators []MFAAuthenticator `json:"authenticators"`
+
+	// DefaultMFAChain is the default ordered list of authenticator IDs applied
+	// to clients that don't specify their own mfaChain. Empty means no MFA by default.
+	DefaultMFAChain []string `json:"defaultMFAChain"`
 }
 
 // Validate the configuration
@@ -85,9 +117,63 @@ func (c Config) Validate() error {
 			checkErrors = append(checkErrors, check.errMsg)
 		}
 	}
+
 	if len(checkErrors) != 0 {
 		return fmt.Errorf("invalid Config:\n\t-\t%s", strings.Join(checkErrors, "\n\t-\t"))
 	}
+
+	if c.Sessions != nil && !featureflags.SessionsEnabled.Enabled() {
+		return fmt.Errorf("sessions config requires sessions to be enabled (DEX_SESSIONS_ENABLED=true)")
+	}
+
+	if err := c.validateMFA(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c Config) validateMFA() error {
+	mfa := c.MFA
+	if len(mfa.Authenticators) == 0 && len(mfa.DefaultMFAChain) == 0 {
+		return nil
+	}
+
+	if !featureflags.SessionsEnabled.Enabled() {
+		return fmt.Errorf("mfa requires sessions to be enabled (DEX_SESSIONS_ENABLED=true)")
+	}
+
+	knownTypes := map[string]bool{"TOTP": true, "WebAuthn": true}
+	ids := make(map[string]bool, len(mfa.Authenticators))
+
+	for _, auth := range mfa.Authenticators {
+		if auth.ID == "" {
+			return fmt.Errorf("mfa.authenticators: authenticator must have an id")
+		}
+		if ids[auth.ID] {
+			return fmt.Errorf("mfa.authenticators: duplicate authenticator id %q", auth.ID)
+		}
+		ids[auth.ID] = true
+
+		if !knownTypes[auth.Type] {
+			return fmt.Errorf("mfa.authenticators: unknown type %q for authenticator %q", auth.Type, auth.ID)
+		}
+	}
+
+	for _, authID := range mfa.DefaultMFAChain {
+		if !ids[authID] {
+			return fmt.Errorf("mfa.defaultMFAChain: references unknown authenticator %q", authID)
+		}
+	}
+
+	for _, client := range c.StaticClients {
+		for _, authID := range client.MFAChain {
+			if !ids[authID] {
+				return fmt.Errorf("staticClients: client %q references unknown MFA authenticator %q", client.ID, authID)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -95,19 +181,27 @@ type password storage.Password
 
 func (p *password) UnmarshalJSON(b []byte) error {
 	var data struct {
-		Email       string `json:"email"`
-		Username    string `json:"username"`
-		UserID      string `json:"userID"`
-		Hash        string `json:"hash"`
-		HashFromEnv string `json:"hashFromEnv"`
+		Email             string   `json:"email"`
+		Username          string   `json:"username"`
+		Name              string   `json:"name"`
+		PreferredUsername string   `json:"preferredUsername"`
+		EmailVerified     *bool    `json:"emailVerified"`
+		UserID            string   `json:"userID"`
+		Hash              string   `json:"hash"`
+		HashFromEnv       string   `json:"hashFromEnv"`
+		Groups            []string `json:"groups"`
 	}
-	if err := json.Unmarshal(b, &data); err != nil {
+	if err := configUnmarshaller(b, &data); err != nil {
 		return err
 	}
 	*p = password(storage.Password{
-		Email:    data.Email,
-		Username: data.Username,
-		UserID:   data.UserID,
+		Email:             data.Email,
+		Username:          data.Username,
+		Name:              data.Name,
+		PreferredUsername: data.PreferredUsername,
+		EmailVerified:     data.EmailVerified,
+		UserID:            data.UserID,
+		Groups:            data.Groups,
 	})
 	if len(data.Hash) == 0 && len(data.HashFromEnv) > 0 {
 		data.Hash = os.Getenv(data.HashFromEnv)
@@ -149,6 +243,16 @@ type OAuth2 struct {
 	AlwaysShowLoginScreen bool `json:"alwaysShowLoginScreen"`
 	// This is the connector that can be used for password grant
 	PasswordConnector string `json:"passwordConnector"`
+	// PKCE configuration
+	PKCE PKCE `json:"pkce"`
+}
+
+// PKCE holds the PKCE (Proof Key for Code Exchange) configuration.
+type PKCE struct {
+	// If true, PKCE is required for all authorization code flows.
+	Enforce bool `json:"enforce"`
+	// Supported code challenge methods. Defaults to ["S256", "plain"].
+	CodeChallengeMethodsSupported []string `json:"codeChallengeMethodsSupported"`
 }
 
 // Web is the config format for the HTTP server.
@@ -275,12 +379,12 @@ var (
 	_ StorageConfig = (*ent.MySQL)(nil)
 )
 
-func getORMBasedSQLStorage(normal, entBased StorageConfig) func() StorageConfig {
+func getORMBasedSQLStorage(normal, entBased func() StorageConfig) func() StorageConfig {
 	return func() StorageConfig {
 		if featureflags.EntEnabled.Enabled() {
-			return entBased
+			return entBased()
 		}
-		return normal
+		return normal()
 	}
 }
 
@@ -309,9 +413,9 @@ var storages = map[string]func() StorageConfig{
 	"etcd":       func() StorageConfig { return new(etcd.Etcd) },
 	"kubernetes": func() StorageConfig { return new(kubernetes.Config) },
 	"memory":     func() StorageConfig { return new(memory.Config) },
-	"sqlite3":    getORMBasedSQLStorage(&sql.SQLite3{}, &ent.SQLite3{}),
-	"postgres":   getORMBasedSQLStorage(&sql.Postgres{}, &ent.Postgres{}),
-	"mysql":      getORMBasedSQLStorage(&sql.MySQL{}, &ent.MySQL{}),
+	"sqlite3":    getORMBasedSQLStorage(func() StorageConfig { return new(sql.SQLite3) }, func() StorageConfig { return new(ent.SQLite3) }),
+	"postgres":   getORMBasedSQLStorage(func() StorageConfig { return new(sql.Postgres) }, func() StorageConfig { return new(ent.Postgres) }),
+	"mysql":      getORMBasedSQLStorage(func() StorageConfig { return new(sql.MySQL) }, func() StorageConfig { return new(ent.MySQL) }),
 }
 
 // UnmarshalJSON allows Storage to implement the unmarshaler interface to
@@ -321,7 +425,7 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 		Type   string          `json:"type"`
 		Config json.RawMessage `json:"config"`
 	}
-	if err := json.Unmarshal(b, &store); err != nil {
+	if err := configUnmarshaller(b, &store); err != nil {
 		return fmt.Errorf("parse storage: %v", err)
 	}
 	f, ok := storages[store.Type]
@@ -334,7 +438,7 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 		data := []byte(store.Config)
 		if featureflags.ExpandEnv.Enabled() {
 			var rawMap map[string]interface{}
-			if err := json.Unmarshal(store.Config, &rawMap); err != nil {
+			if err := configUnmarshaller(store.Config, &rawMap); err != nil {
 				return fmt.Errorf("unmarshal config for env expansion: %v", err)
 			}
 
@@ -351,7 +455,7 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 			data = expandedData
 		}
 
-		if err := json.Unmarshal(data, storageConfig); err != nil {
+		if err := configUnmarshaller(data, storageConfig); err != nil {
 			return fmt.Errorf("parse storage config: %v", err)
 		}
 	}
@@ -362,6 +466,90 @@ func (s *Storage) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// Signer holds app's signer configuration.
+type Signer struct {
+	Type   string       `json:"type"`
+	Config SignerConfig `json:"config"`
+}
+
+// SignerConfig is a configuration that can create a signer.
+type SignerConfig interface{}
+
+var (
+	_ SignerConfig = (*signer.LocalConfig)(nil)
+	_ SignerConfig = (*signer.VaultConfig)(nil)
+)
+
+var signerConfigs = map[string]func() SignerConfig{
+	"local": func() SignerConfig { return new(signer.LocalConfig) },
+	"vault": func() SignerConfig { return new(signer.VaultConfig) },
+}
+
+// UnmarshalJSON allows Signer to implement the unmarshaler interface to
+// dynamically determine the type of the signer config.
+func (s *Signer) UnmarshalJSON(b []byte) error {
+	var signerData struct {
+		Type   string          `json:"type"`
+		Config json.RawMessage `json:"config"`
+	}
+	if err := json.Unmarshal(b, &signerData); err != nil {
+		return fmt.Errorf("parse signer: %v", err)
+	}
+
+	f, ok := signerConfigs[signerData.Type]
+	if !ok {
+		return fmt.Errorf("unknown signer type %q", signerData.Type)
+	}
+
+	signerConfig := f()
+	if len(signerData.Config) != 0 {
+		data := []byte(signerData.Config)
+		if featureflags.ExpandEnv.Enabled() {
+			var rawMap map[string]interface{}
+			if err := json.Unmarshal(signerData.Config, &rawMap); err != nil {
+				return fmt.Errorf("unmarshal config for env expansion: %v", err)
+			}
+
+			// Recursively expand environment variables in the map
+			expandEnvInMap(rawMap)
+
+			// Marshal the expanded map back to JSON
+			expandedData, err := json.Marshal(rawMap)
+			if err != nil {
+				return fmt.Errorf("marshal expanded config: %v", err)
+			}
+
+			data = expandedData
+		}
+
+		if err := json.Unmarshal(data, signerConfig); err != nil {
+			return fmt.Errorf("parse signer config: %v", err)
+		}
+	}
+	if localConfig, ok := signerConfig.(*signer.LocalConfig); ok {
+		if err := normalizeLocalSignerConfig(localConfig); err != nil {
+			return fmt.Errorf("parse signer config: %v", err)
+		}
+	}
+
+	*s = Signer{
+		Type:   signerData.Type,
+		Config: signerConfig,
+	}
+	return nil
+}
+
+func normalizeLocalSignerConfig(c *signer.LocalConfig) error {
+	if c.Algorithm == "" {
+		c.Algorithm = jose.RS256
+		return nil
+	}
+	if c.Algorithm == jose.RS256 || c.Algorithm == jose.ES256 {
+		return nil
+	}
+	return fmt.Errorf("unsupported local signer algorithm %q", c.Algorithm)
+}
+
 // Connector is a magical type that can unmarshal YAML dynamically. The
 // Type field determines the connector type, which is then customized for Config.
 type Connector struct {
@@ -369,7 +557,8 @@ type Connector struct {
 	Name string `json:"name"`
 	ID   string `json:"id"`
 
-	Config server.ConnectorConfig `json:"config"`
+	Config     server.ConnectorConfig `json:"config"`
+	GrantTypes []string               `json:"grantTypes"`
 }
 
 // UnmarshalJSON allows Connector to implement the unmarshaler interface to
@@ -380,9 +569,10 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 		Name string `json:"name"`
 		ID   string `json:"id"`
 
-		Config json.RawMessage `json:"config"`
+		Config     json.RawMessage `json:"config"`
+		GrantTypes []string        `json:"grantTypes"`
 	}
-	if err := json.Unmarshal(b, &conn); err != nil {
+	if err := configUnmarshaller(b, &conn); err != nil {
 		return fmt.Errorf("parse connector: %v", err)
 	}
 	f, ok := server.ConnectorsConfig[conn.Type]
@@ -395,7 +585,7 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 		data := []byte(conn.Config)
 		if featureflags.ExpandEnv.Enabled() {
 			var rawMap map[string]interface{}
-			if err := json.Unmarshal(conn.Config, &rawMap); err != nil {
+			if err := configUnmarshaller(conn.Config, &rawMap); err != nil {
 				return fmt.Errorf("unmarshal config for env expansion: %v", err)
 			}
 
@@ -412,16 +602,17 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 			data = expandedData
 		}
 
-		if err := json.Unmarshal(data, connConfig); err != nil {
+		if err := configUnmarshaller(data, connConfig); err != nil {
 			return fmt.Errorf("parse connector config: %v", err)
 		}
 	}
 
 	*c = Connector{
-		Type:   conn.Type,
-		Name:   conn.Name,
-		ID:     conn.ID,
-		Config: connConfig,
+		Type:       conn.Type,
+		Name:       conn.Name,
+		ID:         conn.ID,
+		Config:     connConfig,
+		GrantTypes: conn.GrantTypes,
 	}
 	return nil
 }
@@ -434,10 +625,11 @@ func ToStorageConnector(c Connector) (storage.Connector, error) {
 	}
 
 	return storage.Connector{
-		ID:     c.ID,
-		Type:   c.Type,
-		Name:   c.Name,
-		Config: data,
+		ID:         c.ID,
+		Type:       c.Type,
+		Name:       c.Name,
+		Config:     data,
+		GrantTypes: c.GrantTypes,
 	}, nil
 }
 
@@ -466,6 +658,12 @@ type Logger struct {
 
 	// Format specifies the format to be used for logging.
 	Format string `json:"format"`
+
+	// ExcludeFields specifies log attribute keys that should be dropped from all
+	// log output. This is useful for suppressing PII fields like email, username,
+	// preferred_username, or groups in environments subject to GDPR or similar
+	// data-handling constraints.
+	ExcludeFields []string `json:"excludeFields"`
 }
 
 type RefreshToken struct {
@@ -473,4 +671,73 @@ type RefreshToken struct {
 	ReuseInterval     string `json:"reuseInterval"`
 	AbsoluteLifetime  string `json:"absoluteLifetime"`
 	ValidIfNotUsedFor string `json:"validIfNotUsedFor"`
+}
+
+// Sessions holds authentication session configuration.
+type Sessions struct {
+	// CookieName is the name of the session cookie. Defaults to "dex_session".
+	CookieName string `json:"cookieName"`
+	// AbsoluteLifetime is the maximum session lifetime from creation. Defaults to "24h".
+	AbsoluteLifetime string `json:"absoluteLifetime"`
+	// ValidIfNotUsedFor is the idle timeout. Defaults to "1h".
+	ValidIfNotUsedFor string `json:"validIfNotUsedFor"`
+	// RememberMeCheckedByDefault controls the default state of the "remember me" checkbox.
+	RememberMeCheckedByDefault *bool `json:"rememberMeCheckedByDefault"`
+	// CookieEncryptionKey is the AES key for encrypting session cookies.
+	// Must be 16, 24, or 32 bytes for AES-128, AES-192, or AES-256.
+	// If empty, cookies are not encrypted.
+	CookieEncryptionKey string `json:"cookieEncryptionKey"`
+	// SSOSharedWithDefault is the default SSO sharing policy for clients without explicit ssoSharedWith.
+	// "all" = share with all clients, "none" = share with no one (default: "none").
+	SSOSharedWithDefault string `json:"ssoSharedWithDefault"`
+}
+
+// MFAAuthenticator defines a multi-factor authentication provider.
+type MFAAuthenticator struct {
+	ID     string          `json:"id"`
+	Type   string          `json:"type"`
+	Config json.RawMessage `json:"config"`
+
+	// ConnectorTypes limits this authenticator to specific connector types (e.g., "ldap", "oidc", "saml").
+	// If empty, the authenticator applies to all connector types.
+	ConnectorTypes []string `json:"connectorTypes"`
+}
+
+// TOTPConfig holds configuration for a TOTP authenticator.
+type TOTPConfig struct {
+	// Issuer is the name of the service shown in the authenticator app.
+	Issuer string `json:"issuer"`
+}
+
+// WebAuthnConfig holds configuration for a WebAuthn authenticator.
+type WebAuthnConfig struct {
+	// RPDisplayName is the human-readable relying party name shown in the browser
+	// dialog during key registration and authentication (e.g., "My Company SSO").
+	RPDisplayName string `json:"rpDisplayName"`
+	// RPID is the relying party identifier — must match the domain in the browser
+	// address bar. If empty, derived from the issuer URL hostname.
+	// Example: "auth.example.com"
+	RPID string `json:"rpID"`
+	// RPOrigins is the list of allowed origins for WebAuthn ceremonies.
+	// If empty, derived from the issuer URL (scheme + host).
+	// Example: ["https://auth.example.com"]
+	RPOrigins []string `json:"rpOrigins"`
+	// AttestationPreference controls what attestation data the authenticator should provide:
+	//   "none"     — don't request attestation (simpler, more private)
+	//   "indirect" — authenticator may anonymize attestation (default)
+	//   "direct"   — request full attestation (for enterprise key model verification)
+	AttestationPreference string `json:"attestationPreference"`
+	// UserVerification controls whether PIN or biometric verification is required:
+	//   "required"    — always require (PIN, fingerprint, etc.)
+	//   "preferred"   — request if the authenticator supports it (default)
+	//   "discouraged" — skip verification, presence check only
+	UserVerification string `json:"userVerification"`
+	// AuthenticatorAttachment restricts which authenticator types are allowed:
+	//   "platform"      — built-in only (Touch ID, Windows Hello)
+	//   "cross-platform" — external only (YubiKey, USB security keys)
+	//   ""              — any authenticator (default)
+	AuthenticatorAttachment string `json:"authenticatorAttachment"`
+	// Timeout is the duration allowed for the browser WebAuthn ceremony
+	// (registration or login). Defaults to "60s".
+	Timeout string `json:"timeout"`
 }

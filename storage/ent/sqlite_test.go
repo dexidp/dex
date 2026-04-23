@@ -21,4 +21,5 @@ func newSQLiteStorage(t *testing.T) storage.Storage {
 
 func TestSQLite3(t *testing.T) {
 	conformance.RunTests(t, newSQLiteStorage)
+	conformance.RunConcurrencyTests(t, newSQLiteStorage)
 }

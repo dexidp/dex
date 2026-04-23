@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/net/html"
-
 	"github.com/dexidp/dex/storage"
 )
 
@@ -300,9 +298,11 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 
 		// Authorization redirect callback from OAuth2 auth flow.
 		if errMsg := r.FormValue("error"); errMsg != "" {
-			// escape the message to prevent cross-site scripting
-			msg := html.EscapeString(errMsg + ": " + r.FormValue("error_description"))
-			http.Error(w, msg, http.StatusBadRequest)
+			// Log the error details but don't expose them to the user
+			s.logger.ErrorContext(r.Context(), "OAuth2 authorization error",
+				"error", errMsg,
+				"error_description", r.FormValue("error_description"))
+			s.renderError(r, w, http.StatusBadRequest, "Authorization failed. Please try again.")
 			return
 		}
 
@@ -392,7 +392,8 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 		}
 
 	default:
-		http.Error(w, fmt.Sprintf("method not implemented: %s", r.Method), http.StatusBadRequest)
+		s.logger.ErrorContext(r.Context(), "unsupported method in device callback", "method", r.Method)
+		s.renderError(r, w, http.StatusBadRequest, ErrMsgMethodNotAllowed)
 		return
 	}
 }
@@ -430,7 +431,7 @@ func (s *Server) verifyUserCode(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Redirect to Dex Auth Endpoint
-		authURL := path.Join(s.issuerURL.Path, "/auth")
+		authURL := s.absURL("/auth")
 		u, err := url.Parse(authURL)
 		if err != nil {
 			s.renderError(r, w, http.StatusInternalServerError, "Invalid auth URI.")
@@ -441,7 +442,7 @@ func (s *Server) verifyUserCode(w http.ResponseWriter, r *http.Request) {
 		q.Set("client_secret", deviceRequest.ClientSecret)
 		q.Set("state", deviceRequest.UserCode)
 		q.Set("response_type", "code")
-		q.Set("redirect_uri", "/device/callback")
+		q.Set("redirect_uri", s.absPath(deviceCallbackURI))
 		q.Set("scope", strings.Join(deviceRequest.Scopes, " "))
 		u.RawQuery = q.Encode()
 

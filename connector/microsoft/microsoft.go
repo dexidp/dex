@@ -63,26 +63,32 @@ type Config struct {
 	DomainHint string `json:"domainHint"`
 
 	Scopes []string `json:"scopes"` // defaults to scopeUser (user.read)
+
+	// PreferredUsernameField allows users to set the field to any of the
+	// following values: "name", "email", "mailNickname" or "onPremisesSamAccountName".
+	// If unset, the preferred_username field will remain empty.
+	PreferredUsernameField string `json:"preferredUsernameField"`
 }
 
 // Open returns a strategy for logging in through Microsoft.
 func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, error) {
 	m := microsoftConnector{
-		apiURL:               strings.TrimSuffix(c.APIURL, "/"),
-		graphURL:             strings.TrimSuffix(c.GraphURL, "/"),
-		redirectURI:          c.RedirectURI,
-		clientID:             c.ClientID,
-		clientSecret:         c.ClientSecret,
-		tenant:               c.Tenant,
-		onlySecurityGroups:   c.OnlySecurityGroups,
-		groups:               c.Groups,
-		groupNameFormat:      c.GroupNameFormat,
-		useGroupsAsWhitelist: c.UseGroupsAsWhitelist,
-		logger:               logger.With(slog.Group("connector", "type", "microsoft", "id", id)),
-		emailToLowercase:     c.EmailToLowercase,
-		promptType:           c.PromptType,
-		domainHint:           c.DomainHint,
-		scopes:               c.Scopes,
+		apiURL:                 strings.TrimSuffix(c.APIURL, "/"),
+		graphURL:               strings.TrimSuffix(c.GraphURL, "/"),
+		redirectURI:            c.RedirectURI,
+		clientID:               c.ClientID,
+		clientSecret:           c.ClientSecret,
+		tenant:                 c.Tenant,
+		onlySecurityGroups:     c.OnlySecurityGroups,
+		groups:                 c.Groups,
+		groupNameFormat:        c.GroupNameFormat,
+		useGroupsAsWhitelist:   c.UseGroupsAsWhitelist,
+		logger:                 logger.With(slog.Group("connector", "type", "microsoft", "id", id)),
+		emailToLowercase:       c.EmailToLowercase,
+		promptType:             c.PromptType,
+		domainHint:             c.DomainHint,
+		scopes:                 c.Scopes,
+		preferredUsernameField: c.PreferredUsernameField,
 	}
 
 	if m.apiURL == "" {
@@ -123,21 +129,22 @@ var (
 )
 
 type microsoftConnector struct {
-	apiURL               string
-	graphURL             string
-	redirectURI          string
-	clientID             string
-	clientSecret         string
-	tenant               string
-	onlySecurityGroups   bool
-	groupNameFormat      GroupNameFormat
-	groups               []string
-	useGroupsAsWhitelist bool
-	logger               *slog.Logger
-	emailToLowercase     bool
-	promptType           string
-	domainHint           string
-	scopes               []string
+	apiURL                 string
+	graphURL               string
+	redirectURI            string
+	clientID               string
+	clientSecret           string
+	tenant                 string
+	onlySecurityGroups     bool
+	groupNameFormat        GroupNameFormat
+	groups                 []string
+	useGroupsAsWhitelist   bool
+	logger                 *slog.Logger
+	emailToLowercase       bool
+	promptType             string
+	domainHint             string
+	scopes                 []string
+	preferredUsernameField string
 }
 
 func (c *microsoftConnector) isOrgTenant() bool {
@@ -175,9 +182,9 @@ func (c *microsoftConnector) oauth2Config(scopes connector.Scopes) *oauth2.Confi
 	}
 }
 
-func (c *microsoftConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (string, error) {
+func (c *microsoftConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (string, []byte, error) {
 	if c.redirectURI != callbackURL {
-		return "", fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
+		return "", nil, fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
 	}
 
 	var options []oauth2.AuthCodeOption
@@ -188,10 +195,10 @@ func (c *microsoftConnector) LoginURL(scopes connector.Scopes, callbackURL, stat
 		options = append(options, oauth2.SetAuthURLParam("domain_hint", c.domainHint))
 	}
 
-	return c.oauth2Config(scopes).AuthCodeURL(state, options...), nil
+	return c.oauth2Config(scopes).AuthCodeURL(state, options...), nil, nil
 }
 
-func (c *microsoftConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
+func (c *microsoftConnector) HandleCallback(s connector.Scopes, connData []byte, r *http.Request) (identity connector.Identity, err error) {
 	q := r.URL.Query()
 	if errType := q.Get("error"); errType != "" {
 		return identity, &oauth2Error{errType, q.Get("error_description")}
@@ -223,11 +230,12 @@ func (c *microsoftConnector) HandleCallback(s connector.Scopes, r *http.Request)
 		Email:         user.Email,
 		EmailVerified: true,
 	}
+	c.setPreferredUsername(&identity, user)
 
 	if c.groupsRequired(s.Groups) {
 		groups, err := c.getGroups(ctx, client, user.ID)
 		if err != nil {
-			return identity, fmt.Errorf("microsoft: get groups: %v", err)
+			return identity, fmt.Errorf("microsoft: get groups: %w", err)
 		}
 		identity.Groups = groups
 	}
@@ -314,16 +322,34 @@ func (c *microsoftConnector) Refresh(ctx context.Context, s connector.Scopes, id
 
 	identity.Username = user.Name
 	identity.Email = user.Email
+	c.setPreferredUsername(&identity, user)
 
 	if c.groupsRequired(s.Groups) {
 		groups, err := c.getGroups(ctx, client, user.ID)
 		if err != nil {
-			return identity, fmt.Errorf("microsoft: get groups: %v", err)
+			return identity, fmt.Errorf("microsoft: get groups: %w", err)
 		}
 		identity.Groups = groups
 	}
 
 	return identity, nil
+}
+
+func (c *microsoftConnector) setPreferredUsername(identity *connector.Identity, u user) {
+	switch c.preferredUsernameField {
+	case "name":
+		identity.PreferredUsername = u.Name
+	case "email":
+		identity.PreferredUsername = u.Email
+	case "mailNickname":
+		identity.PreferredUsername = u.MailNickname
+	case "onPremisesSamAccountName":
+		identity.PreferredUsername = u.OnPremisesSamAccountName
+	default:
+		if c.preferredUsernameField != "" {
+			c.logger.Warn("preferred_username left empty. Invalid microsoft field mapped to preferred_username", "field", c.preferredUsernameField)
+		}
+	}
 }
 
 // https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/resources/user
@@ -342,22 +368,37 @@ func (c *microsoftConnector) Refresh(ctx context.Context, s connector.Scopes, id
 //
 //	The UPN is an Internet-style login name for the user
 //	based on the Internet standard RFC 822. By convention,
-//	this should map to the user's email name. The general
+//	this should map to the user’s email name. The general
 //	format is alias@domain, where domain must be present in
 //	the tenant’s collection of verified domains. This
 //	property is required when a user is created. The
 //	verified domains for the tenant can be accessed from the
 //	verifiedDomains property of organization. Supports
 //	$filter and $orderby.
+//
+// mailNickname      - The mail alias for the user.
+//
+//	This property must be specified when a user is created.
+//	Maximum length is 64 characters. Supports $filter.
+//
+// onPremisesSamAccountName - Contains the on-premises SAM account name
+//
+//	synchronized from the on-premises directory.
+//	This property is only populated for customers
+//	who are synchronizing their on-premises directory
+//	to Azure Active Directory via Azure AD Connect.
+//	Read-only.
 type user struct {
-	ID    string `json:"id"`
-	Name  string `json:"displayName"`
-	Email string `json:"userPrincipalName"`
+	ID                       string `json:"id"`
+	Name                     string `json:"displayName"`
+	Email                    string `json:"userPrincipalName"`
+	MailNickname             string `json:"mailNickname"`
+	OnPremisesSamAccountName string `json:"onPremisesSamAccountName"`
 }
 
 func (c *microsoftConnector) user(ctx context.Context, client *http.Client) (u user, err error) {
 	// https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/api/user_get
-	req, err := http.NewRequest("GET", c.graphURL+"/v1.0/me?$select=id,displayName,userPrincipalName", nil)
+	req, err := http.NewRequest("GET", c.graphURL+"/v1.0/me?$select=id,displayName,userPrincipalName,mailNickname,onPremisesSamAccountName", nil)
 	if err != nil {
 		return u, fmt.Errorf("new req: %v", err)
 	}
@@ -404,7 +445,7 @@ func (c *microsoftConnector) getGroups(ctx context.Context, client *http.Client,
 	// ensure that the user is in at least one required group
 	filteredGroups := groups_pkg.Filter(userGroups, c.groups)
 	if len(c.groups) > 0 && len(filteredGroups) == 0 {
-		return nil, fmt.Errorf("microsoft: user %v not in any of the required groups", userID)
+		return nil, &connector.UserNotInRequiredGroupsError{UserID: userID, Groups: c.groups}
 	} else if c.useGroupsAsWhitelist {
 		return filteredGroups, nil
 	}

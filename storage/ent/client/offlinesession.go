@@ -15,7 +15,7 @@ func (d *Database) CreateOfflineSessions(ctx context.Context, session storage.Of
 		return fmt.Errorf("encode refresh offline session: %w", err)
 	}
 
-	id := offlineSessionID(session.UserID, session.ConnID, d.hasher)
+	id := compositeKeyID(session.UserID, session.ConnID, d.hasher)
 	_, err = d.client.OfflineSession.Create().
 		SetID(id).
 		SetUserID(session.UserID).
@@ -31,7 +31,7 @@ func (d *Database) CreateOfflineSessions(ctx context.Context, session storage.Of
 
 // GetOfflineSessions extracts an offline session from the database by user id and connector id.
 func (d *Database) GetOfflineSessions(ctx context.Context, userID, connID string) (storage.OfflineSessions, error) {
-	id := offlineSessionID(userID, connID, d.hasher)
+	id := compositeKeyID(userID, connID, d.hasher)
 
 	offlineSession, err := d.client.OfflineSession.Get(ctx, id)
 	if err != nil {
@@ -42,7 +42,7 @@ func (d *Database) GetOfflineSessions(ctx context.Context, userID, connID string
 
 // DeleteOfflineSessions deletes an offline session from the database by user id and connector id.
 func (d *Database) DeleteOfflineSessions(ctx context.Context, userID, connID string) error {
-	id := offlineSessionID(userID, connID, d.hasher)
+	id := compositeKeyID(userID, connID, d.hasher)
 
 	err := d.client.OfflineSession.DeleteOneID(id).Exec(ctx)
 	if err != nil {
@@ -53,7 +53,7 @@ func (d *Database) DeleteOfflineSessions(ctx context.Context, userID, connID str
 
 // UpdateOfflineSessions changes an offline session by user id and connector id using an updater function.
 func (d *Database) UpdateOfflineSessions(ctx context.Context, userID string, connID string, updater func(s storage.OfflineSessions) (storage.OfflineSessions, error)) error {
-	id := offlineSessionID(userID, connID, d.hasher)
+	id := compositeKeyID(userID, connID, d.hasher)
 
 	tx, err := d.BeginTx(ctx)
 	if err != nil {

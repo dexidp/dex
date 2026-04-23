@@ -3,6 +3,7 @@
 package db
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -23,7 +24,9 @@ type Connector struct {
 	// ResourceVersion holds the value of the "resource_version" field.
 	ResourceVersion string `json:"resource_version,omitempty"`
 	// Config holds the value of the "config" field.
-	Config       []byte `json:"config,omitempty"`
+	Config []byte `json:"config,omitempty"`
+	// GrantTypes holds the value of the "grant_types" field.
+	GrantTypes   []string `json:"grant_types,omitempty"`
 	selectValues sql.SelectValues
 }
 
@@ -32,7 +35,7 @@ func (*Connector) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case connector.FieldConfig:
+		case connector.FieldConfig, connector.FieldGrantTypes:
 			values[i] = new([]byte)
 		case connector.FieldID, connector.FieldType, connector.FieldName, connector.FieldResourceVersion:
 			values[i] = new(sql.NullString)
@@ -81,6 +84,14 @@ func (_m *Connector) assignValues(columns []string, values []any) error {
 			} else if value != nil {
 				_m.Config = *value
 			}
+		case connector.FieldGrantTypes:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field grant_types", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.GrantTypes); err != nil {
+					return fmt.Errorf("unmarshal field grant_types: %w", err)
+				}
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -128,6 +139,9 @@ func (_m *Connector) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("config=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Config))
+	builder.WriteString(", ")
+	builder.WriteString("grant_types=")
+	builder.WriteString(fmt.Sprintf("%v", _m.GrantTypes))
 	builder.WriteByte(')')
 	return builder.String()
 }

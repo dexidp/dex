@@ -1,10 +1,13 @@
 package conformance
 
 import (
-	"context"
+	"strconv"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/kylelemons/godebug/pretty"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/dexidp/dex/storage"
@@ -23,6 +26,16 @@ func RunTransactionTests(t *testing.T, newStorage func(t *testing.T) storage.Sto
 		{"ClientConcurrentUpdate", testClientConcurrentUpdate},
 		{"PasswordConcurrentUpdate", testPasswordConcurrentUpdate},
 		{"KeysConcurrentUpdate", testKeysConcurrentUpdate},
+	})
+}
+
+// RunConcurrencyTests runs tests that verify storage implementations handle
+// high-contention parallel updates correctly. Unlike RunTransactionTests,
+// these tests use real goroutine-based parallelism rather than nested calls,
+// and are safe to run on all storage backends (including those with non-reentrant locks).
+func RunConcurrencyTests(t *testing.T, newStorage func(t *testing.T) storage.Storage) {
+	runTests(t, newStorage, []subTest{
+		{"RefreshTokenParallelUpdate", testRefreshTokenParallelUpdate},
 	})
 }
 
@@ -69,6 +82,7 @@ func testAuthRequestConcurrentUpdate(t *testing.T, s storage.Storage) {
 		ForceApprovalPrompt: true,
 		LoggedIn:            true,
 		Expiry:              neverExpire,
+		AuthTime:            defaultAuthTime,
 		ConnectorID:         "ldap",
 		ConnectorData:       []byte(`{"some":"data"}`),
 		Claims: storage.Claims{
@@ -110,10 +124,14 @@ func testPasswordConcurrentUpdate(t *testing.T, s storage.Storage) {
 	}
 
 	password := storage.Password{
-		Email:    "jane@example.com",
-		Hash:     passwordHash,
-		Username: "jane",
-		UserID:   "foobar",
+		Email:             "jane@example.com",
+		Hash:              passwordHash,
+		Username:          "jane",
+		Name:              "Jane Doe",
+		PreferredUsername: "jane-public",
+		EmailVerified:     boolPtr(true),
+		UserID:            "foobar",
+		Groups:            []string{"team-a"},
 	}
 	if err := s.CreatePassword(ctx, password); err != nil {
 		t.Fatalf("create password token: %v", err)
@@ -136,34 +154,67 @@ func testPasswordConcurrentUpdate(t *testing.T, s storage.Storage) {
 }
 
 func testKeysConcurrentUpdate(t *testing.T, s storage.Storage) {
-	// Test twice. Once for a create, once for an update.
-	for i := 0; i < 2; i++ {
-		n := time.Now().UTC().Round(time.Second)
-		keys1 := storage.Keys{
-			SigningKey:    jsonWebKeys[i].Private,
-			SigningKeyPub: jsonWebKeys[i].Public,
-			NextRotation:  n,
-		}
-
-		keys2 := storage.Keys{
-			SigningKey:    jsonWebKeys[2].Private,
-			SigningKeyPub: jsonWebKeys[2].Public,
-			NextRotation:  n.Add(time.Hour),
-			VerificationKeys: []storage.VerificationKey{
-				{
-					PublicKey: jsonWebKeys[0].Public,
-					Expiry:    n.Add(time.Hour),
-				},
-				{
-					PublicKey: jsonWebKeys[1].Public,
-					Expiry:    n.Add(time.Hour * 2),
+	tests := []struct {
+		name  string
+		keys1 storage.Keys
+		keys2 storage.Keys
+	}{
+		{
+			name: "create with rsa and es256 payloads",
+			keys1: storage.Keys{
+				SigningKey:    jsonWebKeys[0].Private,
+				SigningKeyPub: jsonWebKeys[0].Public,
+			},
+			keys2: storage.Keys{
+				SigningKey:    jsonWebKeys[5].Private,
+				SigningKeyPub: jsonWebKeys[5].Public,
+				VerificationKeys: []storage.VerificationKey{
+					{
+						PublicKey: jsonWebKeys[1].Public,
+					},
+					{
+						PublicKey: jsonWebKeys[6].Public,
+					},
 				},
 			},
+		},
+		{
+			name: "update with es256 and rsa payloads",
+			keys1: storage.Keys{
+				SigningKey:    jsonWebKeys[6].Private,
+				SigningKeyPub: jsonWebKeys[6].Public,
+			},
+			keys2: storage.Keys{
+				SigningKey:    jsonWebKeys[2].Private,
+				SigningKeyPub: jsonWebKeys[2].Public,
+				VerificationKeys: []storage.VerificationKey{
+					{
+						PublicKey: jsonWebKeys[5].Public,
+					},
+					{
+						PublicKey: jsonWebKeys[3].Public,
+					},
+				},
+			},
+		},
+	}
+
+	// Run twice against the same storage. The first case exercises row creation,
+	// the second runs with an existing keys row and therefore exercises updates.
+	for _, tt := range tests {
+		n := time.Now().UTC().Round(time.Second)
+		keys1 := tt.keys1
+		keys1.NextRotation = n
+		keys2 := tt.keys2
+		keys2.NextRotation = n.Add(time.Hour)
+
+		for i := range keys2.VerificationKeys {
+			keys2.VerificationKeys[i].Expiry = n.Add(time.Duration(i+1) * time.Hour)
 		}
 
 		var err1, err2 error
 
-		ctx := context.TODO()
+		ctx := t.Context()
 		err1 = s.UpdateKeys(ctx, func(old storage.Keys) (storage.Keys, error) {
 			err2 = s.UpdateKeys(ctx, func(old storage.Keys) (storage.Keys, error) {
 				return keys1, nil
@@ -172,7 +223,130 @@ func testKeysConcurrentUpdate(t *testing.T, s storage.Storage) {
 		})
 
 		if (err1 == nil) == (err2 == nil) {
-			t.Errorf("update keys: concurrent updates both returned no error")
+			t.Errorf("%s: concurrent updates both returned no error", tt.name)
 		}
+
+		got, err := s.GetKeys(ctx)
+		require.NoError(t, err)
+
+		got.NextRotation = got.NextRotation.UTC()
+
+		diff1 := pretty.Compare(keys1, got)
+		diff2 := pretty.Compare(keys2, got)
+		match1 := diff1 == ""
+		match2 := diff2 == ""
+		if match1 == match2 {
+			t.Fatalf("%s: final stored keys did not match an expected winner\nkeys1 diff:\n%s\nkeys2 diff:\n%s", tt.name, diff1, diff2)
+		}
+
+		requireSigningKeyRoundTripUsable(t, got)
+	}
+}
+
+// testRefreshTokenParallelUpdate tests that many parallel updates to the same
+// refresh token are serialized correctly by the storage and no updates are lost.
+//
+// Each goroutine atomically increments a counter stored in the Token field.
+// After all goroutines finish, the counter must equal the number of successful updates.
+// A mismatch indicates lost updates due to broken atomicity.
+func testRefreshTokenParallelUpdate(t *testing.T, s storage.Storage) {
+	ctx := t.Context()
+
+	id := storage.NewID()
+	refresh := storage.RefreshToken{
+		ID:          id,
+		Token:       "0",
+		Nonce:       "foo",
+		ClientID:    "client_id",
+		ConnectorID: "connector_id",
+		Scopes:      []string{"openid"},
+		CreatedAt:   time.Now().UTC().Round(time.Millisecond),
+		LastUsed:    time.Now().UTC().Round(time.Millisecond),
+		Claims: storage.Claims{
+			UserID:   "1",
+			Username: "jane",
+			Email:    "jane@example.com",
+		},
+	}
+
+	require.NoError(t, s.CreateRefresh(ctx, refresh))
+
+	const numWorkers = 100
+
+	type updateResult struct {
+		err      error
+		newToken string // token value written by this worker's updater
+	}
+
+	var wg sync.WaitGroup
+	results := make([]updateResult, numWorkers)
+
+	for i := range numWorkers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			results[i].err = s.UpdateRefreshToken(ctx, id, func(old storage.RefreshToken) (storage.RefreshToken, error) {
+				counter, _ := strconv.Atoi(old.Token)
+				old.Token = strconv.Itoa(counter + 1)
+				results[i].newToken = old.Token
+				return old, nil
+			})
+		}()
+	}
+
+	wg.Wait()
+
+	errCounts := map[string]int{}
+	var successes int
+	writtenTokens := map[string]int{}
+	for _, r := range results {
+		if r.err == nil {
+			successes++
+			writtenTokens[r.newToken]++
+		} else {
+			errCounts[r.err.Error()]++
+		}
+	}
+
+	for msg, count := range errCounts {
+		t.Logf("error (x%d): %s", count, msg)
+	}
+
+	stored, err := s.GetRefresh(ctx, id)
+	require.NoError(t, err)
+
+	counter, err := strconv.Atoi(stored.Token)
+	require.NoError(t, err)
+
+	t.Logf("parallel refresh token updates: %d/%d succeeded, final counter: %d", successes, numWorkers, counter)
+
+	if successes < numWorkers {
+		t.Errorf("not all updates succeeded: %d/%d (some failed under contention)", successes, numWorkers)
+	}
+
+	if counter != successes {
+		t.Errorf("lost updates detected: %d successful updates but counter is %d", successes, counter)
+	}
+
+	// Each successful updater must have seen a unique counter value.
+	// Duplicates would mean two updaters read the same state — a sign of broken atomicity.
+	for token, count := range writtenTokens {
+		if count > 1 {
+			t.Errorf("token %q was written by %d updaters — concurrent updaters saw the same state", token, count)
+		}
+	}
+
+	// Successful updaters must have produced a contiguous sequence 1..N.
+	// A gap would mean an updater saw stale state even though the write succeeded.
+	for i := 1; i <= successes; i++ {
+		if writtenTokens[strconv.Itoa(i)] != 1 {
+			t.Errorf("expected token %q to be written exactly once, got %d", strconv.Itoa(i), writtenTokens[strconv.Itoa(i)])
+		}
+	}
+
+	// The token stored in the database must match the highest value written.
+	// This confirms that the last successful update is the one persisted.
+	if stored.Token != strconv.Itoa(successes) {
+		t.Errorf("stored token %q does not match expected final value %q", stored.Token, strconv.Itoa(successes))
 	}
 }

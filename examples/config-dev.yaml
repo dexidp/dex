@@ -68,6 +68,7 @@ web:
 #   issuer: dex
 #   logoURL: theme/logo.png
 #   dir: web/
+#   Allowed values: light, dark
 #   theme: light
 
 # Configuration for telemetry
@@ -87,12 +88,23 @@ telemetry:
 # Is possible to specify units using only s, m and h suffixes.
 # expiry:
 #   deviceRequests: "5m"
-#   signingKeys: "6h"
+#   signingKeys: "6h" # deprecated, use signer.config.keysRotationPeriod
 #   idTokens: "24h"
 #   refreshTokens:
 #     reuseInterval: "3s"
 #     validIfNotUsedFor: "2160h" # 90 days
 #     absoluteLifetime: "3960h" # 165 days
+
+# Authentication sessions configuration.
+# Requires DEX_SESSIONS_ENABLED=true feature flag.
+# sessions:
+#   cookieName: "dex_session"
+#   absoluteLifetime: "24h"
+#   validIfNotUsedFor: "1h"
+#   rememberMeCheckedByDefault: false
+#   # Default SSO sharing policy for clients without explicit ssoSharedWith.
+#   # "all" = share with all clients (Keycloak-like), "none" = no sharing (default).
+#   ssoSharedWithDefault: "none"
 
 # Options for controlling the logger.
 # logger:
@@ -101,26 +113,63 @@ telemetry:
 
 # Default values shown below
 # oauth2:
-    # grantTypes determines the allowed set of authorization flows.
+#   # grantTypes determines the allowed set of authorization flows.
 #   grantTypes:
 #     - "authorization_code"
+#     - "client_credentials"
 #     - "refresh_token"
 #     - "implicit"
 #     - "password"
 #     - "urn:ietf:params:oauth:grant-type:device_code"
 #     - "urn:ietf:params:oauth:grant-type:token-exchange"
-    # responseTypes determines the allowed response contents of a successful authorization flow.
-    # use ["code", "token", "id_token"] to enable implicit flow for web-only clients.
+#   # responseTypes determines the allowed response contents of a successful authorization flow.
+#   # use ["code", "token", "id_token"] to enable implicit flow for web-only clients.
 #   responseTypes: [ "code" ] # also allowed are "token" and "id_token"
-    # By default, Dex will ask for approval to share data with application
-    # (approval for sharing data from connected IdP to Dex is separate process on IdP)
+#   # By default, Dex will ask for approval to share data with application
+#   # (approval for sharing data from connected IdP to Dex is separate process on IdP)
 #   skipApprovalScreen: false
-    # If only one authentication method is enabled, the default behavior is to
-    # go directly to it. For connected IdPs, this redirects the browser away
-    # from application to upstream provider such as the Google login page
+#   # If only one authentication method is enabled, the default behavior is to
+#   # go directly to it. For connected IdPs, this redirects the browser away
+#   # from application to upstream provider such as the Google login page
 #   alwaysShowLoginScreen: false
-    # Uncomment the passwordConnector to use a specific connector for password grants
+#   # Uncomment the passwordConnector to use a specific connector for password grants
 #   passwordConnector: local
+#   # PKCE (Proof Key for Code Exchange) configuration
+#   pkce:
+#     # If true, PKCE is required for all authorization code flows (OAuth 2.1).
+#     enforce: false
+#     # Supported code challenge methods. Defaults to ["S256", "plain"].
+#     codeChallengeMethodsSupported: ["S256", "plain"]
+
+# Multi-factor authentication configuration.
+# Requires DEX_SESSIONS_ENABLED=true feature flag.
+# mfa:
+#  authenticators:
+#  - id: totp-1
+#    type: TOTP
+#    config:
+#      issuer: "dex-1"
+#    # Optional: limit this authenticator to specific connector types (e.g., ldap, oidc, saml).
+#    # If omitted or empty, applies to all connector types.
+#    # It is recommended to use this option to prevent MFA from being used for connectors
+#    # with their own MFA mechanisms, e.g., OIDC, Google, etc. (but technically, it is possible).
+#    connectorTypes:
+#    - mockCallback
+#  - id: webauthn-1
+#    type: WebAuthn
+#    config:
+#      rpDisplayName: "Dex Dev"
+#      # rpID defaults to the hostname of the issuer URL.
+#      # rpID: "127.0.0.1"
+#      # rpOrigins defaults to the issuer URL.
+#      # rpOrigins:
+#      # - "http://127.0.0.1:5556"
+#      attestationPreference: "indirect"  # none, indirect, or direct
+#      userVerification: "preferred"      # required, preferred, or discouraged
+#      # authenticatorAttachment: ""      # platform, cross-platform, or empty (any)
+#      timeout: "60s"
+#  defaultMFAChain:
+#  - totp-1
 
 # Instead of reading from an external storage, use this list of clients.
 #
@@ -129,17 +178,56 @@ staticClients:
 - id: example-app
   redirectURIs:
   - 'http://127.0.0.1:5555/callback'
+  - '/dex/device/callback'
+  postLogoutRedirectURIs:
+  - 'http://127.0.0.1:5555/'
   name: 'Example App'
   secret: ZXhhbXBsZS1hcHAtc2VjcmV0
+  # Optional: restrict which connectors this client can use for authentication.
+  # If omitted or empty, all connectors are allowed.
+  # allowedConnectors:
+  # - mock
+  # Optional: ordered list of MFA authenticator IDs the user must complete during login.
+  # References authenticator IDs from mfa.authenticators.
+  # If omitted, mfa.defaultMFAChain is used.
+  # mfaChain:
+  # - totp-1
+  # Optional: which other clients can reuse this client's authentication session (SSO).
+  # ["*"] = share with all clients, [] = share with no one.
+  # If omitted, ssoSharedWithDefault from sessions config is used.
+  # ssoSharedWith:
+  # - "*"
+
+# Example using environment variables
+# Set DEX_CLIENT_ID and DEX_SECURE_CLIENT_SECRET before starting Dex
+# - idEnv: DEX_CLIENT_ID
+#   secretEnv: DEX_CLIENT_SECRET
+#   redirectURIs:
+#   - 'http://127.0.0.1:5556/callback'
+#   name: 'Secure Example App'
+
 #  - id: example-device-client
 #    redirectURIs:
 #      - /device/callback
 #    name: 'Static Client for Device Flow'
 #    public: true
+
 connectors:
 - type: mockCallback
   id: mock
   name: Example
+  # grantTypes restricts which grant types can use this connector.
+  # If not specified, all grant types are allowed.
+  # Supported values:
+  #   - "authorization_code"
+  #   - "implicit"
+  #   - "refresh_token"
+  #   - "password"
+  #   - "urn:ietf:params:oauth:grant-type:device_code"
+  #   - "urn:ietf:params:oauth:grant-type:token-exchange"
+#  grantTypes:
+#  - "authorization_code"
+#  - "refresh_token"
 # - type: google
 #   id: google
 #   name: Google
@@ -164,4 +252,25 @@ staticPasswords:
   # bcrypt hash of the string "password": $(echo password | htpasswd -BinC 10 admin | cut -d: -f2)
   hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
   username: "admin"
+  name: "Admin User"
+  emailVerified: true
+  preferredUsername: "admin"
+  groups:
+  - "team-a"
+  - "team-a/admins"
   userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
+
+# Configuration for signing JWT tokens.
+# - "local": use local keys (supports RS256 (default) and ES256)
+# - "vault": use Vault Transit backend (supports RSA, ECDSA, and Ed25519)
+signer:
+  type: local
+  config:
+    keysRotationPeriod: "6h"
+    algorithm: "RS256" # changes apply on the next key rotation
+# signer
+#   type: vault
+#   config:
+#     addr: http://127.0.0.1:8200
+#     token: root
+#     keyName: dex-key

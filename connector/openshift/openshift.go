@@ -138,12 +138,12 @@ func (c *openshiftConnector) Close() error {
 }
 
 // LoginURL returns the URL to redirect the user to login with.
-func (c *openshiftConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (string, error) {
+func (c *openshiftConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (string, []byte, error) {
 	if c.redirectURI != callbackURL {
-		return "", fmt.Errorf("expected callback URL %q did not match the URL in the config %q",
+		return "", nil, fmt.Errorf("expected callback URL %q did not match the URL in the config %q",
 			callbackURL, c.redirectURI)
 	}
-	return c.oauth2Config.AuthCodeURL(state), nil
+	return c.oauth2Config.AuthCodeURL(state), nil, nil
 }
 
 type oauth2Error struct {
@@ -160,6 +160,7 @@ func (e *oauth2Error) Error() string {
 
 // HandleCallback parses the request and returns the user's identity
 func (c *openshiftConnector) HandleCallback(s connector.Scopes,
+	connData []byte,
 	r *http.Request,
 ) (identity connector.Identity, err error) {
 	q := r.URL.Query()

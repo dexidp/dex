@@ -12,7 +12,7 @@ import (
 
 var logFormats = []string{"json", "text"}
 
-func newLogger(level slog.Level, format string) (*slog.Logger, error) {
+func newLogger(level slog.Level, format string, excludeFields []string) (*slog.Logger, error) {
 	var handler slog.Handler
 	switch strings.ToLower(format) {
 	case "", "text":
@@ -26,6 +26,8 @@ func newLogger(level slog.Level, format string) (*slog.Logger, error) {
 	default:
 		return nil, fmt.Errorf("log format is not one of the supported values (%s): %s", strings.Join(logFormats, ", "), format)
 	}
+
+	handler = newExcludingHandler(handler, excludeFields)
 
 	return slog.New(newRequestContextHandler(handler)), nil
 }

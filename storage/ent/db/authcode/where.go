@@ -129,6 +129,11 @@ func CodeChallengeMethod(v string) predicate.AuthCode {
 	return predicate.AuthCode(sql.FieldEQ(FieldCodeChallengeMethod, v))
 }
 
+// AuthTime applies equality check predicate on the "auth_time" field. It's identical to AuthTimeEQ.
+func AuthTime(v time.Time) predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldEQ(FieldAuthTime, v))
+}
+
 // ClientIDEQ applies the EQ predicate on the "client_id" field.
 func ClientIDEQ(v string) predicate.AuthCode {
 	return predicate.AuthCode(sql.FieldEQ(FieldClientID, v))
@@ -897,6 +902,56 @@ func CodeChallengeMethodEqualFold(v string) predicate.AuthCode {
 // CodeChallengeMethodContainsFold applies the ContainsFold predicate on the "code_challenge_method" field.
 func CodeChallengeMethodContainsFold(v string) predicate.AuthCode {
 	return predicate.AuthCode(sql.FieldContainsFold(FieldCodeChallengeMethod, v))
+}
+
+// AuthTimeEQ applies the EQ predicate on the "auth_time" field.
+func AuthTimeEQ(v time.Time) predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldEQ(FieldAuthTime, v))
+}
+
+// AuthTimeNEQ applies the NEQ predicate on the "auth_time" field.
+func AuthTimeNEQ(v time.Time) predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldNEQ(FieldAuthTime, v))
+}
+
+// AuthTimeIn applies the In predicate on the "auth_time" field.
+func AuthTimeIn(vs ...time.Time) predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldIn(FieldAuthTime, vs...))
+}
+
+// AuthTimeNotIn applies the NotIn predicate on the "auth_time" field.
+func AuthTimeNotIn(vs ...time.Time) predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldNotIn(FieldAuthTime, vs...))
+}
+
+// AuthTimeGT applies the GT predicate on the "auth_time" field.
+func AuthTimeGT(v time.Time) predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldGT(FieldAuthTime, v))
+}
+
+// AuthTimeGTE applies the GTE predicate on the "auth_time" field.
+func AuthTimeGTE(v time.Time) predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldGTE(FieldAuthTime, v))
+}
+
+// AuthTimeLT applies the LT predicate on the "auth_time" field.
+func AuthTimeLT(v time.Time) predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldLT(FieldAuthTime, v))
+}
+
+// AuthTimeLTE applies the LTE predicate on the "auth_time" field.
+func AuthTimeLTE(v time.Time) predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldLTE(FieldAuthTime, v))
+}
+
+// AuthTimeIsNil applies the IsNil predicate on the "auth_time" field.
+func AuthTimeIsNil() predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldIsNull(FieldAuthTime))
+}
+
+// AuthTimeNotNil applies the NotNil predicate on the "auth_time" field.
+func AuthTimeNotNil() predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldNotNull(FieldAuthTime))
 }
 
 // And groups predicates with the AND operator between them.

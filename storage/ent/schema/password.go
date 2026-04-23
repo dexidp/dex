@@ -32,9 +32,20 @@ func (Password) Fields() []ent.Field {
 		field.Text("username").
 			SchemaType(textSchema).
 			NotEmpty(),
+		field.Text("name").
+			SchemaType(textSchema).
+			Default(""),
+		field.Text("preferred_username").
+			SchemaType(textSchema).
+			Default(""),
+		field.Bool("email_verified").
+			Optional().
+			Nillable(),
 		field.Text("user_id").
 			SchemaType(textSchema).
 			NotEmpty(),
+		field.JSON("groups", []string{}).
+			Optional(),
 	}
 }
 

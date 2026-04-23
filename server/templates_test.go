@@ -32,6 +32,27 @@ func TestRelativeURL(t *testing.T) {
 			expected:   "../assets/css/main.css",
 		},
 		{
+			name:       "server-root-page",
+			serverPath: "/dex",
+			reqPath:    "/dex",
+			assetPath:  "static/main.css",
+			expected:   "dex/static/main.css",
+		},
+		{
+			name:       "server-root-page-nested",
+			serverPath: "/dex/idp",
+			reqPath:    "/dex/idp",
+			assetPath:  "theme/styles.css",
+			expected:   "dex/idp/theme/styles.css",
+		},
+		{
+			name:       "server-root-no-subpath",
+			serverPath: "/",
+			reqPath:    "/",
+			assetPath:  "static/main.css",
+			expected:   "static/main.css",
+		},
+		{
 			name:       "external-url",
 			serverPath: "/dex",
 			reqPath:    "/dex/auth/connector",

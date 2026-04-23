@@ -38,6 +38,8 @@ func (Connector) Fields() []ent.Field {
 		field.Text("resource_version").
 			SchemaType(textSchema),
 		field.Bytes("config"),
+		field.JSON("grant_types", []string{}).
+			Optional(),
 	}
 }
 

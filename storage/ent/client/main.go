@@ -10,6 +10,7 @@ import (
 	"github.com/dexidp/dex/storage/ent/db"
 	"github.com/dexidp/dex/storage/ent/db/authcode"
 	"github.com/dexidp/dex/storage/ent/db/authrequest"
+	"github.com/dexidp/dex/storage/ent/db/authsession"
 	"github.com/dexidp/dex/storage/ent/db/devicerequest"
 	"github.com/dexidp/dex/storage/ent/db/devicetoken"
 	"github.com/dexidp/dex/storage/ent/db/migrate"
@@ -105,6 +106,19 @@ func (d *Database) GarbageCollect(ctx context.Context, now time.Time) (storage.G
 		return result, convertDBError("gc device token: %w", err)
 	}
 	result.DeviceTokens = int64(q)
+
+	q, err = d.client.AuthSession.Delete().
+		Where(
+			authsession.Or(
+				authsession.AbsoluteExpiryLT(utcNow),
+				authsession.IdleExpiryLT(utcNow),
+			),
+		).
+		Exec(ctx)
+	if err != nil {
+		return result, convertDBError("gc auth session: %w", err)
+	}
+	result.AuthSessions = int64(q)
 
 	return result, err
 }

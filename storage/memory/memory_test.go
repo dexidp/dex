@@ -15,4 +15,5 @@ func TestStorage(t *testing.T) {
 		return New(logger)
 	}
 	conformance.RunTests(t, newStorage)
+	conformance.RunConcurrencyTests(t, newStorage)
 }

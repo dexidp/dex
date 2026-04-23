@@ -29,10 +29,9 @@ func NewCallbackConnector(logger *slog.Logger) connector.Connector {
 }
 
 var (
-	_ connector.CallbackConnector = &Callback{}
-
-	_ connector.PasswordConnector = passwordConnector{}
-	_ connector.RefreshConnector  = passwordConnector{}
+	_ connector.CallbackConnector      = &Callback{}
+	_ connector.RefreshConnector       = &Callback{}
+	_ connector.TokenIdentityConnector = &Callback{}
 )
 
 // Callback is a connector that requires no user interaction and always returns the same identity.
@@ -43,21 +42,21 @@ type Callback struct {
 }
 
 // LoginURL returns the URL to redirect the user to login with.
-func (m *Callback) LoginURL(s connector.Scopes, callbackURL, state string) (string, error) {
+func (m *Callback) LoginURL(s connector.Scopes, callbackURL, state string) (string, []byte, error) {
 	u, err := url.Parse(callbackURL)
 	if err != nil {
-		return "", fmt.Errorf("failed to parse callbackURL %q: %v", callbackURL, err)
+		return "", nil, fmt.Errorf("failed to parse callbackURL %q: %v", callbackURL, err)
 	}
 	v := u.Query()
 	v.Set("state", state)
 	u.RawQuery = v.Encode()
-	return u.String(), nil
+	return u.String(), nil, nil
 }
 
 var connectorData = []byte("foobar")
 
 // HandleCallback parses the request and returns the user's identity
-func (m *Callback) HandleCallback(s connector.Scopes, r *http.Request) (connector.Identity, error) {
+func (m *Callback) HandleCallback(s connector.Scopes, connData []byte, r *http.Request) (connector.Identity, error) {
 	return m.Identity, nil
 }
 
@@ -96,6 +95,11 @@ func (c *PasswordConfig) Open(id string, logger *slog.Logger) (connector.Connect
 	}
 	return &passwordConnector{c.Username, c.Password, logger}, nil
 }
+
+var (
+	_ connector.PasswordConnector = passwordConnector{}
+	_ connector.RefreshConnector  = passwordConnector{}
+)
 
 type passwordConnector struct {
 	username string

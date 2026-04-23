@@ -21,6 +21,20 @@ import (
 	"github.com/dexidp/dex/pkg/httpclient"
 )
 
+const (
+	codeChallengeMethodPlain = "plain"
+	codeChallengeMethodS256  = "S256"
+)
+
+func contains(arr []string, item string) bool {
+	for _, itemFromArray := range arr {
+		if itemFromArray == item {
+			return true
+		}
+	}
+	return false
+}
+
 // Config holds configuration options for OpenID Connect logins.
 type Config struct {
 	Issuer string `json:"issuer"`
@@ -84,6 +98,10 @@ type Config struct {
 	// PromptType will be used for the prompt parameter (when offline_access, by default prompt=consent)
 	PromptType *string `json:"promptType"`
 
+	// PKCEChallenge specifies which PKCE algorithm will be used
+	// If not setted it will be auto-detected the best-fit for the connector.
+	PKCEChallenge string `json:"pkceChallenge"`
+
 	// OverrideClaimMapping will be used to override the options defined in claimMappings.
 	// i.e. if there are 'email' and `preferred_email` claims available, by default Dex will always use the `email` claim independent of the ClaimMapping.EmailKey.
 	// This setting allows you to override the default behavior of Dex and enforce the mappings defined in `claimMapping`.
@@ -118,10 +136,13 @@ type ProviderDiscoveryOverrides struct {
 	// JWKSURL provides a way to user overwrite the JWKS URL
 	// from the .well-known/openid-configuration jwks_uri
 	JWKSURL string `json:"jwksURL"`
+	// EndSessionURL provides a way to override the end_session_endpoint
+	// from the .well-known/openid-configuration
+	EndSessionURL string `json:"endSessionURL"`
 }
 
 func (o *ProviderDiscoveryOverrides) Empty() bool {
-	return o.TokenURL == "" && o.AuthURL == "" && o.JWKSURL == ""
+	return o.TokenURL == "" && o.AuthURL == "" && o.JWKSURL == "" && o.EndSessionURL == ""
 }
 
 func getProvider(ctx context.Context, issuer string, overrides ProviderDiscoveryOverrides) (*oidc.Provider, error) {
@@ -224,6 +245,25 @@ func knownBrokenAuthHeaderProvider(issuerURL string) bool {
 	return false
 }
 
+// PKCEChallengeData is used to store info for PKCE Challenge method and verifier
+// in the connectorData
+type PKCEChallengeData struct {
+	CodeChallenge       string `json:"codeChallenge"`
+	CodeChallengeMethod string `json:"codeChallengeMethod"`
+}
+
+// Returns an AuthCodeOption according to the provided codeChallengeMethod
+func getAuthCodeOptionForCodeChallenge(codeVerifier, codeChallengeMethod string) (oauth2.AuthCodeOption, error) {
+	switch codeChallengeMethod {
+	case codeChallengeMethodPlain:
+		return oauth2.VerifierOption(codeVerifier), nil
+	case codeChallengeMethodS256:
+		return oauth2.S256ChallengeOption(codeVerifier), nil
+	default:
+		return nil, fmt.Errorf("unknown challenge method (%v)", codeChallengeMethod)
+	}
+}
+
 // Open returns a connector which can be used to login users through an upstream
 // OpenID Connect provider.
 func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector, err error) {
@@ -282,6 +322,44 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		}
 	}
 
+	// Obtain metadata from the provider
+	var metadata struct {
+		CodeChallengeMethodsSupported []string `json:"code_challenge_methods_supported"`
+		EndSessionEndpoint            string   `json:"end_session_endpoint"`
+	}
+	if err := provider.Claims(&metadata); err != nil {
+		logger.Warn("failed to parse provider metadata")
+	}
+	// if PKCEChallenge method has not been setted in the config, auto-detect the best fit
+	if c.PKCEChallenge == "" {
+		if contains(metadata.CodeChallengeMethodsSupported, codeChallengeMethodS256) {
+			c.PKCEChallenge = codeChallengeMethodS256
+		} else if contains(metadata.CodeChallengeMethodsSupported, codeChallengeMethodPlain) {
+			c.PKCEChallenge = codeChallengeMethodPlain
+		}
+	} else {
+		// if PKCEChallenge method has been setted in the config, check if it is supported
+		if !contains(metadata.CodeChallengeMethodsSupported, c.PKCEChallenge) {
+			logger.Warn("provided PKCEChallenge method not supported by the connector")
+		}
+	}
+
+	endSessionURL := metadata.EndSessionEndpoint
+	if c.ProviderDiscoveryOverrides.EndSessionURL != "" {
+		endSessionURL = c.ProviderDiscoveryOverrides.EndSessionURL
+	}
+	if endSessionURL != "" {
+		endSessionParsed, err := url.Parse(endSessionURL)
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("oidc: invalid end_session_endpoint: %v", err)
+		}
+		if endSessionParsed.Scheme != "https" && endSessionParsed.Scheme != "http" {
+			cancel()
+			return nil, fmt.Errorf("oidc: end_session_endpoint must use http or https scheme, got %q", endSessionParsed.Scheme)
+		}
+	}
+
 	clientID := c.ClientID
 	return &oidcConnector{
 		provider:    provider,
@@ -316,12 +394,16 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		groupsFilter:              groupsFilter,
 		groupsPrefix:              c.ClaimMutations.ModifyGroupNames.Prefix,
 		groupsSuffix:              c.ClaimMutations.ModifyGroupNames.Suffix,
+		pkceChallenge:             c.PKCEChallenge,
+		endSessionURL:             endSessionURL,
 	}, nil
 }
 
 var (
-	_ connector.CallbackConnector = (*oidcConnector)(nil)
-	_ connector.RefreshConnector  = (*oidcConnector)(nil)
+	_ connector.CallbackConnector       = (*oidcConnector)(nil)
+	_ connector.RefreshConnector        = (*oidcConnector)(nil)
+	_ connector.TokenIdentityConnector  = (*oidcConnector)(nil)
+	_ connector.LogoutCallbackConnector = (*oidcConnector)(nil)
 )
 
 type oidcConnector struct {
@@ -348,6 +430,8 @@ type oidcConnector struct {
 	groupsFilter              *regexp.Regexp
 	groupsPrefix              string
 	groupsSuffix              string
+	pkceChallenge             string
+	endSessionURL             string
 }
 
 func (c *oidcConnector) Close() error {
@@ -355,12 +439,13 @@ func (c *oidcConnector) Close() error {
 	return nil
 }
 
-func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) (string, error) {
+func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) (string, []byte, error) {
 	if c.redirectURI != callbackURL {
-		return "", fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
+		return "", nil, fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
 	}
 
 	var opts []oauth2.AuthCodeOption
+	var connectorData []byte
 
 	if len(c.acrValues) > 0 {
 		acrValues := strings.Join(c.acrValues, " ")
@@ -370,7 +455,25 @@ func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) 
 	if s.OfflineAccess {
 		opts = append(opts, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", c.promptType))
 	}
-	return c.oauth2Config.AuthCodeURL(state, opts...), nil
+
+	if c.pkceChallenge != "" {
+		codeVerifier := oauth2.GenerateVerifier()
+		authCodeOption, err := getAuthCodeOptionForCodeChallenge(codeVerifier, c.pkceChallenge)
+		if err != nil {
+			return "", nil, fmt.Errorf("oidc: failed to get PKCE AuthCodeOption for CodeChallenge: %v", err)
+		}
+		data := PKCEChallengeData{
+			CodeChallenge:       codeVerifier,
+			CodeChallengeMethod: c.pkceChallenge,
+		}
+		connectorData, err = json.Marshal(data)
+		if err != nil {
+			return "", nil, fmt.Errorf("oidc: failed to create PKCEChallenge data: %v", err)
+		}
+		opts = append(opts, authCodeOption)
+	}
+
+	return c.oauth2Config.AuthCodeURL(state, opts...), connectorData, nil
 }
 
 type oauth2Error struct {
@@ -393,7 +496,7 @@ const (
 	exchangeCaller
 )
 
-func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
+func (c *oidcConnector) HandleCallback(s connector.Scopes, connData []byte, r *http.Request) (identity connector.Identity, err error) {
 	q := r.URL.Query()
 	if errType := q.Get("error"); errType != "" {
 		return identity, &oauth2Error{errType, q.Get("error_description")}
@@ -401,7 +504,19 @@ func (c *oidcConnector) HandleCallback(s connector.Scopes, r *http.Request) (ide
 
 	ctx := context.WithValue(r.Context(), oauth2.HTTPClient, c.httpClient)
 
-	token, err := c.oauth2Config.Exchange(ctx, q.Get("code"))
+	var opts []oauth2.AuthCodeOption
+	if c.pkceChallenge != "" {
+		var data PKCEChallengeData
+		if err := json.Unmarshal(connData, &data); err != nil {
+			return identity, fmt.Errorf("oidc: failed to parse PKCEChallenge data: %v", err)
+		}
+		if data.CodeChallenge == "" {
+			return identity, fmt.Errorf("oidc: invalid PKCE CodeChallenge")
+		}
+		opts = append(opts, oauth2.VerifierOption(data.CodeChallenge))
+	}
+
+	token, err := c.oauth2Config.Exchange(ctx, q.Get("code"), opts...)
 	if err != nil {
 		return identity, fmt.Errorf("oidc: failed to get token: %v", err)
 	}
@@ -646,4 +761,33 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	}
 
 	return identity, nil
+}
+
+// LogoutURL returns the upstream OIDC provider's end_session_endpoint URL.
+// Per the OIDC RP-Initiated Logout spec, the post_logout_redirect_uri parameter
+// tells the upstream where to redirect after logout.
+func (c *oidcConnector) LogoutURL(_ context.Context, _ []byte, postLogoutRedirectURI string) (string, error) {
+	if c.endSessionURL == "" {
+		return "", nil
+	}
+
+	u, err := url.Parse(c.endSessionURL)
+	if err != nil {
+		return "", fmt.Errorf("oidc: failed to parse end_session_endpoint: %v", err)
+	}
+
+	q := u.Query()
+	if postLogoutRedirectURI != "" {
+		q.Set("post_logout_redirect_uri", postLogoutRedirectURI)
+		q.Set("client_id", c.oauth2Config.ClientID)
+	}
+	u.RawQuery = q.Encode()
+
+	return u.String(), nil
+}
+
+// HandleLogoutCallback is a no-op for OIDC. The end_session_endpoint simply
+// redirects back without a structured response to validate.
+func (c *oidcConnector) HandleLogoutCallback(_ context.Context, _ *http.Request) error {
+	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -12,6 +13,76 @@ import (
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
+
+type RefreshTokenPolicy struct {
+	rotateRefreshTokens bool // enable rotation
+
+	absoluteLifetime  time.Duration // interval from token creation to the end of its life
+	validIfNotUsedFor time.Duration // interval from last token update to the end of its life
+	reuseInterval     time.Duration // interval within which old refresh token is allowed to be reused
+
+	now func() time.Time
+
+	logger *slog.Logger
+}
+
+func NewRefreshTokenPolicy(logger *slog.Logger, rotation bool, validIfNotUsedFor, absoluteLifetime, reuseInterval string) (*RefreshTokenPolicy, error) {
+	r := RefreshTokenPolicy{now: time.Now, logger: logger}
+	var err error
+
+	if validIfNotUsedFor != "" {
+		r.validIfNotUsedFor, err = time.ParseDuration(validIfNotUsedFor)
+		if err != nil {
+			return nil, fmt.Errorf("invalid config value %q for refresh token valid if not used for: %v", validIfNotUsedFor, err)
+		}
+		logger.Info("config refresh tokens", "valid_if_not_used_for", validIfNotUsedFor)
+	}
+
+	if absoluteLifetime != "" {
+		r.absoluteLifetime, err = time.ParseDuration(absoluteLifetime)
+		if err != nil {
+			return nil, fmt.Errorf("invalid config value %q for refresh tokens absolute lifetime: %v", absoluteLifetime, err)
+		}
+		logger.Info("config refresh tokens", "absolute_lifetime", absoluteLifetime)
+	}
+
+	if reuseInterval != "" {
+		r.reuseInterval, err = time.ParseDuration(reuseInterval)
+		if err != nil {
+			return nil, fmt.Errorf("invalid config value %q for refresh tokens reuse interval: %v", reuseInterval, err)
+		}
+		logger.Info("config refresh tokens", "reuse_interval", reuseInterval)
+	}
+
+	r.rotateRefreshTokens = !rotation
+	logger.Info("config refresh tokens rotation", "enabled", r.rotateRefreshTokens)
+	return &r, nil
+}
+
+func (r *RefreshTokenPolicy) RotationEnabled() bool {
+	return r.rotateRefreshTokens
+}
+
+func (r *RefreshTokenPolicy) CompletelyExpired(lastUsed time.Time) bool {
+	if r.absoluteLifetime == 0 {
+		return false // expiration disabled
+	}
+	return r.now().After(lastUsed.Add(r.absoluteLifetime))
+}
+
+func (r *RefreshTokenPolicy) ExpiredBecauseUnused(lastUsed time.Time) bool {
+	if r.validIfNotUsedFor == 0 {
+		return false // expiration disabled
+	}
+	return r.now().After(lastUsed.Add(r.validIfNotUsedFor))
+}
+
+func (r *RefreshTokenPolicy) AllowedToReuse(lastUsed time.Time) bool {
+	if r.reuseInterval == 0 {
+		return false // expiration disabled
+	}
+	return !r.now().After(lastUsed.Add(r.reuseInterval))
+}
 
 func contains(arr []string, item string) bool {
 	for _, itemFromArray := range arr {
@@ -34,6 +105,10 @@ func (r *refreshError) Error() string {
 
 func newInternalServerError() *refreshError {
 	return &refreshError{msg: errInvalidRequest, desc: "", code: http.StatusInternalServerError}
+}
+
+func newUpstreamRefreshError() *refreshError {
+	return &refreshError{msg: errInvalidGrant, desc: "Upstream identity provider refresh failed.", code: http.StatusBadGateway}
 }
 
 func newBadRequestError(desc string) *refreshError {
@@ -131,6 +206,10 @@ func (s *Server) getRefreshTokenFromStorage(ctx context.Context, clientID *strin
 		s.logger.ErrorContext(ctx, "connector not found", "connector_id", refresh.ConnectorID, "err", err)
 		return nil, newInternalServerError()
 	}
+	if !GrantTypeAllowed(refreshCtx.connector.GrantTypes, grantTypeRefreshToken) {
+		s.logger.ErrorContext(ctx, "connector does not allow refresh token grant", "connector_id", refresh.ConnectorID)
+		return nil, &refreshError{msg: errInvalidRequest, desc: "Connector does not support refresh tokens.", code: http.StatusBadRequest}
+	}
 
 	// Get Connector Data
 	session, err := s.storage.GetOfflineSessions(ctx, refresh.Claims.UserID, refresh.ConnectorID)
@@ -196,7 +275,7 @@ func (s *Server) refreshWithConnector(ctx context.Context, rCtx *refreshContext,
 		newIdent, err := refreshConn.Refresh(ctx, parseScopes(rCtx.scopes), ident)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "failed to refresh identity", "err", err)
-			return ident, newInternalServerError()
+			return ident, newUpstreamRefreshError()
 		}
 
 		return newIdent, nil
@@ -233,7 +312,7 @@ func (s *Server) updateOfflineSession(ctx context.Context, refresh *storage.Refr
 }
 
 // updateRefreshToken updates refresh token and offline session in the storage
-func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (*internal.RefreshToken, connector.Identity, *refreshError) {
+func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext, userIdent *storage.UserIdentity) (*internal.RefreshToken, connector.Identity, *refreshError) {
 	var rerr *refreshError
 
 	newToken := &internal.RefreshToken{
@@ -252,6 +331,12 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 		Groups:            rCtx.storageToken.Claims.Groups,
 	}
 
+	// When sessions are enabled, downstream token refresh is disconnected from the upstream
+	// identity provider. Instead of calling the connector's Refresh method (which would contact
+	// the upstream IdP and may fail if the upstream refresh token has expired), we use the claims
+	// stored in UserIdentity at the time of the last interactive login. This aligns with the
+	// behavior of other identity brokers (e.g., Keycloak, Auth0) that treat downstream sessions
+	// independently from the upstream provider session lifetime.
 	refreshTokenUpdater := func(old storage.RefreshToken) (storage.RefreshToken, error) {
 		rotationEnabled := s.refreshTokenPolicy.RotationEnabled()
 		reusingAllowed := s.refreshTokenPolicy.AllowedToReuse(old.LastUsed)
@@ -296,9 +381,21 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 		// Call  only once if there is a request which is not in the reuse interval.
 		// This is required to avoid multiple calls to the external IdP for concurrent requests.
 		// Dex will call the connector's Refresh method only once if request is not in reuse interval.
-		ident, rerr = s.refreshWithConnector(ctx, rCtx, ident)
-		if rerr != nil {
-			return old, rerr
+		// When sessions are enabled, use cached identity instead of refreshing upstream.
+		if userIdent != nil {
+			ident = connector.Identity{
+				UserID:            userIdent.Claims.UserID,
+				Username:          userIdent.Claims.Username,
+				PreferredUsername: userIdent.Claims.PreferredUsername,
+				Email:             userIdent.Claims.Email,
+				EmailVerified:     userIdent.Claims.EmailVerified,
+				Groups:            userIdent.Claims.Groups,
+			}
+		} else {
+			ident, rerr = s.refreshWithConnector(ctx, rCtx, ident)
+			if rerr != nil {
+				return old, rerr
+			}
 		}
 
 		// Update the claims of the refresh token.
@@ -349,7 +446,24 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		return
 	}
 
-	newToken, ident, rerr := s.updateRefreshToken(r.Context(), rCtx)
+	var userIdent *storage.UserIdentity
+
+	if s.sessionConfig != nil {
+		ui, err := s.storage.GetUserIdentity(r.Context(), rCtx.storageToken.Claims.UserID, rCtx.storageToken.ConnectorID)
+		if err != nil {
+			s.logger.ErrorContext(r.Context(), "failed to get user identity", "err", err)
+			s.refreshTokenErrHelper(w, newInternalServerError())
+			return
+		}
+		userIdent = &ui
+	}
+
+	authTime := time.Time{}
+	if userIdent != nil {
+		authTime = userIdent.LastLogin
+	}
+
+	newToken, ident, rerr := s.updateRefreshToken(r.Context(), rCtx, userIdent)
 	if rerr != nil {
 		s.refreshTokenErrHelper(w, rerr)
 		return
@@ -364,14 +478,14 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		Groups:            ident.Groups,
 	}
 
-	accessToken, _, err := s.newAccessToken(r.Context(), client.ID, claims, rCtx.scopes, rCtx.storageToken.Nonce, rCtx.storageToken.ConnectorID)
+	accessToken, _, err := s.newAccessToken(r.Context(), client.ID, claims, rCtx.scopes, rCtx.storageToken.Nonce, rCtx.storageToken.ConnectorID, authTime)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to create new access token", "err", err)
 		s.refreshTokenErrHelper(w, newInternalServerError())
 		return
 	}
 
-	idToken, expiry, err := s.newIDToken(r.Context(), client.ID, claims, rCtx.scopes, rCtx.storageToken.Nonce, accessToken, "", rCtx.storageToken.ConnectorID)
+	idToken, expiry, err := s.newIDToken(r.Context(), client.ID, claims, rCtx.scopes, rCtx.storageToken.Nonce, accessToken, "", rCtx.storageToken.ConnectorID, authTime)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to create ID token", "err", err)
 		s.refreshTokenErrHelper(w, newInternalServerError())

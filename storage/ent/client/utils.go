@@ -32,13 +32,13 @@ func convertDBError(t string, err error) error {
 	return fmt.Errorf(t, err)
 }
 
-// compose hashed id from user and connection id to use it as primary key
+// compositeKeyID composes a hashed id from two key parts to use as primary key.
 // ent doesn't support multi-key primary yet
 // https://github.com/facebook/ent/issues/400
-func offlineSessionID(userID string, connID string, hasher func() hash.Hash) string {
+func compositeKeyID(first string, second string, hasher func() hash.Hash) string {
 	h := hasher()
 
-	h.Write([]byte(userID))
-	h.Write([]byte(connID))
+	h.Write([]byte(first))
+	h.Write([]byte(second))
 	return fmt.Sprintf("%x", h.Sum(nil))
 }

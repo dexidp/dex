@@ -50,7 +50,7 @@ type opener interface {
 	open(logger *slog.Logger) (*conn, error)
 }
 
-func testDB(t *testing.T, o opener, withTransactions bool) {
+func testDB(t *testing.T, o opener, withTransactions, withConcurrentTests bool) {
 	// t.Fatal has a bad habit of not actually printing the error
 	fatal := func(i any) {
 		fmt.Fprintln(os.Stdout, i)
@@ -71,9 +71,16 @@ func testDB(t *testing.T, o opener, withTransactions bool) {
 	withTimeout(time.Minute*1, func() {
 		conformance.RunTests(t, newStorage)
 	})
+
 	if withTransactions {
 		withTimeout(time.Minute*1, func() {
 			conformance.RunTransactionTests(t, newStorage)
+		})
+	}
+
+	if withConcurrentTests {
+		withTimeout(time.Minute*1, func() {
+			conformance.RunConcurrencyTests(t, newStorage)
 		})
 	}
 }
@@ -236,7 +243,7 @@ func TestPostgres(t *testing.T) {
 			Mode: pgSSLDisable, // Postgres container doesn't support SSL.
 		},
 	}
-	testDB(t, p, true)
+	testDB(t, p, true, false)
 }
 
 const testMySQLEnv = "DEX_MYSQL_HOST"
@@ -273,5 +280,42 @@ func TestMySQL(t *testing.T) {
 			"innodb_lock_wait_timeout": "3",
 		},
 	}
-	testDB(t, s, true)
+	testDB(t, s, true, false)
+}
+
+const testMySQL8Env = "DEX_MYSQL8_HOST"
+
+func TestMySQL8(t *testing.T) {
+	host := os.Getenv(testMySQL8Env)
+	if host == "" {
+		t.Skipf("test environment variable %q not set, skipping", testMySQL8Env)
+	}
+
+	port := uint64(3306)
+	if rawPort := os.Getenv("DEX_MYSQL8_PORT"); rawPort != "" {
+		var err error
+
+		port, err = strconv.ParseUint(rawPort, 10, 32)
+		if err != nil {
+			t.Fatalf("invalid mysql port %q: %s", rawPort, err)
+		}
+	}
+
+	s := &MySQL{
+		NetworkDB: NetworkDB{
+			Database:          getenv("DEX_MYSQL8_DATABASE", "mysql"),
+			User:              getenv("DEX_MYSQL8_USER", "mysql"),
+			Password:          getenv("DEX_MYSQL8_PASSWORD", "mysql"),
+			Host:              host,
+			Port:              uint16(port),
+			ConnectionTimeout: 5,
+		},
+		SSL: SSL{
+			Mode: mysqlSSLFalse,
+		},
+		params: map[string]string{
+			"innodb_lock_wait_timeout": "3",
+		},
+	}
+	testDB(t, s, true, false)
 }

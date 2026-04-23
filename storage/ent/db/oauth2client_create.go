@@ -9,6 +9,7 @@ import (
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/db/oauth2client"
 )
 
@@ -52,6 +53,36 @@ func (_c *OAuth2ClientCreate) SetName(v string) *OAuth2ClientCreate {
 // SetLogoURL sets the "logo_url" field.
 func (_c *OAuth2ClientCreate) SetLogoURL(v string) *OAuth2ClientCreate {
 	_c.mutation.SetLogoURL(v)
+	return _c
+}
+
+// SetAllowedConnectors sets the "allowed_connectors" field.
+func (_c *OAuth2ClientCreate) SetAllowedConnectors(v []string) *OAuth2ClientCreate {
+	_c.mutation.SetAllowedConnectors(v)
+	return _c
+}
+
+// SetMfaChain sets the "mfa_chain" field.
+func (_c *OAuth2ClientCreate) SetMfaChain(v []string) *OAuth2ClientCreate {
+	_c.mutation.SetMfaChain(v)
+	return _c
+}
+
+// SetPostLogoutRedirectUris sets the "post_logout_redirect_uris" field.
+func (_c *OAuth2ClientCreate) SetPostLogoutRedirectUris(v []string) *OAuth2ClientCreate {
+	_c.mutation.SetPostLogoutRedirectUris(v)
+	return _c
+}
+
+// SetSSOSharedWith sets the "sso_shared_with" field.
+func (_c *OAuth2ClientCreate) SetSSOSharedWith(v []string) *OAuth2ClientCreate {
+	_c.mutation.SetSSOSharedWith(v)
+	return _c
+}
+
+// SetClientCredentialsClaims sets the "client_credentials_claims" field.
+func (_c *OAuth2ClientCreate) SetClientCredentialsClaims(v *storage.ClientCredentialsClaims) *OAuth2ClientCreate {
+	_c.mutation.SetClientCredentialsClaims(v)
 	return _c
 }
 
@@ -185,6 +216,26 @@ func (_c *OAuth2ClientCreate) createSpec() (*OAuth2Client, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.LogoURL(); ok {
 		_spec.SetField(oauth2client.FieldLogoURL, field.TypeString, value)
 		_node.LogoURL = value
+	}
+	if value, ok := _c.mutation.AllowedConnectors(); ok {
+		_spec.SetField(oauth2client.FieldAllowedConnectors, field.TypeJSON, value)
+		_node.AllowedConnectors = value
+	}
+	if value, ok := _c.mutation.MfaChain(); ok {
+		_spec.SetField(oauth2client.FieldMfaChain, field.TypeJSON, value)
+		_node.MfaChain = value
+	}
+	if value, ok := _c.mutation.PostLogoutRedirectUris(); ok {
+		_spec.SetField(oauth2client.FieldPostLogoutRedirectUris, field.TypeJSON, value)
+		_node.PostLogoutRedirectUris = value
+	}
+	if value, ok := _c.mutation.SSOSharedWith(); ok {
+		_spec.SetField(oauth2client.FieldSSOSharedWith, field.TypeJSON, value)
+		_node.SSOSharedWith = value
+	}
+	if value, ok := _c.mutation.ClientCredentialsClaims(); ok {
+		_spec.SetField(oauth2client.FieldClientCredentialsClaims, field.TypeJSON, value)
+		_node.ClientCredentialsClaims = value
 	}
 	return _node, _spec
 }
