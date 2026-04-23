@@ -609,18 +609,18 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		// Before rendering the password form, allow connectors that support SPNEGO to try Kerberos auth.
 		if sp, ok := pwConn.(connector.SPNEGOAware); ok {
 			scopes := parseScopes(authReq.Scopes)
-			if ident, handled, err := sp.TrySPNEGO(r.Context(), scopes, w, r); bool(handled) {
+			if ident, handled, err := sp.TrySPNEGO(ctx, scopes, w, r); bool(handled) {
 				if err != nil {
 					// SPNEGO handled the request but reported an error (e.g., LDAP lookup failed
 					// after successful Kerberos auth). Log error details, show generic message to user.
-					s.logger.ErrorContext(r.Context(), "SPNEGO authentication error", "err", err)
+					s.logger.ErrorContext(ctx, "SPNEGO authentication error", "err", err)
 					s.renderError(r, w, http.StatusUnauthorized, ErrMsgAuthenticationFailed)
 					return
 				}
 				if ident != nil {
-					redirectURL, canSkipApproval, err := s.finalizeLogin(r.Context(), *ident, authReq, conn.Connector)
+					redirectURL, canSkipApproval, err := s.finalizeLogin(ctx, *ident, authReq, conn.Connector)
 					if err != nil {
-						s.logger.ErrorContext(r.Context(), "failed to finalize login", "err", err)
+						s.logger.ErrorContext(ctx, "failed to finalize login", "err", err)
 						s.renderError(r, w, http.StatusInternalServerError, "Login error.")
 						return
 					}
@@ -628,7 +628,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 					if canSkipApproval {
 						authReq, err = s.storage.GetAuthRequest(ctx, authReq.ID)
 						if err != nil {
-							s.logger.ErrorContext(r.Context(), "failed to get finalized auth request", "err", err)
+							s.logger.ErrorContext(ctx, "failed to get finalized auth request", "err", err)
 							s.renderError(r, w, http.StatusInternalServerError, "Login error.")
 							return
 						}
@@ -639,7 +639,9 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 					http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 					return
 				}
-				// handled with no identity typically means a Negotiate challenge was written; do not render form.
+				// handled with no identity typically means the SPNEGO middleware
+				// wrote its own 401 (bare challenge, continuation, or reject); do
+				// not render the password form on top of it.
 				return
 			}
 		}

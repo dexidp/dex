@@ -192,9 +192,27 @@ type Config struct {
 }
 
 // kerberosConfig defines optional Kerberos (SPNEGO) SSO settings for LDAP.
+//
+// Required:
+//   - Enabled, KeytabPath.
+//
+// Optional tuning:
+//   - SPN: overrides the service principal name extracted from the keytab
+//     (useful when Dex sits behind a reverse proxy that rewrites Host).
+//   - KeytabPrincipal: selects a specific principal out of a multi-entry
+//     keytab (e.g. "HTTP/dex.example.com").
+//   - MaxClockSkew: seconds of acceptable clock skew between the KDC, the
+//     client and Dex; defaults to gokrb5's 300s when unset.
+//   - ExpectedRealm: rejects tickets from realms other than this one.
+//   - UsernameFromPrincipal: "localpart" (default) or "userPrincipalName".
+//   - FallbackToPassword: render the password form when SPNEGO is absent or
+//     fails, instead of returning 401.
 type kerberosConfig struct {
 	Enabled               bool   `json:"enabled"`
 	KeytabPath            string `json:"keytabPath"`
+	SPN                   string `json:"spn"`
+	KeytabPrincipal       string `json:"keytabPrincipal"`
+	MaxClockSkew          int    `json:"maxClockSkew"`
 	ExpectedRealm         string `json:"expectedRealm"`
 	UsernameFromPrincipal string `json:"usernameFromPrincipal"`
 	FallbackToPassword    bool   `json:"fallbackToPassword"`
@@ -253,15 +271,21 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 	if err != nil {
 		return nil, err
 	}
-	// If Kerberos is enabled, initialize gokrb5 validator.
-	if lc, ok := conn.(*ldapConnector); ok && lc.krbEnabled && lc.krbValidator == nil {
-		v, verr := newGokrb5ValidatorWithLogger(lc.krbConf.KeytabPath, logger)
-		if verr != nil {
-			logger.Warn("failed to initialize kerberos validator; disabling kerberos", "err", verr)
+	// If Kerberos is enabled, load the keytab and bind SPNEGO middleware.
+	if lc, ok := conn.(*ldapConnector); ok && lc.krbEnabled && lc.krb == nil {
+		st, kerr := loadKerberosState(lc.krbConf)
+		if kerr != nil {
+			logger.Warn("failed to initialize kerberos; disabling kerberos", "err", kerr)
 			lc.krbEnabled = false
 		} else {
-			lc.krbValidator = v
-			logger.Info("Kerberos enabled for LDAP connector", "keytab", lc.krbConf.KeytabPath, "expected_realm", lc.krbConf.ExpectedRealm)
+			lc.krb = st
+			logger.Info("kerberos SPNEGO enabled for LDAP connector",
+				"keytab", lc.krbConf.KeytabPath,
+				"spn", lc.krbConf.SPN,
+				"keytab_principal", lc.krbConf.KeytabPrincipal,
+				"expected_realm", lc.krbConf.ExpectedRealm,
+				"fallback_to_password", lc.krbConf.FallbackToPassword,
+			)
 		}
 	}
 	return connector.Connector(conn), nil
@@ -384,6 +408,7 @@ func (c *Config) openConnector(logger *slog.Logger) (*ldapConnector, error) {
 var (
 	_ connector.PasswordConnector = (*ldapConnector)(nil)
 	_ connector.RefreshConnector  = (*ldapConnector)(nil)
+	_ connector.SPNEGOAware       = (*ldapConnector)(nil)
 )
 
 type ldapConnector struct {
@@ -398,12 +423,16 @@ type ldapConnector struct {
 
 	logger *slog.Logger
 
-	// Kerberos/SPNEGO fields
-	krbEnabled   bool
-	krbConf      kerberosConfig
-	krbValidator KerberosValidator
-	// krbLookupUserHook allows tests to inject a user entry without LDAP queries.
-	krbLookupUserHook func(c *ldapConnector, username string) (ldap.Entry, bool, error)
+	// Kerberos/SPNEGO support. krbEnabled gates TrySPNEGO; krb is nil until
+	// the keytab has been loaded successfully in Open().
+	krbEnabled bool
+	krbConf    kerberosConfig
+	krb        *krbState
+	// krbLookupUserHook allows tests to replace the LDAP user lookup entirely.
+	// When set it is authoritative: lookupKerberosUser does not fall through
+	// to a real LDAP search. Tests signal "user not found" by returning an
+	// error, not by returning a zero entry with a nil error.
+	krbLookupUserHook func(ctx context.Context, c *ldapConnector, username string) (ldap.Entry, error)
 }
 
 // do initializes a connection to the LDAP directory and passes it to the

@@ -22,7 +22,7 @@ require (
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/mux v1.8.1
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
-	github.com/jcmturner/gofork v1.7.6
+	github.com/jcmturner/goidentity/v6 v6.0.1
 	github.com/jcmturner/gokrb5/v8 v8.4.4
 	github.com/kylelemons/godebug v1.1.0
 	github.com/lib/pq v1.12.3
@@ -103,7 +103,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jcmturner/aescts/v2 v2.0.0 // indirect
 	github.com/jcmturner/dnsutils/v2 v2.0.0 // indirect
-	github.com/jcmturner/goidentity/v6 v6.0.1 // indirect
+	github.com/jcmturner/gofork v1.7.6 // indirect
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
 	github.com/jonboulle/clockwork v0.5.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
