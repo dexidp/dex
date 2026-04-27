@@ -1,11 +1,13 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strconv"
 
 	"golang.org/x/crypto/bcrypt"
@@ -18,7 +20,7 @@ import (
 
 // apiVersion increases every time a new call is added to the API. Clients should use this info
 // to determine if the server supports specific features.
-const apiVersion = 3
+const apiVersion = 4
 
 const (
 	// recCost is the recommended bcrypt cost, which balances hash strength and
@@ -616,4 +618,513 @@ func defaultTo[T comparable](v, def T) T {
 		return def
 	}
 	return v
+}
+
+// revokeUserRefreshTokens revokes all refresh tokens for a user/connector pair
+// and cleans up offline session references. Errors are logged but not returned
+// (best-effort). Uses the shared revokeRefreshTokensFromStorage helper.
+func (d dexAPI) revokeUserRefreshTokens(ctx context.Context, userID, connectorID string) {
+	revokeRefreshTokensFromStorage(ctx, d.s, d.logger, userID, connectorID)
+}
+
+func storageAuthSessionToAPI(s storage.AuthSession) *api.AuthSession {
+	clientStates := make([]*api.ClientAuthState, 0, len(s.ClientStates))
+	for clientID, state := range s.ClientStates {
+		clientStates = append(clientStates, &api.ClientAuthState{
+			ClientId:          clientID,
+			Active:            state.Active,
+			ExpiresAt:         state.ExpiresAt.Unix(),
+			LastActivity:      state.LastActivity.Unix(),
+			LastTokenIssuedAt: state.LastTokenIssuedAt.Unix(),
+		})
+	}
+
+	return &api.AuthSession{
+		UserId:         s.UserID,
+		ConnectorId:    s.ConnectorID,
+		ClientStates:   clientStates,
+		CreatedAt:      s.CreatedAt.Unix(),
+		LastActivity:   s.LastActivity.Unix(),
+		IpAddress:      s.IPAddress,
+		UserAgent:      s.UserAgent,
+		AbsoluteExpiry: s.AbsoluteExpiry.Unix(),
+		IdleExpiry:     s.IdleExpiry.Unix(),
+	}
+}
+
+func storageMFADevicesToAPI(secrets map[string]*storage.MFASecret, credentials map[string][]storage.WebAuthnCredential) []*api.MFADeviceInfo {
+	// Collect all authenticator IDs from both maps.
+	authIDs := make(map[string]struct{})
+	for id := range secrets {
+		authIDs[id] = struct{}{}
+	}
+	for id := range credentials {
+		authIDs[id] = struct{}{}
+	}
+
+	devices := make([]*api.MFADeviceInfo, 0, len(authIDs))
+	for authID := range authIDs {
+		device := &api.MFADeviceInfo{
+			AuthenticatorId: authID,
+		}
+
+		if secret, ok := secrets[authID]; ok {
+			device.MfaSecret = &api.MFASecret{
+				AuthenticatorId: secret.AuthenticatorID,
+				Type:            secret.Type,
+				Confirmed:       secret.Confirmed,
+				CreatedAt:       secret.CreatedAt.Unix(),
+			}
+		}
+
+		if creds, ok := credentials[authID]; ok {
+			apiCreds := make([]*api.WebAuthnCredential, 0, len(creds))
+			for _, c := range creds {
+				apiCreds = append(apiCreds, &api.WebAuthnCredential{
+					CredentialId:    c.CredentialID,
+					AttestationType: c.AttestationType,
+					Aaguid:          c.AAGUID,
+					SignCount:       c.SignCount,
+					CloneWarning:    c.CloneWarning,
+					Transport:       c.Transport,
+					BackupEligible:  c.BackupEligible,
+					BackupState:     c.BackupState,
+					DisplayName:     c.DisplayName,
+					CreatedAt:       c.CreatedAt.Unix(),
+				})
+			}
+			device.WebauthnCredentials = apiCreds
+		}
+
+		devices = append(devices, device)
+	}
+	return devices
+}
+
+func storageUserIdentityToAPI(u storage.UserIdentity) *api.UserIdentity {
+	consents := make([]*api.ConsentEntry, 0, len(u.Consents))
+	for clientID, scopes := range u.Consents {
+		consents = append(consents, &api.ConsentEntry{
+			ClientId: clientID,
+			Scopes:   scopes,
+		})
+	}
+
+	identity := &api.UserIdentity{
+		UserId:        u.UserID,
+		ConnectorId:   u.ConnectorID,
+		Email:         u.Claims.Email,
+		EmailVerified: u.Claims.EmailVerified,
+		Username:      u.Claims.Username,
+		Groups:        u.Claims.Groups,
+		Consents:      consents,
+		MfaDevices:    storageMFADevicesToAPI(u.MFASecrets, u.WebAuthnCredentials),
+		CreatedAt:     u.CreatedAt.Unix(),
+		LastLogin:     u.LastLogin.Unix(),
+	}
+
+	if !u.BlockedUntil.IsZero() {
+		identity.BlockedUntil = u.BlockedUntil.Unix()
+	}
+
+	return identity
+}
+
+func (d dexAPI) GetAuthSession(ctx context.Context, req *api.GetAuthSessionReq) (*api.GetAuthSessionResp, error) {
+	if !featureflags.APISessionsIdentitiesCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APISessionsIdentitiesCRUD.Name)
+	}
+
+	if req.UserId == "" {
+		return nil, errors.New("no user_id supplied")
+	}
+	if req.ConnectorId == "" {
+		return nil, errors.New("no connector_id supplied")
+	}
+
+	session, err := d.s.GetAuthSession(ctx, req.UserId, req.ConnectorId)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return nil, storage.ErrNotFound
+		}
+		d.logger.Error("api: failed to get auth session", "err", err)
+		return nil, fmt.Errorf("get auth session: %v", err)
+	}
+
+	return &api.GetAuthSessionResp{
+		Session: storageAuthSessionToAPI(session),
+	}, nil
+}
+
+func (d dexAPI) ListAuthSessions(ctx context.Context, req *api.ListAuthSessionsReq) (*api.ListAuthSessionsResp, error) {
+	if !featureflags.APISessionsIdentitiesCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APISessionsIdentitiesCRUD.Name)
+	}
+
+	sessionList, err := d.s.ListAuthSessions(ctx)
+	if err != nil {
+		d.logger.Error("api: failed to list auth sessions", "err", err)
+		return nil, fmt.Errorf("list auth sessions: %v", err)
+	}
+
+	sessions := make([]*api.AuthSession, 0, len(sessionList))
+	for _, s := range sessionList {
+		if req.UserId != "" && s.UserID != req.UserId {
+			continue
+		}
+		sessions = append(sessions, storageAuthSessionToAPI(s))
+	}
+
+	return &api.ListAuthSessionsResp{
+		Sessions: sessions,
+	}, nil
+}
+
+func (d dexAPI) DeleteAuthSession(ctx context.Context, req *api.DeleteAuthSessionReq) (*api.DeleteAuthSessionResp, error) {
+	if !featureflags.APISessionsIdentitiesCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APISessionsIdentitiesCRUD.Name)
+	}
+
+	if req.UserId == "" {
+		return nil, errors.New("no user_id supplied")
+	}
+	if req.ConnectorId == "" {
+		return nil, errors.New("no connector_id supplied")
+	}
+
+	// Revoke refresh tokens (best-effort, consistent with logout flow).
+	d.revokeUserRefreshTokens(ctx, req.UserId, req.ConnectorId)
+
+	if err := d.s.DeleteAuthSession(ctx, req.UserId, req.ConnectorId); err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return &api.DeleteAuthSessionResp{NotFound: true}, nil
+		}
+		d.logger.Error("api: failed to delete auth session", "err", err)
+		return nil, fmt.Errorf("delete auth session: %v", err)
+	}
+
+	return &api.DeleteAuthSessionResp{}, nil
+}
+
+func (d dexAPI) terminateSessions(ctx context.Context, match func(storage.AuthSession) bool) (int64, error) {
+	sessionList, err := d.s.ListAuthSessions(ctx)
+	if err != nil {
+		d.logger.Error("api: failed to list auth sessions", "err", err)
+		return 0, fmt.Errorf("list auth sessions: %v", err)
+	}
+
+	var terminated int64
+	for _, s := range sessionList {
+		if !match(s) {
+			continue
+		}
+
+		d.revokeUserRefreshTokens(ctx, s.UserID, s.ConnectorID)
+
+		if err := d.s.DeleteAuthSession(ctx, s.UserID, s.ConnectorID); err != nil {
+			d.logger.Error("api: failed to delete auth session during batch terminate",
+				"user_id", s.UserID, "connector_id", s.ConnectorID, "err", err)
+			continue
+		}
+		terminated++
+	}
+	return terminated, nil
+}
+
+func (d dexAPI) TerminateSessionsByConnector(ctx context.Context, req *api.TerminateSessionsByConnectorReq) (*api.TerminateSessionsByConnectorResp, error) {
+	if !featureflags.APISessionsIdentitiesCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APISessionsIdentitiesCRUD.Name)
+	}
+
+	if req.ConnectorId == "" {
+		return nil, errors.New("no connector_id supplied")
+	}
+
+	terminated, err := d.terminateSessions(ctx, func(s storage.AuthSession) bool {
+		return s.ConnectorID == req.ConnectorId
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &api.TerminateSessionsByConnectorResp{SessionsTerminated: terminated}, nil
+}
+
+func (d dexAPI) TerminateSessionsByUser(ctx context.Context, req *api.TerminateSessionsByUserReq) (*api.TerminateSessionsByUserResp, error) {
+	if !featureflags.APISessionsIdentitiesCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APISessionsIdentitiesCRUD.Name)
+	}
+
+	if req.UserId == "" {
+		return nil, errors.New("no user_id supplied")
+	}
+
+	terminated, err := d.terminateSessions(ctx, func(s storage.AuthSession) bool {
+		return s.UserID == req.UserId
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &api.TerminateSessionsByUserResp{SessionsTerminated: terminated}, nil
+}
+
+func (d dexAPI) GetUserIdentity(ctx context.Context, req *api.GetUserIdentityReq) (*api.GetUserIdentityResp, error) {
+	if !featureflags.APISessionsIdentitiesCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APISessionsIdentitiesCRUD.Name)
+	}
+
+	if req.UserId == "" {
+		return nil, errors.New("no user_id supplied")
+	}
+	if req.ConnectorId == "" {
+		return nil, errors.New("no connector_id supplied")
+	}
+
+	identity, err := d.s.GetUserIdentity(ctx, req.UserId, req.ConnectorId)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return nil, storage.ErrNotFound
+		}
+		d.logger.Error("api: failed to get user identity", "err", err)
+		return nil, fmt.Errorf("get user identity: %v", err)
+	}
+
+	return &api.GetUserIdentityResp{
+		Identity: storageUserIdentityToAPI(identity),
+	}, nil
+}
+
+func (d dexAPI) ListUserIdentities(ctx context.Context, req *api.ListUserIdentitiesReq) (*api.ListUserIdentitiesResp, error) {
+	if !featureflags.APISessionsIdentitiesCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APISessionsIdentitiesCRUD.Name)
+	}
+
+	identityList, err := d.s.ListUserIdentities(ctx)
+	if err != nil {
+		d.logger.Error("api: failed to list user identities", "err", err)
+		return nil, fmt.Errorf("list user identities: %v", err)
+	}
+
+	identities := make([]*api.UserIdentity, 0, len(identityList))
+	for _, u := range identityList {
+		identities = append(identities, storageUserIdentityToAPI(u))
+	}
+
+	return &api.ListUserIdentitiesResp{
+		Identities: identities,
+	}, nil
+}
+
+func (d dexAPI) DeleteUserIdentity(ctx context.Context, req *api.DeleteUserIdentityReq) (*api.DeleteUserIdentityResp, error) {
+	if !featureflags.APISessionsIdentitiesCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APISessionsIdentitiesCRUD.Name)
+	}
+
+	if req.UserId == "" {
+		return nil, errors.New("no user_id supplied")
+	}
+	if req.ConnectorId == "" {
+		return nil, errors.New("no connector_id supplied")
+	}
+
+	// Cascade: delete auth session (ignore not-found).
+	if err := d.s.DeleteAuthSession(ctx, req.UserId, req.ConnectorId); err != nil && !errors.Is(err, storage.ErrNotFound) {
+		d.logger.Error("api: failed to delete auth session during identity purge", "err", err)
+	}
+
+	// Cascade: revoke all refresh tokens.
+	d.revokeUserRefreshTokens(ctx, req.UserId, req.ConnectorId)
+
+	// Cascade: delete offline sessions.
+	if err := d.s.DeleteOfflineSessions(ctx, req.UserId, req.ConnectorId); err != nil && !errors.Is(err, storage.ErrNotFound) {
+		d.logger.Error("api: failed to delete offline sessions during identity purge", "err", err)
+	}
+
+	// Delete the user identity itself.
+	if err := d.s.DeleteUserIdentity(ctx, req.UserId, req.ConnectorId); err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return &api.DeleteUserIdentityResp{NotFound: true}, nil
+		}
+		d.logger.Error("api: failed to delete user identity", "err", err)
+		return nil, fmt.Errorf("delete user identity: %v", err)
+	}
+
+	return &api.DeleteUserIdentityResp{}, nil
+}
+
+func (d dexAPI) ResetMFA(ctx context.Context, req *api.ResetMFAReq) (*api.ResetMFAResp, error) {
+	if !featureflags.APISessionsIdentitiesCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APISessionsIdentitiesCRUD.Name)
+	}
+
+	if req.UserId == "" {
+		return nil, errors.New("no user_id supplied")
+	}
+	if req.ConnectorId == "" {
+		return nil, errors.New("no connector_id supplied")
+	}
+
+	if err := d.s.UpdateUserIdentity(ctx, req.UserId, req.ConnectorId, func(old storage.UserIdentity) (storage.UserIdentity, error) {
+		old.MFASecrets = nil
+		old.WebAuthnCredentials = nil
+		return old, nil
+	}); err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return &api.ResetMFAResp{NotFound: true}, nil
+		}
+		d.logger.Error("api: failed to reset MFA", "err", err)
+		return nil, fmt.Errorf("reset MFA: %v", err)
+	}
+
+	return &api.ResetMFAResp{}, nil
+}
+
+func (d dexAPI) ListMFADevices(ctx context.Context, req *api.ListMFADevicesReq) (*api.ListMFADevicesResp, error) {
+	if !featureflags.APISessionsIdentitiesCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APISessionsIdentitiesCRUD.Name)
+	}
+
+	if req.UserId == "" {
+		return nil, errors.New("no user_id supplied")
+	}
+	if req.ConnectorId == "" {
+		return nil, errors.New("no connector_id supplied")
+	}
+
+	identity, err := d.s.GetUserIdentity(ctx, req.UserId, req.ConnectorId)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return nil, storage.ErrNotFound
+		}
+		d.logger.Error("api: failed to get user identity for MFA devices", "err", err)
+		return nil, fmt.Errorf("list MFA devices: %v", err)
+	}
+
+	return &api.ListMFADevicesResp{
+		Devices: storageMFADevicesToAPI(identity.MFASecrets, identity.WebAuthnCredentials),
+	}, nil
+}
+
+func (d dexAPI) DeleteWebAuthnCredential(ctx context.Context, req *api.DeleteWebAuthnCredentialReq) (*api.DeleteWebAuthnCredentialResp, error) {
+	if !featureflags.APISessionsIdentitiesCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APISessionsIdentitiesCRUD.Name)
+	}
+
+	if req.UserId == "" {
+		return nil, errors.New("no user_id supplied")
+	}
+	if req.ConnectorId == "" {
+		return nil, errors.New("no connector_id supplied")
+	}
+	if len(req.CredentialId) == 0 {
+		return nil, errors.New("no credential_id supplied")
+	}
+
+	notFound := true
+	if err := d.s.UpdateUserIdentity(ctx, req.UserId, req.ConnectorId, func(old storage.UserIdentity) (storage.UserIdentity, error) {
+		for authID, creds := range old.WebAuthnCredentials {
+			for i, cred := range creds {
+				if bytes.Equal(cred.CredentialID, req.CredentialId) {
+					notFound = false
+					old.WebAuthnCredentials[authID] = slices.Delete(creds, i, i+1)
+					if len(old.WebAuthnCredentials[authID]) == 0 {
+						delete(old.WebAuthnCredentials, authID)
+					}
+					return old, nil
+				}
+			}
+		}
+		return old, nil
+	}); err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return &api.DeleteWebAuthnCredentialResp{NotFound: true}, nil
+		}
+		d.logger.Error("api: failed to delete WebAuthn credential", "err", err)
+		return nil, fmt.Errorf("delete WebAuthn credential: %v", err)
+	}
+
+	if notFound {
+		return &api.DeleteWebAuthnCredentialResp{NotFound: true}, nil
+	}
+
+	return &api.DeleteWebAuthnCredentialResp{}, nil
+}
+
+func (d dexAPI) DeleteMFASecret(ctx context.Context, req *api.DeleteMFASecretReq) (*api.DeleteMFASecretResp, error) {
+	if !featureflags.APISessionsIdentitiesCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APISessionsIdentitiesCRUD.Name)
+	}
+
+	if req.UserId == "" {
+		return nil, errors.New("no user_id supplied")
+	}
+	if req.ConnectorId == "" {
+		return nil, errors.New("no connector_id supplied")
+	}
+	if req.AuthenticatorId == "" {
+		return nil, errors.New("no authenticator_id supplied")
+	}
+
+	notFound := true
+	if err := d.s.UpdateUserIdentity(ctx, req.UserId, req.ConnectorId, func(old storage.UserIdentity) (storage.UserIdentity, error) {
+		if _, ok := old.MFASecrets[req.AuthenticatorId]; !ok {
+			return old, nil
+		}
+		notFound = false
+		delete(old.MFASecrets, req.AuthenticatorId)
+		// Also remove associated WebAuthn credentials for the same authenticator.
+		delete(old.WebAuthnCredentials, req.AuthenticatorId)
+		return old, nil
+	}); err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return &api.DeleteMFASecretResp{NotFound: true}, nil
+		}
+		d.logger.Error("api: failed to delete MFA secret", "err", err)
+		return nil, fmt.Errorf("delete MFA secret: %v", err)
+	}
+
+	if notFound {
+		return &api.DeleteMFASecretResp{NotFound: true}, nil
+	}
+
+	return &api.DeleteMFASecretResp{}, nil
+}
+
+func (d dexAPI) RevokeConsent(ctx context.Context, req *api.RevokeConsentReq) (*api.RevokeConsentResp, error) {
+	if !featureflags.APISessionsIdentitiesCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APISessionsIdentitiesCRUD.Name)
+	}
+
+	if req.UserId == "" {
+		return nil, errors.New("no user_id supplied")
+	}
+	if req.ConnectorId == "" {
+		return nil, errors.New("no connector_id supplied")
+	}
+	if req.ClientId == "" {
+		return nil, errors.New("no client_id supplied")
+	}
+
+	notFound := true
+	if err := d.s.UpdateUserIdentity(ctx, req.UserId, req.ConnectorId, func(old storage.UserIdentity) (storage.UserIdentity, error) {
+		if _, ok := old.Consents[req.ClientId]; !ok {
+			return old, nil
+		}
+		notFound = false
+		delete(old.Consents, req.ClientId)
+		return old, nil
+	}); err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return &api.RevokeConsentResp{NotFound: true}, nil
+		}
+		d.logger.Error("api: failed to revoke consent", "err", err)
+		return nil, fmt.Errorf("revoke consent: %v", err)
+	}
+
+	if notFound {
+		return &api.RevokeConsentResp{NotFound: true}, nil
+	}
+
+	return &api.RevokeConsentResp{}, nil
 }
