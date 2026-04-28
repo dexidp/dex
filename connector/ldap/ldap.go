@@ -272,11 +272,12 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 		return nil, err
 	}
 	// If Kerberos is enabled, load the keytab and bind SPNEGO middleware.
-	if lc, ok := conn.(*ldapConnector); ok && lc.krbEnabled && lc.krb == nil {
+	// The presence of a non-nil krb on ldapConnector is the single source of
+	// truth for "SPNEGO is live"; TrySPNEGO short-circuits when it's nil.
+	if lc, ok := conn.(*ldapConnector); ok && lc.krbConf.Enabled && lc.krb == nil {
 		st, kerr := loadKerberosState(lc.krbConf)
 		if kerr != nil {
 			logger.Warn("failed to initialize kerberos; disabling kerberos", "err", kerr)
-			lc.krbEnabled = false
 		} else {
 			lc.krb = st
 			logger.Info("kerberos SPNEGO enabled for LDAP connector",
@@ -373,20 +374,19 @@ func (c *Config) openConnector(logger *slog.Logger) (*ldapConnector, error) {
 	// TODO(nabokihms): remove it after deleting deprecated groupSearch options
 	c.GroupSearch.UserMatchers = userMatchers(c, logger)
 
-	// Normalize Kerberos defaults
-	var krbEnabled bool
+	// Normalize Kerberos defaults. We persist krbConf only when it is
+	// usable (Enabled + KeytabPath set); otherwise it stays at the zero
+	// value and Open() will skip loadKerberosState — which keeps krb nil
+	// and effectively disables SPNEGO without any extra flag.
 	var krbConf kerberosConfig
-	if c.Kerberos != nil {
+	if c.Kerberos != nil && c.Kerberos.Enabled {
 		krbConf = *c.Kerberos
 		if krbConf.UsernameFromPrincipal == "" {
 			krbConf.UsernameFromPrincipal = "localpart"
 		}
-		if krbConf.Enabled {
-			if krbConf.KeytabPath == "" {
-				logger.Warn("kerberos enabled but keytabPath is empty; disabling kerberos")
-			} else {
-				krbEnabled = true
-			}
+		if krbConf.KeytabPath == "" {
+			logger.Warn("kerberos enabled but keytabPath is empty; disabling kerberos")
+			krbConf = kerberosConfig{}
 		}
 	}
 
@@ -397,10 +397,7 @@ func (c *Config) openConnector(logger *slog.Logger) (*ldapConnector, error) {
 		tlsConfig:        tlsConfig,
 		usernameAttrs:    c.UserSearch.Username,
 		logger:           logger,
-	}
-	if krbEnabled {
-		lc.krbEnabled = true
-		lc.krbConf = krbConf
+		krbConf:          krbConf,
 	}
 	return lc, nil
 }
@@ -423,11 +420,11 @@ type ldapConnector struct {
 
 	logger *slog.Logger
 
-	// Kerberos/SPNEGO support. krbEnabled gates TrySPNEGO; krb is nil until
-	// the keytab has been loaded successfully in Open().
-	krbEnabled bool
-	krbConf    kerberosConfig
-	krb        *krbState
+	// Kerberos/SPNEGO support. krb is nil until the keytab has been loaded
+	// successfully in Open(); TrySPNEGO uses (krb == nil) as the single
+	// "is SPNEGO available" check, so no separate enable flag is needed.
+	krbConf kerberosConfig
+	krb     *krbState
 	// krbLookupUserHook allows tests to replace the LDAP user lookup entirely.
 	// When set it is authoritative: lookupKerberosUser does not fall through
 	// to a real LDAP search. Tests signal "user not found" by returning an

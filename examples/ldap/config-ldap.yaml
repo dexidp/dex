@@ -67,6 +67,10 @@ connectors:
     #  expectedRealm: EXAMPLE.COM
     #  usernameFromPrincipal: sAMAccountName # or userPrincipalName or localpart
     #  fallbackToPassword: false
+    #  # Optional gokrb5 service settings — leave empty to use library defaults.
+    #  spn: HTTP/dex.example.com           # service principal name expected in tickets
+    #  keytabPrincipal: HTTP/dex.example.com@EXAMPLE.COM # explicit principal to load from the keytab
+    #  maxClockSkew: 300                   # tolerated clock skew, seconds (default 300)
 
 staticClients:
 - id: example-app

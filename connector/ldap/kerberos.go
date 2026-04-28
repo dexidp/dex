@@ -3,11 +3,11 @@
 package ldap
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"strings"
 	"time"
@@ -21,6 +21,52 @@ import (
 
 	"github.com/dexidp/dex/connector"
 )
+
+// bufferedResponse is a minimal http.ResponseWriter that buffers status,
+// headers, and body in memory so the SPNEGO middleware's response can be
+// inspected and conditionally forwarded. spnego.SPNEGOKRB5Authenticate is a
+// "terminal" middleware (it commits failure responses directly to the
+// ResponseWriter), but Dex needs to layer policy on top — FallbackToPassword
+// may want to discard a 401 so the password form can render, and
+// ExpectedRealm checks happen after a successful auth. Buffering decouples
+// the middleware's output from the eventual client response.
+type bufferedResponse struct {
+	header      http.Header
+	body        bytes.Buffer
+	code        int
+	wroteHeader bool
+}
+
+func newBufferedResponse() *bufferedResponse {
+	return &bufferedResponse{
+		header: make(http.Header),
+		code:   http.StatusOK,
+	}
+}
+
+func (r *bufferedResponse) Header() http.Header {
+	return r.header
+}
+
+// WriteHeader mirrors net/http: the first call wins, subsequent calls are
+// silently ignored (stdlib emits a "superfluous WriteHeader" warning and
+// keeps the original status; we just drop the override).
+func (r *bufferedResponse) WriteHeader(code int) {
+	if r.wroteHeader {
+		return
+	}
+	r.code = code
+	r.wroteHeader = true
+}
+
+// Write mirrors net/http: a Write before any WriteHeader implicitly commits
+// status 200, locking the status against later overrides.
+func (r *bufferedResponse) Write(b []byte) (int, error) {
+	if !r.wroteHeader {
+		r.WriteHeader(http.StatusOK)
+	}
+	return r.body.Write(b)
+}
 
 // krbState holds Kerberos/SPNEGO configuration bound to a ldapConnector.
 //
@@ -96,24 +142,34 @@ func mapPrincipal(username, realm, mapping string) string {
 // Behavior:
 //   - Kerberos disabled: returns (nil, false, nil) so the caller renders the
 //     password form.
-//   - FallbackToPassword=true and the request carries no Negotiate header:
-//     short-circuits to the password form without invoking the SPNEGO
-//     middleware. This avoids writing an unwanted 401 when a password is
-//     explicitly permitted.
-//   - Otherwise, runs the SPNEGO middleware into a response recorder. If the
-//     middleware does not authenticate, its buffered response is either
-//     forwarded to the client (FallbackToPassword=false) or discarded
-//     (FallbackToPassword=true, caller renders form).
+//   - FallbackToPassword=true with no Authorization header: a cookie probe
+//     gives the browser exactly one round to negotiate. The first such
+//     request sets a short-lived "tried" cookie and forwards the middleware's
+//     401 Negotiate challenge so a Kerberos-aware client can respond. If the
+//     follow-up request still has no Authorization header (cookie present),
+//     we treat the client as unable to SPNEGO and render the password form.
+//   - FallbackToPassword=true with an Authorization header that the
+//     middleware rejects: render the password form (the client tried and
+//     failed; do not loop 401s).
+//   - FallbackToPassword=false: forward the middleware's response verbatim.
 //   - On success, the authenticated principal is resolved in LDAP and a
-//     connector.Identity is returned.
+//     connector.Identity is returned. Any prior probe cookie is cleared.
 func (c *ldapConnector) TrySPNEGO(ctx context.Context, s connector.Scopes, w http.ResponseWriter, r *http.Request) (*connector.Identity, connector.Handled, error) {
 	if c.krb == nil {
 		return nil, false, nil
 	}
 
-	if c.krbConf.FallbackToPassword &&
-		!strings.HasPrefix(r.Header.Get("Authorization"), "Negotiate ") {
-		return nil, false, nil
+	hasNegotiate := strings.HasPrefix(r.Header.Get("Authorization"), "Negotiate ")
+
+	// Cookie probe: see the package-level doc on spnegoProbeCookieName. Only
+	// applies when fallback is enabled and the client has not (yet) sent a
+	// SPNEGO token; "Authorization present" paths bypass the probe entirely.
+	if c.krbConf.FallbackToPassword && !hasNegotiate {
+		if hasSPNEGOProbeCookie(r) {
+			c.logger.Info("kerberos: SPNEGO probe cookie present and no Negotiate header; falling back to password form")
+			return nil, false, nil
+		}
+		setSPNEGOProbeCookie(w, r)
 	}
 
 	// Run the SPNEGO middleware with a capturing recorder so we can decide
@@ -136,7 +192,7 @@ func (c *ldapConnector) TrySPNEGO(ctx context.Context, s connector.Scopes, w htt
 		id = creds
 	})
 
-	rec := httptest.NewRecorder()
+	rec := newBufferedResponse()
 	c.krb.authenticate(inner).ServeHTTP(rec, r)
 
 	if innerErr != nil {
@@ -145,22 +201,40 @@ func (c *ldapConnector) TrySPNEGO(ctx context.Context, s connector.Scopes, w htt
 	}
 
 	if id == nil {
-		if c.krbConf.FallbackToPassword {
-			c.logger.Info("kerberos: SPNEGO did not authenticate; falling back to password form")
+		// Client offered a token and the middleware rejected it: under
+		// fallback semantics this is "tried and failed" — render the form
+		// rather than looping 401s.
+		if c.krbConf.FallbackToPassword && hasNegotiate {
+			c.logger.Info("kerberos: SPNEGO rejected client token; falling back to password form")
 			return nil, false, nil
 		}
-		c.logger.Info("kerberos: SPNEGO did not authenticate; forwarding middleware response", "status", rec.Code)
-		copyRecorded(rec, w)
+		// Otherwise (fallback=false, OR fallback=true probe round): forward
+		// the middleware-authored response (challenge token, error payload,
+		// etc.) verbatim — the protocol decided to reject and we preserve
+		// its wire details.
+		c.logger.Info("kerberos: SPNEGO did not authenticate; forwarding middleware response", "status", rec.code)
+		copyBuffered(rec, w)
 		return nil, true, nil
 	}
 
 	if c.krbConf.ExpectedRealm != "" && !strings.EqualFold(c.krbConf.ExpectedRealm, id.Domain()) {
 		c.logger.Info("kerberos: realm mismatch", "expected", c.krbConf.ExpectedRealm, "actual", id.Domain())
 		if c.krbConf.FallbackToPassword {
+			// Intentionally do NOT clear the probe cookie here: the
+			// client's TGT is for a realm we will never accept. Clearing
+			// would re-arm a probe round on the next no-Authorization GET,
+			// re-issue 401 Negotiate, the browser would resend the same
+			// wrong-realm token, and we'd land back here — an infinite
+			// flap. Keeping the cookie pins the client to the password
+			// form until the cookie's Max-Age elapses.
 			return nil, false, nil
 		}
-		w.Header().Set("WWW-Authenticate", "Negotiate")
-		w.WriteHeader(http.StatusUnauthorized)
+		// SPNEGO authenticated successfully, but our ExpectedRealm policy
+		// rejects it. The middleware's buffered response is irrelevant here
+		// (it represents the post-success path through the inner handler);
+		// emit our own bare Negotiate challenge so the client knows to
+		// retry with a different realm.
+		writeBareNegotiateChallenge(w)
 		return nil, true, nil
 	}
 
@@ -208,20 +282,96 @@ func (c *ldapConnector) TrySPNEGO(ctx context.Context, s connector.Scopes, w htt
 		ident.ConnectorData = data
 	}
 
+	// If the client carried a stale probe cookie from a prior fallback
+	// round, clear it so a future logout/re-login starts negotiation fresh.
+	if hasSPNEGOProbeCookie(r) {
+		clearSPNEGOProbeCookie(w, r)
+	}
+
 	c.logger.Info("kerberos: SPNEGO login succeeded",
 		"username", ident.Username, "email", ident.Email, "groups_count", len(ident.Groups))
 	return &ident, true, nil
 }
 
-// copyRecorded forwards the buffered middleware response to the client.
-func copyRecorded(rec *httptest.ResponseRecorder, w http.ResponseWriter) {
-	for k, vv := range rec.Header() {
+// copyBuffered forwards a buffered handler response to the real client.
+// Used when we want the middleware-authored bytes to reach the user agent
+// unchanged (e.g. SPNEGO continuation/reject tokens).
+func copyBuffered(rec *bufferedResponse, w http.ResponseWriter) {
+	for k, vv := range rec.header {
 		for _, v := range vv {
 			w.Header().Add(k, v)
 		}
 	}
-	w.WriteHeader(rec.Code)
-	_, _ = w.Write(rec.Body.Bytes())
+	w.WriteHeader(rec.code)
+	_, _ = w.Write(rec.body.Bytes())
+}
+
+// writeBareNegotiateChallenge emits an unsolicited "WWW-Authenticate:
+// Negotiate" 401 directly to the client. This is reserved for cases where
+// Dex itself rejects an otherwise-successful SPNEGO exchange (currently
+// only ExpectedRealm mismatch); in those cases the middleware's buffered
+// output does not represent the answer we want to send.
+func writeBareNegotiateChallenge(w http.ResponseWriter) {
+	w.Header().Set("WWW-Authenticate", "Negotiate")
+	w.WriteHeader(http.StatusUnauthorized)
+}
+
+// spnegoProbeCookieName names the short-lived cookie that records "we
+// already issued a 401 Negotiate challenge to this client". It implements
+// the fallback-to-password semantics: the very first GET without an
+// Authorization header gets a real Negotiate challenge so a Kerberos-aware
+// browser can SSO; if the client comes back without a token we treat that
+// as "client cannot/will not negotiate" and render the password form
+// instead of looping 401s. The cookie is bounded by a small Max-Age so a
+// later visit gets a fresh chance to negotiate.
+const (
+	spnegoProbeCookieName = "dex_spnego_tried"
+	spnegoProbeMaxAge     = 60 // seconds; long enough for one challenge round-trip
+)
+
+func hasSPNEGOProbeCookie(r *http.Request) bool {
+	_, err := r.Cookie(spnegoProbeCookieName)
+	return err == nil
+}
+
+// newSPNEGOProbeCookie returns a probe-cookie carrier with the attributes
+// shared between "set" and "clear" forms (Path, HttpOnly, Secure, SameSite),
+// so the two callers cannot accidentally drift apart.
+func newSPNEGOProbeCookie(r *http.Request, value string, maxAge int) *http.Cookie {
+	return &http.Cookie{
+		Name:  spnegoProbeCookieName,
+		Value: value,
+		// Scope to "/" so the cookie reaches every Dex auth endpoint
+		// regardless of issuer prefix; the cookie carries no secret and
+		// expires within spnegoProbeMaxAge seconds, so the broad path is
+		// not a privacy or security boundary concern.
+		Path:     "/",
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   isSecureRequest(r),
+		SameSite: http.SameSiteLaxMode,
+	}
+}
+
+func setSPNEGOProbeCookie(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, newSPNEGOProbeCookie(r, "1", spnegoProbeMaxAge))
+}
+
+func clearSPNEGOProbeCookie(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, newSPNEGOProbeCookie(r, "", -1))
+}
+
+// isSecureRequest reports whether the original client connection is HTTPS.
+// It honors X-Forwarded-Proto so the cookie's Secure attribute is correct
+// when Dex sits behind a TLS-terminating proxy. The header is treated as
+// advisory: misbehaving/spoofed values can only flip Secure to true on a
+// plain-HTTP setup (which makes browsers refuse to echo the cookie back —
+// a graceful no-op for the probe), never to false on a real HTTPS link.
+func isSecureRequest(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	return strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
 }
 
 // lookupKerberosUser resolves an LDAP user entry by username. When

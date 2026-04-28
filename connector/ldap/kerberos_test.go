@@ -63,10 +63,9 @@ func newCreds(username, realm string) *credentials.Credentials {
 
 func TestKerberos_NoHeader_NoFallback_ForwardsMiddleware401(t *testing.T) {
 	lc := &ldapConnector{
-		logger:     slog.Default(),
-		krbEnabled: true,
-		krbConf:    kerberosConfig{FallbackToPassword: false, UsernameFromPrincipal: "localpart"},
-		krb:        fakeAuthenticate(nil),
+		logger:  slog.Default(),
+		krbConf: kerberosConfig{FallbackToPassword: false, UsernameFromPrincipal: "localpart"},
+		krb:     fakeAuthenticate(nil),
 	}
 	r := httptest.NewRequest("GET", "/auth/ldap/login?state=abc", nil)
 	w := httptest.NewRecorder()
@@ -88,14 +87,58 @@ func TestKerberos_NoHeader_NoFallback_ForwardsMiddleware401(t *testing.T) {
 	}
 }
 
-func TestKerberos_NoHeader_Fallback_SkipsMiddleware(t *testing.T) {
-	// With FallbackToPassword=true and no Authorization header, the middleware
-	// must not run at all (otherwise w would be tainted with a 401).
+func TestKerberos_NoHeader_Fallback_NoCookie_ChallengesAndSetsCookie(t *testing.T) {
+	// First contact under fallback: no Authorization header, no probe cookie.
+	// We expect the middleware to run, its 401 Negotiate to be forwarded to
+	// the client, and a probe cookie to be set so the *next* round (still
+	// without an Authorization header) can short-circuit to the form.
 	middlewareRan := false
 	lc := &ldapConnector{
-		logger:     slog.Default(),
-		krbEnabled: true,
-		krbConf:    kerberosConfig{FallbackToPassword: true, UsernameFromPrincipal: "localpart"},
+		logger:  slog.Default(),
+		krbConf: kerberosConfig{FallbackToPassword: true, UsernameFromPrincipal: "localpart"},
+		krb: &krbState{authenticate: func(_ http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				middlewareRan = true
+				w.Header().Set("WWW-Authenticate", "Negotiate")
+				w.WriteHeader(http.StatusUnauthorized)
+			})
+		}},
+	}
+	r := httptest.NewRequest("GET", "/auth/ldap/login?state=abc", nil)
+	w := httptest.NewRecorder()
+	ident, handled, err := lc.TrySPNEGO(r.Context(), connector.Scopes{}, w, r)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if !bool(handled) {
+		t.Fatalf("expected handled (probe round forwards 401)")
+	}
+	if ident != nil {
+		t.Fatalf("expected no identity")
+	}
+	if !middlewareRan {
+		t.Fatalf("SPNEGO middleware should run on the probe round")
+	}
+	if w.Result().StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", w.Result().StatusCode)
+	}
+	if hdr := w.Header().Get("WWW-Authenticate"); hdr != "Negotiate" {
+		t.Fatalf("expected Negotiate challenge, got %q", hdr)
+	}
+	if !setCookieHasName(w, spnegoProbeCookieName) {
+		t.Fatalf("expected probe cookie %q to be set, got %q", spnegoProbeCookieName, w.Header().Values("Set-Cookie"))
+	}
+}
+
+func TestKerberos_NoHeader_Fallback_WithCookie_RendersForm(t *testing.T) {
+	// Follow-up round: probe cookie is already in the request and the client
+	// still hasn't sent a Negotiate token. Treat that as "client cannot/will
+	// not SPNEGO" and short-circuit to the password form without running the
+	// middleware (otherwise w would get tainted with another 401).
+	middlewareRan := false
+	lc := &ldapConnector{
+		logger:  slog.Default(),
+		krbConf: kerberosConfig{FallbackToPassword: true, UsernameFromPrincipal: "localpart"},
 		krb: &krbState{authenticate: func(_ http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				middlewareRan = true
@@ -104,6 +147,7 @@ func TestKerberos_NoHeader_Fallback_SkipsMiddleware(t *testing.T) {
 		}},
 	}
 	r := httptest.NewRequest("GET", "/auth/ldap/login?state=abc", nil)
+	r.AddCookie(&http.Cookie{Name: spnegoProbeCookieName, Value: "1"})
 	w := httptest.NewRecorder()
 	ident, handled, err := lc.TrySPNEGO(r.Context(), connector.Scopes{}, w, r)
 	if err != nil {
@@ -116,7 +160,7 @@ func TestKerberos_NoHeader_Fallback_SkipsMiddleware(t *testing.T) {
 		t.Fatalf("expected no identity")
 	}
 	if middlewareRan {
-		t.Fatalf("SPNEGO middleware should not run when fallback=true and no Authorization header")
+		t.Fatalf("SPNEGO middleware should not run on probe-follow-up round")
 	}
 	if w.Code != 200 && w.Code != 0 {
 		t.Fatalf("expected w untouched, got status=%d", w.Code)
@@ -128,9 +172,8 @@ func TestKerberos_MiddlewareFails_Fallback_DiscardsResponse(t *testing.T) {
 	// rejects the ticket, fallback is on: TrySPNEGO must return (nil, false, nil)
 	// and must not forward the middleware's 401 to the real ResponseWriter.
 	lc := &ldapConnector{
-		logger:     slog.Default(),
-		krbEnabled: true,
-		krbConf:    kerberosConfig{FallbackToPassword: true, UsernameFromPrincipal: "localpart"},
+		logger:  slog.Default(),
+		krbConf: kerberosConfig{FallbackToPassword: true, UsernameFromPrincipal: "localpart"},
 		krb: fakeAuthenticateWithResponse(
 			http.StatusUnauthorized,
 			map[string]string{"WWW-Authenticate": "Negotiate oQcwBaADCgEC"},
@@ -161,9 +204,8 @@ func TestKerberos_MiddlewareFails_Fallback_DiscardsResponse(t *testing.T) {
 func TestKerberos_MiddlewareFails_NoFallback_ForwardsResponse(t *testing.T) {
 	// Middleware writes a reject token; no fallback: forward to client verbatim.
 	lc := &ldapConnector{
-		logger:     slog.Default(),
-		krbEnabled: true,
-		krbConf:    kerberosConfig{FallbackToPassword: false, UsernameFromPrincipal: "localpart"},
+		logger:  slog.Default(),
+		krbConf: kerberosConfig{FallbackToPassword: false, UsernameFromPrincipal: "localpart"},
 		krb: fakeAuthenticateWithResponse(
 			http.StatusUnauthorized,
 			map[string]string{"WWW-Authenticate": "Negotiate oQcwBaADCgEC"},
@@ -193,10 +235,9 @@ func TestKerberos_MiddlewareFails_NoFallback_ForwardsResponse(t *testing.T) {
 
 func TestKerberos_Success_BuildsIdentity(t *testing.T) {
 	lc := &ldapConnector{
-		logger:     slog.Default(),
-		krbEnabled: true,
-		krbConf:    kerberosConfig{FallbackToPassword: false, UsernameFromPrincipal: "localpart"},
-		krb:        fakeAuthenticate(newCreds("jdoe", "EXAMPLE.COM")),
+		logger:  slog.Default(),
+		krbConf: kerberosConfig{FallbackToPassword: false, UsernameFromPrincipal: "localpart"},
+		krb:     fakeAuthenticate(newCreds("jdoe", "EXAMPLE.COM")),
 	}
 	lc.Config.UserSearch.IDAttr = "uid"
 	lc.Config.UserSearch.EmailAttr = "mail"
@@ -224,6 +265,74 @@ func TestKerberos_Success_BuildsIdentity(t *testing.T) {
 	if ident.Username == "" || ident.Email == "" || ident.UserID == "" {
 		t.Fatalf("expected populated identity, got %+v", *ident)
 	}
+	// No probe cookie was on the request, so the success path must not emit
+	// a clearing Set-Cookie either (avoids needless header noise).
+	if setCookieHasName(w, spnegoProbeCookieName) {
+		t.Fatalf("did not expect Set-Cookie %q on success without prior probe cookie, got %q",
+			spnegoProbeCookieName, w.Header().Values("Set-Cookie"))
+	}
+}
+
+// TestKerberos_Success_ClearsProbeCookie verifies that a successful SPNEGO
+// login on a request that *did* carry a probe cookie clears it, so a future
+// no-Authorization GET starts a fresh negotiation round instead of going
+// straight to the password form.
+func TestKerberos_Success_ClearsProbeCookie(t *testing.T) {
+	lc := &ldapConnector{
+		logger:  slog.Default(),
+		krbConf: kerberosConfig{FallbackToPassword: true, UsernameFromPrincipal: "localpart"},
+		krb:     fakeAuthenticate(newCreds("jdoe", "EXAMPLE.COM")),
+	}
+	lc.Config.UserSearch.IDAttr = "uid"
+	lc.Config.UserSearch.EmailAttr = "mail"
+	lc.Config.UserSearch.NameAttr = "cn"
+	lc.krbLookupUserHook = func(_ context.Context, c *ldapConnector, _ string) (ldaplib.Entry, error) {
+		e := ldaplib.NewEntry("cn=jdoe,dc=example,dc=org", map[string][]string{
+			c.UserSearch.IDAttr:    {"uid-jdoe"},
+			c.UserSearch.EmailAttr: {"jdoe@example.com"},
+			c.UserSearch.NameAttr:  {"John Doe"},
+		})
+		return *e, nil
+	}
+	r := httptest.NewRequest("GET", "/auth/ldap/login?state=abc", nil)
+	r.Header.Set("Authorization", "Negotiate deadbeef")
+	r.AddCookie(&http.Cookie{Name: spnegoProbeCookieName, Value: "1"})
+	w := httptest.NewRecorder()
+	ident, handled, err := lc.TrySPNEGO(r.Context(), connector.Scopes{}, w, r)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if !bool(handled) || ident == nil {
+		t.Fatalf("expected handled with identity")
+	}
+	if !setCookieClearsName(w, spnegoProbeCookieName) {
+		t.Fatalf("expected probe cookie %q to be cleared, got %q",
+			spnegoProbeCookieName, w.Header().Values("Set-Cookie"))
+	}
+}
+
+// setCookieHasName reports whether any Set-Cookie response header sets a
+// cookie with the given name and a non-empty value (i.e. an actual set, not
+// a clear). Order-tolerant; useful for assertions that don't care about
+// exact attributes.
+func setCookieHasName(w *httptest.ResponseRecorder, name string) bool {
+	for _, sc := range w.Result().Cookies() {
+		if sc.Name == name && sc.Value != "" && sc.MaxAge >= 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// setCookieClearsName reports whether any Set-Cookie response header clears
+// the cookie with the given name (Max-Age<=0 or empty value).
+func setCookieClearsName(w *httptest.ResponseRecorder, name string) bool {
+	for _, sc := range w.Result().Cookies() {
+		if sc.Name == name && (sc.MaxAge < 0 || sc.Value == "") {
+			return true
+		}
+	}
+	return false
 }
 
 // TestKerberos_UserNotFound_ReturnsError pins the behavior when the LDAP
@@ -231,10 +340,9 @@ func TestKerberos_Success_BuildsIdentity(t *testing.T) {
 // is authoritative, so the test is hermetic (no network call to :636).
 func TestKerberos_UserNotFound_ReturnsError(t *testing.T) {
 	lc := &ldapConnector{
-		logger:     slog.Default(),
-		krbEnabled: true,
-		krbConf:    kerberosConfig{FallbackToPassword: false, UsernameFromPrincipal: "localpart"},
-		krb:        fakeAuthenticate(newCreds("jdoe", "EXAMPLE.COM")),
+		logger:  slog.Default(),
+		krbConf: kerberosConfig{FallbackToPassword: false, UsernameFromPrincipal: "localpart"},
+		krb:     fakeAuthenticate(newCreds("jdoe", "EXAMPLE.COM")),
 	}
 	lc.krbLookupUserHook = func(_ context.Context, _ *ldapConnector, _ string) (ldaplib.Entry, error) {
 		return ldaplib.Entry{}, fmt.Errorf("user not found for principal")
@@ -261,10 +369,9 @@ func TestKerberos_UserNotFound_ReturnsError(t *testing.T) {
 func TestKerberos_LookupHookError_Wrapped(t *testing.T) {
 	sentinel := errors.New("boom: LDAP server tantrum")
 	lc := &ldapConnector{
-		logger:     slog.Default(),
-		krbEnabled: true,
-		krbConf:    kerberosConfig{FallbackToPassword: false, UsernameFromPrincipal: "localpart"},
-		krb:        fakeAuthenticate(newCreds("jdoe", "EXAMPLE.COM")),
+		logger:  slog.Default(),
+		krbConf: kerberosConfig{FallbackToPassword: false, UsernameFromPrincipal: "localpart"},
+		krb:     fakeAuthenticate(newCreds("jdoe", "EXAMPLE.COM")),
 	}
 	lc.krbLookupUserHook = func(_ context.Context, _ *ldapConnector, _ string) (ldaplib.Entry, error) {
 		return ldaplib.Entry{}, sentinel
@@ -282,8 +389,7 @@ func TestKerberos_LookupHookError_Wrapped(t *testing.T) {
 
 func TestKerberos_ExpectedRealmMismatch_NoFallback_401(t *testing.T) {
 	lc := &ldapConnector{
-		logger:     slog.Default(),
-		krbEnabled: true,
+		logger: slog.Default(),
 		krbConf: kerberosConfig{
 			FallbackToPassword:    false,
 			UsernameFromPrincipal: "localpart",
@@ -310,8 +416,7 @@ func TestKerberos_ExpectedRealmMismatch_NoFallback_401(t *testing.T) {
 
 func TestKerberos_ExpectedRealmMismatch_Fallback_RendersForm(t *testing.T) {
 	lc := &ldapConnector{
-		logger:     slog.Default(),
-		krbEnabled: true,
+		logger: slog.Default(),
 		krbConf: kerberosConfig{
 			FallbackToPassword:    true,
 			UsernameFromPrincipal: "localpart",
@@ -333,8 +438,7 @@ func TestKerberos_ExpectedRealmMismatch_Fallback_RendersForm(t *testing.T) {
 
 func TestKerberos_ExpectedRealm_CaseInsensitive(t *testing.T) {
 	lc := &ldapConnector{
-		logger:     slog.Default(),
-		krbEnabled: true,
+		logger: slog.Default(),
 		krbConf: kerberosConfig{
 			FallbackToPassword:    false,
 			UsernameFromPrincipal: "localpart",
@@ -366,10 +470,9 @@ func TestKerberos_ExpectedRealm_CaseInsensitive(t *testing.T) {
 
 func TestKerberos_UserPrincipalName_Mapping(t *testing.T) {
 	lc := &ldapConnector{
-		logger:     slog.Default(),
-		krbEnabled: true,
-		krbConf:    kerberosConfig{FallbackToPassword: false, UsernameFromPrincipal: "userPrincipalName"},
-		krb:        fakeAuthenticate(newCreds("J.Doe", "Example.COM")),
+		logger:  slog.Default(),
+		krbConf: kerberosConfig{FallbackToPassword: false, UsernameFromPrincipal: "userPrincipalName"},
+		krb:     fakeAuthenticate(newCreds("J.Doe", "Example.COM")),
 	}
 	lc.Config.UserSearch.IDAttr = "uid"
 	lc.Config.UserSearch.EmailAttr = "mail"
@@ -401,10 +504,9 @@ func TestKerberos_UserPrincipalName_Mapping(t *testing.T) {
 
 func TestKerberos_sAMAccountName_EqualsLocalpart(t *testing.T) {
 	lc := &ldapConnector{
-		logger:     slog.Default(),
-		krbEnabled: true,
-		krbConf:    kerberosConfig{FallbackToPassword: false, UsernameFromPrincipal: "sAMAccountName"},
-		krb:        fakeAuthenticate(newCreds("Admin", "REALM.LOCAL")),
+		logger:  slog.Default(),
+		krbConf: kerberosConfig{FallbackToPassword: false, UsernameFromPrincipal: "sAMAccountName"},
+		krb:     fakeAuthenticate(newCreds("Admin", "REALM.LOCAL")),
 	}
 	lc.Config.UserSearch.IDAttr = "uid"
 	lc.Config.UserSearch.EmailAttr = "mail"
@@ -433,10 +535,9 @@ func TestKerberos_sAMAccountName_EqualsLocalpart(t *testing.T) {
 
 func TestKerberos_OfflineAccess_SetsConnectorData(t *testing.T) {
 	lc := &ldapConnector{
-		logger:     slog.Default(),
-		krbEnabled: true,
-		krbConf:    kerberosConfig{FallbackToPassword: false, UsernameFromPrincipal: "localpart"},
-		krb:        fakeAuthenticate(newCreds("jdoe", "EXAMPLE.COM")),
+		logger:  slog.Default(),
+		krbConf: kerberosConfig{FallbackToPassword: false, UsernameFromPrincipal: "localpart"},
+		krb:     fakeAuthenticate(newCreds("jdoe", "EXAMPLE.COM")),
 	}
 	lc.Config.UserSearch.IDAttr = "uid"
 	lc.Config.UserSearch.EmailAttr = "mail"
