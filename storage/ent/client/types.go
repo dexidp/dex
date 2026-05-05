@@ -254,6 +254,13 @@ func toStorageAuthSession(s *db.AuthSession) storage.AuthSession {
 	} else {
 		result.ClientStates = make(map[string]*storage.ClientAuthState)
 	}
+
+	if s.LogoutState != nil && len(*s.LogoutState) > 0 && string(*s.LogoutState) != "null" {
+		result.LogoutState = new(storage.LogoutState)
+		if err := json.Unmarshal(*s.LogoutState, result.LogoutState); err != nil {
+			panic(err)
+		}
+	}
 	return result
 }
 

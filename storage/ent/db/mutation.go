@@ -3154,6 +3154,7 @@ type AuthSessionMutation struct {
 	user_agent      *string
 	absolute_expiry *time.Time
 	idle_expiry     *time.Time
+	logout_state    *[]byte
 	clearedFields   map[string]struct{}
 	done            bool
 	oldValue        func(context.Context) (*AuthSession, error)
@@ -3624,6 +3625,55 @@ func (m *AuthSessionMutation) ResetIdleExpiry() {
 	m.idle_expiry = nil
 }
 
+// SetLogoutState sets the "logout_state" field.
+func (m *AuthSessionMutation) SetLogoutState(b []byte) {
+	m.logout_state = &b
+}
+
+// LogoutState returns the value of the "logout_state" field in the mutation.
+func (m *AuthSessionMutation) LogoutState() (r []byte, exists bool) {
+	v := m.logout_state
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLogoutState returns the old "logout_state" field's value of the AuthSession entity.
+// If the AuthSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AuthSessionMutation) OldLogoutState(ctx context.Context) (v *[]byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLogoutState is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLogoutState requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLogoutState: %w", err)
+	}
+	return oldValue.LogoutState, nil
+}
+
+// ClearLogoutState clears the value of the "logout_state" field.
+func (m *AuthSessionMutation) ClearLogoutState() {
+	m.logout_state = nil
+	m.clearedFields[authsession.FieldLogoutState] = struct{}{}
+}
+
+// LogoutStateCleared returns if the "logout_state" field was cleared in this mutation.
+func (m *AuthSessionMutation) LogoutStateCleared() bool {
+	_, ok := m.clearedFields[authsession.FieldLogoutState]
+	return ok
+}
+
+// ResetLogoutState resets all changes to the "logout_state" field.
+func (m *AuthSessionMutation) ResetLogoutState() {
+	m.logout_state = nil
+	delete(m.clearedFields, authsession.FieldLogoutState)
+}
+
 // Where appends a list predicates to the AuthSessionMutation builder.
 func (m *AuthSessionMutation) Where(ps ...predicate.AuthSession) {
 	m.predicates = append(m.predicates, ps...)
@@ -3658,7 +3708,7 @@ func (m *AuthSessionMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AuthSessionMutation) Fields() []string {
-	fields := make([]string, 0, 10)
+	fields := make([]string, 0, 11)
 	if m.user_id != nil {
 		fields = append(fields, authsession.FieldUserID)
 	}
@@ -3689,6 +3739,9 @@ func (m *AuthSessionMutation) Fields() []string {
 	if m.idle_expiry != nil {
 		fields = append(fields, authsession.FieldIdleExpiry)
 	}
+	if m.logout_state != nil {
+		fields = append(fields, authsession.FieldLogoutState)
+	}
 	return fields
 }
 
@@ -3717,6 +3770,8 @@ func (m *AuthSessionMutation) Field(name string) (ent.Value, bool) {
 		return m.AbsoluteExpiry()
 	case authsession.FieldIdleExpiry:
 		return m.IdleExpiry()
+	case authsession.FieldLogoutState:
+		return m.LogoutState()
 	}
 	return nil, false
 }
@@ -3746,6 +3801,8 @@ func (m *AuthSessionMutation) OldField(ctx context.Context, name string) (ent.Va
 		return m.OldAbsoluteExpiry(ctx)
 	case authsession.FieldIdleExpiry:
 		return m.OldIdleExpiry(ctx)
+	case authsession.FieldLogoutState:
+		return m.OldLogoutState(ctx)
 	}
 	return nil, fmt.Errorf("unknown AuthSession field %s", name)
 }
@@ -3825,6 +3882,13 @@ func (m *AuthSessionMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetIdleExpiry(v)
 		return nil
+	case authsession.FieldLogoutState:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLogoutState(v)
+		return nil
 	}
 	return fmt.Errorf("unknown AuthSession field %s", name)
 }
@@ -3854,7 +3918,11 @@ func (m *AuthSessionMutation) AddField(name string, value ent.Value) error {
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *AuthSessionMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(authsession.FieldLogoutState) {
+		fields = append(fields, authsession.FieldLogoutState)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -3867,6 +3935,11 @@ func (m *AuthSessionMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *AuthSessionMutation) ClearField(name string) error {
+	switch name {
+	case authsession.FieldLogoutState:
+		m.ClearLogoutState()
+		return nil
+	}
 	return fmt.Errorf("unknown AuthSession nullable field %s", name)
 }
 
@@ -3903,6 +3976,9 @@ func (m *AuthSessionMutation) ResetField(name string) error {
 		return nil
 	case authsession.FieldIdleExpiry:
 		m.ResetIdleExpiry()
+		return nil
+	case authsession.FieldLogoutState:
+		m.ResetLogoutState()
 		return nil
 	}
 	return fmt.Errorf("unknown AuthSession field %s", name)

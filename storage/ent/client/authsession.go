@@ -19,7 +19,7 @@ func (d *Database) CreateAuthSession(ctx context.Context, session storage.AuthSe
 	}
 
 	id := compositeKeyID(session.UserID, session.ConnectorID, d.hasher)
-	_, err = d.client.AuthSession.Create().
+	create := d.client.AuthSession.Create().
 		SetID(id).
 		SetUserID(session.UserID).
 		SetConnectorID(session.ConnectorID).
@@ -30,9 +30,17 @@ func (d *Database) CreateAuthSession(ctx context.Context, session storage.AuthSe
 		SetIPAddress(session.IPAddress).
 		SetUserAgent(session.UserAgent).
 		SetAbsoluteExpiry(session.AbsoluteExpiry.UTC()).
-		SetIdleExpiry(session.IdleExpiry.UTC()).
-		Save(ctx)
-	if err != nil {
+		SetIdleExpiry(session.IdleExpiry.UTC())
+
+	if session.LogoutState != nil {
+		encodedLogoutState, err := json.Marshal(session.LogoutState)
+		if err != nil {
+			return fmt.Errorf("encode logout state auth session: %w", err)
+		}
+		create.SetLogoutState(encodedLogoutState)
+	}
+
+	if _, err := create.Save(ctx); err != nil {
 		return convertDBError("create auth session: %w", err)
 	}
 	return nil
@@ -99,15 +107,25 @@ func (d *Database) UpdateAuthSession(ctx context.Context, userID, connectorID st
 		return rollback(tx, "encode client states auth session: %w", err)
 	}
 
-	_, err = tx.AuthSession.UpdateOneID(id).
+	update := tx.AuthSession.UpdateOneID(id).
 		SetClientStates(encodedStates).
 		SetLastActivity(newSession.LastActivity).
 		SetIPAddress(newSession.IPAddress).
 		SetUserAgent(newSession.UserAgent).
 		SetAbsoluteExpiry(newSession.AbsoluteExpiry.UTC()).
-		SetIdleExpiry(newSession.IdleExpiry.UTC()).
-		Save(ctx)
-	if err != nil {
+		SetIdleExpiry(newSession.IdleExpiry.UTC())
+
+	if newSession.LogoutState != nil {
+		encodedLogoutState, err := json.Marshal(newSession.LogoutState)
+		if err != nil {
+			return rollback(tx, "encode logout state auth session: %w", err)
+		}
+		update.SetLogoutState(encodedLogoutState)
+	} else {
+		update.ClearLogoutState()
+	}
+
+	if _, err = update.Save(ctx); err != nil {
 		return rollback(tx, "update auth session updating: %w", err)
 	}
 

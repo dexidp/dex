@@ -14,6 +14,7 @@ import (
 	"encoding/pem"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -1052,34 +1053,43 @@ func TestLogoutURL(t *testing.T) {
 			NameIDFormat: nameIDFormatEmailAddress,
 		})
 
-		u, err := connNoSLO.LogoutURL(context.Background(), connData, "https://app.example.com/done")
+		u, state, err := connNoSLO.LogoutURLWithState(context.Background(), connData, "https://app.example.com/done")
 		if err != nil {
 			t.Fatalf("LogoutURL error: %v", err)
 		}
 		if u != "" {
 			t.Errorf("expected empty URL when SLO not configured, got %q", u)
 		}
+		if state != nil {
+			t.Errorf("expected nil state when SLO not configured, got %q", state)
+		}
 	})
 
 	t.Run("EmptyNameID", func(t *testing.T) {
 		connData, _ := json.Marshal(cachedIdentity{})
 
-		u, err := connSLO.LogoutURL(context.Background(), connData, "https://app.example.com/done")
+		u, state, err := connSLO.LogoutURLWithState(context.Background(), connData, "https://app.example.com/done")
 		if err != nil {
 			t.Fatalf("LogoutURL error: %v", err)
 		}
 		if u != "" {
 			t.Errorf("expected empty URL when NameID is empty, got %q", u)
 		}
+		if state != nil {
+			t.Errorf("expected nil state when NameID is empty, got %q", state)
+		}
 	})
 
 	t.Run("NilConnectorData", func(t *testing.T) {
-		u, err := connSLO.LogoutURL(context.Background(), nil, "https://app.example.com/done")
+		u, state, err := connSLO.LogoutURLWithState(context.Background(), nil, "https://app.example.com/done")
 		if err != nil {
 			t.Fatalf("LogoutURL error: %v", err)
 		}
 		if u != "" {
 			t.Errorf("expected empty URL with nil connector data, got %q", u)
+		}
+		if state != nil {
+			t.Errorf("expected nil state with nil connector data, got %q", state)
 		}
 	})
 
@@ -1090,7 +1100,7 @@ func TestLogoutURL(t *testing.T) {
 			SessionIndex: "session-abc-123",
 		})
 
-		u, err := connSLO.LogoutURL(context.Background(), connData, "https://app.example.com/done")
+		u, state, err := connSLO.LogoutURLWithState(context.Background(), connData, "https://app.example.com/done")
 		if err != nil {
 			t.Fatalf("LogoutURL error: %v", err)
 		}
@@ -1109,11 +1119,18 @@ func TestLogoutURL(t *testing.T) {
 		if parsed.Path != "/slo" {
 			t.Errorf("unexpected path: %q", parsed.Path)
 		}
-		if parsed.Query().Get("RelayState") != "https://app.example.com/done" {
-			t.Errorf("unexpected RelayState: %q", parsed.Query().Get("RelayState"))
-		}
-
 		req := decodeSAMLRequest(t, parsed.Query().Get("SAMLRequest"))
+
+		// State is the bytes of the outgoing LogoutRequest ID; the server
+		// persists it in storage.LogoutState.ConnectorState so InResponseTo
+		// can be matched in HandleLogoutCallback.
+		if string(state) != req.ID {
+			t.Errorf("expected state to be request ID %q, got %q", req.ID, state)
+		}
+		// We intentionally do not emit RelayState (correlation is server-side).
+		if rs := parsed.Query().Get("RelayState"); rs != "" {
+			t.Errorf("expected no RelayState, got %q", rs)
+		}
 
 		if req.NameID.Value != "user@example.com" {
 			t.Errorf("NameID mismatch: got %q", req.NameID.Value)
@@ -1141,7 +1158,7 @@ func TestLogoutURL(t *testing.T) {
 			NameIDFormat: nameIDFormatEmailAddress,
 		})
 
-		u, err := connSLO.LogoutURL(context.Background(), connData, "")
+		u, state, err := connSLO.LogoutURLWithState(context.Background(), connData, "")
 		if err != nil {
 			t.Fatalf("LogoutURL error: %v", err)
 		}
@@ -1151,33 +1168,128 @@ func TestLogoutURL(t *testing.T) {
 			t.Fatalf("failed to parse URL: %v", err)
 		}
 
-		if parsed.Query().Get("RelayState") != "" {
-			t.Error("expected no RelayState when postLogoutRedirectURI is empty")
-		}
-
 		req := decodeSAMLRequest(t, parsed.Query().Get("SAMLRequest"))
+
+		if string(state) != req.ID {
+			t.Errorf("expected state to be request ID %q, got %q", req.ID, state)
+		}
 		if len(req.SessionIndex) != 0 {
 			t.Errorf("expected no SessionIndex, got %+v", req.SessionIndex)
 		}
 	})
 }
 
-func TestHandleLogoutCallback(t *testing.T) {
+func TestSLOSigningKeyConfigErrors(t *testing.T) {
+	logger := slog.New(slog.DiscardHandler)
+	base := Config{
+		UsernameAttr:                    "Name",
+		EmailAttr:                       "email",
+		RedirectURI:                     "http://127.0.0.1:5556/dex/callback",
+		SSOURL:                          "http://foo.bar/",
+		InsecureSkipSignatureValidation: true,
+	}
+	t.Run("BothKeyAndData", func(t *testing.T) {
+		c := base
+		c.SLOSigningKey = "testdata/ca.key"
+		c.SLOSigningKeyData = []byte("dummy")
+		_, err := c.Open("saml", logger)
+		if err == nil {
+			t.Fatal("expected error when both sloSigningKey and sloSigningKeyData are set")
+		}
+	})
+	t.Run("KeyWithoutSLOURL", func(t *testing.T) {
+		c := base
+		c.SLOSigningKey = "testdata/ca.key"
+		_, err := c.Open("saml", logger)
+		if err == nil {
+			t.Fatal("expected error when sloSigningKey is set without sloURL")
+		}
+	})
+	t.Run("SLOURLWithoutEntityIssuer", func(t *testing.T) {
+		// Profile §4.4.4.1: <Issuer> MUST be present in LogoutRequest, so
+		// entityIssuer must be configured whenever SLO is enabled.
+		c := base
+		c.SLOURL = "http://idp.example.com/slo"
+		_, err := c.Open("saml", logger)
+		if err == nil {
+			t.Fatal("expected error when sloURL is set without entityIssuer")
+		}
+	})
+}
+
+func TestLogoutURLRedirectSigning(t *testing.T) {
+	keyPEM, err := os.ReadFile("testdata/ca.key")
+	if err != nil {
+		t.Fatal(err)
+	}
 	conn, err := (&Config{
-		CA:                                 "testdata/ca.crt",
-		UsernameAttr:                       "Name",
-		EmailAttr:                          "email",
-		RedirectURI:                        "http://127.0.0.1:5556/dex/callback",
-		SSOURL:                             "http://foo.bar/",
-		InsecureSkipSLOSignatureValidation: true,
+		CA:                "testdata/ca.crt",
+		UsernameAttr:      "Name",
+		EmailAttr:         "email",
+		RedirectURI:       "http://127.0.0.1:5556/dex/callback",
+		SSOURL:            "http://foo.bar/",
+		SLOURL:            "http://idp.example.com/slo",
+		SLOSigningKeyData: keyPEM,
+		EntityIssuer:      "http://127.0.0.1:5556/dex",
 	}).openConnector(slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatal(err)
 	}
+	connData, _ := json.Marshal(cachedIdentity{
+		NameID:       "user@example.com",
+		NameIDFormat: nameIDFormatEmailAddress,
+	})
+	logoutURL, state, err := conn.LogoutURLWithState(context.Background(), connData, "https://app.example.com/done")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state) == 0 {
+		t.Fatal("expected non-empty state (LogoutRequest ID)")
+	}
+	parsed, err := url.Parse(logoutURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Query().Get("Signature") == "" {
+		t.Fatal("expected Signature query parameter")
+	}
+	if parsed.Query().Get("SigAlg") == "" {
+		t.Fatal("expected SigAlg query parameter")
+	}
+	req := httptest.NewRequest(http.MethodGet, logoutURL, nil)
+	if err := conn.validateRedirectSignature(req, "SAMLRequest"); err != nil {
+		t.Fatalf("signed LogoutURL failed verification: %v", err)
+	}
+	t.Run("TamperedQueryRejected", func(t *testing.T) {
+		bad := strings.Replace(logoutURL, "SAMLRequest=", "SAMLRequest=AAAA", 1)
+		badReq := httptest.NewRequest(http.MethodGet, bad, nil)
+		if err := conn.validateRedirectSignature(badReq, "SAMLRequest"); err == nil {
+			t.Error("expected verification error for tampered SAMLRequest")
+		}
+	})
+}
+
+func TestHandleLogoutCallback(t *testing.T) {
+	conn, err := (&Config{
+		UsernameAttr:                    "Name",
+		EmailAttr:                       "email",
+		RedirectURI:                     "http://127.0.0.1:5556/dex/callback",
+		SSOURL:                          "http://foo.bar/",
+		InsecureSkipSignatureValidation: true,
+	}).openConnector(slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Match the IssueInstant in successLogoutResponseXML / failedLogoutResponseXML.
+	respTime, _ := time.Parse(timeFormat, "2024-01-01T00:00:00Z")
+	conn.now = func() time.Time { return respTime }
+
+	// successLogoutResponseXML's InResponseTo is "_req456"; pass matching state.
+	successState := []byte("_req456")
 
 	t.Run("EmptySAMLResponse", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/logout/callback", nil)
-		if err := conn.HandleLogoutCallback(context.Background(), req); err != nil {
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, nil); err != nil {
 			t.Errorf("expected nil error for empty SAMLResponse, got: %v", err)
 		}
 	})
@@ -1185,7 +1297,7 @@ func TestHandleLogoutCallback(t *testing.T) {
 	t.Run("ValidLogoutResponse", func(t *testing.T) {
 		encoded := base64.StdEncoding.EncodeToString([]byte(successLogoutResponseXML))
 		req := httptest.NewRequest(http.MethodGet, "/logout/callback?SAMLResponse="+url.QueryEscape(encoded), nil)
-		if err := conn.HandleLogoutCallback(context.Background(), req); err != nil {
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, successState); err != nil {
 			t.Errorf("expected no error for valid response, got: %v", err)
 		}
 	})
@@ -1193,14 +1305,14 @@ func TestHandleLogoutCallback(t *testing.T) {
 	t.Run("FailedStatus", func(t *testing.T) {
 		encoded := base64.StdEncoding.EncodeToString([]byte(failedLogoutResponseXML))
 		req := httptest.NewRequest(http.MethodGet, "/logout/callback?SAMLResponse="+url.QueryEscape(encoded), nil)
-		if err := conn.HandleLogoutCallback(context.Background(), req); err == nil {
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, nil); err == nil {
 			t.Error("expected error for failed status")
 		}
 	})
 
 	t.Run("InvalidBase64", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/logout/callback?SAMLResponse=not-valid-base64!!!", nil)
-		if err := conn.HandleLogoutCallback(context.Background(), req); err == nil {
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, nil); err == nil {
 			t.Error("expected error for invalid base64")
 		}
 	})
@@ -1208,7 +1320,7 @@ func TestHandleLogoutCallback(t *testing.T) {
 	t.Run("InvalidXML", func(t *testing.T) {
 		encoded := base64.StdEncoding.EncodeToString([]byte("not xml at all"))
 		req := httptest.NewRequest(http.MethodGet, "/logout/callback?SAMLResponse="+url.QueryEscape(encoded), nil)
-		if err := conn.HandleLogoutCallback(context.Background(), req); err == nil {
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, nil); err == nil {
 			t.Error("expected error for invalid XML")
 		}
 	})
@@ -1219,13 +1331,12 @@ func TestHandleLogoutCallback(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/logout/callback", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-		if err := conn.HandleLogoutCallback(context.Background(), req); err != nil {
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, successState); err != nil {
 			t.Errorf("expected no error for POST binding, got: %v", err)
 		}
 	})
 
 	t.Run("DeflatedResponse", func(t *testing.T) {
-		// HTTP-Redirect binding: response is deflated + base64 encoded
 		var buf bytes.Buffer
 		fw, err := flate.NewWriter(&buf, flate.DefaultCompression)
 		if err != nil {
@@ -1240,8 +1351,253 @@ func TestHandleLogoutCallback(t *testing.T) {
 
 		encoded := base64.StdEncoding.EncodeToString(buf.Bytes())
 		req := httptest.NewRequest(http.MethodGet, "/logout/callback?SAMLResponse="+url.QueryEscape(encoded), nil)
-		if err := conn.HandleLogoutCallback(context.Background(), req); err != nil {
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, successState); err != nil {
 			t.Errorf("expected no error for deflated response, got: %v", err)
+		}
+	})
+}
+
+func TestHandleLogoutCallbackIssuerValidation(t *testing.T) {
+	conn, err := (&Config{
+		UsernameAttr:                    "Name",
+		EmailAttr:                       "email",
+		RedirectURI:                     "http://127.0.0.1:5556/dex/callback",
+		SSOURL:                          "http://foo.bar/",
+		SSOIssuer:                       "https://correct-idp.example.com",
+		InsecureSkipSignatureValidation: true,
+	}).openConnector(slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("MatchingIssuer", func(t *testing.T) {
+		xml := fmt.Sprintf(`<samlp:LogoutResponse xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_r1" Version="2.0" IssueInstant="%s">
+			<saml:Issuer>https://correct-idp.example.com</saml:Issuer>
+			<samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status>
+		</samlp:LogoutResponse>`, time.Now().UTC().Format(timeFormat))
+		encoded := base64.StdEncoding.EncodeToString([]byte(xml))
+		req := httptest.NewRequest(http.MethodGet, "/logout/callback?SAMLResponse="+url.QueryEscape(encoded), nil)
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, nil); err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+	})
+
+	t.Run("MismatchedIssuer", func(t *testing.T) {
+		xml := fmt.Sprintf(`<samlp:LogoutResponse xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_r2" Version="2.0" IssueInstant="%s">
+			<saml:Issuer>https://evil-idp.example.com</saml:Issuer>
+			<samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status>
+		</samlp:LogoutResponse>`, time.Now().UTC().Format(timeFormat))
+		encoded := base64.StdEncoding.EncodeToString([]byte(xml))
+		req := httptest.NewRequest(http.MethodGet, "/logout/callback?SAMLResponse="+url.QueryEscape(encoded), nil)
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, nil); err == nil {
+			t.Error("expected error for mismatched issuer")
+		}
+	})
+
+	t.Run("MissingIssuer", func(t *testing.T) {
+		// Profile §4.4.4.2 — missing Issuer must be rejected when ssoIssuer is configured.
+		xml := fmt.Sprintf(`<samlp:LogoutResponse xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_r3" Version="2.0" IssueInstant="%s">
+			<samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status>
+		</samlp:LogoutResponse>`, time.Now().UTC().Format(timeFormat))
+		encoded := base64.StdEncoding.EncodeToString([]byte(xml))
+		req := httptest.NewRequest(http.MethodGet, "/logout/callback?SAMLResponse="+url.QueryEscape(encoded), nil)
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, nil); err == nil {
+			t.Error("expected error for missing Issuer when ssoIssuer is configured")
+		}
+	})
+}
+
+func TestHandleLogoutCallbackDestination(t *testing.T) {
+	conn, err := (&Config{
+		UsernameAttr:                    "Name",
+		EmailAttr:                       "email",
+		RedirectURI:                     "http://127.0.0.1:5556/dex/callback",
+		SSOURL:                          "http://foo.bar/",
+		InsecureSkipSignatureValidation: true,
+	}).openConnector(slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	inst := time.Now().UTC().Format(timeFormat)
+	makeResp := func(dest string) string {
+		destAttr := ""
+		if dest != "" {
+			destAttr = fmt.Sprintf(` Destination="%s"`, dest)
+		}
+		return fmt.Sprintf(`<samlp:LogoutResponse xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_r1" Version="2.0" IssueInstant="%s"%s>
+			<samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status>
+		</samlp:LogoutResponse>`, inst, destAttr)
+	}
+
+	t.Run("MatchingAbsoluteURL", func(t *testing.T) {
+		dest := "https://dex.example.com/logout/callback"
+		enc := base64.StdEncoding.EncodeToString([]byte(makeResp(dest)))
+		u := "https://dex.example.com/logout/callback?SAMLResponse=" + url.QueryEscape(enc)
+		req := httptest.NewRequest(http.MethodGet, u, nil)
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, nil); err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+	})
+
+	t.Run("TrailingSlashEquivalence", func(t *testing.T) {
+		dest := "https://dex.example.com/logout/callback/"
+		enc := base64.StdEncoding.EncodeToString([]byte(makeResp(dest)))
+		u := "https://dex.example.com/logout/callback?SAMLResponse=" + url.QueryEscape(enc)
+		req := httptest.NewRequest(http.MethodGet, u, nil)
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, nil); err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+	})
+
+	t.Run("CaseInsensitiveSchemeHost", func(t *testing.T) {
+		// RFC 3986 mandates case-insensitive comparison for scheme and host.
+		dest := "HTTPS://Dex.Example.COM/logout/callback"
+		enc := base64.StdEncoding.EncodeToString([]byte(makeResp(dest)))
+		u := "https://dex.example.com/logout/callback?SAMLResponse=" + url.QueryEscape(enc)
+		req := httptest.NewRequest(http.MethodGet, u, nil)
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, nil); err != nil {
+			t.Errorf("expected nil for case-only scheme/host difference, got %v", err)
+		}
+	})
+
+	t.Run("MismatchedDestination", func(t *testing.T) {
+		enc := base64.StdEncoding.EncodeToString([]byte(makeResp("https://evil.example.com/callback")))
+		u := "https://dex.example.com/logout/callback?SAMLResponse=" + url.QueryEscape(enc)
+		req := httptest.NewRequest(http.MethodGet, u, nil)
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, nil); err == nil {
+			t.Error("expected error for wrong Destination")
+		}
+	})
+
+	t.Run("XForwardedProtoAndHost", func(t *testing.T) {
+		dest := "https://public.example.com/dex/logout/callback"
+		enc := base64.StdEncoding.EncodeToString([]byte(makeResp(dest)))
+		u := "http://10.0.0.5/dex/logout/callback?SAMLResponse=" + url.QueryEscape(enc)
+		req := httptest.NewRequest(http.MethodGet, u, nil)
+		req.Header.Set("X-Forwarded-Proto", "https")
+		req.Header.Set("X-Forwarded-Host", "public.example.com")
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, nil); err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+	})
+}
+
+func TestHandleLogoutCallbackIssueInstantFreshness(t *testing.T) {
+	conn, err := (&Config{
+		UsernameAttr:                    "Name",
+		EmailAttr:                       "email",
+		RedirectURI:                     "http://127.0.0.1:5556/dex/callback",
+		SSOURL:                          "http://foo.bar/",
+		InsecureSkipSignatureValidation: true,
+	}).openConnector(slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("FreshResponse", func(t *testing.T) {
+		conn.now = func() time.Time { return time.Now() }
+		xml := fmt.Sprintf(`<samlp:LogoutResponse xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_r1" Version="2.0" IssueInstant="%s">
+			<samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status>
+		</samlp:LogoutResponse>`, time.Now().UTC().Format(timeFormat))
+		encoded := base64.StdEncoding.EncodeToString([]byte(xml))
+		req := httptest.NewRequest(http.MethodGet, "/logout/callback?SAMLResponse="+url.QueryEscape(encoded), nil)
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, nil); err != nil {
+			t.Errorf("expected no error for fresh response, got: %v", err)
+		}
+	})
+
+	t.Run("StaleResponse", func(t *testing.T) {
+		conn.now = func() time.Time { return time.Now() }
+		stale := time.Now().Add(-10 * time.Minute).UTC().Format(timeFormat)
+		xml := fmt.Sprintf(`<samlp:LogoutResponse xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_r2" Version="2.0" IssueInstant="%s">
+			<samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status>
+		</samlp:LogoutResponse>`, stale)
+		encoded := base64.StdEncoding.EncodeToString([]byte(xml))
+		req := httptest.NewRequest(http.MethodGet, "/logout/callback?SAMLResponse="+url.QueryEscape(encoded), nil)
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, nil); err == nil {
+			t.Error("expected error for stale IssueInstant")
+		}
+	})
+
+	t.Run("FutureResponse", func(t *testing.T) {
+		conn.now = func() time.Time { return time.Now() }
+		future := time.Now().Add(5 * time.Minute).UTC().Format(timeFormat)
+		xml := fmt.Sprintf(`<samlp:LogoutResponse xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_r3" Version="2.0" IssueInstant="%s">
+			<samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status>
+		</samlp:LogoutResponse>`, future)
+		encoded := base64.StdEncoding.EncodeToString([]byte(xml))
+		req := httptest.NewRequest(http.MethodGet, "/logout/callback?SAMLResponse="+url.QueryEscape(encoded), nil)
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, nil); err == nil {
+			t.Error("expected error for future IssueInstant")
+		}
+	})
+}
+
+func TestHandleLogoutCallbackInResponseTo(t *testing.T) {
+	conn, err := (&Config{
+		UsernameAttr:                    "Name",
+		EmailAttr:                       "email",
+		RedirectURI:                     "http://127.0.0.1:5556/dex/callback",
+		SSOURL:                          "http://foo.bar/",
+		InsecureSkipSignatureValidation: true,
+	}).openConnector(slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn.now = func() time.Time { return time.Now() }
+
+	makeResponse := func(inResponseTo string) string {
+		return fmt.Sprintf(`<samlp:LogoutResponse xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_r1" Version="2.0" IssueInstant="%s" InResponseTo="%s">
+			<samlp:Status><samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/></samlp:Status>
+		</samlp:LogoutResponse>`, time.Now().UTC().Format(timeFormat), inResponseTo)
+	}
+
+	// state is what server-side LogoutState.ConnectorState carries: the
+	// outgoing LogoutRequest ID that LogoutURL produced for this user.
+	t.Run("MatchingID", func(t *testing.T) {
+		xml := makeResponse("_abc123")
+		encoded := base64.StdEncoding.EncodeToString([]byte(xml))
+		req := httptest.NewRequest(http.MethodGet,
+			"/logout/callback?SAMLResponse="+url.QueryEscape(encoded), nil)
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, []byte("_abc123")); err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+	})
+
+	t.Run("MismatchedID", func(t *testing.T) {
+		xml := makeResponse("_wrong")
+		encoded := base64.StdEncoding.EncodeToString([]byte(xml))
+		req := httptest.NewRequest(http.MethodGet,
+			"/logout/callback?SAMLResponse="+url.QueryEscape(encoded), nil)
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, []byte("_abc123")); err == nil {
+			t.Error("expected error for InResponseTo mismatch")
+		}
+	})
+
+	t.Run("NilStateSkipsCheck", func(t *testing.T) {
+		// Legacy sessions persisted before this change won't have ConnectorState
+		// — we must not break the upgrade path.
+		xml := makeResponse("_anything")
+		encoded := base64.StdEncoding.EncodeToString([]byte(xml))
+		req := httptest.NewRequest(http.MethodGet,
+			"/logout/callback?SAMLResponse="+url.QueryEscape(encoded), nil)
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, nil); err != nil {
+			t.Errorf("expected no error when state is nil, got: %v", err)
+		}
+	})
+
+	t.Run("RelayStateIgnored", func(t *testing.T) {
+		// Replay defense: a captured LogoutResponse with an attacker-supplied
+		// RelayState must NOT be accepted just because RelayState matches —
+		// only server-side state counts.
+		xml := makeResponse("_attacker_chosen")
+		encoded := base64.StdEncoding.EncodeToString([]byte(xml))
+		req := httptest.NewRequest(http.MethodGet,
+			"/logout/callback?SAMLResponse="+url.QueryEscape(encoded)+
+				"&RelayState="+url.QueryEscape("_attacker_chosen"),
+			nil)
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, []byte("_real_request_id")); err == nil {
+			t.Error("expected error: RelayState must not satisfy InResponseTo check")
 		}
 	})
 }
@@ -1280,16 +1636,17 @@ func postSAMLResponse(encoded string) *http.Request {
 
 func TestHandleLogoutCallbackPOSTSignatureValidation(t *testing.T) {
 	conn, err := (&Config{
-		CA:                                 "testdata/ca.crt",
-		UsernameAttr:                       "Name",
-		EmailAttr:                          "email",
-		RedirectURI:                        "http://127.0.0.1:5556/dex/callback",
-		SSOURL:                             "http://foo.bar/",
-		InsecureSkipSLOSignatureValidation: false,
+		CA:           "testdata/ca.crt",
+		UsernameAttr: "Name",
+		EmailAttr:    "email",
+		RedirectURI:  "http://127.0.0.1:5556/dex/callback",
+		SSOURL:       "http://foo.bar/",
 	}).openConnector(slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatal(err)
 	}
+	respTime, _ := time.Parse(timeFormat, "2024-01-01T00:00:00Z")
+	conn.now = func() time.Time { return respTime }
 
 	t.Run("ValidSignature", func(t *testing.T) {
 		doc := etree.NewDocument()
@@ -1299,26 +1656,25 @@ func TestHandleLogoutCallbackPOSTSignatureValidation(t *testing.T) {
 		signedXML := signXMLDocument(t, doc)
 		encoded := base64.StdEncoding.EncodeToString(signedXML)
 
-		if err := conn.HandleLogoutCallback(context.Background(), postSAMLResponse(encoded)); err != nil {
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), postSAMLResponse(encoded), nil); err != nil {
 			t.Errorf("expected no error for validly signed response, got: %v", err)
 		}
 	})
 
 	t.Run("InvalidSignature", func(t *testing.T) {
 		encoded := base64.StdEncoding.EncodeToString([]byte(successLogoutResponseXML))
-		if err := conn.HandleLogoutCallback(context.Background(), postSAMLResponse(encoded)); err == nil {
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), postSAMLResponse(encoded), nil); err == nil {
 			t.Error("expected error for unsigned response when signature validation is enabled")
 		}
 	})
 
 	t.Run("WrongCA", func(t *testing.T) {
 		connBadCA, err := (&Config{
-			CA:                                 "testdata/bad-ca.crt",
-			UsernameAttr:                       "Name",
-			EmailAttr:                          "email",
-			RedirectURI:                        "http://127.0.0.1:5556/dex/callback",
-			SSOURL:                             "http://foo.bar/",
-			InsecureSkipSLOSignatureValidation: false,
+			CA:           "testdata/bad-ca.crt",
+			UsernameAttr: "Name",
+			EmailAttr:    "email",
+			RedirectURI:  "http://127.0.0.1:5556/dex/callback",
+			SSOURL:       "http://foo.bar/",
 		}).openConnector(slog.New(slog.DiscardHandler))
 		if err != nil {
 			t.Fatal(err)
@@ -1331,7 +1687,7 @@ func TestHandleLogoutCallbackPOSTSignatureValidation(t *testing.T) {
 		signedXML := signXMLDocument(t, doc)
 		encoded := base64.StdEncoding.EncodeToString(signedXML)
 
-		if err := connBadCA.HandleLogoutCallback(context.Background(), postSAMLResponse(encoded)); err == nil {
+		if err := connBadCA.HandleLogoutCallbackWithState(context.Background(), postSAMLResponse(encoded), nil); err == nil {
 			t.Error("expected error when response is signed with different CA")
 		}
 	})
@@ -1383,21 +1739,22 @@ func signRedirectBinding(t *testing.T, xmlPayload string, keyFile, certFile stri
 
 func TestHandleLogoutCallbackRedirectSignatureValidation(t *testing.T) {
 	conn, err := (&Config{
-		CA:                                 "testdata/ca.crt",
-		UsernameAttr:                       "Name",
-		EmailAttr:                          "email",
-		RedirectURI:                        "http://127.0.0.1:5556/dex/callback",
-		SSOURL:                             "http://foo.bar/",
-		InsecureSkipSLOSignatureValidation: false,
+		CA:           "testdata/ca.crt",
+		UsernameAttr: "Name",
+		EmailAttr:    "email",
+		RedirectURI:  "http://127.0.0.1:5556/dex/callback",
+		SSOURL:       "http://foo.bar/",
 	}).openConnector(slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatal(err)
 	}
+	respTime, _ := time.Parse(timeFormat, "2024-01-01T00:00:00Z")
+	conn.now = func() time.Time { return respTime }
 
 	t.Run("ValidSignature", func(t *testing.T) {
 		u := signRedirectBinding(t, successLogoutResponseXML, "testdata/ca.key", "testdata/ca.crt")
 		req := httptest.NewRequest(http.MethodGet, u, nil)
-		if err := conn.HandleLogoutCallback(context.Background(), req); err != nil {
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, nil); err != nil {
 			t.Errorf("expected no error, got: %v", err)
 		}
 	})
@@ -1411,7 +1768,7 @@ func TestHandleLogoutCallbackRedirectSignatureValidation(t *testing.T) {
 
 		req := httptest.NewRequest(http.MethodGet,
 			"/logout/callback?SAMLResponse="+url.QueryEscape(encoded), nil)
-		if err := conn.HandleLogoutCallback(context.Background(), req); err == nil {
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, nil); err == nil {
 			t.Error("expected error for missing Signature parameter")
 		}
 	})
@@ -1419,7 +1776,7 @@ func TestHandleLogoutCallbackRedirectSignatureValidation(t *testing.T) {
 	t.Run("WrongCA", func(t *testing.T) {
 		u := signRedirectBinding(t, successLogoutResponseXML, "testdata/bad-ca.key", "testdata/bad-ca.crt")
 		req := httptest.NewRequest(http.MethodGet, u, nil)
-		if err := conn.HandleLogoutCallback(context.Background(), req); err == nil {
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, nil); err == nil {
 			t.Error("expected error when signed with wrong CA")
 		}
 	})
@@ -1429,7 +1786,7 @@ func TestHandleLogoutCallbackRedirectSignatureValidation(t *testing.T) {
 		// Replace part of the SAMLResponse value to simulate tampering.
 		u = strings.Replace(u, "SAMLResponse=", "SAMLResponse=AAAA", 1)
 		req := httptest.NewRequest(http.MethodGet, u, nil)
-		if err := conn.HandleLogoutCallback(context.Background(), req); err == nil {
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, nil); err == nil {
 			t.Error("expected error for tampered payload")
 		}
 	})
@@ -1437,14 +1794,17 @@ func TestHandleLogoutCallbackRedirectSignatureValidation(t *testing.T) {
 
 func TestSLOEndToEnd(t *testing.T) {
 	c := Config{
-		CA:                                 "testdata/ca.crt",
-		UsernameAttr:                       "Name",
-		EmailAttr:                          "email",
-		GroupsAttr:                         "groups",
-		RedirectURI:                        "http://127.0.0.1:5556/dex/callback",
-		SSOURL:                             "http://foo.bar/",
-		SLOURL:                             "http://idp.example.com/slo",
-		InsecureSkipSLOSignatureValidation: true,
+		UsernameAttr: "Name",
+		EmailAttr:    "email",
+		GroupsAttr:   "groups",
+		RedirectURI:  "http://127.0.0.1:5556/dex/callback",
+		SSOURL:       "http://foo.bar/",
+		SLOURL:       "http://idp.example.com/slo",
+		// EntityIssuer is required when SLOURL is set (Profile §4.4.4.1).
+		// It also drives audience validation, so it must match good-resp.xml's
+		// <saml2:Audience>http://127.0.0.1:5556/dex/callback</saml2:Audience>.
+		EntityIssuer:                    "http://127.0.0.1:5556/dex/callback",
+		InsecureSkipSignatureValidation: true,
 	}
 
 	conn, err := c.openConnector(slog.New(slog.DiscardHandler))
@@ -1475,13 +1835,17 @@ func TestSLOEndToEnd(t *testing.T) {
 		t.Fatal("expected ConnectorData after HandlePOST")
 	}
 
-	// Step 2: LogoutURL — build logout redirect URL from ConnectorData
-	logoutURL, err := conn.LogoutURL(context.Background(), ident.ConnectorData, "https://app.example.com/done")
+	// Step 2: LogoutURL — build logout redirect URL + connector state from ConnectorData
+	conn.now = func() time.Time { return time.Now() }
+	logoutURL, connectorState, err := conn.LogoutURLWithState(context.Background(), ident.ConnectorData, "https://dex.example.com/logout/callback")
 	if err != nil {
 		t.Fatalf("LogoutURL failed: %v", err)
 	}
 	if logoutURL == "" {
 		t.Fatal("expected non-empty logout URL")
+	}
+	if len(connectorState) == 0 {
+		t.Fatal("expected non-empty connector state (LogoutRequest ID)")
 	}
 
 	parsed, err := url.Parse(logoutURL)
@@ -1489,25 +1853,58 @@ func TestSLOEndToEnd(t *testing.T) {
 		t.Fatalf("failed to parse logout URL: %v", err)
 	}
 
-	// Verify the LogoutRequest contains the same NameID from HandlePOST
-	req := decodeSAMLRequest(t, parsed.Query().Get("SAMLRequest"))
-	if req.NameID.Value != ident.UserID {
-		t.Errorf("LogoutRequest NameID should match HandlePOST UserID: got %q, want %q", req.NameID.Value, ident.UserID)
+	logReq := decodeSAMLRequest(t, parsed.Query().Get("SAMLRequest"))
+	if logReq.NameID.Value != ident.UserID {
+		t.Errorf("LogoutRequest NameID should match HandlePOST UserID: got %q, want %q", logReq.NameID.Value, ident.UserID)
 	}
-	if req.NameID.Format != "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent" {
-		t.Errorf("LogoutRequest NameID format mismatch: got %q", req.NameID.Format)
+	if logReq.NameID.Format != "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent" {
+		t.Errorf("LogoutRequest NameID format mismatch: got %q", logReq.NameID.Format)
 	}
-	if len(req.SessionIndex) != 1 || req.SessionIndex[0].Value != "6zmm5mguyebwvajyf2sdwwcw6m" {
-		t.Errorf("LogoutRequest SessionIndex mismatch: %+v", req.SessionIndex)
+	if len(logReq.SessionIndex) != 1 || logReq.SessionIndex[0].Value != "6zmm5mguyebwvajyf2sdwwcw6m" {
+		t.Errorf("LogoutRequest SessionIndex mismatch: %+v", logReq.SessionIndex)
 	}
-	if req.Issuer != nil {
-		t.Errorf("expected no Issuer when EntityIssuer is not configured, got: %+v", req.Issuer)
+	// §4.4.4.1: <Issuer> MUST be present.
+	if logReq.Issuer == nil || logReq.Issuer.Issuer != "http://127.0.0.1:5556/dex/callback" {
+		t.Errorf("LogoutRequest Issuer mismatch: %+v", logReq.Issuer)
 	}
 
-	// Step 3: HandleLogoutCallback — simulate IdP response
-	encoded := base64.StdEncoding.EncodeToString([]byte(successLogoutResponseXML))
-	callbackReq := httptest.NewRequest(http.MethodGet, "/logout/callback?SAMLResponse="+url.QueryEscape(encoded), nil)
-	if err := conn.HandleLogoutCallback(context.Background(), callbackReq); err != nil {
+	// Connector state must be the outgoing request ID; the server stores it
+	// in storage.LogoutState.ConnectorState and hands it back below.
+	if string(connectorState) != logReq.ID {
+		t.Errorf("connector state should equal request ID %q, got %q", logReq.ID, connectorState)
+	}
+
+	// Step 3: HandleLogoutCallback — simulate IdP response with matching InResponseTo.
+	// Note: no RelayState is sent or expected; correlation is purely server-side.
+	logoutResponseXML := fmt.Sprintf(`<samlp:LogoutResponse xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_resp_e2e" Version="2.0" IssueInstant="%s" InResponseTo="%s">
+	<saml:Issuer>https://idp.example.com</saml:Issuer>
+	<samlp:Status>
+		<samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+	</samlp:Status>
+</samlp:LogoutResponse>`, time.Now().UTC().Format(timeFormat), logReq.ID)
+
+	encoded := base64.StdEncoding.EncodeToString([]byte(logoutResponseXML))
+	callbackReq := httptest.NewRequest(http.MethodGet,
+		"/logout/callback?SAMLResponse="+url.QueryEscape(encoded), nil)
+	if err := conn.HandleLogoutCallbackWithState(context.Background(), callbackReq, connectorState); err != nil {
 		t.Fatalf("HandleLogoutCallback failed: %v", err)
+	}
+
+	// Step 4: InResponseTo mismatch must be detected even when an attacker
+	// pre-fills RelayState — only server-side state counts.
+	badResponseXML := fmt.Sprintf(`<samlp:LogoutResponse xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion" ID="_resp_bad" Version="2.0" IssueInstant="%s" InResponseTo="_wrong_id">
+	<saml:Issuer>https://idp.example.com</saml:Issuer>
+	<samlp:Status>
+		<samlp:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Success"/>
+	</samlp:Status>
+</samlp:LogoutResponse>`, time.Now().UTC().Format(timeFormat))
+
+	badEncoded := base64.StdEncoding.EncodeToString([]byte(badResponseXML))
+	badCallbackReq := httptest.NewRequest(http.MethodGet,
+		"/logout/callback?SAMLResponse="+url.QueryEscape(badEncoded)+
+			"&RelayState="+url.QueryEscape("_wrong_id"),
+		nil)
+	if err := conn.HandleLogoutCallbackWithState(context.Background(), badCallbackReq, connectorState); err == nil {
+		t.Error("expected error for InResponseTo mismatch")
 	}
 }

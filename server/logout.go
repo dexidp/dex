@@ -22,7 +22,7 @@ import (
 //  2. Extract user identity (subject) and client (audience/azp) from the token
 //  3. Validate post_logout_redirect_uri against the client's registered URIs
 //  4. Revoke refresh tokens for the user/connector pair
-//  5. If the auth session exists and upstream connector implements LogoutCallbackConnector:
+//  5. If the auth session exists and upstream connector implements (Stateful)LogoutCallbackConnector:
 //     a. Store LogoutState + HMAC key in the session (not deleted yet)
 //     b. Redirect to upstream logout with signed state
 //     c. On callback: verify HMAC, read LogoutState from session, delete session, render page
@@ -192,10 +192,19 @@ func (s *Server) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 	ls := session.LogoutState
 
 	// Let the connector validate the upstream logout response if it supports it.
+	// Prefer StatefulLogoutCallbackConnector (replays ls.ConnectorState — e.g.
+	// SAML's outgoing LogoutRequest ID for InResponseTo correlation) and fall
+	// back to the simpler LogoutCallbackConnector for stateless connectors.
 	if ls.ConnectorID != "" {
 		conn, err := s.getConnector(ctx, ls.ConnectorID)
 		if err == nil {
-			if logoutConn, ok := conn.Connector.(connector.LogoutCallbackConnector); ok {
+			switch logoutConn := conn.Connector.(type) {
+			case connector.StatefulLogoutCallbackConnector:
+				if err := logoutConn.HandleLogoutCallbackWithState(ctx, r, ls.ConnectorState); err != nil {
+					s.logger.ErrorContext(ctx, "logout: upstream logout response validation failed",
+						"connector_id", ls.ConnectorID, "err", err)
+				}
+			case connector.LogoutCallbackConnector:
 				if err := logoutConn.HandleLogoutCallback(ctx, r); err != nil {
 					s.logger.ErrorContext(ctx, "logout: upstream logout response validation failed",
 						"connector_id", ls.ConnectorID, "err", err)
@@ -245,8 +254,13 @@ func (s *Server) tryUpstreamLogout(ctx context.Context, userID, connectorID stri
 		return "", false
 	}
 
-	logoutConn, ok := conn.Connector.(connector.LogoutCallbackConnector)
-	if !ok {
+	// Connectors may implement either the basic LogoutCallbackConnector
+	// or its stateful variant. We probe for the richer interface first so
+	// connectors that need server-side correlation state (e.g. SAML's
+	// LogoutRequest ID for InResponseTo) can hand it back to us.
+	statefulConn, hasState := conn.Connector.(connector.StatefulLogoutCallbackConnector)
+	basicConn, hasBasic := conn.Connector.(connector.LogoutCallbackConnector)
+	if !hasState && !hasBasic {
 		return "", false
 	}
 
@@ -258,22 +272,19 @@ func (s *Server) tryUpstreamLogout(ctx context.Context, userID, connectorID stri
 		return "", false
 	}
 
-	// Store logout parameters in the session.
-	if err := s.storage.UpdateAuthSession(ctx, userID, connectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
-		old.LogoutState = &storage.LogoutState{
-			PostLogoutRedirectURI: postLogoutRedirectURI,
-			State:                 state,
-			ClientID:              clientID,
-			ConnectorID:           connectorID,
-		}
-		return old, nil
-	}); err != nil {
-		s.logger.ErrorContext(ctx, "logout: failed to save logout state", "err", err)
-		return "", false
-	}
-
+	// Build the upstream URL first so any connector-produced state gets
+	// persisted alongside the rest of LogoutState in a single write. If the
+	// connector errors we don't want to leave stale logout state behind.
 	callbackURI := s.absURL("/logout/callback")
-	upstreamURL, err := logoutConn.LogoutURL(ctx, connectorData, callbackURI)
+	var (
+		upstreamURL    string
+		connectorState []byte
+	)
+	if hasState {
+		upstreamURL, connectorState, err = statefulConn.LogoutURLWithState(ctx, connectorData, callbackURI)
+	} else {
+		upstreamURL, err = basicConn.LogoutURL(ctx, connectorData, callbackURI)
+	}
 	if err != nil {
 		s.logger.ErrorContext(ctx, "logout: upstream connector error", "err", err)
 		return "", false
@@ -285,6 +296,20 @@ func (s *Server) tryUpstreamLogout(ctx context.Context, userID, connectorID stri
 	u, err := url.Parse(upstreamURL)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "logout: failed to parse upstream URL", "err", err)
+		return "", false
+	}
+
+	if err := s.storage.UpdateAuthSession(ctx, userID, connectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
+		old.LogoutState = &storage.LogoutState{
+			PostLogoutRedirectURI: postLogoutRedirectURI,
+			State:                 state,
+			ClientID:              clientID,
+			ConnectorID:           connectorID,
+			ConnectorState:        connectorState,
+		}
+		return old, nil
+	}); err != nil {
+		s.logger.ErrorContext(ctx, "logout: failed to save logout state", "err", err)
 		return "", false
 	}
 
