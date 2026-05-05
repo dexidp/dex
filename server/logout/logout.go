@@ -324,10 +324,19 @@ func (h *Handler) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 	ls := session.LogoutState
 
 	// Let the connector validate the upstream logout response if it supports it.
+	// Prefer StatefulLogoutCallbackConnector (replays ls.ConnectorState — e.g.
+	// SAML's outgoing LogoutRequest ID for InResponseTo correlation) and fall
+	// back to the simpler LogoutCallbackConnector for stateless connectors.
 	if ls.ConnectorID != "" {
 		conn, err := h.Connectors.Get(ctx, ls.ConnectorID)
 		if err == nil {
-			if logoutConn, ok := conn.Connector.(connector.LogoutCallbackConnector); ok {
+			switch logoutConn := conn.Connector.(type) {
+			case connector.StatefulLogoutCallbackConnector:
+				if err := logoutConn.HandleLogoutCallbackWithState(ctx, r, ls.ConnectorState); err != nil {
+					h.Logger.ErrorContext(ctx, "logout: upstream logout response validation failed",
+						"connector_id", ls.ConnectorID, "err", err)
+				}
+			case connector.LogoutCallbackConnector:
 				if err := logoutConn.HandleLogoutCallback(ctx, r); err != nil {
 					h.Logger.ErrorContext(ctx, "logout: upstream logout response validation failed",
 						"connector_id", ls.ConnectorID, "err", err)
@@ -388,27 +397,35 @@ func (h *Handler) tryUpstreamLogout(ctx context.Context, authSession *storage.Au
 		return "", false
 	}
 
-	logoutConn, ok := conn.Connector.(connector.LogoutCallbackConnector)
-	if !ok {
-		return "", false
-	}
-
-	// Store logout parameters in the session.
-	if err := h.Storage.UpdateAuthSession(ctx, authSession.ID, func(old storage.AuthSession) (storage.AuthSession, error) {
-		old.LogoutState = &storage.LogoutState{
-			PostLogoutRedirectURI: postLogoutRedirectURI,
-			State:                 state,
-			ClientID:              clientID,
-			ConnectorID:           connectorID,
-		}
-		return old, nil
-	}); err != nil {
-		h.Logger.ErrorContext(ctx, "logout: failed to save logout state", "err", err)
+	// Connectors may implement either the basic LogoutCallbackConnector
+	// or its stateful variant. Probe for the richer interface first so
+	// connectors that need server-side correlation state (e.g. SAML's
+	// LogoutRequest ID for InResponseTo) can hand it back to us.
+	statefulConn, hasState := conn.Connector.(connector.StatefulLogoutCallbackConnector)
+	basicConn, hasBasic := conn.Connector.(connector.LogoutCallbackConnector)
+	if !hasState && !hasBasic {
 		return "", false
 	}
 
 	callbackURI := h.IssuerURL.AbsURL("/logout/callback")
-	upstreamURL, err := logoutConn.LogoutURL(ctx, callbackURI)
+	var (
+		upstreamURL    string
+		connectorState []byte
+	)
+	if hasState {
+		var connectorData []byte
+		offlineSession, err := h.Storage.GetOfflineSessions(ctx, authSession.UserID, connectorID)
+		if err == nil {
+			connectorData = offlineSession.ConnectorData
+		} else if !errors.Is(err, storage.ErrNotFound) {
+			h.Logger.ErrorContext(ctx, "logout: failed to get connector data",
+				"connector_id", connectorID, "err", err)
+			return "", false
+		}
+		upstreamURL, connectorState, err = statefulConn.LogoutURLWithState(ctx, connectorData, callbackURI)
+	} else {
+		upstreamURL, err = basicConn.LogoutURL(ctx, callbackURI)
+	}
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "logout: upstream connector error", "err", err)
 		return "", false
@@ -420,6 +437,20 @@ func (h *Handler) tryUpstreamLogout(ctx context.Context, authSession *storage.Au
 	u, err := url.Parse(upstreamURL)
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "logout: failed to parse upstream URL", "err", err)
+		return "", false
+	}
+
+	if err := h.Storage.UpdateAuthSession(ctx, authSession.ID, func(old storage.AuthSession) (storage.AuthSession, error) {
+		old.LogoutState = &storage.LogoutState{
+			PostLogoutRedirectURI: postLogoutRedirectURI,
+			State:                 state,
+			ClientID:              clientID,
+			ConnectorID:           connectorID,
+			ConnectorState:        connectorState,
+		}
+		return old, nil
+	}); err != nil {
+		h.Logger.ErrorContext(ctx, "logout: failed to save logout state", "err", err)
 		return "", false
 	}
 
