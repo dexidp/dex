@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -32,7 +33,8 @@ var (
 		"groups_2@dexidp.com": {{Email: "groups_0@dexidp.com"}},
 		"groups_0@dexidp.com": {},
 	}
-	callCounter = make(map[string]int)
+	callCounterMu sync.Mutex
+	callCounter   = make(map[string]int)
 )
 
 func testSetup() *httptest.Server {
@@ -43,7 +45,9 @@ func testSetup() *httptest.Server {
 		userKey := r.URL.Query().Get("userKey")
 		if groups, ok := testGroups[userKey]; ok {
 			json.NewEncoder(w).Encode(admin.Groups{Groups: groups})
+			callCounterMu.Lock()
 			callCounter[userKey]++
+			callCounterMu.Unlock()
 		}
 	})
 
@@ -224,7 +228,9 @@ func TestGetGroups(t *testing.T) {
 		},
 	} {
 		testCase := testCase
-		callCounter = map[string]int{}
+		callCounterMu.Lock()
+		callCounter = make(map[string]int)
+		callCounterMu.Unlock()
 		t.Run(name, func(t *testing.T) {
 			assert := assert.New(t)
 			lookup := make(map[string]struct{})
@@ -236,7 +242,10 @@ func TestGetGroups(t *testing.T) {
 				assert.Nil(err)
 			}
 			assert.ElementsMatch(testCase.expectedGroups, groups)
-			t.Logf("[%s] Amount of API calls per userKey: %+v\n", t.Name(), callCounter)
+			callCounterMu.Lock()
+			s := fmt.Sprintf("%+v", callCounter)
+			callCounterMu.Unlock()
+			t.Logf("[%s] Amount of API calls per userKey: %s\n", t.Name(), s)
 		})
 	}
 }
@@ -280,7 +289,9 @@ func TestDomainToAdminEmailConfig(t *testing.T) {
 		},
 	} {
 		testCase := testCase
-		callCounter = map[string]int{}
+		callCounterMu.Lock()
+		callCounter = make(map[string]int)
+		callCounterMu.Unlock()
 		t.Run(name, func(t *testing.T) {
 			assert := assert.New(t)
 			lookup := make(map[string]struct{})
@@ -291,7 +302,10 @@ func TestDomainToAdminEmailConfig(t *testing.T) {
 			} else {
 				assert.Nil(err)
 			}
-			t.Logf("[%s] Amount of API calls per userKey: %+v\n", t.Name(), callCounter)
+			callCounterMu.Lock()
+			s := fmt.Sprintf("%+v", callCounter)
+			callCounterMu.Unlock()
+			t.Logf("[%s] Amount of API calls per userKey: %s\n", t.Name(), s)
 		})
 	}
 }
