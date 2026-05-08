@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -1739,6 +1740,56 @@ func TestHandleTokenExchange(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHandleTokenExchangeLogsSuccess(t *testing.T) {
+	ctx := t.Context()
+	var logBuf bytes.Buffer
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.Logger = slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelInfo}))
+		c.Storage.CreateClient(ctx, storage.Client{
+			ID:     "client_1",
+			Secret: "secret_1",
+		})
+	})
+	defer httpServer.Close()
+
+	vals := make(url.Values)
+	vals.Set("grant_type", grantTypeTokenExchange)
+	vals.Set("connector_id", "mock")
+	vals.Set("scope", "openid")
+	vals.Set("requested_token_type", tokenTypeAccess)
+	vals.Set("subject_token_type", tokenTypeID)
+	vals.Set("subject_token", "foobar")
+	vals.Set("client_id", "client_1")
+	vals.Set("client_secret", "secret_1")
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
+	req.Header.Set("content-type", "application/x-www-form-urlencoded")
+
+	s.handleToken(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	var found map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(logBuf.String()), "\n") {
+		var entry map[string]any
+		require.NoError(t, json.Unmarshal([]byte(line), &entry))
+		if entry["msg"] == "token exchange successful" {
+			found = entry
+			break
+		}
+	}
+	require.NotNil(t, found, "expected \"token exchange successful\" log line, got: %s", logBuf.String())
+	require.Equal(t, "INFO", found["level"])
+	require.Equal(t, "mock", found["connector_id"])
+	require.Equal(t, "client_1", found["client_id"])
+	require.Equal(t, "0-385-28089-0", found["user_id"])
+	require.Equal(t, "Kilgore Trout", found["username"])
+	require.Equal(t, "kilgore@kilgore.trout", found["email"])
+	require.Equal(t, []any{"authors"}, found["groups"])
+	require.Equal(t, tokenTypeID, found["subject_token_type"])
+	require.Equal(t, tokenTypeAccess, found["requested_token_type"])
 }
 
 func TestHandleTokenExchangeConnectorGrantTypeRestriction(t *testing.T) {

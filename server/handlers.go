@@ -1856,6 +1856,18 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 		return
 	}
 
+	email := identity.Email
+	if !identity.EmailVerified {
+		email += " (unverified)"
+	}
+
+	s.logger.InfoContext(ctx, "token exchange successful",
+		"connector_id", connID, "client_id", client.ID,
+		"user_id", identity.UserID,
+		"username", identity.Username, "preferred_username", identity.PreferredUsername,
+		"email", email, "groups", identity.Groups,
+		"subject_token_type", subjectTokenType, "requested_token_type", requestedTokenType)
+
 	claims := storage.Claims{
 		UserID:            identity.UserID,
 		Username:          identity.Username,
