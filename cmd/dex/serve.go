@@ -418,6 +418,14 @@ func runServe(options serveOptions) error {
 
 	serverConfig.RefreshTokenPolicy = refreshTokenPolicy
 
+	connectorExpiryOverrides, err := buildConnectorExpiryOverrides(
+		logger, c.StaticConnectors, idTokensValidFor, c.Expiry.RefreshTokens,
+	)
+	if err != nil {
+		return fmt.Errorf("invalid connector expiry config: %v", err)
+	}
+	serverConfig.ConnectorExpiryOverrides = connectorExpiryOverrides
+
 	if featureflags.SessionsEnabled.Enabled() {
 		sessionConfig, err := parseSessionConfig(c.Sessions)
 		if err != nil {
@@ -830,6 +838,105 @@ func parseSessionConfig(s *Sessions) (*server.SessionConfig, error) {
 		return nil, fmt.Errorf("ssoSharedWithDefault must be \"none\" or \"all\", got %q", sc.SSOSharedWithDefault)
 	}
 	return sc, nil
+}
+
+// buildConnectorExpiryOverrides parses per-connector `expiry` overrides, enforcing
+// that any lifetime with signing-key-retention implications does not exceed the
+// corresponding global maximum. Connectors without an override are omitted from
+// the returned map and inherit the global policy at runtime.
+func buildConnectorExpiryOverrides(
+	logger *slog.Logger,
+	connectors []Connector,
+	globalIDTokens time.Duration,
+	globalRefresh RefreshToken,
+) (map[string]server.ConnectorExpiryOverride, error) {
+	var (
+		globalRefreshAbsolute time.Duration
+		err                   error
+	)
+	if globalRefresh.AbsoluteLifetime != "" {
+		globalRefreshAbsolute, err = time.ParseDuration(globalRefresh.AbsoluteLifetime)
+		if err != nil {
+			return nil, fmt.Errorf("parse global refresh token absoluteLifetime: %v", err)
+		}
+	}
+
+	overrides := map[string]server.ConnectorExpiryOverride{}
+	for _, conn := range connectors {
+		if conn.Expiry == nil {
+			continue
+		}
+
+		var override server.ConnectorExpiryOverride
+
+		if conn.Expiry.IDTokens != "" {
+			d, err := time.ParseDuration(conn.Expiry.IDTokens)
+			if err != nil {
+				return nil, fmt.Errorf("connector %q: parse expiry.idTokens: %v", conn.ID, err)
+			}
+			if d > globalIDTokens {
+				return nil, fmt.Errorf(
+					"connector %q: expiry.idTokens (%s) exceeds the global expiry.idTokens (%s); "+
+						"per-connector lifetimes must not exceed the global maximum since signing key retention is derived from it",
+					conn.ID, d, globalIDTokens,
+				)
+			}
+			override.IDTokensValidFor = d
+			logger.Info("config connector id tokens", "connector_id", conn.ID, "valid_for", d)
+		}
+
+		if rt := conn.Expiry.RefreshTokens; rt != nil {
+			// Validate absoluteLifetime against the global cap.
+			if rt.AbsoluteLifetime != "" && globalRefreshAbsolute > 0 {
+				d, err := time.ParseDuration(rt.AbsoluteLifetime)
+				if err != nil {
+					return nil, fmt.Errorf("connector %q: parse expiry.refreshTokens.absoluteLifetime: %v", conn.ID, err)
+				}
+				if d > globalRefreshAbsolute {
+					return nil, fmt.Errorf(
+						"connector %q: expiry.refreshTokens.absoluteLifetime (%s) exceeds the global value (%s)",
+						conn.ID, d, globalRefreshAbsolute,
+					)
+				}
+			}
+
+			disableRotation := globalRefresh.DisableRotation
+			if rt.DisableRotation != nil {
+				disableRotation = *rt.DisableRotation
+			}
+			validIfNotUsedFor := globalRefresh.ValidIfNotUsedFor
+			if rt.ValidIfNotUsedFor != "" {
+				validIfNotUsedFor = rt.ValidIfNotUsedFor
+			}
+			absoluteLifetime := globalRefresh.AbsoluteLifetime
+			if rt.AbsoluteLifetime != "" {
+				absoluteLifetime = rt.AbsoluteLifetime
+			}
+			reuseInterval := globalRefresh.ReuseInterval
+			if rt.ReuseInterval != "" {
+				reuseInterval = rt.ReuseInterval
+			}
+
+			policy, err := server.NewRefreshTokenPolicy(
+				logger, disableRotation, validIfNotUsedFor, absoluteLifetime, reuseInterval,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("connector %q: refresh token policy: %v", conn.ID, err)
+			}
+			override.RefreshTokenPolicy = policy
+			logger.Info("config connector refresh tokens",
+				"connector_id", conn.ID,
+				"valid_if_not_used_for", validIfNotUsedFor,
+				"absolute_lifetime", absoluteLifetime,
+				"reuse_interval", reuseInterval,
+				"rotation_enabled", !disableRotation,
+			)
+		}
+
+		overrides[conn.ID] = override
+	}
+
+	return overrides, nil
 }
 
 func buildMFAProviders(authenticators []MFAAuthenticator, issuerURL string, logger *slog.Logger) map[string]server.MFAProvider {

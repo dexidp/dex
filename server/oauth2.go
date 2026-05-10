@@ -343,9 +343,27 @@ func genSubject(userID string, connID string) (string, error) {
 	return internal.Marshal(sub)
 }
 
+// idTokensValidForConn returns the ID token lifetime for the given connector,
+// falling back to the server-wide value when no per-connector override is set.
+func (s *Server) idTokensValidForConn(connID string) time.Duration {
+	if o, ok := s.connectorExpiryOverrides[connID]; ok && o.IDTokensValidFor > 0 {
+		return o.IDTokensValidFor
+	}
+	return s.idTokensValidFor
+}
+
+// refreshTokenPolicyForConn returns the refresh token policy for the given
+// connector, falling back to the server-wide policy when no override is set.
+func (s *Server) refreshTokenPolicyForConn(connID string) *RefreshTokenPolicy {
+	if o, ok := s.connectorExpiryOverrides[connID]; ok && o.RefreshTokenPolicy != nil {
+		return o.RefreshTokenPolicy
+	}
+	return s.refreshTokenPolicy
+}
+
 func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string, authTime time.Time) (idToken string, expiry time.Time, err error) {
 	issuedAt := s.now()
-	expiry = issuedAt.Add(s.idTokensValidFor)
+	expiry = issuedAt.Add(s.idTokensValidForConn(connID))
 
 	subjectString, err := genSubject(claims.UserID, connID)
 	if err != nil {

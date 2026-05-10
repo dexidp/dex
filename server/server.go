@@ -113,6 +113,11 @@ type Config struct {
 	// Refresh token expiration settings
 	RefreshTokenPolicy *RefreshTokenPolicy
 
+	// ConnectorExpiryOverrides, keyed by connector ID, overrides the global
+	// IDTokensValidFor and/or RefreshTokenPolicy for tokens issued through that
+	// connector. Missing entries or unset fields fall back to the global values.
+	ConnectorExpiryOverrides map[string]ConnectorExpiryOverride
+
 	// If set, the server will use this connector to handle password grants
 	PasswordConnector string
 
@@ -207,6 +212,13 @@ func value(val, defaultValue time.Duration) time.Duration {
 	return val
 }
 
+// ConnectorExpiryOverride carries per-connector token lifetime overrides.
+// A zero IDTokensValidFor or nil RefreshTokenPolicy inherits the global value.
+type ConnectorExpiryOverride struct {
+	IDTokensValidFor   time.Duration
+	RefreshTokenPolicy *RefreshTokenPolicy
+}
+
 // Server is the top level object.
 type Server struct {
 	issuerURL url.URL
@@ -244,6 +256,9 @@ type Server struct {
 	deviceRequestsValidFor time.Duration
 
 	refreshTokenPolicy *RefreshTokenPolicy
+
+	// connectorExpiryOverrides holds per-connector overrides for token lifetimes.
+	connectorExpiryOverrides map[string]ConnectorExpiryOverride
 
 	logger *slog.Logger
 
@@ -365,10 +380,11 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		supportedResponseTypes: supportedRes,
 		supportedGrantTypes:    supportedGrants,
 		pkce:                   c.PKCE,
-		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
-		authRequestsValidFor:   value(c.AuthRequestsValidFor, 24*time.Hour),
-		deviceRequestsValidFor: value(c.DeviceRequestsValidFor, 5*time.Minute),
-		refreshTokenPolicy:     c.RefreshTokenPolicy,
+		idTokensValidFor:         value(c.IDTokensValidFor, 24*time.Hour),
+		authRequestsValidFor:     value(c.AuthRequestsValidFor, 24*time.Hour),
+		deviceRequestsValidFor:   value(c.DeviceRequestsValidFor, 5*time.Minute),
+		refreshTokenPolicy:       c.RefreshTokenPolicy,
+		connectorExpiryOverrides: c.ConnectorExpiryOverrides,
 		skipApproval:           c.SkipApprovalScreen,
 		alwaysShowLogin:        c.AlwaysShowLoginScreen,
 		now:                    now,

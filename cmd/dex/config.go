@@ -559,6 +559,32 @@ type Connector struct {
 
 	Config     server.ConnectorConfig `json:"config"`
 	GrantTypes []string               `json:"grantTypes"`
+
+	// Expiry, when set, overrides the corresponding fields of the top-level
+	// expiry config for tokens issued through this connector. Any field left
+	// unset falls back to the global value.
+	Expiry *ConnectorExpiry `json:"expiry,omitempty"`
+}
+
+// ConnectorExpiry holds per-connector overrides for token lifetimes.
+type ConnectorExpiry struct {
+	// IDTokens overrides expiry.idTokens for tokens issued through this connector.
+	IDTokens string `json:"idTokens"`
+
+	// RefreshTokens overrides expiry.refreshTokens for sessions established
+	// through this connector. Any field left unset falls back to the global
+	// refresh token policy.
+	RefreshTokens *ConnectorRefreshToken `json:"refreshTokens"`
+}
+
+// ConnectorRefreshToken holds per-connector refresh token policy overrides.
+// Fields mirror the top-level RefreshToken struct; a nil pointer on DisableRotation
+// signals "inherit the global value", while the other string fields inherit when empty.
+type ConnectorRefreshToken struct {
+	DisableRotation   *bool  `json:"disableRotation"`
+	ReuseInterval     string `json:"reuseInterval"`
+	AbsoluteLifetime  string `json:"absoluteLifetime"`
+	ValidIfNotUsedFor string `json:"validIfNotUsedFor"`
 }
 
 // UnmarshalJSON allows Connector to implement the unmarshaler interface to
@@ -569,8 +595,9 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 		Name string `json:"name"`
 		ID   string `json:"id"`
 
-		Config     json.RawMessage `json:"config"`
-		GrantTypes []string        `json:"grantTypes"`
+		Config     json.RawMessage  `json:"config"`
+		GrantTypes []string         `json:"grantTypes"`
+		Expiry     *ConnectorExpiry `json:"expiry,omitempty"`
 	}
 	if err := configUnmarshaller(b, &conn); err != nil {
 		return fmt.Errorf("parse connector: %v", err)
@@ -613,6 +640,7 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 		ID:         conn.ID,
 		Config:     connConfig,
 		GrantTypes: conn.GrantTypes,
+		Expiry:     conn.Expiry,
 	}
 	return nil
 }
