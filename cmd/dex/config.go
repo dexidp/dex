@@ -566,20 +566,14 @@ type Connector struct {
 	Expiry *ConnectorExpiry `json:"expiry,omitempty"`
 }
 
-// ConnectorExpiry holds per-connector overrides for token lifetimes.
 type ConnectorExpiry struct {
-	// IDTokens overrides expiry.idTokens for tokens issued through this connector.
-	IDTokens string `json:"idTokens"`
-
-	// RefreshTokens overrides expiry.refreshTokens for sessions established
-	// through this connector. Any field left unset falls back to the global
-	// refresh token policy.
+	IDTokens      string                 `json:"idTokens"`
 	RefreshTokens *ConnectorRefreshToken `json:"refreshTokens"`
 }
 
-// ConnectorRefreshToken holds per-connector refresh token policy overrides.
-// Fields mirror the top-level RefreshToken struct; a nil pointer on DisableRotation
-// signals "inherit the global value", while the other string fields inherit when empty.
+// ConnectorRefreshToken mirrors RefreshToken but uses a pointer for
+// DisableRotation so that "unset" can be distinguished from "false",
+// allowing the field to inherit the global value when nil.
 type ConnectorRefreshToken struct {
 	DisableRotation   *bool  `json:"disableRotation"`
 	ReuseInterval     string `json:"reuseInterval"`

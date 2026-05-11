@@ -343,20 +343,13 @@ func genSubject(userID string, connID string) (string, error) {
 	return internal.Marshal(sub)
 }
 
-// idTokensValidForConn returns the ID token lifetime for the given connector,
-// falling back to the server-wide value when no per-connector override is set.
 func (s *Server) idTokensValidForConn(connID string) time.Duration {
-	if o, ok := s.connectorExpiryOverrides[connID]; ok && o.IDTokensValidFor > 0 {
-		return o.IDTokensValidFor
-	}
-	return s.idTokensValidFor
+	return value(s.connectorExpiryOverrides[connID].IDTokensValidFor, s.idTokensValidFor)
 }
 
-// refreshTokenPolicyForConn returns the refresh token policy for the given
-// connector, falling back to the server-wide policy when no override is set.
 func (s *Server) refreshTokenPolicyForConn(connID string) *RefreshTokenPolicy {
-	if o, ok := s.connectorExpiryOverrides[connID]; ok && o.RefreshTokenPolicy != nil {
-		return o.RefreshTokenPolicy
+	if p := s.connectorExpiryOverrides[connID].RefreshTokenPolicy; p != nil {
+		return p
 	}
 	return s.refreshTokenPolicy
 }

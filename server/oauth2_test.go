@@ -1311,8 +1311,6 @@ func TestRefreshTokenPolicyForConn(t *testing.T) {
 		"missing entry should fall back to global")
 }
 
-// TestNewIDTokenUsesConnectorOverride verifies that newIDToken applies the
-// per-connector idTokensValidFor override at issuance time, not the global.
 func TestNewIDTokenUsesConnectorOverride(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

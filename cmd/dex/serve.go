@@ -841,11 +841,9 @@ func parseSessionConfig(s *Sessions) (*server.SessionConfig, error) {
 }
 
 // buildConnectorExpiryOverrides parses per-connector `expiry` overrides.
-// Per-connector `idTokens` must not exceed the global `expiry.idTokens` value,
-// since the signer's key retention window is sized from it. Refresh token
-// fields have no such constraint: they are validated against storage, not
-// against signing keys. Connectors without an override are omitted from the
-// returned map and inherit the global policy at runtime.
+// Per-connector `idTokens` must not exceed the global value, since the signer's
+// key retention window is sized from it. Refresh-token fields have no such
+// constraint: they are validated against storage, not against signing keys.
 func buildConnectorExpiryOverrides(
 	logger *slog.Logger,
 	connectors []Connector,
@@ -910,18 +908,12 @@ func parseConnectorExpiry(
 		reuseInterval = globalRefresh.ReuseInterval
 	}
 
-	policy, err := server.NewRefreshTokenPolicy(logger, disableRotation, validIfNotUsedFor, absoluteLifetime, reuseInterval)
+	connLogger := logger.With("connector_id", conn.ID)
+	policy, err := server.NewRefreshTokenPolicy(connLogger, disableRotation, validIfNotUsedFor, absoluteLifetime, reuseInterval)
 	if err != nil {
 		return override, fmt.Errorf("refresh token policy: %v", err)
 	}
 	override.RefreshTokenPolicy = policy
-	logger.Info("config connector refresh tokens",
-		"connector_id", conn.ID,
-		"valid_if_not_used_for", validIfNotUsedFor,
-		"absolute_lifetime", absoluteLifetime,
-		"reuse_interval", reuseInterval,
-		"rotation_enabled", !disableRotation,
-	)
 	return override, nil
 }
 

@@ -213,7 +213,7 @@ func value(val, defaultValue time.Duration) time.Duration {
 }
 
 // ConnectorExpiryOverride carries per-connector token lifetime overrides.
-// A zero IDTokensValidFor or nil RefreshTokenPolicy inherits the global value.
+// A zero or nil field inherits the global value.
 type ConnectorExpiryOverride struct {
 	IDTokensValidFor   time.Duration
 	RefreshTokenPolicy *RefreshTokenPolicy
@@ -257,7 +257,6 @@ type Server struct {
 
 	refreshTokenPolicy *RefreshTokenPolicy
 
-	// connectorExpiryOverrides holds per-connector overrides for token lifetimes.
 	connectorExpiryOverrides map[string]ConnectorExpiryOverride
 
 	logger *slog.Logger
