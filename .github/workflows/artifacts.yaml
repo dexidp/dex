@@ -121,7 +121,7 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-        if: inputs.publish
+        if: inputs.publish && github.repository == 'dexidp/dex'
 
       - name: Build and push image
         id: build
@@ -226,6 +226,7 @@ jobs:
         run: echo "date=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
 
       - name: Restore trivy cache
+        id: trivy-cache
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: cache/db
@@ -241,10 +242,9 @@ jobs:
           scan-type: "rootfs"
           scan-ref: "."
           cache-dir: "./cache"
-        # Disable skipping trivy cache for now
         env:
-          TRIVY_SKIP_DB_UPDATE: true
-          TRIVY_SKIP_JAVA_DB_UPDATE: true
+          TRIVY_SKIP_DB_UPDATE: ${{ steps.trivy-cache.outputs.cache-hit == 'true' }}
+          TRIVY_SKIP_JAVA_DB_UPDATE: ${{ steps.trivy-cache.outputs.cache-hit == 'true' }}
 
       ## Trivy-db uses `0600` permissions.
       ## But `action/cache` use `runner` user by default
