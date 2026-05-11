@@ -675,3 +675,66 @@ enablePasswordDB: true
 		})
 	}
 }
+
+func TestConnectorExpiryYAMLRoundtrip(t *testing.T) {
+	raw := []byte(`
+type: mockCallback
+id: mock
+name: Mock
+expiry:
+  idTokens: "10m"
+  refreshTokens:
+    absoluteLifetime: "8h"
+    validIfNotUsedFor: "2h"
+    disableRotation: true
+`)
+
+	jsonBytes, err := yaml.YAMLToJSON(raw)
+	if err != nil {
+		t.Fatalf("YAMLToJSON: %v", err)
+	}
+
+	var c Connector
+	if err := json.Unmarshal(jsonBytes, &c); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	if c.Expiry == nil {
+		t.Fatal("expected non-nil Expiry")
+	}
+	if got, want := c.Expiry.IDTokens, "10m"; got != want {
+		t.Errorf("IDTokens = %q, want %q", got, want)
+	}
+	if c.Expiry.RefreshTokens == nil {
+		t.Fatal("expected non-nil RefreshTokens")
+	}
+	if got, want := c.Expiry.RefreshTokens.AbsoluteLifetime, "8h"; got != want {
+		t.Errorf("AbsoluteLifetime = %q, want %q", got, want)
+	}
+	if got, want := c.Expiry.RefreshTokens.ValidIfNotUsedFor, "2h"; got != want {
+		t.Errorf("ValidIfNotUsedFor = %q, want %q", got, want)
+	}
+	if c.Expiry.RefreshTokens.DisableRotation == nil || !*c.Expiry.RefreshTokens.DisableRotation {
+		t.Errorf("DisableRotation = %v, want *true", c.Expiry.RefreshTokens.DisableRotation)
+	}
+}
+
+func TestConnectorNoExpiryYAMLLeavesNil(t *testing.T) {
+	raw := []byte(`
+type: mockCallback
+id: mock
+name: Mock
+`)
+	jsonBytes, err := yaml.YAMLToJSON(raw)
+	if err != nil {
+		t.Fatalf("YAMLToJSON: %v", err)
+	}
+
+	var c Connector
+	if err := json.Unmarshal(jsonBytes, &c); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if c.Expiry != nil {
+		t.Errorf("Expiry = %+v, want nil", c.Expiry)
+	}
+}

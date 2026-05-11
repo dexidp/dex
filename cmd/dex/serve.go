@@ -840,103 +840,89 @@ func parseSessionConfig(s *Sessions) (*server.SessionConfig, error) {
 	return sc, nil
 }
 
-// buildConnectorExpiryOverrides parses per-connector `expiry` overrides, enforcing
-// that any lifetime with signing-key-retention implications does not exceed the
-// corresponding global maximum. Connectors without an override are omitted from
-// the returned map and inherit the global policy at runtime.
+// buildConnectorExpiryOverrides parses per-connector `expiry` overrides.
+// Per-connector `idTokens` must not exceed the global `expiry.idTokens` value,
+// since the signer's key retention window is sized from it. Refresh token
+// fields have no such constraint: they are validated against storage, not
+// against signing keys. Connectors without an override are omitted from the
+// returned map and inherit the global policy at runtime.
 func buildConnectorExpiryOverrides(
 	logger *slog.Logger,
 	connectors []Connector,
 	globalIDTokens time.Duration,
 	globalRefresh RefreshToken,
 ) (map[string]server.ConnectorExpiryOverride, error) {
-	var (
-		globalRefreshAbsolute time.Duration
-		err                   error
-	)
-	if globalRefresh.AbsoluteLifetime != "" {
-		globalRefreshAbsolute, err = time.ParseDuration(globalRefresh.AbsoluteLifetime)
-		if err != nil {
-			return nil, fmt.Errorf("parse global refresh token absoluteLifetime: %v", err)
-		}
-	}
-
 	overrides := map[string]server.ConnectorExpiryOverride{}
 	for _, conn := range connectors {
 		if conn.Expiry == nil {
 			continue
 		}
 
-		var override server.ConnectorExpiryOverride
-
-		if conn.Expiry.IDTokens != "" {
-			d, err := time.ParseDuration(conn.Expiry.IDTokens)
-			if err != nil {
-				return nil, fmt.Errorf("connector %q: parse expiry.idTokens: %v", conn.ID, err)
-			}
-			if d > globalIDTokens {
-				return nil, fmt.Errorf(
-					"connector %q: expiry.idTokens (%s) exceeds the global expiry.idTokens (%s); "+
-						"per-connector lifetimes must not exceed the global maximum since signing key retention is derived from it",
-					conn.ID, d, globalIDTokens,
-				)
-			}
-			override.IDTokensValidFor = d
-			logger.Info("config connector id tokens", "connector_id", conn.ID, "valid_for", d)
+		override, err := parseConnectorExpiry(logger, conn, globalIDTokens, globalRefresh)
+		if err != nil {
+			return nil, fmt.Errorf("connector %q: %v", conn.ID, err)
 		}
-
-		if rt := conn.Expiry.RefreshTokens; rt != nil {
-			// Validate absoluteLifetime against the global cap.
-			if rt.AbsoluteLifetime != "" && globalRefreshAbsolute > 0 {
-				d, err := time.ParseDuration(rt.AbsoluteLifetime)
-				if err != nil {
-					return nil, fmt.Errorf("connector %q: parse expiry.refreshTokens.absoluteLifetime: %v", conn.ID, err)
-				}
-				if d > globalRefreshAbsolute {
-					return nil, fmt.Errorf(
-						"connector %q: expiry.refreshTokens.absoluteLifetime (%s) exceeds the global value (%s)",
-						conn.ID, d, globalRefreshAbsolute,
-					)
-				}
-			}
-
-			disableRotation := globalRefresh.DisableRotation
-			if rt.DisableRotation != nil {
-				disableRotation = *rt.DisableRotation
-			}
-			validIfNotUsedFor := globalRefresh.ValidIfNotUsedFor
-			if rt.ValidIfNotUsedFor != "" {
-				validIfNotUsedFor = rt.ValidIfNotUsedFor
-			}
-			absoluteLifetime := globalRefresh.AbsoluteLifetime
-			if rt.AbsoluteLifetime != "" {
-				absoluteLifetime = rt.AbsoluteLifetime
-			}
-			reuseInterval := globalRefresh.ReuseInterval
-			if rt.ReuseInterval != "" {
-				reuseInterval = rt.ReuseInterval
-			}
-
-			policy, err := server.NewRefreshTokenPolicy(
-				logger, disableRotation, validIfNotUsedFor, absoluteLifetime, reuseInterval,
-			)
-			if err != nil {
-				return nil, fmt.Errorf("connector %q: refresh token policy: %v", conn.ID, err)
-			}
-			override.RefreshTokenPolicy = policy
-			logger.Info("config connector refresh tokens",
-				"connector_id", conn.ID,
-				"valid_if_not_used_for", validIfNotUsedFor,
-				"absolute_lifetime", absoluteLifetime,
-				"reuse_interval", reuseInterval,
-				"rotation_enabled", !disableRotation,
-			)
-		}
-
 		overrides[conn.ID] = override
 	}
 
 	return overrides, nil
+}
+
+func parseConnectorExpiry(
+	logger *slog.Logger,
+	conn Connector,
+	globalIDTokens time.Duration,
+	globalRefresh RefreshToken,
+) (server.ConnectorExpiryOverride, error) {
+	var override server.ConnectorExpiryOverride
+
+	if conn.Expiry.IDTokens != "" {
+		d, err := time.ParseDuration(conn.Expiry.IDTokens)
+		if err != nil {
+			return override, fmt.Errorf("parse expiry.idTokens: %v", err)
+		}
+		if d > globalIDTokens {
+			return override, fmt.Errorf("expiry.idTokens (%s) exceeds the global value (%s)", d, globalIDTokens)
+		}
+		override.IDTokensValidFor = d
+		logger.Info("config connector id tokens", "connector_id", conn.ID, "valid_for", d)
+	}
+
+	rt := conn.Expiry.RefreshTokens
+	if rt == nil {
+		return override, nil
+	}
+
+	disableRotation := globalRefresh.DisableRotation
+	if rt.DisableRotation != nil {
+		disableRotation = *rt.DisableRotation
+	}
+	validIfNotUsedFor := rt.ValidIfNotUsedFor
+	if validIfNotUsedFor == "" {
+		validIfNotUsedFor = globalRefresh.ValidIfNotUsedFor
+	}
+	absoluteLifetime := rt.AbsoluteLifetime
+	if absoluteLifetime == "" {
+		absoluteLifetime = globalRefresh.AbsoluteLifetime
+	}
+	reuseInterval := rt.ReuseInterval
+	if reuseInterval == "" {
+		reuseInterval = globalRefresh.ReuseInterval
+	}
+
+	policy, err := server.NewRefreshTokenPolicy(logger, disableRotation, validIfNotUsedFor, absoluteLifetime, reuseInterval)
+	if err != nil {
+		return override, fmt.Errorf("refresh token policy: %v", err)
+	}
+	override.RefreshTokenPolicy = policy
+	logger.Info("config connector refresh tokens",
+		"connector_id", conn.ID,
+		"valid_if_not_used_for", validIfNotUsedFor,
+		"absolute_lifetime", absoluteLifetime,
+		"reuse_interval", reuseInterval,
+		"rotation_enabled", !disableRotation,
+	)
+	return override, nil
 }
 
 func buildMFAProviders(authenticators []MFAAuthenticator, issuerURL string, logger *slog.Logger) map[string]server.MFAProvider {
