@@ -1832,6 +1832,13 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 		return
 	}
 
+	if !isConnectorAllowed(client.AllowedConnectors, connID) {
+		s.logger.ErrorContext(r.Context(), "connector not allowed for client",
+			"connector_id", connID, "client_id", client.ID)
+		s.tokenErrHelper(w, errInvalidRequest, "Connector not allowed for this client.", http.StatusBadRequest)
+		return
+	}
+
 	conn, err := s.getConnector(ctx, connID)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to get connector", "err", err)

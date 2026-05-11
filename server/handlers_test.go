@@ -1832,6 +1832,67 @@ func TestHandleTokenExchangeConnectorGrantTypeRestriction(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
 }
 
+func TestHandleTokenExchangeAllowedConnectors(t *testing.T) {
+	tests := []struct {
+		name              string
+		allowedConnectors []string
+		expectedCode      int
+	}{
+		{
+			name:              "connector in allowed list",
+			allowedConnectors: []string{"mock"},
+			expectedCode:      http.StatusOK,
+		},
+		{
+			name:              "connector matches non-first entry in allowed list",
+			allowedConnectors: []string{"other", "mock"},
+			expectedCode:      http.StatusOK,
+		},
+		{
+			name:              "connector not in allowed list",
+			allowedConnectors: []string{"other"},
+			expectedCode:      http.StatusBadRequest,
+		},
+		{
+			name:              "empty allowed list permits any connector",
+			allowedConnectors: nil,
+			expectedCode:      http.StatusOK,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			httpServer, s := newTestServer(t, func(c *Config) {
+				c.Storage.CreateClient(ctx, storage.Client{
+					ID:                "client_1",
+					Secret:            "secret_1",
+					AllowedConnectors: tc.allowedConnectors,
+				})
+			})
+			defer httpServer.Close()
+
+			vals := make(url.Values)
+			vals.Set("grant_type", grantTypeTokenExchange)
+			vals.Set("connector_id", "mock")
+			vals.Set("scope", "openid")
+			vals.Set("requested_token_type", tokenTypeAccess)
+			vals.Set("subject_token_type", tokenTypeID)
+			vals.Set("subject_token", "foobar")
+			vals.Set("client_id", "client_1")
+			vals.Set("client_secret", "secret_1")
+
+			rr := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
+			req.Header.Set("content-type", "application/x-www-form-urlencoded")
+
+			s.handleToken(rr, req)
+
+			require.Equal(t, tc.expectedCode, rr.Code, rr.Body.String())
+		})
+	}
+}
+
 func TestHandleAuthorizationConnectorGrantTypeFiltering(t *testing.T) {
 	tests := []struct {
 		name string
