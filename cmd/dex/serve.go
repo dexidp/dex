@@ -840,23 +840,29 @@ func parseSessionConfig(s *Sessions) (*server.SessionConfig, error) {
 	return sc, nil
 }
 
-// buildConnectorExpiryOverrides parses per-connector `expiry` overrides.
-// Per-connector `idTokens` must not exceed the global value, since the signer's
-// key retention window is sized from it. Refresh-token fields have no such
-// constraint: they are validated against storage, not against signing keys.
+// buildConnectorExpiryOverrides parses per-connector `expiry` overrides,
+// rejecting any override that would loosen the corresponding global value.
+// A global value left unset is treated as "no ceiling". `disableRotation` is
+// exempt: it's a policy toggle rather than a quantity, so per-connector values
+// are accepted either way.
 func buildConnectorExpiryOverrides(
 	logger *slog.Logger,
 	connectors []Connector,
 	globalIDTokens time.Duration,
 	globalRefresh RefreshToken,
 ) (map[string]server.ConnectorExpiryOverride, error) {
+	refreshCeilings, err := parseRefreshCeilings(globalRefresh)
+	if err != nil {
+		return nil, err
+	}
+
 	overrides := map[string]server.ConnectorExpiryOverride{}
 	for _, conn := range connectors {
 		if conn.Expiry == nil {
 			continue
 		}
 
-		override, err := parseConnectorExpiry(logger, conn, globalIDTokens, globalRefresh)
+		override, err := parseConnectorExpiry(logger, conn, globalIDTokens, globalRefresh, refreshCeilings)
 		if err != nil {
 			return nil, fmt.Errorf("connector %q: %v", conn.ID, err)
 		}
@@ -866,21 +872,50 @@ func buildConnectorExpiryOverrides(
 	return overrides, nil
 }
 
+// refreshCeilings holds the parsed global refresh-token ceilings. A zero value
+// means "no ceiling" for that field.
+type refreshCeilings struct {
+	absoluteLifetime  time.Duration
+	validIfNotUsedFor time.Duration
+	reuseInterval     time.Duration
+}
+
+func parseRefreshCeilings(g RefreshToken) (refreshCeilings, error) {
+	var c refreshCeilings
+	for _, f := range []struct {
+		name  string
+		value string
+		dst   *time.Duration
+	}{
+		{"expiry.refreshTokens.absoluteLifetime", g.AbsoluteLifetime, &c.absoluteLifetime},
+		{"expiry.refreshTokens.validIfNotUsedFor", g.ValidIfNotUsedFor, &c.validIfNotUsedFor},
+		{"expiry.refreshTokens.reuseInterval", g.ReuseInterval, &c.reuseInterval},
+	} {
+		if f.value == "" {
+			continue
+		}
+		d, err := time.ParseDuration(f.value)
+		if err != nil {
+			return c, fmt.Errorf("parse %s: %v", f.name, err)
+		}
+		*f.dst = d
+	}
+	return c, nil
+}
+
 func parseConnectorExpiry(
 	logger *slog.Logger,
 	conn Connector,
 	globalIDTokens time.Duration,
 	globalRefresh RefreshToken,
+	ceilings refreshCeilings,
 ) (server.ConnectorExpiryOverride, error) {
 	var override server.ConnectorExpiryOverride
 
 	if conn.Expiry.IDTokens != "" {
-		d, err := time.ParseDuration(conn.Expiry.IDTokens)
+		d, err := parseWithCeiling("expiry.idTokens", conn.Expiry.IDTokens, globalIDTokens)
 		if err != nil {
-			return override, fmt.Errorf("parse expiry.idTokens: %v", err)
-		}
-		if d > globalIDTokens {
-			return override, fmt.Errorf("expiry.idTokens (%s) exceeds the global value (%s)", d, globalIDTokens)
+			return override, err
 		}
 		override.IDTokensValidFor = d
 		logger.Info("config connector id tokens", "connector_id", conn.ID, "valid_for", d)
@@ -889,6 +924,23 @@ func parseConnectorExpiry(
 	rt := conn.Expiry.RefreshTokens
 	if rt == nil {
 		return override, nil
+	}
+
+	for _, f := range []struct {
+		name    string
+		value   string
+		ceiling time.Duration
+	}{
+		{"expiry.refreshTokens.absoluteLifetime", rt.AbsoluteLifetime, ceilings.absoluteLifetime},
+		{"expiry.refreshTokens.validIfNotUsedFor", rt.ValidIfNotUsedFor, ceilings.validIfNotUsedFor},
+		{"expiry.refreshTokens.reuseInterval", rt.ReuseInterval, ceilings.reuseInterval},
+	} {
+		if f.value == "" || f.ceiling == 0 {
+			continue
+		}
+		if _, err := parseWithCeiling(f.name, f.value, f.ceiling); err != nil {
+			return override, err
+		}
 	}
 
 	disableRotation := globalRefresh.DisableRotation
@@ -915,6 +967,17 @@ func parseConnectorExpiry(
 	}
 	override.RefreshTokenPolicy = policy
 	return override, nil
+}
+
+func parseWithCeiling(field, value string, ceiling time.Duration) (time.Duration, error) {
+	d, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s: %v", field, err)
+	}
+	if d > ceiling {
+		return 0, fmt.Errorf("%s (%s) exceeds the global value (%s)", field, d, ceiling)
+	}
+	return d, nil
 }
 
 func buildMFAProviders(authenticators []MFAAuthenticator, issuerURL string, logger *slog.Logger) map[string]server.MFAProvider {

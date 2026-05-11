@@ -43,6 +43,36 @@ func TestBuildConnectorExpiryOverrides_IDTokensExceedsGlobal(t *testing.T) {
 	assert.Contains(t, err.Error(), "expiry.idTokens (48h0m0s) exceeds the global value (24h0m0s)")
 }
 
+func TestBuildConnectorExpiryOverrides_RefreshAbsoluteLifetimeExceedsGlobal(t *testing.T) {
+	_, err := buildConnectorExpiryOverrides(
+		slog.New(slog.DiscardHandler),
+		[]Connector{{
+			ID: "c1", Type: "mock", Name: "c1",
+			Expiry: &ConnectorExpiry{
+				RefreshTokens: &ConnectorRefreshToken{AbsoluteLifetime: "100h"},
+			},
+		}},
+		24*time.Hour, RefreshToken{AbsoluteLifetime: "48h"},
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "expiry.refreshTokens.absoluteLifetime (100h0m0s) exceeds the global value (48h0m0s)")
+}
+
+func TestBuildConnectorExpiryOverrides_RefreshNoGlobalCeiling(t *testing.T) {
+	// Global absoluteLifetime unset ("disabled/infinite"); any override passes.
+	_, err := buildConnectorExpiryOverrides(
+		slog.New(slog.DiscardHandler),
+		[]Connector{{
+			ID: "c1", Type: "mock", Name: "c1",
+			Expiry: &ConnectorExpiry{
+				RefreshTokens: &ConnectorRefreshToken{AbsoluteLifetime: "9000h"},
+			},
+		}},
+		24*time.Hour, RefreshToken{},
+	)
+	require.NoError(t, err)
+}
+
 func TestBuildConnectorExpiryOverrides(t *testing.T) {
 	disable := true
 	overrides, err := buildConnectorExpiryOverrides(

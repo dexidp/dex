@@ -196,8 +196,9 @@ web:
 # connectors: []
 #
 # Per-connector expiry overrides. Any field left unset inherits the top-level
-# `expiry` configuration. Per-connector `idTokens` must not exceed the global
-# `expiry.idTokens`, since the signer's key retention window is sized from it.
+# `expiry` configuration. Overrides must be at least as strict as the global
+# value (i.e. shorter or equal); a value exceeding its global counterpart is
+# rejected at config load. Global values left unset impose no ceiling.
 # connectors:
 # - type: oidc
 #   id: partner
