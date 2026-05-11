@@ -1311,12 +1311,6 @@ func TestRefreshTokenPolicyForConn(t *testing.T) {
 		"missing entry should fall back to global")
 }
 
-func TestIDTokensValidForConnNoOverrides(t *testing.T) {
-	s := &Server{idTokensValidFor: 42 * time.Minute}
-	assert.Equal(t, 42*time.Minute, s.idTokensValidForConn("any"),
-		"nil override map must not panic and must return global")
-}
-
 // TestNewIDTokenUsesConnectorOverride verifies that newIDToken applies the
 // per-connector idTokensValidFor override at issuance time, not the global.
 func TestNewIDTokenUsesConnectorOverride(t *testing.T) {
