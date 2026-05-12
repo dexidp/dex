@@ -10,7 +10,9 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	admin "google.golang.org/api/admin/directory/v1"
@@ -32,7 +34,8 @@ var (
 		"groups_2@dexidp.com": {{Email: "groups_0@dexidp.com"}},
 		"groups_0@dexidp.com": {},
 	}
-	callCounter = make(map[string]int)
+	callCounterMu sync.Mutex
+	callCounter   = make(map[string]int)
 )
 
 func testSetup() *httptest.Server {
@@ -43,7 +46,9 @@ func testSetup() *httptest.Server {
 		userKey := r.URL.Query().Get("userKey")
 		if groups, ok := testGroups[userKey]; ok {
 			json.NewEncoder(w).Encode(admin.Groups{Groups: groups})
+			callCounterMu.Lock()
 			callCounter[userKey]++
+			callCounterMu.Unlock()
 		}
 	})
 
@@ -224,21 +229,69 @@ func TestGetGroups(t *testing.T) {
 		},
 	} {
 		testCase := testCase
-		callCounter = map[string]int{}
+		callCounterMu.Lock()
+		callCounter = make(map[string]int)
+		callCounterMu.Unlock()
 		t.Run(name, func(t *testing.T) {
 			assert := assert.New(t)
-			lookup := make(map[string]struct{})
 
-			groups, err := conn.getGroups(testCase.userKey, testCase.fetchTransitiveGroupMembership, lookup)
+			groups, err := conn.getGroups(context.Background(), testCase.userKey, testCase.fetchTransitiveGroupMembership)
 			if testCase.shouldErr {
 				assert.NotNil(err)
 			} else {
 				assert.Nil(err)
 			}
 			assert.ElementsMatch(testCase.expectedGroups, groups)
-			t.Logf("[%s] Amount of API calls per userKey: %+v\n", t.Name(), callCounter)
+			callCounterMu.Lock()
+			s := fmt.Sprintf("%+v", callCounter)
+			callCounterMu.Unlock()
+			t.Logf("[%s] Amount of API calls per userKey: %s\n", t.Name(), s)
 		})
 	}
+}
+
+// Regression test for MaxConcurrentGroupLookups=1 with a user -> A -> B membership chain.
+func TestGetGroups_transitiveNoDeadlockAtConcurrentLimitOne(t *testing.T) {
+	chain := map[string][]*admin.Group{
+		"user_chain@dexidp.com": {{Email: "group_a@dexidp.com"}},
+		"group_a@dexidp.com":    {{Email: "group_b@dexidp.com"}},
+		"group_b@dexidp.com":    {},
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/admin/directory/v1/groups/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "application/json")
+		userKey := r.URL.Query().Get("userKey")
+		if groups, ok := chain[userKey]; ok {
+			_ = json.NewEncoder(w).Encode(admin.Groups{Groups: groups})
+		}
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	serviceAccountFilePath, err := tempServiceAccountKey()
+	assert.Nil(t, err)
+
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", serviceAccountFilePath)
+	conn, err := newConnector(&Config{
+		ClientID:                  "testClient",
+		ClientSecret:              "testSecret",
+		RedirectURI:               ts.URL + "/callback",
+		Scopes:                    []string{"openid", "groups"},
+		DomainToAdminEmail:        map[string]string{"*": "admin@dexidp.com"},
+		MaxConcurrentGroupLookups: 1,
+	})
+	assert.Nil(t, err)
+
+	conn.adminSrv[wildcardDomainToAdminEmail], err = admin.NewService(context.Background(), option.WithoutAuthentication(), option.WithEndpoint(ts.URL))
+	assert.Nil(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	groups, err := conn.getGroups(ctx, "user_chain@dexidp.com", true)
+	assert.Nil(t, err)
+	assert.Equal(t, []string{"group_a@dexidp.com", "group_b@dexidp.com"}, groups)
 }
 
 func TestDomainToAdminEmailConfig(t *testing.T) {
@@ -280,18 +333,22 @@ func TestDomainToAdminEmailConfig(t *testing.T) {
 		},
 	} {
 		testCase := testCase
-		callCounter = map[string]int{}
+		callCounterMu.Lock()
+		callCounter = make(map[string]int)
+		callCounterMu.Unlock()
 		t.Run(name, func(t *testing.T) {
 			assert := assert.New(t)
-			lookup := make(map[string]struct{})
 
-			_, err := conn.getGroups(testCase.userKey, true, lookup)
+			_, err := conn.getGroups(context.Background(), testCase.userKey, true)
 			if testCase.expectedErr != "" {
 				assert.ErrorContains(err, testCase.expectedErr)
 			} else {
 				assert.Nil(err)
 			}
-			t.Logf("[%s] Amount of API calls per userKey: %+v\n", t.Name(), callCounter)
+			callCounterMu.Lock()
+			s := fmt.Sprintf("%+v", callCounter)
+			callCounterMu.Unlock()
+			t.Logf("[%s] Amount of API calls per userKey: %s\n", t.Name(), s)
 		})
 	}
 }
@@ -381,9 +438,8 @@ func TestGCEWorkloadIdentity(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			assert := assert.New(t)
-			lookup := make(map[string]struct{})
 
-			_, err := conn.getGroups(testCase.userKey, true, lookup)
+			_, err := conn.getGroups(context.Background(), testCase.userKey, true)
 			if testCase.expectedErr != "" {
 				assert.ErrorContains(err, testCase.expectedErr)
 			} else {

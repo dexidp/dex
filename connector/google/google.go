@@ -8,7 +8,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
@@ -16,6 +18,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"golang.org/x/sync/errgroup"
 	admin "google.golang.org/api/admin/directory/v1"
 	"google.golang.org/api/impersonate"
 	"google.golang.org/api/option"
@@ -27,6 +30,10 @@ import (
 const (
 	issuerURL                  = "https://accounts.google.com"
 	wildcardDomainToAdminEmail = "*"
+
+	// defaultConcurrentGroupLookups is the limit used when Config.MaxConcurrentGroupLookups
+	// is zero or negative.
+	defaultConcurrentGroupLookups = 10
 )
 
 // Config holds configuration options for Google logins.
@@ -60,6 +67,10 @@ type Config struct {
 
 	// If this field is true, fetch direct group membership and transitive group membership
 	FetchTransitiveGroupMembership bool `json:"fetchTransitiveGroupMembership"`
+
+	// MaxConcurrentGroupLookups limits concurrent Admin Directory API calls when resolving
+	// transitive group membership. If zero or negative, the connector default limit applies.
+	MaxConcurrentGroupLookups int `json:"maxConcurrentGroupLookups"`
 
 	// Optional value for the prompt parameter, defaults to consent when offline_access
 	// scope is requested
@@ -119,6 +130,11 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 	}
 
 	clientID := c.ClientID
+	maxConcurrent := c.MaxConcurrentGroupLookups
+	if maxConcurrent <= 0 {
+		maxConcurrent = defaultConcurrentGroupLookups
+	}
+
 	return &googleConnector{
 		redirectURI: c.RedirectURI,
 		oauth2Config: &oauth2.Config{
@@ -138,6 +154,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		serviceAccountFilePath:         c.ServiceAccountFilePath,
 		domainToAdminEmail:             c.DomainToAdminEmail,
 		fetchTransitiveGroupMembership: c.FetchTransitiveGroupMembership,
+		maxConcurrentGroupLookups:      maxConcurrent,
 		adminSrv:                       adminSrv,
 		promptType:                     promptType,
 	}, nil
@@ -159,6 +176,7 @@ type googleConnector struct {
 	serviceAccountFilePath         string
 	domainToAdminEmail             map[string]string
 	fetchTransitiveGroupMembership bool
+	maxConcurrentGroupLookups      int
 	adminSrv                       map[string]*admin.Service
 	promptType                     string
 }
@@ -272,8 +290,7 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 
 	var groups []string
 	if s.Groups && len(c.adminSrv) > 0 {
-		checkedGroups := make(map[string]struct{})
-		groups, err = c.getGroups(claims.Email, c.fetchTransitiveGroupMembership, checkedGroups)
+		groups, err = c.getGroups(ctx, claims.Email, c.fetchTransitiveGroupMembership)
 		if err != nil {
 			return identity, fmt.Errorf("google: could not retrieve groups: %v", err)
 		}
@@ -298,44 +315,99 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 }
 
 // getGroups creates a connection to the admin directory service and lists
-// all groups the user is a member of
-func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership bool, checkedGroups map[string]struct{}) ([]string, error) {
-	var userGroups []string
-	var err error
-	groupsList := &admin.Groups{}
-	domain := c.extractDomainFromEmail(email)
+// all groups the user is a member of.
+func (c *googleConnector) getGroups(ctx context.Context, email string, fetchTransitiveGroupMembership bool) ([]string, error) {
+	directGroups, err := c.listGroupEmails(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+
+	var seenMu sync.Mutex
+	seen := make(map[string]struct{})
+	userGroups := make([]string, 0, len(directGroups))
+	addGroup := func(groupEmail string) bool {
+		seenMu.Lock()
+		defer seenMu.Unlock()
+		if _, exists := seen[groupEmail]; exists {
+			return false
+		}
+		seen[groupEmail] = struct{}{}
+		// TODO (joelspeed): Make desired group key configurable
+		userGroups = append(userGroups, groupEmail)
+		return true
+	}
+
+	seeds := make([]string, 0, len(directGroups))
+	for _, groupEmail := range directGroups {
+		if addGroup(groupEmail) {
+			seeds = append(seeds, groupEmail)
+		}
+	}
+
+	if !fetchTransitiveGroupMembership || len(seeds) == 0 {
+		sort.Strings(userGroups)
+		return userGroups, nil
+	}
+
+	apiSem := make(chan struct{}, c.maxConcurrentGroupLookups)
+	g, gctx := errgroup.WithContext(ctx)
+
+	var enqueue func(string)
+	enqueue = func(groupEmail string) {
+		g.Go(func() error {
+			if err := gctx.Err(); err != nil {
+				return err
+			}
+			select {
+			case <-gctx.Done():
+				return gctx.Err()
+			case apiSem <- struct{}{}:
+			}
+			defer func() { <-apiSem }()
+
+			parentGroups, err := c.listGroupEmails(gctx, groupEmail)
+			if err != nil {
+				return fmt.Errorf("could not list transitive groups: %w", err)
+			}
+			for _, parent := range parentGroups {
+				if addGroup(parent) {
+					enqueue(parent)
+				}
+			}
+			return nil
+		})
+	}
+
+	for _, groupEmail := range seeds {
+		enqueue(groupEmail)
+	}
+
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
+	sort.Strings(userGroups)
+	return userGroups, nil
+}
+
+func (c *googleConnector) listGroupEmails(ctx context.Context, userKey string) ([]string, error) {
+	domain := c.extractDomainFromEmail(userKey)
 	adminSrv, err := c.findAdminService(domain)
 	if err != nil {
 		return nil, err
 	}
 
+	groupEmails := []string{}
+	groupsList := &admin.Groups{}
 	for {
 		groupsList, err = adminSrv.Groups.List().
-			UserKey(email).PageToken(groupsList.NextPageToken).Do()
+			UserKey(userKey).PageToken(groupsList.NextPageToken).Context(ctx).Do()
 		if err != nil {
 			return nil, fmt.Errorf("could not list groups: %v", err)
 		}
 
 		for _, group := range groupsList.Groups {
-			if _, exists := checkedGroups[group.Email]; exists {
-				continue
-			}
-
-			checkedGroups[group.Email] = struct{}{}
-			// TODO (joelspeed): Make desired group key configurable
-			userGroups = append(userGroups, group.Email)
-
-			if !fetchTransitiveGroupMembership {
-				continue
-			}
-
-			// getGroups takes a user's email/alias as well as a group's email/alias
-			transitiveGroups, err := c.getGroups(group.Email, fetchTransitiveGroupMembership, checkedGroups)
-			if err != nil {
-				return nil, fmt.Errorf("could not list transitive groups: %v", err)
-			}
-
-			userGroups = append(userGroups, transitiveGroups...)
+			groupEmails = append(groupEmails, group.Email)
 		}
 
 		if groupsList.NextPageToken == "" {
@@ -343,7 +415,7 @@ func (c *googleConnector) getGroups(email string, fetchTransitiveGroupMembership
 		}
 	}
 
-	return userGroups, nil
+	return groupEmails, nil
 }
 
 func (c *googleConnector) findAdminService(domain string) (*admin.Service, error) {
