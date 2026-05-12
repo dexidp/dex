@@ -4,7 +4,9 @@
 package sql
 
 import (
+	"context"
 	"database/sql"
+	"log/slog"
 	"reflect"
 	"testing"
 )
@@ -29,6 +31,45 @@ func TestDecoder(t *testing.T) {
 	want := []string{"a", "b"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("wanted %q got %q", want, got)
+	}
+}
+
+func TestGetPasswordWithTextGroups(t *testing.T) {
+	logger := slog.New(slog.DiscardHandler)
+	conn, err := (&SQLite3{File: ":memory:"}).open(logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+
+	email := "text-groups@example.com"
+	_, err = conn.Exec(`
+		insert into password (
+			email, hash, username, preferred_username, user_id, groups, name, email_verified
+		)
+		values (
+			$1, $2, $3, $4, $5, CAST('[]' AS TEXT), $6, $7
+		);`,
+		email, []byte("hash"), "username", "", "user-id", "", false,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var storageClass string
+	if err := conn.QueryRow(`select typeof(groups) from password where email = $1;`, email).Scan(&storageClass); err != nil {
+		t.Fatal(err)
+	}
+	if storageClass != "text" {
+		t.Fatalf("expected groups storage class text, got %q", storageClass)
+	}
+
+	p, err := conn.GetPassword(context.Background(), email)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Groups) != 0 {
+		t.Fatalf("expected empty groups, got %q", p.Groups)
 	}
 }
 

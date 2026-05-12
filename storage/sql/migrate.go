@@ -473,4 +473,12 @@ var migrations = []migration{
 				add column connector_data bytea;`,
 		},
 	},
+	// Convert password groups values backfilled from the original default '[]'
+	// from SQLite TEXT storage class to BLOB.
+	{
+		stmts: []string{
+			`update password set groups = CAST(groups as BLOB);`,
+		},
+		flavor: &flavorSQLite3,
+	},
 }
