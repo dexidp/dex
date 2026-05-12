@@ -100,6 +100,39 @@ func TestHandleCallBackForGroupsInUserInfo(t *testing.T) {
 	assert.Equal(t, identity.EmailVerified, false)
 }
 
+func TestHandleCallBackForGroupsInUserInfoIsString(t *testing.T) {
+	tokenClaims := map[string]interface{}{}
+
+	userInfoClaims := map[string]interface{}{
+		"name":               "test-name",
+		"user_id_key":        "test-user-id",
+		"user_name_key":      "test-username",
+		"preferred_username": "test-preferred-username",
+		"mail":               "mod_mail",
+		"has_verified_email": false,
+		"groups_key":         `["admin-group", "user-group"]`,
+	}
+
+	testServer := testSetup(t, tokenClaims, userInfoClaims)
+	defer testServer.Close()
+
+	conn := newConnector(t, testServer.URL)
+	req := newRequestWithAuthCode(t, testServer.URL, "TestHandleCallBackForGroupsInUserInfo")
+
+	identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, req)
+	assert.Equal(t, err, nil)
+
+	sort.Strings(identity.Groups)
+	assert.Equal(t, len(identity.Groups), 2)
+	assert.Equal(t, identity.Groups[0], "admin-group")
+	assert.Equal(t, identity.Groups[1], "user-group")
+	assert.Equal(t, identity.UserID, "test-user-id")
+	assert.Equal(t, identity.Username, "test-username")
+	assert.Equal(t, identity.PreferredUsername, "test-preferred-username")
+	assert.Equal(t, identity.Email, "mod_mail")
+	assert.Equal(t, identity.EmailVerified, false)
+}
+
 func TestHandleCallBackForGroupMapsInUserInfo(t *testing.T) {
 	tokenClaims := map[string]interface{}{}
 
