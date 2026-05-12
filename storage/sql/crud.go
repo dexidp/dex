@@ -64,8 +64,13 @@ func (j jsonDecoder) Scan(dest interface{}) error {
 	if dest == nil {
 		return errors.New("nil value")
 	}
-	b, ok := dest.([]byte)
-	if !ok {
+	var b []byte
+	switch v := dest.(type) {
+	case []byte:
+		b = v
+	case string:
+		b = []byte(v)
+	default:
 		return fmt.Errorf("expected []byte got %T", dest)
 	}
 	if err := json.Unmarshal(b, &j.i); err != nil {
