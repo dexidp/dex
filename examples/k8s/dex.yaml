@@ -25,6 +25,9 @@ spec:
       containers:
       - image: ghcr.io/dexidp/dex:v2.32.0
         name: dex
+        # This example runs the dex binary directly, so the Docker entrypoint's
+        # gomplate preprocessing is skipped. The $GITHUB_* values below are
+        # expanded by dex's built-in config environment expansion.
         command: ["/usr/local/bin/dex", "serve", "/etc/dex/cfg/config.yaml"]
 
         ports:
