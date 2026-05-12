@@ -178,14 +178,33 @@ func TestHandleCallbackWithoutRootCADataFailsTLS(t *testing.T) {
 
 func TestUserGroups(t *testing.T) {
 	s := newTestServer(map[string]interface{}{
-		"/oauth/userinfo": userInfo{
-			Groups: []string{"team-1", "team-2"},
+		"/api/v4/groups": []group{
+			{
+				ID:       1,
+				Name:     "team-1",
+				FullName: "team-1",
+				Path:     "team-1",
+				FullPath: "team-1",
+			},
+			{
+				ID:       2,
+				Name:     "team-2",
+				FullName: "team-2",
+				Path:     "team-2",
+				FullPath: "team-2",
+			},
+		},
+		"/api/v4/groups/1/members/all/1": map[string]interface{}{
+			"access_level": 50,
+		},
+		"/api/v4/groups/2/members/all/1": map[string]interface{}{
+			"access_level": 50,
 		},
 	})
 	defer s.Close()
 
 	c := gitlabConnector{baseURL: s.URL}
-	groups, err := c.getGroups(context.Background(), newClient(), true, "joebloggs")
+	groups, err := c.getGroups(context.Background(), newClient(), true, "joebloggs", 1)
 
 	expectNil(t, err)
 	expectEquals(t, groups, []string{
@@ -196,14 +215,33 @@ func TestUserGroups(t *testing.T) {
 
 func TestUserGroupsWithFiltering(t *testing.T) {
 	s := newTestServer(map[string]interface{}{
-		"/oauth/userinfo": userInfo{
-			Groups: []string{"team-1", "team-2"},
+		"/api/v4/groups": []group{
+			{
+				ID:       1,
+				Name:     "team-1",
+				FullName: "team-1",
+				Path:     "team-1",
+				FullPath: "team-1",
+			},
+			{
+				ID:       2,
+				Name:     "team-2",
+				FullName: "team-2",
+				Path:     "team-2",
+				FullPath: "team-2",
+			},
+		},
+		"/api/v4/groups/1/members/all/1": map[string]interface{}{
+			"access_level": 50,
+		},
+		"/api/v4/groups/2/members/all/1": map[string]interface{}{
+			"access_level": 50,
 		},
 	})
 	defer s.Close()
 
 	c := gitlabConnector{baseURL: s.URL, groups: []string{"team-1"}}
-	groups, err := c.getGroups(context.Background(), newClient(), true, "joebloggs")
+	groups, err := c.getGroups(context.Background(), newClient(), true, "joebloggs", 1)
 
 	expectNil(t, err)
 	expectEquals(t, groups, []string{
@@ -213,14 +251,12 @@ func TestUserGroupsWithFiltering(t *testing.T) {
 
 func TestUserGroupsWithoutOrgs(t *testing.T) {
 	s := newTestServer(map[string]interface{}{
-		"/oauth/userinfo": userInfo{
-			Groups: []string{},
-		},
+		"/api/v4/groups": []group{},
 	})
 	defer s.Close()
 
 	c := gitlabConnector{baseURL: s.URL}
-	groups, err := c.getGroups(context.Background(), newClient(), true, "joebloggs")
+	groups, err := c.getGroups(context.Background(), newClient(), true, "joebloggs", 1)
 
 	expectNil(t, err)
 	expectEquals(t, len(groups), 0)
@@ -234,8 +270,17 @@ func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
 			"access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
 			"expires_in":   "30",
 		},
-		"/oauth/userinfo": userInfo{
-			Groups: []string{"team-1"},
+		"/api/v4/groups": []group{
+			{
+				ID:       1,
+				Name:     "team-1",
+				FullName: "team-1",
+				Path:     "team-1",
+				FullPath: "team-1",
+			},
+		},
+		"/api/v4/groups/1/members/all/12345678": map[string]interface{}{
+			"access_level": 50,
 		},
 	})
 	defer s.Close()
@@ -270,8 +315,17 @@ func TestLoginUsedAsIDWhenConfigured(t *testing.T) {
 			"access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
 			"expires_in":   "30",
 		},
-		"/oauth/userinfo": userInfo{
-			Groups: []string{"team-1"},
+		"/api/v4/groups": []group{
+			{
+				ID:       1,
+				Name:     "team-1",
+				FullName: "team-1",
+				Path:     "team-1",
+				FullPath: "team-1",
+			},
+		},
+		"/api/v4/groups/1/members/all/1": map[string]interface{}{
+			"access_level": 50,
 		},
 	})
 	defer s.Close()
@@ -297,8 +351,17 @@ func TestLoginWithTeamWhitelisted(t *testing.T) {
 			"access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
 			"expires_in":   "30",
 		},
-		"/oauth/userinfo": userInfo{
-			Groups: []string{"team-1"},
+		"/api/v4/groups": []group{
+			{
+				ID:       1,
+				Name:     "team-1",
+				FullName: "team-1",
+				Path:     "team-1",
+				FullPath: "team-1",
+			},
+		},
+		"/api/v4/groups/1/members/all/12345678": map[string]interface{}{
+			"access_level": 50,
 		},
 	})
 	defer s.Close()
@@ -324,8 +387,17 @@ func TestLoginWithTeamNonWhitelisted(t *testing.T) {
 			"access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
 			"expires_in":   "30",
 		},
-		"/oauth/userinfo": userInfo{
-			Groups: []string{"team-1"},
+		"/api/v4/groups": []group{
+			{
+				ID:       1,
+				Name:     "team-1",
+				FullName: "team-1",
+				Path:     "team-1",
+				FullPath: "team-1",
+			},
+		},
+		"/api/v4/groups/1/members/all/12345678": map[string]interface{}{
+			"access_level": 50,
 		},
 	})
 	defer s.Close()
@@ -351,8 +423,17 @@ func TestRefresh(t *testing.T) {
 			"refresh_token": "oRzxVjCnohYRHEYEhZshkmakKmoyVoTjfUGC",
 			"expires_in":    "30",
 		},
-		"/oauth/userinfo": userInfo{
-			Groups: []string{"team-1"},
+		"/api/v4/groups": []group{
+			{
+				ID:       1,
+				Name:     "team-1",
+				FullName: "team-1",
+				Path:     "team-1",
+				FullPath: "team-1",
+			},
+		},
+		"/api/v4/groups/1/members/all/12345678": map[string]interface{}{
+			"access_level": 50,
 		},
 	})
 	defer s.Close()
@@ -392,8 +473,17 @@ func TestRefreshWithEmptyConnectorData(t *testing.T) {
 			"refresh_token": "oRzxVjCnohYRHEYEhZshkmakKmoyVoTjfUGC",
 			"expires_in":    "30",
 		},
-		"/oauth/userinfo": userInfo{
-			Groups: []string{"team-1"},
+		"/api/v4/groups": []group{
+			{
+				ID:       1,
+				Name:     "team-1",
+				FullName: "team-1",
+				Path:     "team-1",
+				FullPath: "team-1",
+			},
+		},
+		"/api/v4/groups/1/members/all/12345678": map[string]interface{}{
+			"access_level": 50,
 		},
 	})
 	defer s.Close()
@@ -419,11 +509,57 @@ func TestGroupsWithPermission(t *testing.T) {
 			"access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
 			"expires_in":   "30",
 		},
-		"/oauth/userinfo": userInfo{
-			Groups:               []string{"ops", "dev", "ops-test", "ops/project", "dev/project1", "dev/project2"},
-			OwnerPermission:      []string{"ops"},
-			DeveloperPermission:  []string{"dev"},
-			MaintainerPermission: []string{"dev/project1"},
+		"/api/v4/groups": []group{
+			{
+				ID:       1,
+				Name:     "ops",
+				FullName: "ops",
+				Path:     "ops",
+				FullPath: "ops",
+			},
+			{
+				ID:       2,
+				Name:     "dev",
+				FullName: "dev",
+				Path:     "dev",
+				FullPath: "dev",
+			},
+			{
+				ID:       3,
+				Name:     "ops/project",
+				FullName: "ops/project",
+				Path:     "ops/project",
+				FullPath: "ops/project",
+			},
+			{
+				ID:       4,
+				Name:     "dev/project1",
+				FullName: "dev/project1",
+				Path:     "dev/project1",
+				FullPath: "dev/project1",
+			},
+			{
+				ID:       5,
+				Name:     "dev/project2",
+				FullName: "dev/project2",
+				Path:     "dev/project2",
+				FullPath: "dev/project2",
+			},
+		},
+		"/api/v4/groups/1/members/all/12345678": map[string]interface{}{
+			"access_level": 50,
+		},
+		"/api/v4/groups/2/members/all/12345678": map[string]interface{}{
+			"access_level": 30,
+		},
+		"/api/v4/groups/3/members/all/12345678": map[string]interface{}{
+			"access_level": 50,
+		},
+		"/api/v4/groups/4/members/all/12345678": map[string]interface{}{
+			"access_level": 40,
+		},
+		"/api/v4/groups/5/members/all/12345678": map[string]interface{}{
+			"access_level": 30,
 		},
 	})
 	defer s.Close()
@@ -440,15 +576,14 @@ func TestGroupsWithPermission(t *testing.T) {
 
 	expectEquals(t, identity.Groups, []string{
 		"ops",
-		"dev",
-		"ops-test",
-		"ops/project",
-		"dev/project1",
-		"dev/project2",
 		"ops:owner",
+		"dev",
 		"dev:developer",
+		"ops/project",
 		"ops/project:owner",
+		"dev/project1",
 		"dev/project1:maintainer",
+		"dev/project2",
 		"dev/project2:developer",
 	})
 }
