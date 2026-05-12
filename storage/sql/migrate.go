@@ -467,4 +467,10 @@ var migrations = []migration{
 				add column sso_shared_with bytea;`,
 		},
 	},
+	{
+		stmts: []string{
+			`alter table auth_session
+				add column connector_data bytea;`,
+		},
+	},
 }

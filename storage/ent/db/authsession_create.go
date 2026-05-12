@@ -96,6 +96,12 @@ func (_c *AuthSessionCreate) SetIdleExpiry(v time.Time) *AuthSessionCreate {
 	return _c
 }
 
+// SetConnectorData sets the "connector_data" field.
+func (_c *AuthSessionCreate) SetConnectorData(v []byte) *AuthSessionCreate {
+	_c.mutation.SetConnectorData(v)
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *AuthSessionCreate) SetID(v string) *AuthSessionCreate {
 	_c.mutation.SetID(v)
@@ -273,6 +279,10 @@ func (_c *AuthSessionCreate) createSpec() (*AuthSession, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.IdleExpiry(); ok {
 		_spec.SetField(authsession.FieldIdleExpiry, field.TypeTime, value)
 		_node.IdleExpiry = value
+	}
+	if value, ok := _c.mutation.ConnectorData(); ok {
+		_spec.SetField(authsession.FieldConnectorData, field.TypeBytes, value)
+		_node.ConnectorData = &value
 	}
 	return _node, _spec
 }

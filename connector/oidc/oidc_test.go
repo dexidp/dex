@@ -979,10 +979,22 @@ func expectEquals(t *testing.T, a interface{}, b interface{}) {
 }
 
 func TestLogoutURL(t *testing.T) {
+	idTokenConnData, err := json.Marshal(connectorData{
+		RefreshToken: []byte("refresh"),
+		IDToken:      []byte("id-token-jwt"),
+	})
+	require.NoError(t, err)
+
+	noIDTokenConnData, err := json.Marshal(connectorData{
+		RefreshToken: []byte("refresh"),
+	})
+	require.NoError(t, err)
+
 	tests := []struct {
 		name                  string
 		endSessionURL         string
 		postLogoutRedirectURI string
+		connectorData         []byte
 		wantURL               string
 		wantEmpty             bool
 	}{
@@ -1008,6 +1020,33 @@ func TestLogoutURL(t *testing.T) {
 			postLogoutRedirectURI: "https://dex.example.com/callback",
 			wantURL:               "https://provider.example.com/logout?client_id=clientID&existing=param&post_logout_redirect_uri=https%3A%2F%2Fdex.example.com%2Fcallback",
 		},
+		{
+			name:                  "with id_token_hint from connector data",
+			endSessionURL:         "https://provider.example.com/logout",
+			postLogoutRedirectURI: "https://dex.example.com/logout/callback",
+			connectorData:         idTokenConnData,
+			wantURL:               "https://provider.example.com/logout?client_id=clientID&id_token_hint=id-token-jwt&post_logout_redirect_uri=https%3A%2F%2Fdex.example.com%2Flogout%2Fcallback",
+		},
+		{
+			name:          "id_token_hint included without post_logout_redirect_uri",
+			endSessionURL: "https://provider.example.com/logout",
+			connectorData: idTokenConnData,
+			wantURL:       "https://provider.example.com/logout?id_token_hint=id-token-jwt",
+		},
+		{
+			name:                  "connector data without IDToken omits id_token_hint",
+			endSessionURL:         "https://provider.example.com/logout",
+			postLogoutRedirectURI: "https://dex.example.com/logout/callback",
+			connectorData:         noIDTokenConnData,
+			wantURL:               "https://provider.example.com/logout?client_id=clientID&post_logout_redirect_uri=https%3A%2F%2Fdex.example.com%2Flogout%2Fcallback",
+		},
+		{
+			name:                  "malformed connector data is ignored",
+			endSessionURL:         "https://provider.example.com/logout",
+			postLogoutRedirectURI: "https://dex.example.com/logout/callback",
+			connectorData:         []byte("not-json"),
+			wantURL:               "https://provider.example.com/logout?client_id=clientID&post_logout_redirect_uri=https%3A%2F%2Fdex.example.com%2Flogout%2Fcallback",
+		},
 	}
 
 	for _, tc := range tests {
@@ -1019,7 +1058,7 @@ func TestLogoutURL(t *testing.T) {
 				},
 			}
 
-			got, err := conn.LogoutURL(context.Background(), nil, tc.postLogoutRedirectURI)
+			got, err := conn.LogoutURL(context.Background(), tc.connectorData, tc.postLogoutRedirectURI)
 			require.NoError(t, err)
 
 			if tc.wantEmpty {

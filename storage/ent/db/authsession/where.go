@@ -114,6 +114,11 @@ func IdleExpiry(v time.Time) predicate.AuthSession {
 	return predicate.AuthSession(sql.FieldEQ(FieldIdleExpiry, v))
 }
 
+// ConnectorData applies equality check predicate on the "connector_data" field. It's identical to ConnectorDataEQ.
+func ConnectorData(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldEQ(FieldConnectorData, v))
+}
+
 // UserIDEQ applies the EQ predicate on the "user_id" field.
 func UserIDEQ(v string) predicate.AuthSession {
 	return predicate.AuthSession(sql.FieldEQ(FieldUserID, v))
@@ -637,6 +642,56 @@ func IdleExpiryLT(v time.Time) predicate.AuthSession {
 // IdleExpiryLTE applies the LTE predicate on the "idle_expiry" field.
 func IdleExpiryLTE(v time.Time) predicate.AuthSession {
 	return predicate.AuthSession(sql.FieldLTE(FieldIdleExpiry, v))
+}
+
+// ConnectorDataEQ applies the EQ predicate on the "connector_data" field.
+func ConnectorDataEQ(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldEQ(FieldConnectorData, v))
+}
+
+// ConnectorDataNEQ applies the NEQ predicate on the "connector_data" field.
+func ConnectorDataNEQ(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldNEQ(FieldConnectorData, v))
+}
+
+// ConnectorDataIn applies the In predicate on the "connector_data" field.
+func ConnectorDataIn(vs ...[]byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldIn(FieldConnectorData, vs...))
+}
+
+// ConnectorDataNotIn applies the NotIn predicate on the "connector_data" field.
+func ConnectorDataNotIn(vs ...[]byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldNotIn(FieldConnectorData, vs...))
+}
+
+// ConnectorDataGT applies the GT predicate on the "connector_data" field.
+func ConnectorDataGT(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldGT(FieldConnectorData, v))
+}
+
+// ConnectorDataGTE applies the GTE predicate on the "connector_data" field.
+func ConnectorDataGTE(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldGTE(FieldConnectorData, v))
+}
+
+// ConnectorDataLT applies the LT predicate on the "connector_data" field.
+func ConnectorDataLT(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldLT(FieldConnectorData, v))
+}
+
+// ConnectorDataLTE applies the LTE predicate on the "connector_data" field.
+func ConnectorDataLTE(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldLTE(FieldConnectorData, v))
+}
+
+// ConnectorDataIsNil applies the IsNil predicate on the "connector_data" field.
+func ConnectorDataIsNil() predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldIsNull(FieldConnectorData))
+}
+
+// ConnectorDataNotNil applies the NotNil predicate on the "connector_data" field.
+func ConnectorDataNotNil() predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldNotNull(FieldConnectorData))
 }
 
 // And groups predicates with the AND operator between them.
