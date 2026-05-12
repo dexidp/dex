@@ -344,12 +344,18 @@ func genSubject(userID string, connID string) (string, error) {
 }
 
 func (s *Server) idTokensValidForConn(connID string) time.Duration {
-	return value(s.connectorExpiryOverrides[connID].IDTokensValidFor, s.idTokensValidFor)
+	s.mu.Lock()
+	o := s.connectorExpiryOverrides[connID]
+	s.mu.Unlock()
+	return value(o.IDTokensValidFor, s.idTokensValidFor)
 }
 
 func (s *Server) refreshTokenPolicyForConn(connID string) *RefreshTokenPolicy {
-	if p := s.connectorExpiryOverrides[connID].RefreshTokenPolicy; p != nil {
-		return p
+	s.mu.Lock()
+	o := s.connectorExpiryOverrides[connID]
+	s.mu.Unlock()
+	if o.RefreshTokenPolicy != nil {
+		return o.RefreshTokenPolicy
 	}
 	return s.refreshTokenPolicy
 }

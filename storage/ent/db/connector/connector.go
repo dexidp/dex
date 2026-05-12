@@ -21,6 +21,8 @@ const (
 	FieldConfig = "config"
 	// FieldGrantTypes holds the string denoting the grant_types field in the database.
 	FieldGrantTypes = "grant_types"
+	// FieldExpiry holds the string denoting the expiry field in the database.
+	FieldExpiry = "expiry"
 	// Table holds the table name of the connector in the database.
 	Table = "connectors"
 )
@@ -33,6 +35,7 @@ var Columns = []string{
 	FieldResourceVersion,
 	FieldConfig,
 	FieldGrantTypes,
+	FieldExpiry,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).

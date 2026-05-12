@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexidp/dex/server"
 )
 
 func TestNewLogger(t *testing.T) {
@@ -30,75 +32,50 @@ func TestNewLogger(t *testing.T) {
 	})
 }
 
-func TestBuildConnectorExpiryOverrides_IDTokensExceedsGlobal(t *testing.T) {
-	_, err := buildConnectorExpiryOverrides(
-		slog.New(slog.DiscardHandler),
-		[]Connector{{
-			ID: "c1", Type: "mock", Name: "c1",
-			Expiry: &ConnectorExpiry{IDTokens: "48h"},
-		}},
-		24*time.Hour, RefreshToken{},
-	)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "expiry.idTokens (48h0m0s) exceeds the global value (24h0m0s)")
-}
-
-func TestBuildConnectorExpiryOverrides_RefreshAbsoluteLifetimeExceedsGlobal(t *testing.T) {
-	_, err := buildConnectorExpiryOverrides(
-		slog.New(slog.DiscardHandler),
-		[]Connector{{
-			ID: "c1", Type: "mock", Name: "c1",
-			Expiry: &ConnectorExpiry{
-				RefreshTokens: &ConnectorRefreshToken{AbsoluteLifetime: "100h"},
-			},
-		}},
-		24*time.Hour, RefreshToken{AbsoluteLifetime: "48h"},
-	)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "expiry.refreshTokens.absoluteLifetime (100h0m0s) exceeds the global value (48h0m0s)")
-}
-
-func TestBuildConnectorExpiryOverrides_RefreshNoGlobalCeiling(t *testing.T) {
-	// Global absoluteLifetime unset ("disabled/infinite"); any override passes.
-	_, err := buildConnectorExpiryOverrides(
-		slog.New(slog.DiscardHandler),
-		[]Connector{{
-			ID: "c1", Type: "mock", Name: "c1",
-			Expiry: &ConnectorExpiry{
-				RefreshTokens: &ConnectorRefreshToken{AbsoluteLifetime: "9000h"},
-			},
-		}},
-		24*time.Hour, RefreshToken{},
-	)
+func TestBuildExpiryCeilings(t *testing.T) {
+	c, err := buildExpiryCeilings(24*time.Hour, RefreshToken{
+		AbsoluteLifetime:  "100h",
+		ValidIfNotUsedFor: "24h",
+		ReuseInterval:     "3s",
+	})
 	require.NoError(t, err)
+	assert.Equal(t, server.ExpiryCeilings{
+		IDTokens:                 24 * time.Hour,
+		RefreshAbsoluteLifetime:  100 * time.Hour,
+		RefreshValidIfNotUsedFor: 24 * time.Hour,
+		RefreshReuseInterval:     3 * time.Second,
+	}, c)
 }
 
-func TestBuildConnectorExpiryOverrides(t *testing.T) {
+func TestBuildExpiryCeilingsRefreshUnset(t *testing.T) {
+	c, err := buildExpiryCeilings(24*time.Hour, RefreshToken{})
+	require.NoError(t, err)
+	assert.Equal(t, server.ExpiryCeilings{IDTokens: 24 * time.Hour}, c)
+}
+
+func TestBuildExpiryCeilingsInvalidDuration(t *testing.T) {
+	_, err := buildExpiryCeilings(24*time.Hour, RefreshToken{AbsoluteLifetime: "not-a-duration"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "parse expiry.refreshTokens.absoluteLifetime")
+}
+
+func TestConnectorExpiryToStorage(t *testing.T) {
 	disable := true
-	overrides, err := buildConnectorExpiryOverrides(
-		slog.New(slog.DiscardHandler),
-		[]Connector{
-			{ID: "a", Type: "mock", Name: "a"},
-			{
-				ID: "b", Type: "mock", Name: "b",
-				Expiry: &ConnectorExpiry{IDTokens: "30m"},
-			},
-			{
-				ID: "c", Type: "mock", Name: "c",
-				Expiry: &ConnectorExpiry{
-					RefreshTokens: &ConnectorRefreshToken{DisableRotation: &disable},
-				},
-			},
+	got := connectorExpiryToStorage(&ConnectorExpiry{
+		IDTokens: "15m",
+		RefreshTokens: &ConnectorRefreshToken{
+			DisableRotation:   &disable,
+			AbsoluteLifetime:  "24h",
+			ValidIfNotUsedFor: "1h",
+			ReuseInterval:     "3s",
 		},
-		24*time.Hour,
-		RefreshToken{AbsoluteLifetime: "48h"},
-	)
-	require.NoError(t, err)
+	})
+	require.NotNil(t, got)
+	assert.Equal(t, "15m", got.IDTokens)
+	require.NotNil(t, got.RefreshTokens)
+	assert.Equal(t, "24h", got.RefreshTokens.AbsoluteLifetime)
+	require.NotNil(t, got.RefreshTokens.DisableRotation)
+	assert.True(t, *got.RefreshTokens.DisableRotation)
 
-	assert.NotContains(t, overrides, "a", "connector without expiry field should not appear")
-	assert.Equal(t, 30*time.Minute, overrides["b"].IDTokensValidFor)
-
-	policy := overrides["c"].RefreshTokenPolicy
-	require.NotNil(t, policy)
-	assert.False(t, policy.RotationEnabled(), "per-connector DisableRotation=true should disable rotation")
+	assert.Nil(t, connectorExpiryToStorage(nil))
 }

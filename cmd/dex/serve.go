@@ -418,13 +418,17 @@ func runServe(options serveOptions) error {
 
 	serverConfig.RefreshTokenPolicy = refreshTokenPolicy
 
-	connectorExpiryOverrides, err := buildConnectorExpiryOverrides(
-		logger, c.StaticConnectors, idTokensValidFor, c.Expiry.RefreshTokens,
-	)
+	ceilings, err := buildExpiryCeilings(idTokensValidFor, c.Expiry.RefreshTokens)
 	if err != nil {
-		return fmt.Errorf("invalid connector expiry config: %v", err)
+		return fmt.Errorf("invalid global expiry config: %v", err)
 	}
-	serverConfig.ConnectorExpiryOverrides = connectorExpiryOverrides
+	serverConfig.ExpiryCeilings = ceilings
+	serverConfig.GlobalRefreshDefaults = server.RefreshTokenDefaults{
+		DisableRotation:   c.Expiry.RefreshTokens.DisableRotation,
+		ValidIfNotUsedFor: c.Expiry.RefreshTokens.ValidIfNotUsedFor,
+		AbsoluteLifetime:  c.Expiry.RefreshTokens.AbsoluteLifetime,
+		ReuseInterval:     c.Expiry.RefreshTokens.ReuseInterval,
+	}
 
 	if featureflags.SessionsEnabled.Enabled() {
 		sessionConfig, err := parseSessionConfig(c.Sessions)
@@ -840,56 +844,19 @@ func parseSessionConfig(s *Sessions) (*server.SessionConfig, error) {
 	return sc, nil
 }
 
-// buildConnectorExpiryOverrides parses per-connector `expiry` overrides,
-// rejecting any override that would loosen the corresponding global value.
-// A global value left unset is treated as "no ceiling". `disableRotation` is
-// exempt: it's a policy toggle rather than a quantity, so per-connector values
-// are accepted either way.
-func buildConnectorExpiryOverrides(
-	logger *slog.Logger,
-	connectors []Connector,
-	globalIDTokens time.Duration,
-	globalRefresh RefreshToken,
-) (map[string]server.ConnectorExpiryOverride, error) {
-	refreshCeilings, err := parseRefreshCeilings(globalRefresh)
-	if err != nil {
-		return nil, err
-	}
-
-	overrides := map[string]server.ConnectorExpiryOverride{}
-	for _, conn := range connectors {
-		if conn.Expiry == nil {
-			continue
-		}
-
-		override, err := parseConnectorExpiry(logger, conn, globalIDTokens, globalRefresh, refreshCeilings)
-		if err != nil {
-			return nil, fmt.Errorf("connector %q: %v", conn.ID, err)
-		}
-		overrides[conn.ID] = override
-	}
-
-	return overrides, nil
-}
-
-// refreshCeilings holds the parsed global refresh-token ceilings. A zero value
-// means "no ceiling" for that field.
-type refreshCeilings struct {
-	absoluteLifetime  time.Duration
-	validIfNotUsedFor time.Duration
-	reuseInterval     time.Duration
-}
-
-func parseRefreshCeilings(g RefreshToken) (refreshCeilings, error) {
-	var c refreshCeilings
+// buildExpiryCeilings parses the global expiry config into the ceilings used
+// to validate per-connector overrides. The server uses these for both static
+// YAML connectors at startup and dynamic API writes at runtime.
+func buildExpiryCeilings(globalIDTokens time.Duration, globalRefresh RefreshToken) (server.ExpiryCeilings, error) {
+	c := server.ExpiryCeilings{IDTokens: globalIDTokens}
 	for _, f := range []struct {
 		name  string
 		value string
 		dst   *time.Duration
 	}{
-		{"expiry.refreshTokens.absoluteLifetime", g.AbsoluteLifetime, &c.absoluteLifetime},
-		{"expiry.refreshTokens.validIfNotUsedFor", g.ValidIfNotUsedFor, &c.validIfNotUsedFor},
-		{"expiry.refreshTokens.reuseInterval", g.ReuseInterval, &c.reuseInterval},
+		{"expiry.refreshTokens.absoluteLifetime", globalRefresh.AbsoluteLifetime, &c.RefreshAbsoluteLifetime},
+		{"expiry.refreshTokens.validIfNotUsedFor", globalRefresh.ValidIfNotUsedFor, &c.RefreshValidIfNotUsedFor},
+		{"expiry.refreshTokens.reuseInterval", globalRefresh.ReuseInterval, &c.RefreshReuseInterval},
 	} {
 		if f.value == "" {
 			continue
@@ -901,83 +868,6 @@ func parseRefreshCeilings(g RefreshToken) (refreshCeilings, error) {
 		*f.dst = d
 	}
 	return c, nil
-}
-
-func parseConnectorExpiry(
-	logger *slog.Logger,
-	conn Connector,
-	globalIDTokens time.Duration,
-	globalRefresh RefreshToken,
-	ceilings refreshCeilings,
-) (server.ConnectorExpiryOverride, error) {
-	var override server.ConnectorExpiryOverride
-
-	if conn.Expiry.IDTokens != "" {
-		d, err := parseWithCeiling("expiry.idTokens", conn.Expiry.IDTokens, globalIDTokens)
-		if err != nil {
-			return override, err
-		}
-		override.IDTokensValidFor = d
-		logger.Info("config connector id tokens", "connector_id", conn.ID, "valid_for", d)
-	}
-
-	rt := conn.Expiry.RefreshTokens
-	if rt == nil {
-		return override, nil
-	}
-
-	for _, f := range []struct {
-		name    string
-		value   string
-		ceiling time.Duration
-	}{
-		{"expiry.refreshTokens.absoluteLifetime", rt.AbsoluteLifetime, ceilings.absoluteLifetime},
-		{"expiry.refreshTokens.validIfNotUsedFor", rt.ValidIfNotUsedFor, ceilings.validIfNotUsedFor},
-		{"expiry.refreshTokens.reuseInterval", rt.ReuseInterval, ceilings.reuseInterval},
-	} {
-		if f.value == "" || f.ceiling == 0 {
-			continue
-		}
-		if _, err := parseWithCeiling(f.name, f.value, f.ceiling); err != nil {
-			return override, err
-		}
-	}
-
-	disableRotation := globalRefresh.DisableRotation
-	if rt.DisableRotation != nil {
-		disableRotation = *rt.DisableRotation
-	}
-	validIfNotUsedFor := rt.ValidIfNotUsedFor
-	if validIfNotUsedFor == "" {
-		validIfNotUsedFor = globalRefresh.ValidIfNotUsedFor
-	}
-	absoluteLifetime := rt.AbsoluteLifetime
-	if absoluteLifetime == "" {
-		absoluteLifetime = globalRefresh.AbsoluteLifetime
-	}
-	reuseInterval := rt.ReuseInterval
-	if reuseInterval == "" {
-		reuseInterval = globalRefresh.ReuseInterval
-	}
-
-	connLogger := logger.With("connector_id", conn.ID)
-	policy, err := server.NewRefreshTokenPolicy(connLogger, disableRotation, validIfNotUsedFor, absoluteLifetime, reuseInterval)
-	if err != nil {
-		return override, fmt.Errorf("refresh token policy: %v", err)
-	}
-	override.RefreshTokenPolicy = policy
-	return override, nil
-}
-
-func parseWithCeiling(field, value string, ceiling time.Duration) (time.Duration, error) {
-	d, err := time.ParseDuration(value)
-	if err != nil {
-		return 0, fmt.Errorf("parse %s: %v", field, err)
-	}
-	if d > ceiling {
-		return 0, fmt.Errorf("%s (%s) exceeds the global value (%s)", field, d, ceiling)
-	}
-	return d, nil
 }
 
 func buildMFAProviders(authenticators []MFAAuthenticator, issuerURL string, logger *slog.Logger) map[string]server.MFAProvider {

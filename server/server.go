@@ -113,10 +113,13 @@ type Config struct {
 	// Refresh token expiration settings
 	RefreshTokenPolicy *RefreshTokenPolicy
 
-	// ConnectorExpiryOverrides, keyed by connector ID, overrides the global
-	// IDTokensValidFor and/or RefreshTokenPolicy for tokens issued through that
-	// connector. Missing entries or unset fields fall back to the global values.
-	ConnectorExpiryOverrides map[string]ConnectorExpiryOverride
+	// ExpiryCeilings define the upper bounds against which per-connector
+	// expiry overrides are validated. A zero duration means "no ceiling".
+	ExpiryCeilings ExpiryCeilings
+
+	// GlobalRefreshDefaults provide the inheritance roots for per-connector
+	// refresh-token overrides that leave fields unset.
+	GlobalRefreshDefaults RefreshTokenDefaults
 
 	// If set, the server will use this connector to handle password grants
 	PasswordConnector string
@@ -257,6 +260,12 @@ type Server struct {
 
 	refreshTokenPolicy *RefreshTokenPolicy
 
+	// expiryCeilings and globalRefreshDefaults are immutable after construction.
+	expiryCeilings        ExpiryCeilings
+	globalRefreshDefaults RefreshTokenDefaults
+
+	// connectorExpiryOverrides is mutated by API CreateConnector /
+	// UpdateConnector / DeleteConnector handlers. Protected by mu.
 	connectorExpiryOverrides map[string]ConnectorExpiryOverride
 
 	logger *slog.Logger
@@ -383,7 +392,9 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		authRequestsValidFor:     value(c.AuthRequestsValidFor, 24*time.Hour),
 		deviceRequestsValidFor:   value(c.DeviceRequestsValidFor, 5*time.Minute),
 		refreshTokenPolicy:       c.RefreshTokenPolicy,
-		connectorExpiryOverrides: c.ConnectorExpiryOverrides,
+		expiryCeilings:           c.ExpiryCeilings,
+		globalRefreshDefaults:    c.GlobalRefreshDefaults,
+		connectorExpiryOverrides: map[string]ConnectorExpiryOverride{},
 		skipApproval:             c.SkipApprovalScreen,
 		alwaysShowLogin:          c.AlwaysShowLoginScreen,
 		now:                      now,
@@ -405,6 +416,12 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 
 	if len(storageConnectors) == 0 && len(s.connectors) == 0 {
 		return nil, errors.New("server: no connectors specified")
+	}
+
+	for _, conn := range storageConnectors {
+		if err := s.upsertConnectorExpiryOverride(conn.ID, conn.Expiry); err != nil {
+			return nil, fmt.Errorf("server: invalid connector expiry for %q: %v", conn.ID, err)
+		}
 	}
 
 	var failedCount int
@@ -837,10 +854,45 @@ func (s *Server) OpenConnector(conn storage.Connector) (Connector, error) {
 }
 
 // CloseConnector removes the connector from the server's in-memory map.
+// The expiry override is intentionally left alone here — call sites that
+// need to drop it (DeleteConnector) do so explicitly via
+// upsertConnectorExpiryOverride(id, nil) afterwards.
 func (s *Server) CloseConnector(id string) {
 	s.mu.Lock()
 	delete(s.connectors, id)
 	s.mu.Unlock()
+}
+
+// ExpiryCeilings returns the global expiry ceilings used to validate
+// per-connector overrides. Callers should pass the result to
+// ValidateConnectorExpiry before persisting any storage.ConnectorExpiry.
+func (s *Server) ExpiryCeilings() ExpiryCeilings {
+	return s.expiryCeilings
+}
+
+// upsertConnectorExpiryOverride validates the given storage.ConnectorExpiry
+// against the server's expiry ceilings and, on success, updates the in-memory
+// override map. Callers must invoke this every time a connector's expiry is
+// written so that the live token-issuance path reflects the change.
+func (s *Server) upsertConnectorExpiryOverride(id string, e *storage.ConnectorExpiry) error {
+	if err := ValidateConnectorExpiry(e, s.expiryCeilings); err != nil {
+		return err
+	}
+	override, err := buildConnectorExpiryOverride(s.logger, id, e, s.globalRefreshDefaults)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if e == nil {
+		delete(s.connectorExpiryOverrides, id)
+		return nil
+	}
+	s.connectorExpiryOverrides[id] = override
+	if override.IDTokensValidFor > 0 {
+		s.logger.Info("config connector id tokens", "connector_id", id, "valid_for", override.IDTokensValidFor)
+	}
+	return nil
 }
 
 // getConnector retrieves the connector object with the given id from the storage

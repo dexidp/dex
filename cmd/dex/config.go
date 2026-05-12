@@ -652,7 +652,27 @@ func ToStorageConnector(c Connector) (storage.Connector, error) {
 		Name:       c.Name,
 		Config:     data,
 		GrantTypes: c.GrantTypes,
+		Expiry:     connectorExpiryToStorage(c.Expiry),
 	}, nil
+}
+
+// connectorExpiryToStorage flattens the YAML config struct into the storage
+// type. Both share the same shape; the conversion is mechanical and exists
+// purely to decouple the storage package from cmd/dex.
+func connectorExpiryToStorage(e *ConnectorExpiry) *storage.ConnectorExpiry {
+	if e == nil {
+		return nil
+	}
+	out := &storage.ConnectorExpiry{IDTokens: e.IDTokens}
+	if e.RefreshTokens != nil {
+		out.RefreshTokens = &storage.ConnectorRefreshExpiry{
+			DisableRotation:   e.RefreshTokens.DisableRotation,
+			ReuseInterval:     e.RefreshTokens.ReuseInterval,
+			AbsoluteLifetime:  e.RefreshTokens.AbsoluteLifetime,
+			ValidIfNotUsedFor: e.RefreshTokens.ValidIfNotUsedFor,
+		}
+	}
+	return out
 }
 
 // Expiry holds configuration for the validity period of components.

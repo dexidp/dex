@@ -1143,15 +1143,19 @@ func (c *conn) CreateConnector(ctx context.Context, connector storage.Connector)
 	if err != nil {
 		return fmt.Errorf("marshal connector grant types: %v", err)
 	}
+	expiry, err := marshalConnectorExpiry(connector.Expiry)
+	if err != nil {
+		return err
+	}
 	_, err = c.Exec(`
 		insert into connector (
-			id, type, name, resource_version, config, grant_types
+			id, type, name, resource_version, config, grant_types, expiry
 		)
 		values (
-			$1, $2, $3, $4, $5, $6
+			$1, $2, $3, $4, $5, $6, $7
 		);
 	`,
-		connector.ID, connector.Type, connector.Name, connector.ResourceVersion, connector.Config, grantTypes,
+		connector.ID, connector.Type, connector.Name, connector.ResourceVersion, connector.Config, grantTypes, expiry,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -1160,6 +1164,17 @@ func (c *conn) CreateConnector(ctx context.Context, connector storage.Connector)
 		return fmt.Errorf("insert connector: %v", err)
 	}
 	return nil
+}
+
+func marshalConnectorExpiry(e *storage.ConnectorExpiry) ([]byte, error) {
+	if e == nil {
+		return nil, nil
+	}
+	b, err := json.Marshal(e)
+	if err != nil {
+		return nil, fmt.Errorf("marshal connector expiry: %v", err)
+	}
+	return b, nil
 }
 
 func (c *conn) UpdateConnector(ctx context.Context, id string, updater func(s storage.Connector) (storage.Connector, error)) error {
@@ -1177,6 +1192,10 @@ func (c *conn) UpdateConnector(ctx context.Context, id string, updater func(s st
 		if err != nil {
 			return fmt.Errorf("marshal connector grant types: %v", err)
 		}
+		expiry, err := marshalConnectorExpiry(newConn.Expiry)
+		if err != nil {
+			return err
+		}
 		_, err = tx.Exec(`
 			update connector
 			set
@@ -1184,10 +1203,11 @@ func (c *conn) UpdateConnector(ctx context.Context, id string, updater func(s st
 			    name = $2,
 			    resource_version = $3,
 			    config = $4,
-			    grant_types = $5
-			where id = $6;
+			    grant_types = $5,
+			    expiry = $6
+			where id = $7;
 		`,
-			newConn.Type, newConn.Name, newConn.ResourceVersion, newConn.Config, grantTypes, connector.ID,
+			newConn.Type, newConn.Name, newConn.ResourceVersion, newConn.Config, grantTypes, expiry, connector.ID,
 		)
 		if err != nil {
 			return fmt.Errorf("update connector: %v", err)
@@ -1203,16 +1223,16 @@ func (c *conn) GetConnector(ctx context.Context, id string) (storage.Connector, 
 func getConnector(ctx context.Context, q querier, id string) (storage.Connector, error) {
 	return scanConnector(q.QueryRow(`
 		select
-			id, type, name, resource_version, config, grant_types
+			id, type, name, resource_version, config, grant_types, expiry
 		from connector
 		where id = $1;
 		`, id))
 }
 
 func scanConnector(s scanner) (c storage.Connector, err error) {
-	var grantTypes []byte
+	var grantTypes, expiry []byte
 	err = s.Scan(
-		&c.ID, &c.Type, &c.Name, &c.ResourceVersion, &c.Config, &grantTypes,
+		&c.ID, &c.Type, &c.Name, &c.ResourceVersion, &c.Config, &grantTypes, &expiry,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -1225,13 +1245,20 @@ func scanConnector(s scanner) (c storage.Connector, err error) {
 			return c, fmt.Errorf("unmarshal connector grant types: %v", err)
 		}
 	}
+	if len(expiry) > 0 {
+		var e storage.ConnectorExpiry
+		if err := json.Unmarshal(expiry, &e); err != nil {
+			return c, fmt.Errorf("unmarshal connector expiry: %v", err)
+		}
+		c.Expiry = &e
+	}
 	return c, nil
 }
 
 func (c *conn) ListConnectors(ctx context.Context) ([]storage.Connector, error) {
 	rows, err := c.Query(`
 		select
-			id, type, name, resource_version, config, grant_types
+			id, type, name, resource_version, config, grant_types, expiry
 		from connector;
 	`)
 	if err != nil {
