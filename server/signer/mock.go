@@ -56,6 +56,17 @@ type mockSigner struct {
 }
 
 func (m *mockSigner) Sign(_ context.Context, payload []byte) (string, error) {
+	return m.sign(payload, "")
+}
+
+func (m *mockSigner) SignWithType(_ context.Context, payload []byte, tokenType string) (string, error) {
+	return m.sign(payload, tokenType)
+}
+
+func (m *mockSigner) sign(payload []byte, tokenType string) (string, error) {
+	if tokenType != "" {
+		return signPayloadWithType(m.key, jose.RS256, payload, tokenType)
+	}
 	return signPayload(m.key, jose.RS256, payload)
 }
 
