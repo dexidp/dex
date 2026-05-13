@@ -113,6 +113,14 @@ type Config struct {
 	// Refresh token expiration settings
 	RefreshTokenPolicy *RefreshTokenPolicy
 
+	// ExpiryCeilings define the upper bounds against which per-connector
+	// expiry overrides are validated. A zero duration means "no ceiling".
+	ExpiryCeilings ExpiryCeilings
+
+	// GlobalRefreshDefaults provide the inheritance roots for per-connector
+	// refresh-token overrides that leave fields unset.
+	GlobalRefreshDefaults RefreshTokenDefaults
+
 	// If set, the server will use this connector to handle password grants
 	PasswordConnector string
 
@@ -207,11 +215,147 @@ func value(val, defaultValue time.Duration) time.Duration {
 	return val
 }
 
+// ConnectorExpiryOverride carries per-connector token lifetime overrides.
+// A zero or nil field inherits the global value.
+type ConnectorExpiryOverride struct {
+	IDTokensValidFor   time.Duration
+	RefreshTokenPolicy *RefreshTokenPolicy
+}
+
+// ExpiryCeilings holds the parsed global expiry values that per-connector
+// overrides must not loosen. A zero duration field means "no ceiling".
+//
+// RefreshRotationDisabled blocks the asymmetric case where the global enables
+// rotation: a per-connector override cannot disable it, since rotation-enabled
+// is the stricter policy. The reverse direction is permitted.
+type ExpiryCeilings struct {
+	IDTokens                 time.Duration
+	RefreshAbsoluteLifetime  time.Duration
+	RefreshValidIfNotUsedFor time.Duration
+	RefreshReuseInterval     time.Duration
+	RefreshRotationDisabled  bool
+}
+
+// RefreshTokenDefaults are the inheritance roots for per-connector overrides
+// that leave fields unset.
+type RefreshTokenDefaults struct {
+	DisableRotation   bool
+	ValidIfNotUsedFor string
+	AbsoluteLifetime  string
+	ReuseInterval     string
+}
+
+// discardLogger is used when a constructor logs at Info level for global
+// startup config but the call is part of a per-connector hot path.
+var discardLogger = slog.New(slog.DiscardHandler)
+
+// validateConnectorExpiry rejects per-connector overrides that loosen the
+// global policy. Called from the static YAML load path and from every gRPC
+// API write.
+func validateConnectorExpiry(e *storage.ConnectorExpiry, c ExpiryCeilings) error {
+	if e == nil {
+		return nil
+	}
+	// idTokens=0 means "inherit"; idTokensValidForConn falls back to the global.
+	if err := checkCeiling("expiry.idTokens", e.IDTokens, c.IDTokens, false); err != nil {
+		return err
+	}
+	if e.RefreshTokens == nil {
+		return nil
+	}
+	for _, f := range []struct {
+		name         string
+		value        string
+		ceiling      time.Duration
+		zeroDisables bool // RefreshTokenPolicy treats 0 as "expiration disabled" for this field
+	}{
+		{"expiry.refreshTokens.absoluteLifetime", e.RefreshTokens.AbsoluteLifetime, c.RefreshAbsoluteLifetime, true},
+		{"expiry.refreshTokens.validIfNotUsedFor", e.RefreshTokens.ValidIfNotUsedFor, c.RefreshValidIfNotUsedFor, true},
+		{"expiry.refreshTokens.reuseInterval", e.RefreshTokens.ReuseInterval, c.RefreshReuseInterval, false},
+	} {
+		if err := checkCeiling(f.name, f.value, f.ceiling, f.zeroDisables); err != nil {
+			return err
+		}
+	}
+	if dr := e.RefreshTokens.DisableRotation; dr != nil && *dr && !c.RefreshRotationDisabled {
+		return fmt.Errorf("expiry.refreshTokens.disableRotation cannot disable rotation when it is enabled globally")
+	}
+	return nil
+}
+
+// checkCeiling enforces that a per-connector duration is at least as strict as
+// the global ceiling. When zeroDisables is true, an override of 0 is rejected
+// in the presence of a positive ceiling because RefreshTokenPolicy treats 0 as
+// "no expiration" for that field — strictly looser than any positive global.
+func checkCeiling(field, value string, ceiling time.Duration, zeroDisables bool) error {
+	if value == "" {
+		return nil
+	}
+	d, err := time.ParseDuration(value)
+	if err != nil {
+		return fmt.Errorf("parse %s: %v", field, err)
+	}
+	if ceiling <= 0 {
+		return nil
+	}
+	if d > ceiling {
+		return fmt.Errorf("%s (%s) exceeds the global value (%s)", field, d, ceiling)
+	}
+	if zeroDisables && d == 0 {
+		return fmt.Errorf("%s cannot be 0 (disables expiration) when the global value (%s) is set", field, ceiling)
+	}
+	return nil
+}
+
+// buildConnectorExpiryOverride parses a (pre-validated) storage.ConnectorExpiry
+// into a ConnectorExpiryOverride. Unset string fields inherit from the global
+// refresh defaults so the resulting RefreshTokenPolicy carries the correct
+// effective values.
+func buildConnectorExpiryOverride(e *storage.ConnectorExpiry, defaults RefreshTokenDefaults) (ConnectorExpiryOverride, error) {
+	var override ConnectorExpiryOverride
+	if e == nil {
+		return override, nil
+	}
+
+	if e.IDTokens != "" {
+		d, err := time.ParseDuration(e.IDTokens)
+		if err != nil {
+			return override, fmt.Errorf("parse expiry.idTokens: %v", err)
+		}
+		override.IDTokensValidFor = d
+	}
+
+	rt := e.RefreshTokens
+	if rt == nil {
+		return override, nil
+	}
+
+	disableRotation := defaults.DisableRotation
+	if rt.DisableRotation != nil {
+		disableRotation = *rt.DisableRotation
+	}
+	// NewRefreshTokenPolicy emits one Info line per field; useful for the single
+	// global policy but would spam logs at N connectors × 4 fields on every API
+	// write. Pass a discard logger and let the caller summarize.
+	policy, err := NewRefreshTokenPolicy(
+		discardLogger,
+		disableRotation,
+		defaultTo(rt.ValidIfNotUsedFor, defaults.ValidIfNotUsedFor),
+		defaultTo(rt.AbsoluteLifetime, defaults.AbsoluteLifetime),
+		defaultTo(rt.ReuseInterval, defaults.ReuseInterval),
+	)
+	if err != nil {
+		return override, fmt.Errorf("refresh token policy: %v", err)
+	}
+	override.RefreshTokenPolicy = policy
+	return override, nil
+}
+
 // Server is the top level object.
 type Server struct {
 	issuerURL url.URL
 
-	// mutex for the connectors map.
+	// mu guards connectors and connectorExpiryOverrides.
 	mu sync.Mutex
 	// Map of connector IDs to connectors.
 	connectors map[string]Connector
@@ -244,6 +388,14 @@ type Server struct {
 	deviceRequestsValidFor time.Duration
 
 	refreshTokenPolicy *RefreshTokenPolicy
+
+	// expiryCeilings and globalRefreshDefaults are immutable after construction.
+	expiryCeilings        ExpiryCeilings
+	globalRefreshDefaults RefreshTokenDefaults
+
+	// connectorExpiryOverrides is mutated by API CreateConnector /
+	// UpdateConnector / DeleteConnector handlers. Protected by mu.
+	connectorExpiryOverrides map[string]ConnectorExpiryOverride
 
 	logger *slog.Logger
 
@@ -359,26 +511,29 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	}
 
 	s := &Server{
-		issuerURL:              *issuerURL,
-		connectors:             make(map[string]Connector),
-		storage:                newKeyCacher(c.Storage, now),
-		supportedResponseTypes: supportedRes,
-		supportedGrantTypes:    supportedGrants,
-		pkce:                   c.PKCE,
-		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
-		authRequestsValidFor:   value(c.AuthRequestsValidFor, 24*time.Hour),
-		deviceRequestsValidFor: value(c.DeviceRequestsValidFor, 5*time.Minute),
-		refreshTokenPolicy:     c.RefreshTokenPolicy,
-		skipApproval:           c.SkipApprovalScreen,
-		alwaysShowLogin:        c.AlwaysShowLoginScreen,
-		now:                    now,
-		templates:              tmpls,
-		passwordConnector:      c.PasswordConnector,
-		logger:                 c.Logger,
-		signer:                 c.Signer,
-		sessionConfig:          c.SessionConfig,
-		mfaProviders:           c.MFAProviders,
-		defaultMFAChain:        c.DefaultMFAChain,
+		issuerURL:                *issuerURL,
+		connectors:               make(map[string]Connector),
+		storage:                  newKeyCacher(c.Storage, now),
+		supportedResponseTypes:   supportedRes,
+		supportedGrantTypes:      supportedGrants,
+		pkce:                     c.PKCE,
+		idTokensValidFor:         value(c.IDTokensValidFor, 24*time.Hour),
+		authRequestsValidFor:     value(c.AuthRequestsValidFor, 24*time.Hour),
+		deviceRequestsValidFor:   value(c.DeviceRequestsValidFor, 5*time.Minute),
+		refreshTokenPolicy:       c.RefreshTokenPolicy,
+		expiryCeilings:           c.ExpiryCeilings,
+		globalRefreshDefaults:    c.GlobalRefreshDefaults,
+		connectorExpiryOverrides: map[string]ConnectorExpiryOverride{},
+		skipApproval:             c.SkipApprovalScreen,
+		alwaysShowLogin:          c.AlwaysShowLoginScreen,
+		now:                      now,
+		templates:                tmpls,
+		passwordConnector:        c.PasswordConnector,
+		logger:                   c.Logger,
+		signer:                   c.Signer,
+		sessionConfig:            c.SessionConfig,
+		mfaProviders:             c.MFAProviders,
+		defaultMFAChain:          c.DefaultMFAChain,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
@@ -394,6 +549,17 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 
 	var failedCount int
 	for _, conn := range storageConnectors {
+		if err := s.upsertConnectorExpiryOverride(conn.ID, conn.Expiry); err != nil {
+			failedCount++
+			if c.ContinueOnConnectorFailure {
+				s.logger.Error("server: invalid connector expiry", "id", conn.ID, "err", err)
+				continue
+			}
+			return nil, fmt.Errorf("server: invalid connector expiry for %s: %v", conn.ID, err)
+		}
+		if conn.Expiry != nil {
+			s.logger.Info("server: connector expiry override installed", "id", conn.ID)
+		}
 		if _, err := s.OpenConnector(conn); err != nil {
 			failedCount++
 			if c.ContinueOnConnectorFailure {
@@ -826,6 +992,28 @@ func (s *Server) CloseConnector(id string) {
 	s.mu.Lock()
 	delete(s.connectors, id)
 	s.mu.Unlock()
+}
+
+// upsertConnectorExpiryOverride validates the given storage.ConnectorExpiry
+// and, on success, updates the in-memory override map. Every code path that
+// can change a connector's expiry must go through this method so the live
+// token-issuance path reflects the change.
+func (s *Server) upsertConnectorExpiryOverride(id string, e *storage.ConnectorExpiry) error {
+	if err := validateConnectorExpiry(e, s.expiryCeilings); err != nil {
+		return err
+	}
+	override, err := buildConnectorExpiryOverride(e, s.globalRefreshDefaults)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if e == nil {
+		delete(s.connectorExpiryOverrides, id)
+		return nil
+	}
+	s.connectorExpiryOverrides[id] = override
+	return nil
 }
 
 // getConnector retrieves the connector object with the given id from the storage

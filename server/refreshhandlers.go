@@ -176,9 +176,11 @@ func (s *Server) getRefreshTokenFromStorage(ctx context.Context, clientID *strin
 		return nil, &refreshError{msg: errInvalidGrant, desc: invalidErr.desc, code: http.StatusBadRequest}
 	}
 
+	policy := s.refreshTokenPolicyForConn(refresh.ConnectorID)
+
 	if refresh.Token != token.Token {
 		switch {
-		case !s.refreshTokenPolicy.AllowedToReuse(refresh.LastUsed):
+		case !policy.AllowedToReuse(refresh.LastUsed):
 			fallthrough
 		case refresh.ObsoleteToken != token.Token:
 			fallthrough
@@ -188,12 +190,12 @@ func (s *Server) getRefreshTokenFromStorage(ctx context.Context, clientID *strin
 		}
 	}
 
-	if s.refreshTokenPolicy.CompletelyExpired(refresh.CreatedAt) {
+	if policy.CompletelyExpired(refresh.CreatedAt) {
 		s.logger.ErrorContext(ctx, "refresh token expired", "token_id", refresh.ID)
 		return nil, expiredErr
 	}
 
-	if s.refreshTokenPolicy.ExpiredBecauseUnused(refresh.LastUsed) {
+	if policy.ExpiredBecauseUnused(refresh.LastUsed) {
 		s.logger.ErrorContext(ctx, "refresh token expired due to inactivity", "token_id", refresh.ID)
 		return nil, expiredErr
 	}
@@ -337,9 +339,11 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext, u
 	// stored in UserIdentity at the time of the last interactive login. This aligns with the
 	// behavior of other identity brokers (e.g., Keycloak, Auth0) that treat downstream sessions
 	// independently from the upstream provider session lifetime.
+	policy := s.refreshTokenPolicyForConn(rCtx.storageToken.ConnectorID)
+
 	refreshTokenUpdater := func(old storage.RefreshToken) (storage.RefreshToken, error) {
-		rotationEnabled := s.refreshTokenPolicy.RotationEnabled()
-		reusingAllowed := s.refreshTokenPolicy.AllowedToReuse(old.LastUsed)
+		rotationEnabled := policy.RotationEnabled()
+		reusingAllowed := policy.AllowedToReuse(old.LastUsed)
 
 		switch {
 		case !rotationEnabled && reusingAllowed:

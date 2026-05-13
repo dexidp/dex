@@ -545,6 +545,30 @@ type Connector struct {
 	// GrantTypes is a list of grant types that this connector is allowed to be used with.
 	// If empty, all grant types are allowed.
 	GrantTypes []string `json:"grantTypes,omitempty"`
+
+	// Expiry, when set, overrides the corresponding fields of the top-level
+	// expiry config for tokens issued through this connector. Any field left
+	// unset falls back to the global value. Overrides must be at least as
+	// strict as their global counterpart.
+	Expiry *ConnectorExpiry `json:"expiry,omitempty"`
+}
+
+// ConnectorExpiry holds per-connector overrides for token lifetimes.
+// The string fields use the same duration format as the top-level expiry
+// config (e.g. "5m", "24h"). An empty string means "inherit the global value".
+type ConnectorExpiry struct {
+	IDTokens      string                  `json:"idTokens,omitempty"`
+	RefreshTokens *ConnectorRefreshExpiry `json:"refreshTokens,omitempty"`
+}
+
+// ConnectorRefreshExpiry holds per-connector refresh-token policy overrides.
+// DisableRotation is a *bool so "unset" (inherit) can be distinguished from
+// false. The duration strings inherit the global value when empty.
+type ConnectorRefreshExpiry struct {
+	DisableRotation   *bool  `json:"disableRotation,omitempty"`
+	ReuseInterval     string `json:"reuseInterval,omitempty"`
+	AbsoluteLifetime  string `json:"absoluteLifetime,omitempty"`
+	ValidIfNotUsedFor string `json:"validIfNotUsedFor,omitempty"`
 }
 
 // VerificationKey is a rotated signing key which can still be used to verify
