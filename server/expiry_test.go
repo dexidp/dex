@@ -45,6 +45,40 @@ func TestValidateConnectorExpiry_NoCeiling(t *testing.T) {
 	))
 }
 
+func TestValidateConnectorExpiry_RefreshAbsoluteLifetimeZeroDisables(t *testing.T) {
+	// "0s" parses as zero duration, which RefreshTokenPolicy interprets as
+	// "no expiration" — strictly looser than any positive global ceiling.
+	err := validateConnectorExpiry(
+		&storage.ConnectorExpiry{
+			RefreshTokens: &storage.ConnectorRefreshExpiry{AbsoluteLifetime: "0s"},
+		},
+		ExpiryCeilings{RefreshAbsoluteLifetime: 24 * time.Hour},
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "expiry.refreshTokens.absoluteLifetime cannot be 0")
+}
+
+func TestValidateConnectorExpiry_RefreshValidIfNotUsedForZeroDisables(t *testing.T) {
+	err := validateConnectorExpiry(
+		&storage.ConnectorExpiry{
+			RefreshTokens: &storage.ConnectorRefreshExpiry{ValidIfNotUsedFor: "0s"},
+		},
+		ExpiryCeilings{RefreshValidIfNotUsedFor: 1 * time.Hour},
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "expiry.refreshTokens.validIfNotUsedFor cannot be 0")
+}
+
+func TestValidateConnectorExpiry_RefreshReuseIntervalZeroIsStricter(t *testing.T) {
+	// reuseInterval=0 means "no reuse window" — stricter, not looser. Accept it.
+	require.NoError(t, validateConnectorExpiry(
+		&storage.ConnectorExpiry{
+			RefreshTokens: &storage.ConnectorRefreshExpiry{ReuseInterval: "0s"},
+		},
+		ExpiryCeilings{RefreshReuseInterval: 3 * time.Second},
+	))
+}
+
 func TestValidateConnectorExpiry_RefreshAbsoluteLifetimeExceeds(t *testing.T) {
 	err := validateConnectorExpiry(
 		&storage.ConnectorExpiry{

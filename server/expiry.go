@@ -39,22 +39,26 @@ func validateConnectorExpiry(e *storage.ConnectorExpiry, c ExpiryCeilings) error
 	if e == nil {
 		return nil
 	}
-	if err := checkCeiling("expiry.idTokens", e.IDTokens, c.IDTokens); err != nil {
+	// idTokens: zero means "inherit" at runtime (idTokensValidForConn falls back
+	// to the global via value()), so "0s" here is harmless.
+	if err := checkCeiling("expiry.idTokens", e.IDTokens, c.IDTokens, false); err != nil {
 		return err
 	}
 	if e.RefreshTokens == nil {
 		return nil
 	}
 	for _, f := range []struct {
-		name    string
-		value   string
-		ceiling time.Duration
+		name         string
+		value        string
+		ceiling      time.Duration
+		zeroDisables bool // RefreshTokenPolicy treats 0 as "expiration disabled" for this field
 	}{
-		{"expiry.refreshTokens.absoluteLifetime", e.RefreshTokens.AbsoluteLifetime, c.RefreshAbsoluteLifetime},
-		{"expiry.refreshTokens.validIfNotUsedFor", e.RefreshTokens.ValidIfNotUsedFor, c.RefreshValidIfNotUsedFor},
-		{"expiry.refreshTokens.reuseInterval", e.RefreshTokens.ReuseInterval, c.RefreshReuseInterval},
+		{"expiry.refreshTokens.absoluteLifetime", e.RefreshTokens.AbsoluteLifetime, c.RefreshAbsoluteLifetime, true},
+		{"expiry.refreshTokens.validIfNotUsedFor", e.RefreshTokens.ValidIfNotUsedFor, c.RefreshValidIfNotUsedFor, true},
+		// reuseInterval: 0 means "no reuse window" — stricter than any positive value, never looser.
+		{"expiry.refreshTokens.reuseInterval", e.RefreshTokens.ReuseInterval, c.RefreshReuseInterval, false},
 	} {
-		if err := checkCeiling(f.name, f.value, f.ceiling); err != nil {
+		if err := checkCeiling(f.name, f.value, f.ceiling, f.zeroDisables); err != nil {
 			return err
 		}
 	}
@@ -64,7 +68,11 @@ func validateConnectorExpiry(e *storage.ConnectorExpiry, c ExpiryCeilings) error
 	return nil
 }
 
-func checkCeiling(field, value string, ceiling time.Duration) error {
+// checkCeiling enforces that a per-connector duration is at least as strict as
+// the global ceiling. When zeroDisables is true, an override of 0 is rejected
+// in the presence of a positive ceiling because RefreshTokenPolicy treats 0 as
+// "no expiration" for that field — strictly looser than any positive global.
+func checkCeiling(field, value string, ceiling time.Duration, zeroDisables bool) error {
 	if value == "" {
 		return nil
 	}
@@ -72,8 +80,14 @@ func checkCeiling(field, value string, ceiling time.Duration) error {
 	if err != nil {
 		return fmt.Errorf("parse %s: %v", field, err)
 	}
-	if ceiling > 0 && d > ceiling {
+	if ceiling <= 0 {
+		return nil
+	}
+	if d > ceiling {
 		return fmt.Errorf("%s (%s) exceeds the global value (%s)", field, d, ceiling)
+	}
+	if zeroDisables && d == 0 {
+		return fmt.Errorf("%s cannot be 0 (disables expiration) when the global value (%s) is set", field, ceiling)
 	}
 	return nil
 }
