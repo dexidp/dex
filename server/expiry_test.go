@@ -12,11 +12,11 @@ import (
 )
 
 func TestValidateConnectorExpiry_Nil(t *testing.T) {
-	require.NoError(t, ValidateConnectorExpiry(nil, ExpiryCeilings{}))
+	require.NoError(t, validateConnectorExpiry(nil, ExpiryCeilings{}))
 }
 
 func TestValidateConnectorExpiry_IDTokensExceeds(t *testing.T) {
-	err := ValidateConnectorExpiry(
+	err := validateConnectorExpiry(
 		&storage.ConnectorExpiry{IDTokens: "48h"},
 		ExpiryCeilings{IDTokens: 24 * time.Hour},
 	)
@@ -24,16 +24,29 @@ func TestValidateConnectorExpiry_IDTokensExceeds(t *testing.T) {
 	assert.Contains(t, err.Error(), "expiry.idTokens (48h0m0s) exceeds the global value (24h0m0s)")
 }
 
+func TestValidateConnectorExpiry_InvalidDurationNoCeiling(t *testing.T) {
+	// Garbage strings are rejected even when the global has no ceiling, so
+	// they can't slip past validation and explode later in NewRefreshTokenPolicy.
+	err := validateConnectorExpiry(
+		&storage.ConnectorExpiry{
+			RefreshTokens: &storage.ConnectorRefreshExpiry{AbsoluteLifetime: "not-a-duration"},
+		},
+		ExpiryCeilings{},
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "parse expiry.refreshTokens.absoluteLifetime")
+}
+
 func TestValidateConnectorExpiry_NoCeiling(t *testing.T) {
 	// Global unset → no ceiling.
-	require.NoError(t, ValidateConnectorExpiry(
+	require.NoError(t, validateConnectorExpiry(
 		&storage.ConnectorExpiry{IDTokens: "48h"},
 		ExpiryCeilings{},
 	))
 }
 
 func TestValidateConnectorExpiry_RefreshAbsoluteLifetimeExceeds(t *testing.T) {
-	err := ValidateConnectorExpiry(
+	err := validateConnectorExpiry(
 		&storage.ConnectorExpiry{
 			RefreshTokens: &storage.ConnectorRefreshExpiry{AbsoluteLifetime: "100h"},
 		},
@@ -45,7 +58,7 @@ func TestValidateConnectorExpiry_RefreshAbsoluteLifetimeExceeds(t *testing.T) {
 
 func TestValidateConnectorExpiry_AllFieldsBelowCeiling(t *testing.T) {
 	enable := false
-	require.NoError(t, ValidateConnectorExpiry(
+	require.NoError(t, validateConnectorExpiry(
 		&storage.ConnectorExpiry{
 			IDTokens: "10m",
 			RefreshTokens: &storage.ConnectorRefreshExpiry{
@@ -68,7 +81,7 @@ func TestValidateConnectorExpiry_AllFieldsBelowCeiling(t *testing.T) {
 func TestValidateConnectorExpiry_DisableRotationLoosens(t *testing.T) {
 	// Global has rotation enabled; connector cannot disable it.
 	disable := true
-	err := ValidateConnectorExpiry(
+	err := validateConnectorExpiry(
 		&storage.ConnectorExpiry{
 			RefreshTokens: &storage.ConnectorRefreshExpiry{DisableRotation: &disable},
 		},
@@ -81,7 +94,7 @@ func TestValidateConnectorExpiry_DisableRotationLoosens(t *testing.T) {
 func TestValidateConnectorExpiry_DisableRotationTightens(t *testing.T) {
 	// Global has rotation disabled; connector can enable it (stricter).
 	enable := false
-	require.NoError(t, ValidateConnectorExpiry(
+	require.NoError(t, validateConnectorExpiry(
 		&storage.ConnectorExpiry{
 			RefreshTokens: &storage.ConnectorRefreshExpiry{DisableRotation: &enable},
 		},
@@ -90,7 +103,7 @@ func TestValidateConnectorExpiry_DisableRotationTightens(t *testing.T) {
 }
 
 func TestBuildConnectorExpiryOverride_Nil(t *testing.T) {
-	got, err := buildConnectorExpiryOverride(slog.New(slog.DiscardHandler), "c1", nil, RefreshTokenDefaults{})
+	got, err := buildConnectorExpiryOverride(nil, RefreshTokenDefaults{})
 	require.NoError(t, err)
 	assert.Zero(t, got.IDTokensValidFor)
 	assert.Nil(t, got.RefreshTokenPolicy)
@@ -98,8 +111,6 @@ func TestBuildConnectorExpiryOverride_Nil(t *testing.T) {
 
 func TestBuildConnectorExpiryOverride_IDTokensOnly(t *testing.T) {
 	got, err := buildConnectorExpiryOverride(
-		slog.New(slog.DiscardHandler),
-		"c1",
 		&storage.ConnectorExpiry{IDTokens: "5m"},
 		RefreshTokenDefaults{},
 	)
@@ -111,8 +122,6 @@ func TestBuildConnectorExpiryOverride_IDTokensOnly(t *testing.T) {
 func TestBuildConnectorExpiryOverride_RefreshInheritsGlobals(t *testing.T) {
 	disable := true
 	got, err := buildConnectorExpiryOverride(
-		slog.New(slog.DiscardHandler),
-		"c1",
 		&storage.ConnectorExpiry{
 			RefreshTokens: &storage.ConnectorRefreshExpiry{
 				DisableRotation:  &disable,

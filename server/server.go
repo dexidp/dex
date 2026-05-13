@@ -226,7 +226,7 @@ type ConnectorExpiryOverride struct {
 type Server struct {
 	issuerURL url.URL
 
-	// mutex for the connectors map.
+	// mu guards connectors and connectorExpiryOverrides.
 	mu sync.Mutex
 	// Map of connector IDs to connectors.
 	connectors map[string]Connector
@@ -418,14 +418,19 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		return nil, errors.New("server: no connectors specified")
 	}
 
-	for _, conn := range storageConnectors {
-		if err := s.upsertConnectorExpiryOverride(conn.ID, conn.Expiry); err != nil {
-			return nil, fmt.Errorf("server: invalid connector expiry for %q: %v", conn.ID, err)
-		}
-	}
-
 	var failedCount int
 	for _, conn := range storageConnectors {
+		if err := s.upsertConnectorExpiryOverride(conn.ID, conn.Expiry); err != nil {
+			failedCount++
+			if c.ContinueOnConnectorFailure {
+				s.logger.Error("server: invalid connector expiry", "id", conn.ID, "err", err)
+				continue
+			}
+			return nil, fmt.Errorf("server: invalid connector expiry for %s: %v", conn.ID, err)
+		}
+		if conn.Expiry != nil {
+			s.logger.Info("server: connector expiry override installed", "id", conn.ID)
+		}
 		if _, err := s.OpenConnector(conn); err != nil {
 			failedCount++
 			if c.ContinueOnConnectorFailure {
@@ -854,31 +859,21 @@ func (s *Server) OpenConnector(conn storage.Connector) (Connector, error) {
 }
 
 // CloseConnector removes the connector from the server's in-memory map.
-// The expiry override is intentionally left alone here — call sites that
-// need to drop it (DeleteConnector) do so explicitly via
-// upsertConnectorExpiryOverride(id, nil) afterwards.
 func (s *Server) CloseConnector(id string) {
 	s.mu.Lock()
 	delete(s.connectors, id)
 	s.mu.Unlock()
 }
 
-// ExpiryCeilings returns the global expiry ceilings used to validate
-// per-connector overrides. Callers should pass the result to
-// ValidateConnectorExpiry before persisting any storage.ConnectorExpiry.
-func (s *Server) ExpiryCeilings() ExpiryCeilings {
-	return s.expiryCeilings
-}
-
 // upsertConnectorExpiryOverride validates the given storage.ConnectorExpiry
-// against the server's expiry ceilings and, on success, updates the in-memory
-// override map. Callers must invoke this every time a connector's expiry is
-// written so that the live token-issuance path reflects the change.
+// and, on success, updates the in-memory override map. Every code path that
+// can change a connector's expiry must go through this method so the live
+// token-issuance path reflects the change.
 func (s *Server) upsertConnectorExpiryOverride(id string, e *storage.ConnectorExpiry) error {
-	if err := ValidateConnectorExpiry(e, s.expiryCeilings); err != nil {
+	if err := validateConnectorExpiry(e, s.expiryCeilings); err != nil {
 		return err
 	}
-	override, err := buildConnectorExpiryOverride(s.logger, id, e, s.globalRefreshDefaults)
+	override, err := buildConnectorExpiryOverride(e, s.globalRefreshDefaults)
 	if err != nil {
 		return err
 	}
@@ -889,9 +884,6 @@ func (s *Server) upsertConnectorExpiryOverride(id string, e *storage.ConnectorEx
 		return nil
 	}
 	s.connectorExpiryOverrides[id] = override
-	if override.IDTokensValidFor > 0 {
-		s.logger.Info("config connector id tokens", "connector_id", id, "valid_for", override.IDTokensValidFor)
-	}
 	return nil
 }
 

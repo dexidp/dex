@@ -563,18 +563,18 @@ type Connector struct {
 	// Expiry, when set, overrides the corresponding fields of the top-level
 	// expiry config for tokens issued through this connector. Any field left
 	// unset falls back to the global value.
-	Expiry *ConnectorExpiry `json:"expiry,omitempty"`
+	Expiry *ConnectorExpiry `json:"expiry"`
 }
 
 type ConnectorExpiry struct {
-	IDTokens      string                 `json:"idTokens"`
-	RefreshTokens *ConnectorRefreshToken `json:"refreshTokens"`
+	IDTokens      string                  `json:"idTokens"`
+	RefreshTokens *ConnectorRefreshExpiry `json:"refreshTokens"`
 }
 
-// ConnectorRefreshToken mirrors RefreshToken but uses a pointer for
+// ConnectorRefreshExpiry mirrors RefreshToken but uses a pointer for
 // DisableRotation so that "unset" can be distinguished from "false",
 // allowing the field to inherit the global value when nil.
-type ConnectorRefreshToken struct {
+type ConnectorRefreshExpiry struct {
 	DisableRotation   *bool  `json:"disableRotation"`
 	ReuseInterval     string `json:"reuseInterval"`
 	AbsoluteLifetime  string `json:"absoluteLifetime"`
@@ -591,7 +591,7 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 
 		Config     json.RawMessage  `json:"config"`
 		GrantTypes []string         `json:"grantTypes"`
-		Expiry     *ConnectorExpiry `json:"expiry,omitempty"`
+		Expiry     *ConnectorExpiry `json:"expiry"`
 	}
 	if err := configUnmarshaller(b, &conn); err != nil {
 		return fmt.Errorf("parse connector: %v", err)
@@ -646,33 +646,25 @@ func ToStorageConnector(c Connector) (storage.Connector, error) {
 		return storage.Connector{}, fmt.Errorf("failed to marshal connector config: %v", err)
 	}
 
-	return storage.Connector{
+	sc := storage.Connector{
 		ID:         c.ID,
 		Type:       c.Type,
 		Name:       c.Name,
 		Config:     data,
 		GrantTypes: c.GrantTypes,
-		Expiry:     connectorExpiryToStorage(c.Expiry),
-	}, nil
-}
-
-// connectorExpiryToStorage flattens the YAML config struct into the storage
-// type. Both share the same shape; the conversion is mechanical and exists
-// purely to decouple the storage package from cmd/dex.
-func connectorExpiryToStorage(e *ConnectorExpiry) *storage.ConnectorExpiry {
-	if e == nil {
-		return nil
 	}
-	out := &storage.ConnectorExpiry{IDTokens: e.IDTokens}
-	if e.RefreshTokens != nil {
-		out.RefreshTokens = &storage.ConnectorRefreshExpiry{
-			DisableRotation:   e.RefreshTokens.DisableRotation,
-			ReuseInterval:     e.RefreshTokens.ReuseInterval,
-			AbsoluteLifetime:  e.RefreshTokens.AbsoluteLifetime,
-			ValidIfNotUsedFor: e.RefreshTokens.ValidIfNotUsedFor,
+	if c.Expiry != nil {
+		sc.Expiry = &storage.ConnectorExpiry{IDTokens: c.Expiry.IDTokens}
+		if rt := c.Expiry.RefreshTokens; rt != nil {
+			sc.Expiry.RefreshTokens = &storage.ConnectorRefreshExpiry{
+				DisableRotation:   rt.DisableRotation,
+				ReuseInterval:     rt.ReuseInterval,
+				AbsoluteLifetime:  rt.AbsoluteLifetime,
+				ValidIfNotUsedFor: rt.ValidIfNotUsedFor,
+			}
 		}
 	}
-	return out
+	return sc, nil
 }
 
 // Expiry holds configuration for the validity period of components.

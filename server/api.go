@@ -475,7 +475,7 @@ func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq
 
 	expiry := connectorExpiryFromProto(req.Connector.Expiry)
 	if d.server != nil {
-		if err := ValidateConnectorExpiry(expiry, d.server.ExpiryCeilings()); err != nil {
+		if err := validateConnectorExpiry(expiry, d.server.expiryCeilings); err != nil {
 			return nil, fmt.Errorf("invalid expiry: %v", err)
 		}
 	}
@@ -498,8 +498,9 @@ func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq
 	}
 
 	if d.server != nil {
-		// Refresh the runtime expiry override before evicting the cached
-		// connector — both must agree with what was just persisted.
+		// Validation already passed above, so reaching the error path here means
+		// a programmer bug. Log and let the storage write win; the inconsistency
+		// will self-heal on the next restart.
 		if err := d.server.upsertConnectorExpiryOverride(req.Connector.Id, expiry); err != nil {
 			d.logger.Error("api: failed to install connector expiry override", "err", err)
 		}
@@ -539,18 +540,19 @@ func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq
 		}
 	}
 
-	// expiryUpdate captures the new value (possibly nil to clear) when the
-	// caller has chosen to modify the field, and false when the field should
-	// be left untouched.
+	// The proto has three states (absent / present-with-nil / present-with-value);
+	// *storage.ConnectorExpiry only has two. expiryUpdated bridges the gap: false
+	// means "leave alone", true with nil newExpiry means "clear", true with a
+	// non-nil newExpiry means "install this".
 	var (
 		expiryUpdated bool
 		newExpiry     *storage.ConnectorExpiry
 	)
 	if req.NewExpiry != nil {
 		expiryUpdated = true
-		newExpiry = connectorExpiryUpdateFromProto(req.NewExpiry)
+		newExpiry = connectorExpiryFromProto(req.NewExpiry.Value)
 		if d.server != nil {
-			if err := ValidateConnectorExpiry(newExpiry, d.server.ExpiryCeilings()); err != nil {
+			if err := validateConnectorExpiry(newExpiry, d.server.expiryCeilings); err != nil {
 				return nil, fmt.Errorf("invalid expiry: %v", err)
 			}
 		}
@@ -592,12 +594,12 @@ func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq
 		return nil, fmt.Errorf("update connector: %v", err)
 	}
 
-	if d.server != nil && expiryUpdated {
-		if err := d.server.upsertConnectorExpiryOverride(req.Id, newExpiry); err != nil {
-			d.logger.Error("api: failed to refresh connector expiry override", "err", err)
+	if d.server != nil {
+		if expiryUpdated {
+			if err := d.server.upsertConnectorExpiryOverride(req.Id, newExpiry); err != nil {
+				d.logger.Error("api: failed to refresh connector expiry override", "err", err)
+			}
 		}
-		d.server.CloseConnector(req.Id)
-	} else if d.server != nil {
 		d.server.CloseConnector(req.Id)
 	}
 
@@ -623,7 +625,8 @@ func (d dexAPI) DeleteConnector(ctx context.Context, req *api.DeleteConnectorReq
 	}
 
 	if d.server != nil {
-		// upsert with nil clears any installed override.
+		// Drop any cached override so a connector re-created with the same id
+		// starts fresh. upsertConnectorExpiryOverride(_, nil) cannot error.
 		_ = d.server.upsertConnectorExpiryOverride(req.Id, nil)
 		d.server.CloseConnector(req.Id)
 	}
@@ -650,7 +653,17 @@ func (d dexAPI) ListConnectors(ctx context.Context, req *api.ListConnectorReq) (
 			Type:       connector.Type,
 			Config:     connector.Config,
 			GrantTypes: connector.GrantTypes,
-			Expiry:     connectorExpiryToProto(connector.Expiry),
+		}
+		if e := connector.Expiry; e != nil {
+			c.Expiry = &api.ConnectorExpiry{IdTokens: e.IDTokens}
+			if rt := e.RefreshTokens; rt != nil {
+				c.Expiry.RefreshTokens = &api.ConnectorRefreshExpiry{
+					DisableRotation:   rt.DisableRotation,
+					ReuseInterval:     rt.ReuseInterval,
+					AbsoluteLifetime:  rt.AbsoluteLifetime,
+					ValidIfNotUsedFor: rt.ValidIfNotUsedFor,
+				}
+			}
 		}
 		connectors = append(connectors, &c)
 	}
@@ -668,8 +681,6 @@ func defaultTo[T comparable](v, def T) T {
 	return v
 }
 
-// connectorExpiryFromProto converts an api.ConnectorExpiry into the storage
-// type. A nil input yields nil so the caller can persist "no override".
 func connectorExpiryFromProto(p *api.ConnectorExpiry) *storage.ConnectorExpiry {
 	if p == nil {
 		return nil
@@ -684,29 +695,4 @@ func connectorExpiryFromProto(p *api.ConnectorExpiry) *storage.ConnectorExpiry {
 		}
 	}
 	return e
-}
-
-// connectorExpiryUpdateFromProto unwraps the optional update envelope. A
-// present update with a nil inner Value means "clear the override".
-func connectorExpiryUpdateFromProto(p *api.ConnectorExpiryUpdate) *storage.ConnectorExpiry {
-	if p == nil {
-		return nil
-	}
-	return connectorExpiryFromProto(p.Value)
-}
-
-func connectorExpiryToProto(e *storage.ConnectorExpiry) *api.ConnectorExpiry {
-	if e == nil {
-		return nil
-	}
-	p := &api.ConnectorExpiry{IdTokens: e.IDTokens}
-	if e.RefreshTokens != nil {
-		p.RefreshTokens = &api.ConnectorRefreshExpiry{
-			DisableRotation:   e.RefreshTokens.DisableRotation,
-			ReuseInterval:     e.RefreshTokens.ReuseInterval,
-			AbsoluteLifetime:  e.RefreshTokens.AbsoluteLifetime,
-			ValidIfNotUsedFor: e.RefreshTokens.ValidIfNotUsedFor,
-		}
-	}
-	return p
 }

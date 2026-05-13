@@ -9,14 +9,11 @@ import (
 )
 
 // ExpiryCeilings holds the parsed global expiry values that per-connector
-// overrides must not loosen. A zero duration means "no ceiling" — the global
-// value is unset/disabled, so any override is acceptable.
+// overrides must not loosen. A zero duration field means "no ceiling".
 //
-// RefreshRotationDisabled mirrors the global expiry.refreshTokens.disableRotation
-// flag. When rotation is enabled globally, a per-connector override may not
-// disable it: rotation-enabled is the stricter policy (shorter replay window
-// after compromise), so disabling it at the connector layer would loosen the
-// global guarantee. The reverse direction is permitted.
+// RefreshRotationDisabled blocks the asymmetric case where the global enables
+// rotation: a per-connector override cannot disable it, since rotation-enabled
+// is the stricter policy. The reverse direction is permitted.
 type ExpiryCeilings struct {
 	IDTokens                 time.Duration
 	RefreshAbsoluteLifetime  time.Duration
@@ -25,9 +22,8 @@ type ExpiryCeilings struct {
 	RefreshRotationDisabled  bool
 }
 
-// RefreshTokenDefaults are the global refresh-token configuration strings.
-// Per-connector overrides inherit unset fields from these values when
-// constructing a RefreshTokenPolicy.
+// RefreshTokenDefaults are the inheritance roots for per-connector overrides
+// that leave fields unset.
 type RefreshTokenDefaults struct {
 	DisableRotation   bool
 	ValidIfNotUsedFor string
@@ -35,11 +31,11 @@ type RefreshTokenDefaults struct {
 	ReuseInterval     string
 }
 
-// ValidateConnectorExpiry rejects per-connector overrides that loosen the
+// validateConnectorExpiry rejects per-connector overrides that loosen the
 // global policy. This function is the single source of truth for the
 // hierarchy rule; it is called from both the static YAML load path and every
 // gRPC API write so that no configuration modification can ever bypass it.
-func ValidateConnectorExpiry(e *storage.ConnectorExpiry, c ExpiryCeilings) error {
+func validateConnectorExpiry(e *storage.ConnectorExpiry, c ExpiryCeilings) error {
 	if e == nil {
 		return nil
 	}
@@ -69,14 +65,14 @@ func ValidateConnectorExpiry(e *storage.ConnectorExpiry, c ExpiryCeilings) error
 }
 
 func checkCeiling(field, value string, ceiling time.Duration) error {
-	if value == "" || ceiling == 0 {
+	if value == "" {
 		return nil
 	}
 	d, err := time.ParseDuration(value)
 	if err != nil {
 		return fmt.Errorf("parse %s: %v", field, err)
 	}
-	if d > ceiling {
+	if ceiling > 0 && d > ceiling {
 		return fmt.Errorf("%s (%s) exceeds the global value (%s)", field, d, ceiling)
 	}
 	return nil
@@ -86,12 +82,7 @@ func checkCeiling(field, value string, ceiling time.Duration) error {
 // into a ConnectorExpiryOverride. Unset string fields inherit from the global
 // refresh defaults so the resulting RefreshTokenPolicy carries the correct
 // effective values.
-func buildConnectorExpiryOverride(
-	logger *slog.Logger,
-	connectorID string,
-	e *storage.ConnectorExpiry,
-	defaults RefreshTokenDefaults,
-) (ConnectorExpiryOverride, error) {
+func buildConnectorExpiryOverride(e *storage.ConnectorExpiry, defaults RefreshTokenDefaults) (ConnectorExpiryOverride, error) {
 	var override ConnectorExpiryOverride
 	if e == nil {
 		return override, nil
@@ -114,22 +105,16 @@ func buildConnectorExpiryOverride(
 	if rt.DisableRotation != nil {
 		disableRotation = *rt.DisableRotation
 	}
-	validIfNotUsedFor := rt.ValidIfNotUsedFor
-	if validIfNotUsedFor == "" {
-		validIfNotUsedFor = defaults.ValidIfNotUsedFor
-	}
-	absoluteLifetime := rt.AbsoluteLifetime
-	if absoluteLifetime == "" {
-		absoluteLifetime = defaults.AbsoluteLifetime
-	}
-	reuseInterval := rt.ReuseInterval
-	if reuseInterval == "" {
-		reuseInterval = defaults.ReuseInterval
-	}
-
+	// NewRefreshTokenPolicy emits one Info line per field at startup; that's
+	// useful for the single global policy but would spam logs at N connectors ×
+	// 4 fields, on every API write. Pass a discard logger and let the caller
+	// summarize.
 	policy, err := NewRefreshTokenPolicy(
-		logger.With("connector_id", connectorID),
-		disableRotation, validIfNotUsedFor, absoluteLifetime, reuseInterval,
+		slog.New(slog.DiscardHandler),
+		disableRotation,
+		defaultTo(rt.ValidIfNotUsedFor, defaults.ValidIfNotUsedFor),
+		defaultTo(rt.AbsoluteLifetime, defaults.AbsoluteLifetime),
+		defaultTo(rt.ReuseInterval, defaults.ReuseInterval),
 	)
 	if err != nil {
 		return override, fmt.Errorf("refresh token policy: %v", err)

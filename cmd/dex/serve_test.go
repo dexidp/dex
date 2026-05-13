@@ -65,23 +65,29 @@ func TestBuildExpiryCeilingsInvalidDuration(t *testing.T) {
 	assert.Contains(t, err.Error(), "parse expiry.refreshTokens.absoluteLifetime")
 }
 
-func TestConnectorExpiryToStorage(t *testing.T) {
+func TestToStorageConnectorCarriesExpiry(t *testing.T) {
 	disable := true
-	got := connectorExpiryToStorage(&ConnectorExpiry{
-		IDTokens: "15m",
-		RefreshTokens: &ConnectorRefreshToken{
-			DisableRotation:   &disable,
-			AbsoluteLifetime:  "24h",
-			ValidIfNotUsedFor: "1h",
-			ReuseInterval:     "3s",
+	sc, err := ToStorageConnector(Connector{
+		ID: "c1", Type: "mockCallback", Name: "c1",
+		Expiry: &ConnectorExpiry{
+			IDTokens: "15m",
+			RefreshTokens: &ConnectorRefreshExpiry{
+				DisableRotation:   &disable,
+				AbsoluteLifetime:  "24h",
+				ValidIfNotUsedFor: "1h",
+				ReuseInterval:     "3s",
+			},
 		},
 	})
-	require.NotNil(t, got)
-	assert.Equal(t, "15m", got.IDTokens)
-	require.NotNil(t, got.RefreshTokens)
-	assert.Equal(t, "24h", got.RefreshTokens.AbsoluteLifetime)
-	require.NotNil(t, got.RefreshTokens.DisableRotation)
-	assert.True(t, *got.RefreshTokens.DisableRotation)
+	require.NoError(t, err)
+	require.NotNil(t, sc.Expiry)
+	assert.Equal(t, "15m", sc.Expiry.IDTokens)
+	require.NotNil(t, sc.Expiry.RefreshTokens)
+	assert.Equal(t, "24h", sc.Expiry.RefreshTokens.AbsoluteLifetime)
+	require.NotNil(t, sc.Expiry.RefreshTokens.DisableRotation)
+	assert.True(t, *sc.Expiry.RefreshTokens.DisableRotation)
 
-	assert.Nil(t, connectorExpiryToStorage(nil))
+	sc, err = ToStorageConnector(Connector{ID: "c1", Type: "mockCallback", Name: "c1"})
+	require.NoError(t, err)
+	assert.Nil(t, sc.Expiry)
 }

@@ -1143,9 +1143,14 @@ func (c *conn) CreateConnector(ctx context.Context, connector storage.Connector)
 	if err != nil {
 		return fmt.Errorf("marshal connector grant types: %v", err)
 	}
-	expiry, err := marshalConnectorExpiry(connector.Expiry)
-	if err != nil {
-		return err
+	var expiry []byte
+	if connector.Expiry != nil {
+		// Only marshal when set; an unset override must persist as SQL NULL,
+		// not the literal bytes "null" that json.Marshal(nil) would produce.
+		expiry, err = json.Marshal(connector.Expiry)
+		if err != nil {
+			return fmt.Errorf("marshal connector expiry: %v", err)
+		}
 	}
 	_, err = c.Exec(`
 		insert into connector (
@@ -1166,17 +1171,6 @@ func (c *conn) CreateConnector(ctx context.Context, connector storage.Connector)
 	return nil
 }
 
-func marshalConnectorExpiry(e *storage.ConnectorExpiry) ([]byte, error) {
-	if e == nil {
-		return nil, nil
-	}
-	b, err := json.Marshal(e)
-	if err != nil {
-		return nil, fmt.Errorf("marshal connector expiry: %v", err)
-	}
-	return b, nil
-}
-
 func (c *conn) UpdateConnector(ctx context.Context, id string, updater func(s storage.Connector) (storage.Connector, error)) error {
 	return c.ExecTx(func(tx *trans) error {
 		connector, err := getConnector(ctx, tx, id)
@@ -1192,9 +1186,12 @@ func (c *conn) UpdateConnector(ctx context.Context, id string, updater func(s st
 		if err != nil {
 			return fmt.Errorf("marshal connector grant types: %v", err)
 		}
-		expiry, err := marshalConnectorExpiry(newConn.Expiry)
-		if err != nil {
-			return err
+		var expiry []byte
+		if newConn.Expiry != nil {
+			expiry, err = json.Marshal(newConn.Expiry)
+			if err != nil {
+				return fmt.Errorf("marshal connector expiry: %v", err)
+			}
 		}
 		_, err = tx.Exec(`
 			update connector
