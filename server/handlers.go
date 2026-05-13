@@ -456,8 +456,8 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if redirectURL != "" {
-				// Session found but consent required — no UI allowed.
-				s.redirectWithError(w, r, authReq, errInteractionRequired, "Consent required")
+				// Session found but user interaction is needed (consent or MFA) — no UI allowed.
+				s.redirectWithError(w, r, authReq, errInteractionRequired, "User interaction required")
 				return
 			}
 			return
@@ -613,6 +613,45 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
+		// Before rendering the password form, allow connectors that support SPNEGO to try Kerberos auth.
+		if sp, ok := pwConn.(connector.SPNEGOAware); ok {
+			scopes := parseScopes(authReq.Scopes)
+			if ident, handled, err := sp.TrySPNEGO(ctx, scopes, w, r); bool(handled) {
+				if err != nil {
+					// SPNEGO handled the request but reported an error (e.g., LDAP lookup failed
+					// after successful Kerberos auth). Log error details, show generic message to user.
+					s.logger.ErrorContext(ctx, "SPNEGO authentication error", "err", err)
+					s.renderError(r, w, http.StatusUnauthorized, ErrMsgAuthenticationFailed)
+					return
+				}
+				if ident != nil {
+					redirectURL, canSkipApproval, err := s.finalizeLogin(ctx, *ident, authReq, conn.Connector)
+					if err != nil {
+						s.logger.ErrorContext(ctx, "failed to finalize login", "err", err)
+						s.renderError(r, w, http.StatusInternalServerError, "Login error.")
+						return
+					}
+
+					if canSkipApproval {
+						authReq, err = s.storage.GetAuthRequest(ctx, authReq.ID)
+						if err != nil {
+							s.logger.ErrorContext(ctx, "failed to get finalized auth request", "err", err)
+							s.renderError(r, w, http.StatusInternalServerError, "Login error.")
+							return
+						}
+						s.sendCodeResponse(w, r, authReq)
+						return
+					}
+
+					http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+					return
+				}
+				// handled with no identity typically means the SPNEGO middleware
+				// wrote its own 401 (bare challenge, continuation, or reject); do
+				// not render the password form on top of it.
+				return
+			}
+		}
 		if err := s.templates.password(r, w, r.URL.String(), "", usernamePrompt(pwConn), false, backLink, rememberMe); err != nil {
 			s.logger.ErrorContext(r.Context(), "server template error", "err", err)
 		}
@@ -1800,6 +1839,13 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 		return
 	}
 
+	if !isConnectorAllowed(client.AllowedConnectors, connID) {
+		s.logger.ErrorContext(r.Context(), "connector not allowed for client",
+			"connector_id", connID, "client_id", client.ID)
+		s.tokenErrHelper(w, errInvalidRequest, "Connector not allowed for this client.", http.StatusBadRequest)
+		return
+	}
+
 	if requestedTokenType == tokenTypeIDJAG {
 		if !s.enableIDJAG {
 			s.tokenErrHelper(w, errRequestNotSupported, "ID-JAG token exchange is not enabled on this server.", http.StatusBadRequest)
@@ -1832,6 +1878,18 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 		s.tokenErrHelper(w, errAccessDenied, "", http.StatusUnauthorized)
 		return
 	}
+
+	email := identity.Email
+	if !identity.EmailVerified {
+		email += " (unverified)"
+	}
+
+	s.logger.InfoContext(ctx, "token exchange successful",
+		"connector_id", connID, "client_id", client.ID,
+		"user_id", identity.UserID,
+		"username", identity.Username, "preferred_username", identity.PreferredUsername,
+		"email", email, "groups", identity.Groups,
+		"subject_token_type", subjectTokenType, "requested_token_type", requestedTokenType)
 
 	claims := storage.Claims{
 		UserID:            identity.UserID,
@@ -2063,12 +2121,16 @@ func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Req
 		UserID: client.ID,
 	}
 
-	// Only populate Username/PreferredUsername when the profile scope is requested.
+	// Populate optional claims based on requested scopes.
 	for _, scope := range scopes {
-		if scope == scopeProfile {
+		switch scope {
+		case scopeProfile:
 			claims.Username = client.Name
 			claims.PreferredUsername = client.Name
-			break
+		case scopeGroups:
+			if client.ClientCredentialsClaims != nil {
+				claims.Groups = client.ClientCredentialsClaims.Groups
+			}
 		}
 	}
 

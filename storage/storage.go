@@ -203,6 +203,18 @@ type Client struct {
 	// nil means use ssoSharedWithDefault from sessions config.
 	// Empty slice [] means explicitly share with no one.
 	SSOSharedWith []string `json:"ssoSharedWith" yaml:"ssoSharedWith"`
+
+	// ClientCredentialsClaims holds identity claims used when issuing tokens via the
+	// client_credentials grant. Kept separate from core Client fields to avoid mixing
+	// application identity (ID, secret, redirect URIs) with user-like identity attributes.
+	ClientCredentialsClaims *ClientCredentialsClaims `json:"clientCredentialsClaims,omitempty"`
+}
+
+// ClientCredentialsClaims contains claims that are included in tokens issued via
+// the client_credentials grant. This is scoped to client_credentials to keep the
+// Client struct focused on application-level concerns.
+type ClientCredentialsClaims struct {
+	Groups []string `json:"groups,omitempty"`
 }
 
 // Claims represents the ID Token claims supported by the server.

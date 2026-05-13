@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"net/http"
 	"net/url"
@@ -94,7 +95,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 		if cookie, err := r.Cookie(s.sessionConfig.CookieName); err == nil && cookie.Value != "" {
 			if uid, cid, nonce, err := parseSessionCookie(cookie.Value, s.sessionConfig.CookieEncryptionKey); err == nil {
 				// Verify the session exists and nonce matches before trusting the cookie.
-				if session, err := s.storage.GetAuthSession(ctx, uid, cid); err == nil && session.Nonce == nonce {
+				if session, err := s.storage.GetAuthSession(ctx, uid, cid); err == nil && subtle.ConstantTimeCompare([]byte(session.Nonce), []byte(nonce)) == 1 {
 					userID = uid
 					connectorID = cid
 					s.logger.DebugContext(ctx, "logout: identified user from session cookie",
@@ -178,7 +179,7 @@ func (s *Server) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if session.Nonce != nonce {
+	if subtle.ConstantTimeCompare([]byte(session.Nonce), []byte(nonce)) != 1 {
 		s.renderError(r, w, http.StatusBadRequest, "Invalid session.")
 		return
 	}

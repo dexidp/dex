@@ -247,6 +247,15 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 		return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
 	}
 
+	// Google sometimes do not return username and other claims. It is correct, according to OIDC spec.
+	// One option to solve this is to call the user endpoint, but Google throttles it more aggressive than
+	// the token endpoint. For concurrent refreshes it is an unwanted behavior.
+	// As a tradeoff, dex preserves previous username and preferred username if absent in the ide token
+	// as a way to keep the claims and do not call the userinfo endpoint.
+	if claims.Username == "" {
+		claims.Username = identity.Username
+	}
+
 	if len(c.hostedDomains) > 0 {
 		found := false
 		for _, domain := range c.hostedDomains {

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -952,6 +953,61 @@ func TestScopesCoveredByConsent(t *testing.T) {
 	}
 }
 
+// TestConsentSurvivesSessionDeletion verifies that UserIdentity.Consents
+// persists independently from AuthSession lifecycle (logout should not
+// clear consent decisions).
+func TestConsentSurvivesSessionDeletion(t *testing.T) {
+	ctx := t.Context()
+
+	httpServer, s := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	userID := "test-user"
+	connectorID := "mock"
+	clientID := "test-client"
+
+	// Create UserIdentity with existing consents.
+	require.NoError(t, s.storage.CreateUserIdentity(ctx, storage.UserIdentity{
+		UserID:      userID,
+		ConnectorID: connectorID,
+		Claims:      storage.Claims{UserID: userID, Username: "testuser"},
+		Consents:    map[string][]string{clientID: {"openid", "email", "profile"}},
+		CreatedAt:   time.Now(),
+		LastLogin:   time.Now(),
+	}))
+
+	// Create and then delete the session (simulating logout).
+	require.NoError(t, s.storage.CreateAuthSession(ctx, storage.AuthSession{
+		UserID: userID, ConnectorID: connectorID, Nonce: "nonce",
+		CreatedAt: time.Now(), LastActivity: time.Now(),
+	}))
+	require.NoError(t, s.storage.DeleteAuthSession(ctx, userID, connectorID))
+
+	// Session is gone.
+	_, err := s.storage.GetAuthSession(ctx, userID, connectorID)
+	require.ErrorIs(t, err, storage.ErrNotFound)
+
+	// Consent survives.
+	ui, err := s.storage.GetUserIdentity(ctx, userID, connectorID)
+	require.NoError(t, err)
+	require.Equal(t, []string{"openid", "email", "profile"}, ui.Consents[clientID],
+		"consent should survive session deletion")
+}
+
+// TestConsentIsolatedBetweenClients verifies that consent given for
+// client-A does not satisfy scope check for client-B.
+func TestConsentIsolatedBetweenClients(t *testing.T) {
+	approvedForA := map[string][]string{"client-a": {"openid", "email"}}
+
+	// client-b should not have consent.
+	require.False(t, scopesCoveredByConsent(approvedForA["client-b"], []string{"openid", "email"}),
+		"consent for client-a should not cover client-b")
+
+	// client-a should have consent.
+	require.True(t, scopesCoveredByConsent(approvedForA["client-a"], []string{"openid", "email"}),
+		"consent for client-a should cover client-a's requested scopes")
+}
+
 func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 	ctx := t.Context()
 
@@ -1107,14 +1163,16 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 
 func TestHandleClientCredentials(t *testing.T) {
 	tests := []struct {
-		name          string
-		clientID      string
-		clientSecret  string
-		scopes        string
-		wantCode      int
-		wantAccessTok bool
-		wantIDToken   bool
-		wantUsername  string
+		name                    string
+		clientID                string
+		clientSecret            string
+		clientCredentialsClaims *storage.ClientCredentialsClaims
+		scopes                  string
+		wantCode                int
+		wantAccessTok           bool
+		wantIDToken             bool
+		wantUsername            string
+		wantGroups              []string
 	}{
 		{
 			name:          "Basic grant, no scopes",
@@ -1153,6 +1211,28 @@ func TestHandleClientCredentials(t *testing.T) {
 			wantAccessTok: true,
 			wantIDToken:   true,
 			wantUsername:  "Test Client",
+		},
+		{
+			name:         "With groups scope and clientCredentialsClaims groups populated",
+			clientID:     "test",
+			clientSecret: "barfoo",
+			clientCredentialsClaims: &storage.ClientCredentialsClaims{
+				Groups: []string{"admin-group", "dev-group"},
+			},
+			scopes:        "openid groups",
+			wantCode:      200,
+			wantAccessTok: true,
+			wantIDToken:   true,
+			wantGroups:    []string{"admin-group", "dev-group"},
+		},
+		{
+			name:          "With groups scope but no clientCredentialsClaims configured",
+			clientID:      "test",
+			clientSecret:  "barfoo",
+			scopes:        "openid groups",
+			wantCode:      200,
+			wantAccessTok: true,
+			wantIDToken:   true,
 		},
 		{
 			name:         "Invalid client secret",
@@ -1194,10 +1274,11 @@ func TestHandleClientCredentials(t *testing.T) {
 
 			// Create a confidential client for testing.
 			err := s.storage.CreateClient(ctx, storage.Client{
-				ID:           "test",
-				Secret:       "barfoo",
-				RedirectURIs: []string{"https://example.com/callback"},
-				Name:         "Test Client",
+				ID:                      "test",
+				Secret:                  "barfoo",
+				RedirectURIs:            []string{"https://example.com/callback"},
+				Name:                    "Test Client",
+				ClientCredentialsClaims: tc.clientCredentialsClaims,
 			})
 			require.NoError(t, err)
 
@@ -1253,8 +1334,9 @@ func TestHandleClientCredentials(t *testing.T) {
 					require.Equal(t, tc.clientID, sub.UserId)
 
 					var claims struct {
-						Name              string `json:"name"`
-						PreferredUsername string `json:"preferred_username"`
+						Name              string   `json:"name"`
+						PreferredUsername string   `json:"preferred_username"`
+						Groups            []string `json:"groups"`
 					}
 					require.NoError(t, idToken.Claims(&claims))
 
@@ -1264,6 +1346,12 @@ func TestHandleClientCredentials(t *testing.T) {
 					} else {
 						require.Empty(t, claims.Name)
 						require.Empty(t, claims.PreferredUsername)
+					}
+
+					if tc.wantGroups != nil {
+						require.Equal(t, tc.wantGroups, claims.Groups)
+					} else {
+						require.Empty(t, claims.Groups)
 					}
 				} else {
 					require.Empty(t, resp.IDToken)
@@ -1413,6 +1501,187 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 	}
 }
 
+// SPNEGO integration test (server layer): on GET login, if connector implements SPNEGOAware
+// and returns an identity, server should finalize login and redirect without rendering form.
+func TestHandlePasswordLogin_SPNEGOShortCircuit(t *testing.T) {
+	ctx := t.Context()
+	connID := "mockPassword"
+	authReqID := "spnego"
+	expiry := time.Now().Add(100 * time.Second)
+	resTypes := []string{responseTypeCode}
+
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.SkipApprovalScreen = true
+		c.Now = time.Now
+	})
+	defer httpServer.Close()
+
+	// Create password connector which we will wrap with a SPNEGO-aware adapter in storage config
+	sc := storage.Connector{
+		ID:              connID,
+		Type:            "mockPassword",
+		Name:            "MockPassword",
+		ResourceVersion: "1",
+		Config:          []byte("{\"username\": \"foo\", \"password\": \"password\"}"),
+	}
+	require.NoError(t, s.storage.CreateConnector(ctx, sc))
+	_, err := s.OpenConnector(sc)
+	require.NoError(t, err)
+
+	// Prepare auth request
+	require.NoError(t, s.storage.CreateAuthRequest(ctx, storage.AuthRequest{
+		ID:            authReqID,
+		ClientID:      "client_1",
+		ConnectorID:   connID,
+		RedirectURI:   "cb",
+		Expiry:        expiry,
+		ResponseTypes: resTypes,
+		Scopes:        []string{"openid"},
+	}))
+
+	// Replace the server connector with a SPNEGO-aware fake that short-circuits
+	s.mu.Lock()
+	orig := s.connectors[connID]
+	s.connectors[connID] = Connector{
+		ResourceVersion: orig.ResourceVersion,
+		Connector: spnegoShortCircuit{Identity: connector.Identity{
+			UserID:        "user-id",
+			Username:      "user",
+			Email:         "user@example.com",
+			EmailVerified: true,
+		}},
+	}
+	s.mu.Unlock()
+
+	// Need a client for finalizeLogin to succeed
+	require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+		ID:           "client_1",
+		Secret:       "secret",
+		RedirectURIs: []string{"http://127.0.0.1/callback"},
+		Name:         "test",
+	}))
+
+	// GET login should short-circuit and redirect to /approval or code response
+	rr := httptest.NewRecorder()
+	path := fmt.Sprintf("/auth/%s/login?state=%s&back=", connID, authReqID)
+	s.handlePasswordLogin(rr, httptest.NewRequest("GET", path, nil))
+
+	// In SkipApproval mode server may directly send code response (200) or 303 redirect
+	if rr.Code != http.StatusSeeOther && rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 or 303, got %d", rr.Code)
+	}
+}
+
+// spnegoShortCircuit implements connector.PasswordConnector and connector.SPNEGOAware
+// to simulate successful SPNEGO authentication on GET.
+type spnegoShortCircuit struct{ Identity connector.Identity }
+
+func (s spnegoShortCircuit) Close() error { return nil }
+
+func (s spnegoShortCircuit) Prompt() string { return "" }
+
+func (s spnegoShortCircuit) Login(ctx context.Context, sc connector.Scopes, u, p string) (connector.Identity, bool, error) {
+	return connector.Identity{}, false, nil
+}
+
+func (s spnegoShortCircuit) TrySPNEGO(ctx context.Context, sc connector.Scopes, w http.ResponseWriter, r *http.Request) (*connector.Identity, connector.Handled, error) {
+	id := s.Identity
+	return &id, true, nil
+}
+
+// spnegoError implements connector.PasswordConnector and connector.SPNEGOAware
+// to simulate SPNEGO authentication that fails with an error (e.g., LDAP lookup failed).
+type spnegoError struct{ Err error }
+
+func (s spnegoError) Close() error { return nil }
+
+func (s spnegoError) Prompt() string { return "" }
+
+func (s spnegoError) Login(ctx context.Context, sc connector.Scopes, u, p string) (connector.Identity, bool, error) {
+	return connector.Identity{}, false, nil
+}
+
+func (s spnegoError) TrySPNEGO(ctx context.Context, sc connector.Scopes, w http.ResponseWriter, r *http.Request) (*connector.Identity, connector.Handled, error) {
+	return nil, true, s.Err
+}
+
+// TestHandlePasswordLogin_SPNEGOError verifies that when SPNEGO returns an error
+// (e.g., Kerberos auth succeeded but LDAP lookup failed), the server renders
+// an error page instead of showing an empty 401 or falling back to password form.
+func TestHandlePasswordLogin_SPNEGOError(t *testing.T) {
+	ctx := t.Context()
+	connID := "mockPassword"
+	authReqID := "spnego-err"
+	expiry := time.Now().Add(100 * time.Second)
+	resTypes := []string{responseTypeCode}
+
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.SkipApprovalScreen = true
+		c.Now = time.Now
+	})
+	defer httpServer.Close()
+
+	// Create password connector
+	sc := storage.Connector{
+		ID:              connID,
+		Type:            "mockPassword",
+		Name:            "MockPassword",
+		ResourceVersion: "1",
+		Config:          []byte("{\"username\": \"foo\", \"password\": \"password\"}"),
+	}
+	require.NoError(t, s.storage.CreateConnector(ctx, sc))
+	_, err := s.OpenConnector(sc)
+	require.NoError(t, err)
+
+	// Prepare auth request
+	require.NoError(t, s.storage.CreateAuthRequest(ctx, storage.AuthRequest{
+		ID:            authReqID,
+		ClientID:      "client_1",
+		ConnectorID:   connID,
+		RedirectURI:   "cb",
+		Expiry:        expiry,
+		ResponseTypes: resTypes,
+		Scopes:        []string{"openid"},
+	}))
+
+	// Replace the server connector with a SPNEGO-aware fake that returns an error
+	s.mu.Lock()
+	orig := s.connectors[connID]
+	s.connectors[connID] = Connector{
+		ResourceVersion: orig.ResourceVersion,
+		Connector:       spnegoError{Err: errors.New("ldap: user lookup failed for kerberos principal")},
+	}
+	s.mu.Unlock()
+
+	// Need a client for the flow
+	require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+		ID:           "client_1",
+		Secret:       "secret",
+		RedirectURIs: []string{"http://127.0.0.1/callback"},
+		Name:         "test",
+	}))
+
+	// GET login should return 401 with error message rendered
+	rr := httptest.NewRecorder()
+	path := fmt.Sprintf("/auth/%s/login?state=%s&back=", connID, authReqID)
+	s.handlePasswordLogin(rr, httptest.NewRequest("GET", path, nil))
+
+	// Should return 401 (unauthorized) with an error page, not 200 (form) or empty response
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 Unauthorized, got %d", rr.Code)
+	}
+
+	// The response body should contain safe generic error message (not internal details)
+	body := rr.Body.String()
+	if !strings.Contains(body, "Authentication failed") {
+		t.Fatalf("expected error page with 'Authentication failed', got: %s", body)
+	}
+	// Should NOT contain internal error details (per 008-hide-internal-500-error-details.patch)
+	if strings.Contains(body, "ldap: user lookup failed") {
+		t.Fatalf("error page should not contain internal error details")
+	}
+}
+
 func TestHandleTokenExchange(t *testing.T) {
 	tests := []struct {
 		name               string
@@ -1517,6 +1786,56 @@ func TestHandleTokenExchange(t *testing.T) {
 	}
 }
 
+func TestHandleTokenExchangeLogsSuccess(t *testing.T) {
+	ctx := t.Context()
+	var logBuf bytes.Buffer
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.Logger = slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelInfo}))
+		c.Storage.CreateClient(ctx, storage.Client{
+			ID:     "client_1",
+			Secret: "secret_1",
+		})
+	})
+	defer httpServer.Close()
+
+	vals := make(url.Values)
+	vals.Set("grant_type", grantTypeTokenExchange)
+	vals.Set("connector_id", "mock")
+	vals.Set("scope", "openid")
+	vals.Set("requested_token_type", tokenTypeAccess)
+	vals.Set("subject_token_type", tokenTypeID)
+	vals.Set("subject_token", "foobar")
+	vals.Set("client_id", "client_1")
+	vals.Set("client_secret", "secret_1")
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
+	req.Header.Set("content-type", "application/x-www-form-urlencoded")
+
+	s.handleToken(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	var found map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(logBuf.String()), "\n") {
+		var entry map[string]any
+		require.NoError(t, json.Unmarshal([]byte(line), &entry))
+		if entry["msg"] == "token exchange successful" {
+			found = entry
+			break
+		}
+	}
+	require.NotNil(t, found, "expected \"token exchange successful\" log line, got: %s", logBuf.String())
+	require.Equal(t, "INFO", found["level"])
+	require.Equal(t, "mock", found["connector_id"])
+	require.Equal(t, "client_1", found["client_id"])
+	require.Equal(t, "0-385-28089-0", found["user_id"])
+	require.Equal(t, "Kilgore Trout", found["username"])
+	require.Equal(t, "kilgore@kilgore.trout", found["email"])
+	require.Equal(t, []any{"authors"}, found["groups"])
+	require.Equal(t, tokenTypeID, found["subject_token_type"])
+	require.Equal(t, tokenTypeAccess, found["requested_token_type"])
+}
+
 func TestHandleTokenExchangeConnectorGrantTypeRestriction(t *testing.T) {
 	ctx := t.Context()
 	httpServer, s := newTestServer(t, func(c *Config) {
@@ -1555,6 +1874,67 @@ func TestHandleTokenExchangeConnectorGrantTypeRestriction(t *testing.T) {
 	s.handleToken(rr, req)
 
 	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+}
+
+func TestHandleTokenExchangeAllowedConnectors(t *testing.T) {
+	tests := []struct {
+		name              string
+		allowedConnectors []string
+		expectedCode      int
+	}{
+		{
+			name:              "connector in allowed list",
+			allowedConnectors: []string{"mock"},
+			expectedCode:      http.StatusOK,
+		},
+		{
+			name:              "connector matches non-first entry in allowed list",
+			allowedConnectors: []string{"other", "mock"},
+			expectedCode:      http.StatusOK,
+		},
+		{
+			name:              "connector not in allowed list",
+			allowedConnectors: []string{"other"},
+			expectedCode:      http.StatusBadRequest,
+		},
+		{
+			name:              "empty allowed list permits any connector",
+			allowedConnectors: nil,
+			expectedCode:      http.StatusOK,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			httpServer, s := newTestServer(t, func(c *Config) {
+				c.Storage.CreateClient(ctx, storage.Client{
+					ID:                "client_1",
+					Secret:            "secret_1",
+					AllowedConnectors: tc.allowedConnectors,
+				})
+			})
+			defer httpServer.Close()
+
+			vals := make(url.Values)
+			vals.Set("grant_type", grantTypeTokenExchange)
+			vals.Set("connector_id", "mock")
+			vals.Set("scope", "openid")
+			vals.Set("requested_token_type", tokenTypeAccess)
+			vals.Set("subject_token_type", tokenTypeID)
+			vals.Set("subject_token", "foobar")
+			vals.Set("client_id", "client_1")
+			vals.Set("client_secret", "secret_1")
+
+			rr := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
+			req.Header.Set("content-type", "application/x-www-form-urlencoded")
+
+			s.handleToken(rr, req)
+
+			require.Equal(t, tc.expectedCode, rr.Code, rr.Body.String())
+		})
+	}
 }
 
 func TestHandleAuthorizationConnectorGrantTypeFiltering(t *testing.T) {

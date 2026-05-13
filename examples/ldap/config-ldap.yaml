@@ -59,6 +59,19 @@ connectors:
       # The group name should be the "cn" value.
       nameAttr: cn
 
+    # Optional Kerberos (SPNEGO) SSO. When enabled, Dex will challenge with
+    # WWW-Authenticate: Negotiate on GET and skip the password form on success.
+    #kerberos:
+    #  enabled: true
+    #  keytabPath: /etc/dex/krb5.keytab
+    #  expectedRealm: EXAMPLE.COM
+    #  usernameFromPrincipal: sAMAccountName # or userPrincipalName or localpart
+    #  fallbackToPassword: false
+    #  # Optional gokrb5 service settings — leave empty to use library defaults.
+    #  spn: HTTP/dex.example.com           # service principal name expected in tickets
+    #  keytabPrincipal: HTTP/dex.example.com@EXAMPLE.COM # explicit principal to load from the keytab
+    #  maxClockSkew: 300                   # tolerated clock skew, seconds (default 300)
+
 staticClients:
 - id: example-app
   redirectURIs:

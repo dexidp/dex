@@ -31,6 +31,8 @@ const (
 	FieldPostLogoutRedirectUris = "post_logout_redirect_uris"
 	// FieldSSOSharedWith holds the string denoting the sso_shared_with field in the database.
 	FieldSSOSharedWith = "sso_shared_with"
+	// FieldClientCredentialsClaims holds the string denoting the client_credentials_claims field in the database.
+	FieldClientCredentialsClaims = "client_credentials_claims"
 	// Table holds the table name of the oauth2client in the database.
 	Table = "oauth2clients"
 )
@@ -48,6 +50,7 @@ var Columns = []string{
 	FieldMfaChain,
 	FieldPostLogoutRedirectUris,
 	FieldSSOSharedWith,
+	FieldClientCredentialsClaims,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
