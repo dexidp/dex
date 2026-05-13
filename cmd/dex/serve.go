@@ -848,7 +848,10 @@ func parseSessionConfig(s *Sessions) (*server.SessionConfig, error) {
 // to validate per-connector overrides. The server uses these for both static
 // YAML connectors at startup and dynamic API writes at runtime.
 func buildExpiryCeilings(globalIDTokens time.Duration, globalRefresh RefreshToken) (server.ExpiryCeilings, error) {
-	c := server.ExpiryCeilings{IDTokens: globalIDTokens}
+	c := server.ExpiryCeilings{
+		IDTokens:                globalIDTokens,
+		RefreshRotationDisabled: globalRefresh.DisableRotation,
+	}
 	for _, f := range []struct {
 		name  string
 		value string

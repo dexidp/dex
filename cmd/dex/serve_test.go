@@ -53,6 +53,12 @@ func TestBuildExpiryCeilingsRefreshUnset(t *testing.T) {
 	assert.Equal(t, server.ExpiryCeilings{IDTokens: 24 * time.Hour}, c)
 }
 
+func TestBuildExpiryCeilingsRotationDisabled(t *testing.T) {
+	c, err := buildExpiryCeilings(24*time.Hour, RefreshToken{DisableRotation: true})
+	require.NoError(t, err)
+	assert.True(t, c.RefreshRotationDisabled)
+}
+
 func TestBuildExpiryCeilingsInvalidDuration(t *testing.T) {
 	_, err := buildExpiryCeilings(24*time.Hour, RefreshToken{AbsoluteLifetime: "not-a-duration"})
 	require.Error(t, err)

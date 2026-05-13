@@ -44,12 +44,12 @@ func TestValidateConnectorExpiry_RefreshAbsoluteLifetimeExceeds(t *testing.T) {
 }
 
 func TestValidateConnectorExpiry_AllFieldsBelowCeiling(t *testing.T) {
-	disable := true
+	enable := false
 	require.NoError(t, ValidateConnectorExpiry(
 		&storage.ConnectorExpiry{
 			IDTokens: "10m",
 			RefreshTokens: &storage.ConnectorRefreshExpiry{
-				DisableRotation:   &disable,
+				DisableRotation:   &enable, // tighten: global has it disabled, connector enables it
 				ReuseInterval:     "1s",
 				AbsoluteLifetime:  "1h",
 				ValidIfNotUsedFor: "30m",
@@ -60,7 +60,32 @@ func TestValidateConnectorExpiry_AllFieldsBelowCeiling(t *testing.T) {
 			RefreshAbsoluteLifetime:  24 * time.Hour,
 			RefreshValidIfNotUsedFor: 1 * time.Hour,
 			RefreshReuseInterval:     3 * time.Second,
+			RefreshRotationDisabled:  true,
 		},
+	))
+}
+
+func TestValidateConnectorExpiry_DisableRotationLoosens(t *testing.T) {
+	// Global has rotation enabled; connector cannot disable it.
+	disable := true
+	err := ValidateConnectorExpiry(
+		&storage.ConnectorExpiry{
+			RefreshTokens: &storage.ConnectorRefreshExpiry{DisableRotation: &disable},
+		},
+		ExpiryCeilings{}, // RefreshRotationDisabled defaults to false (rotation enabled)
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "disableRotation cannot disable rotation when it is enabled globally")
+}
+
+func TestValidateConnectorExpiry_DisableRotationTightens(t *testing.T) {
+	// Global has rotation disabled; connector can enable it (stricter).
+	enable := false
+	require.NoError(t, ValidateConnectorExpiry(
+		&storage.ConnectorExpiry{
+			RefreshTokens: &storage.ConnectorRefreshExpiry{DisableRotation: &enable},
+		},
+		ExpiryCeilings{RefreshRotationDisabled: true},
 	))
 }
 

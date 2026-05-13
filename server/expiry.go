@@ -9,13 +9,20 @@ import (
 )
 
 // ExpiryCeilings holds the parsed global expiry values that per-connector
-// overrides must not exceed. A zero duration means "no ceiling" — i.e. the
-// global value is unset/disabled, so any override is acceptable.
+// overrides must not loosen. A zero duration means "no ceiling" — the global
+// value is unset/disabled, so any override is acceptable.
+//
+// RefreshRotationDisabled mirrors the global expiry.refreshTokens.disableRotation
+// flag. When rotation is enabled globally, a per-connector override may not
+// disable it: rotation-enabled is the stricter policy (shorter replay window
+// after compromise), so disabling it at the connector layer would loosen the
+// global guarantee. The reverse direction is permitted.
 type ExpiryCeilings struct {
 	IDTokens                 time.Duration
 	RefreshAbsoluteLifetime  time.Duration
 	RefreshValidIfNotUsedFor time.Duration
 	RefreshReuseInterval     time.Duration
+	RefreshRotationDisabled  bool
 }
 
 // RefreshTokenDefaults are the global refresh-token configuration strings.
@@ -29,12 +36,9 @@ type RefreshTokenDefaults struct {
 }
 
 // ValidateConnectorExpiry rejects per-connector overrides that loosen the
-// global policy. DisableRotation is exempt: it's a policy toggle, not a
-// quantity, so "stricter" has no natural direction.
-//
-// This function is the single source of truth for the hierarchy rule. It is
-// called from both the static YAML load path and every gRPC API write so
-// that no configuration modification can ever bypass it.
+// global policy. This function is the single source of truth for the
+// hierarchy rule; it is called from both the static YAML load path and every
+// gRPC API write so that no configuration modification can ever bypass it.
 func ValidateConnectorExpiry(e *storage.ConnectorExpiry, c ExpiryCeilings) error {
 	if e == nil {
 		return nil
@@ -57,6 +61,9 @@ func ValidateConnectorExpiry(e *storage.ConnectorExpiry, c ExpiryCeilings) error
 		if err := checkCeiling(f.name, f.value, f.ceiling); err != nil {
 			return err
 		}
+	}
+	if dr := e.RefreshTokens.DisableRotation; dr != nil && *dr && !c.RefreshRotationDisabled {
+		return fmt.Errorf("expiry.refreshTokens.disableRotation cannot disable rotation when it is enabled globally")
 	}
 	return nil
 }

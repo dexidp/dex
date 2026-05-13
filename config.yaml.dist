@@ -197,8 +197,9 @@ web:
 #
 # Per-connector expiry overrides. Any field left unset inherits the top-level
 # `expiry` configuration. Overrides must be at least as strict as the global
-# value (i.e. shorter or equal); a value exceeding its global counterpart is
-# rejected at config load. Global values left unset impose no ceiling.
+# value: a duration that exceeds its global counterpart, or `disableRotation:
+# true` while rotation is enabled globally, is rejected at config load. Global
+# values left unset impose no ceiling on the corresponding override.
 # connectors:
 # - type: oidc
 #   id: partner
