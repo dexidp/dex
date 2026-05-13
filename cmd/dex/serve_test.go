@@ -33,36 +33,56 @@ func TestNewLogger(t *testing.T) {
 }
 
 func TestBuildExpiryCeilings(t *testing.T) {
-	c, err := buildExpiryCeilings(24*time.Hour, RefreshToken{
-		AbsoluteLifetime:  "100h",
-		ValidIfNotUsedFor: "24h",
-		ReuseInterval:     "3s",
-	})
-	require.NoError(t, err)
-	assert.Equal(t, server.ExpiryCeilings{
-		IDTokens:                 24 * time.Hour,
-		RefreshAbsoluteLifetime:  100 * time.Hour,
-		RefreshValidIfNotUsedFor: 24 * time.Hour,
-		RefreshReuseInterval:     3 * time.Second,
-	}, c)
-}
-
-func TestBuildExpiryCeilingsRefreshUnset(t *testing.T) {
-	c, err := buildExpiryCeilings(24*time.Hour, RefreshToken{})
-	require.NoError(t, err)
-	assert.Equal(t, server.ExpiryCeilings{IDTokens: 24 * time.Hour}, c)
-}
-
-func TestBuildExpiryCeilingsRotationDisabled(t *testing.T) {
-	c, err := buildExpiryCeilings(24*time.Hour, RefreshToken{DisableRotation: true})
-	require.NoError(t, err)
-	assert.True(t, c.RefreshRotationDisabled)
-}
-
-func TestBuildExpiryCeilingsInvalidDuration(t *testing.T) {
-	_, err := buildExpiryCeilings(24*time.Hour, RefreshToken{AbsoluteLifetime: "not-a-duration"})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "parse expiry.refreshTokens.absoluteLifetime")
+	tests := []struct {
+		name            string
+		refresh         RefreshToken
+		want            server.ExpiryCeilings
+		wantErrContains string
+	}{
+		{
+			name: "all fields set",
+			refresh: RefreshToken{
+				AbsoluteLifetime:  "100h",
+				ValidIfNotUsedFor: "24h",
+				ReuseInterval:     "3s",
+			},
+			want: server.ExpiryCeilings{
+				IDTokens:                 24 * time.Hour,
+				RefreshAbsoluteLifetime:  100 * time.Hour,
+				RefreshValidIfNotUsedFor: 24 * time.Hour,
+				RefreshReuseInterval:     3 * time.Second,
+			},
+		},
+		{
+			name: "refresh unset",
+			want: server.ExpiryCeilings{IDTokens: 24 * time.Hour},
+		},
+		{
+			name:    "rotation disabled propagates",
+			refresh: RefreshToken{DisableRotation: true},
+			want: server.ExpiryCeilings{
+				IDTokens:                24 * time.Hour,
+				RefreshRotationDisabled: true,
+			},
+		},
+		{
+			name:            "invalid duration",
+			refresh:         RefreshToken{AbsoluteLifetime: "not-a-duration"},
+			wantErrContains: "parse expiry.refreshTokens.absoluteLifetime",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := buildExpiryCeilings(24*time.Hour, tc.refresh)
+			if tc.wantErrContains != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.wantErrContains)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
 }
 
 func TestToStorageConnectorCarriesExpiry(t *testing.T) {
