@@ -12,7 +12,6 @@ import (
 	"github.com/dexidp/dex/pkg/log"
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/storage"
-	"github.com/dexidp/dex/storage/etcd"
 	"github.com/dexidp/dex/storage/kubernetes"
 	"github.com/dexidp/dex/storage/memory"
 	"github.com/dexidp/dex/storage/sql"
@@ -174,7 +173,6 @@ type StorageConfig interface {
 }
 
 var storages = map[string]func() StorageConfig{
-	"etcd":       func() StorageConfig { return new(etcd.Etcd) },
 	"kubernetes": func() StorageConfig { return new(kubernetes.Config) },
 	"memory":     func() StorageConfig { return new(memory.Config) },
 	"postgres":   func() StorageConfig { return new(sql.Postgres) },
