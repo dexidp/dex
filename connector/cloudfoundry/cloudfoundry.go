@@ -137,7 +137,10 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 
 	var apiResult infoResp
 
-	json.NewDecoder(apiResp.Body).Decode(&apiResult)
+	err = json.NewDecoder(apiResp.Body).Decode(&apiResult)
+	if err != nil {
+		return nil, fmt.Errorf("failed-to-decode-response-from-api: %w", err)
+	}
 
 	uaaURL := strings.TrimRight(apiResult.Links.Login.Href, "/")
 	uaaResp, err := cloudfoundryConn.httpClient.Get(fmt.Sprintf("%s/.well-known/openid-configuration", uaaURL))
@@ -145,8 +148,8 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 		return nil, fmt.Errorf("failed-to-send-request-to-uaa-api: %w", err)
 	}
 
-	if apiResp.StatusCode != http.StatusOK {
-		err = fmt.Errorf("request failed with status %d", apiResp.StatusCode)
+	if uaaResp.StatusCode != http.StatusOK {
+		err = fmt.Errorf("request failed with status %d", uaaResp.StatusCode)
 		return nil, fmt.Errorf("failed-to-get-well-known-config-response-from-api: %w", err)
 	}
 

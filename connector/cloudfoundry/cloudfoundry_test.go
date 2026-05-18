@@ -26,6 +26,51 @@ func TestOpen(t *testing.T) {
 	expectEqual(t, conn.redirectURI, testServer.URL+"/callback")
 }
 
+func TestOpenWellKnownNon200(t *testing.T) {
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/":
+			url := fmt.Sprintf("http://%s", r.Host)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"links": map[string]interface{}{
+					"login": map[string]string{
+						"href": url,
+					},
+				},
+			})
+		case "/.well-known/openid-configuration":
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"token_endpoint":         "http://example.invalid/token",
+				"authorization_endpoint": "http://example.invalid/authorize",
+				"userinfo_endpoint":      "http://example.invalid/userinfo",
+			})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer testServer.Close()
+
+	testConfig := Config{
+		APIURL:             testServer.URL,
+		ClientID:           "test-client",
+		ClientSecret:       "secret",
+		RedirectURI:        testServer.URL + "/callback",
+		InsecureSkipVerify: true,
+	}
+
+	log := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{}))
+
+	_, err := testConfig.Open("id", log)
+	if err == nil {
+		t.Fatal("expected error when UAA well-known endpoint is non-200, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "failed-to-get-well-known-config-response-from-api") {
+		t.Fatalf("expected well-known non-200 error, got: %v", err)
+	}
+}
+
 func TestHandleCallback(t *testing.T) {
 	testServer := testSetup()
 	defer testServer.Close()
