@@ -59,7 +59,7 @@ FROM alpine:3.23.4@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a
 FROM alpine AS user-setup
 RUN addgroup -g 1001 -S dex && adduser -u 1001 -S -G dex -D -H -s /sbin/nologin dex
 
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:e3f945647ffb95b5839c07038d64f9811adf17308b9121d8a2b87b6a22a80a39 AS distroless
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:963fa6c544fe5ce420f1f54fb88b6fb01479f054c8056d0f74cc2c6000df5240 AS distroless
 
 FROM $BASE_IMAGE
 
