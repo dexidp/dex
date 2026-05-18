@@ -200,9 +200,9 @@ func newHTTPClient(rootCAs []string, insecureSkipVerify bool) (*http.Client, err
 	}, nil
 }
 
-func (c *cloudfoundryConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (string, error) {
+func (c *cloudfoundryConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (string, []byte, error) {
 	if c.redirectURI != callbackURL {
-		return "", fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
+		return "", nil, fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
 	}
 
 	oauth2Config := &oauth2.Config{
@@ -213,7 +213,7 @@ func (c *cloudfoundryConnector) LoginURL(scopes connector.Scopes, callbackURL, s
 		Scopes:       []string{"openid", "cloud_controller.read"},
 	}
 
-	return oauth2Config.AuthCodeURL(state), nil
+	return oauth2Config.AuthCodeURL(state), nil, nil
 }
 
 func filterUserOrgsSpaces(userOrgsSpaces []resource, orgs []resource, spaces []resource) ([]org, []space) {
@@ -325,7 +325,7 @@ func getGroupsClaims(orgs []org, spaces []space) []string {
 	return groups
 }
 
-func (c *cloudfoundryConnector) HandleCallback(s connector.Scopes, r *http.Request) (identity connector.Identity, err error) {
+func (c *cloudfoundryConnector) HandleCallback(s connector.Scopes, connData []byte, r *http.Request) (identity connector.Identity, err error) {
 	q := r.URL.Query()
 	if errType := q.Get("error"); errType != "" {
 		return identity, errors.New(q.Get("error_description"))

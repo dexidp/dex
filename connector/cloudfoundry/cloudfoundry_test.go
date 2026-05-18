@@ -45,7 +45,7 @@ func TestHandleCallback(t *testing.T) {
 	expectEqual(t, err, nil)
 
 	t.Run("CallbackWithGroupsScope", func(t *testing.T) {
-		identity, err := cloudfoundryConn.HandleCallback(connector.Scopes{Groups: true}, req)
+		identity, err := cloudfoundryConn.HandleCallback(connector.Scopes{Groups: true}, nil, req)
 		expectEqual(t, err, nil)
 
 		expectEqual(t, len(identity.Groups), 24)
@@ -76,7 +76,7 @@ func TestHandleCallback(t *testing.T) {
 	})
 
 	t.Run("CallbackWithoutGroupsScope", func(t *testing.T) {
-		identity, err := cloudfoundryConn.HandleCallback(connector.Scopes{}, req)
+		identity, err := cloudfoundryConn.HandleCallback(connector.Scopes{}, nil, req)
 
 		expectEqual(t, err, nil)
 		expectEqual(t, identity.UserID, "12345")
@@ -84,7 +84,7 @@ func TestHandleCallback(t *testing.T) {
 	})
 
 	t.Run("CallbackWithOfflineAccessScope", func(t *testing.T) {
-		identity, err := cloudfoundryConn.HandleCallback(connector.Scopes{OfflineAccess: true}, req)
+		identity, err := cloudfoundryConn.HandleCallback(connector.Scopes{OfflineAccess: true}, nil, req)
 
 		expectEqual(t, err, nil)
 		expectNotEqual(t, len(identity.ConnectorData), 0)
