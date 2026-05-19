@@ -195,14 +195,23 @@ func (s *Server) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 	// Prefer StatefulLogoutCallbackConnector (replays ls.ConnectorState — e.g.
 	// SAML's outgoing LogoutRequest ID for InResponseTo correlation) and fall
 	// back to the simpler LogoutCallbackConnector for stateless connectors.
+	var statefulLogoutErr error
 	if ls.ConnectorID != "" {
 		conn, err := s.getConnector(ctx, ls.ConnectorID)
-		if err == nil {
+		if err != nil {
+			// The upstream connector vanished between the outgoing logout
+			// redirect and this callback (deleted/reconfigured). We can't
+			// validate the response and must not silently swallow that —
+			// surface it in logs so the operator can investigate.
+			s.logger.ErrorContext(ctx, "logout: failed to resolve connector for callback validation",
+				"connector_id", ls.ConnectorID, "err", err)
+		} else {
 			switch logoutConn := conn.Connector.(type) {
 			case connector.StatefulLogoutCallbackConnector:
 				if err := logoutConn.HandleLogoutCallbackWithState(ctx, r, ls.ConnectorState); err != nil {
 					s.logger.ErrorContext(ctx, "logout: upstream logout response validation failed",
 						"connector_id", ls.ConnectorID, "err", err)
+					statefulLogoutErr = err
 				}
 			case connector.LogoutCallbackConnector:
 				if err := logoutConn.HandleLogoutCallback(ctx, r); err != nil {
@@ -211,6 +220,23 @@ func (s *Server) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+	}
+
+	// Stateful connectors (e.g. SAML) perform cryptographic validation; do not
+	// complete Dex logout if that fails — otherwise a forged GET with a valid
+	// session cookie could clear the session without a valid IdP response.
+	if statefulLogoutErr != nil {
+		// Clear LogoutState so a new logout can start from scratch — the current
+		// one-shot request ID has been used and must not be replayed.
+		if err := s.storage.UpdateAuthSession(ctx, userID, connectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
+			old.LogoutState = nil
+			return old, nil
+		}); err != nil {
+			s.logger.ErrorContext(ctx, "logout: failed to clear LogoutState after failed validation",
+				"connector_id", ls.ConnectorID, "err", err)
+		}
+		s.renderError(r, w, http.StatusBadRequest, "Upstream logout response validation failed.")
+		return
 	}
 
 	// Session kept alive until now — delete it and clear the cookie.

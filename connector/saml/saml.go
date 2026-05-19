@@ -1016,7 +1016,7 @@ func (p *provider) HandleLogoutCallbackWithState(_ context.Context, r *http.Requ
 	}
 
 	if samlResponse == "" {
-		return nil
+		return fmt.Errorf("saml slo: missing SAMLResponse parameter")
 	}
 
 	compressed, err := base64.StdEncoding.DecodeString(samlResponse)
@@ -1024,10 +1024,18 @@ func (p *provider) HandleLogoutCallbackWithState(_ context.Context, r *http.Requ
 		return fmt.Errorf("saml slo: failed to decode SAMLResponse: %v", err)
 	}
 
-	// HTTP-Redirect binding uses DEFLATE compression; HTTP-POST does not.
-	// Try to inflate; if it fails, treat the data as uncompressed XML.
-	rawResp, err := io.ReadAll(flate.NewReader(bytes.NewReader(compressed)))
-	if err != nil {
+	// Per SAML 2.0 Bindings:
+	//   §3.4 HTTP-Redirect: SAMLResponse MUST be DEFLATE-encoded, then base64.
+	//   §3.5 HTTP-POST:     SAMLResponse is base64 of the raw XML, no DEFLATE.
+	// Mixing the two would let a malformed response slip through one path while
+	// pretending to satisfy the other, so we treat the binding strictly.
+	var rawResp []byte
+	if r.Method == http.MethodGet {
+		rawResp, err = io.ReadAll(flate.NewReader(bytes.NewReader(compressed)))
+		if err != nil {
+			return fmt.Errorf("saml slo: failed to inflate SAMLResponse (HTTP-Redirect binding requires DEFLATE): %w", err)
+		}
+	} else {
 		rawResp = compressed
 	}
 
