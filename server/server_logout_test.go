@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -15,11 +16,28 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/discovery"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
+
+// fakeStatefulLogoutConnector always reports a validation failure from
+// HandleLogoutCallbackWithState.
+type fakeStatefulLogoutConnector struct{}
+
+func (fakeStatefulLogoutConnector) LoginURL(connector.Scopes, string, string) (string, error) {
+	return "", nil
+}
+
+func (fakeStatefulLogoutConnector) LogoutURLWithState(_ context.Context, _ []byte, _ string) (string, []byte, error) {
+	return "https://idp.example.com/slo", []byte("_req_id"), nil
+}
+
+func (fakeStatefulLogoutConnector) HandleLogoutCallbackWithState(_ context.Context, _ *http.Request, _ []byte) error {
+	return errors.New("forced validation failure for tests")
+}
 
 func TestHandleLogoutNoSessions(t *testing.T) {
 	httpServer, server := newTestServer(t, nil)
@@ -427,6 +445,47 @@ func TestHandleLogoutFromCookie(t *testing.T) {
 	for _, c := range rr.Result().Cookies() {
 		if c.Name == "dex_session" {
 			require.Equal(t, -1, c.MaxAge)
+		}
+	}
+}
+
+func TestLogoutCallbackStatefulFailureKeepsSessionClearsLogoutState(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	ctx := t.Context()
+	sessionID := "test-session"
+	connectorID := "stateful-fake"
+
+	registerTestConnector(t, server, connectorID, fakeStatefulLogoutConnector{})
+
+	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
+		ID:           sessionID,
+		Secret:       testSessionSecret(sessionID),
+		UserID:       "test-user",
+		ConnectorID:  connectorID,
+		CreatedAt:    time.Now(),
+		LastActivity: time.Now(),
+		LogoutState: &storage.LogoutState{
+			ConnectorID:    connectorID,
+			ConnectorState: []byte("_req_id"),
+		},
+	}))
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/logout/callback", nil)
+	req.AddCookie(testSessionCookie(sessionID))
+	server.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+
+	got, err := server.storage.GetAuthSession(ctx, sessionID)
+	require.NoError(t, err, "session must survive failed stateful logout validation")
+	require.Nil(t, got.LogoutState, "LogoutState must be cleared after failed validation")
+
+	for _, cookie := range rr.Result().Cookies() {
+		if cookie.Name == "dex_session" {
+			require.NotEqual(t, -1, cookie.MaxAge, "session cookie must not be cleared on failure")
 		}
 	}
 }

@@ -327,14 +327,22 @@ func (h *Handler) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 	// Prefer StatefulLogoutCallbackConnector (replays ls.ConnectorState — e.g.
 	// SAML's outgoing LogoutRequest ID for InResponseTo correlation) and fall
 	// back to the simpler LogoutCallbackConnector for stateless connectors.
+	var statefulLogoutErr error
 	if ls.ConnectorID != "" {
 		conn, err := h.Connectors.Get(ctx, ls.ConnectorID)
-		if err == nil {
+		if err != nil {
+			// The upstream connector vanished between the outgoing logout
+			// redirect and this callback. Without it the response cannot be
+			// validated, so make the failure visible to the operator.
+			h.Logger.ErrorContext(ctx, "logout: failed to resolve connector for callback validation",
+				"connector_id", ls.ConnectorID, "err", err)
+		} else {
 			switch logoutConn := conn.Connector.(type) {
 			case connector.StatefulLogoutCallbackConnector:
 				if err := logoutConn.HandleLogoutCallbackWithState(ctx, r, ls.ConnectorState); err != nil {
 					h.Logger.ErrorContext(ctx, "logout: upstream logout response validation failed",
 						"connector_id", ls.ConnectorID, "err", err)
+					statefulLogoutErr = err
 				}
 			case connector.LogoutCallbackConnector:
 				if err := logoutConn.HandleLogoutCallback(ctx, r); err != nil {
@@ -343,6 +351,23 @@ func (h *Handler) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+	}
+
+	// Stateful connectors (e.g. SAML) perform cryptographic validation; do not
+	// complete Dex logout if that fails. Otherwise a forged request carrying a
+	// valid session cookie could clear the session without a valid IdP response.
+	if statefulLogoutErr != nil {
+		// Clear the one-shot correlation state so it cannot be replayed. The
+		// browser session remains active and can start a fresh logout attempt.
+		if err := h.Storage.UpdateAuthSession(ctx, session.ID, func(old storage.AuthSession) (storage.AuthSession, error) {
+			old.LogoutState = nil
+			return old, nil
+		}); err != nil {
+			h.Logger.ErrorContext(ctx, "logout: failed to clear LogoutState after failed validation",
+				"connector_id", ls.ConnectorID, "err", err)
+		}
+		h.renderError(r, w, http.StatusBadRequest, "Upstream logout response validation failed.")
+		return
 	}
 
 	// The session actually ends here on the upstream path, so this is where its bound
