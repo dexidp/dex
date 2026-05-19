@@ -136,3 +136,26 @@ type LogoutCallbackConnector interface {
 	// return nil.
 	HandleLogoutCallback(ctx context.Context, r *http.Request) error
 }
+
+// StatefulLogoutCallbackConnector is an optional capability for connectors
+// whose logout flow needs server-side correlation state to be carried from
+// the outgoing logout request to the inbound logout response. The server
+// persists the opaque state alongside the logout session and hands it back
+// on the callback, allowing the connector to enforce one-shot, replay-proof
+// checks (e.g. SAML's InResponseTo).
+//
+// Connectors that don't need correlation state should implement the simpler
+// LogoutCallbackConnector instead. The server prefers this interface over
+// LogoutCallbackConnector when both are implemented.
+type StatefulLogoutCallbackConnector interface {
+	// LogoutURLWithState returns the upstream provider's logout URL plus an
+	// opaque connector-specific state to be persisted by the server and
+	// passed back to HandleLogoutCallbackWithState. Returning empty url means
+	// upstream logout is not available; in that case state must be nil.
+	LogoutURLWithState(ctx context.Context, connectorData []byte, postLogoutRedirectURI string) (logoutURL string, state []byte, err error)
+
+	// HandleLogoutCallbackWithState validates the upstream provider's logout
+	// response received in the callback request. state is the value returned
+	// by the matching LogoutURLWithState call.
+	HandleLogoutCallbackWithState(ctx context.Context, r *http.Request, state []byte) error
+}

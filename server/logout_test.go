@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -12,8 +13,26 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/storage"
 )
+
+// fakeStatefulLogoutConnector always reports a validation failure from
+// HandleLogoutCallbackWithState. Used to exercise the failure branch of
+// /logout/callback without depending on a real SAML setup.
+type fakeStatefulLogoutConnector struct{}
+
+func (fakeStatefulLogoutConnector) LoginURL(connector.Scopes, string, string) (string, error) {
+	return "", nil
+}
+
+func (fakeStatefulLogoutConnector) LogoutURLWithState(_ context.Context, _ []byte, _ string) (string, []byte, error) {
+	return "https://idp.example.com/slo", []byte("_req_id"), nil
+}
+
+func (fakeStatefulLogoutConnector) HandleLogoutCallbackWithState(_ context.Context, _ *http.Request, _ []byte) error {
+	return errors.New("forced validation failure for tests")
+}
 
 func TestHandleLogoutNoSessions(t *testing.T) {
 	httpServer, server := newTestServer(t, nil)
@@ -328,6 +347,56 @@ func TestHandleLogoutFromCookie(t *testing.T) {
 	for _, c := range rr.Result().Cookies() {
 		if c.Name == "dex_session" {
 			require.Equal(t, -1, c.MaxAge)
+		}
+	}
+}
+
+// TestLogoutCallbackStatefulFailureKeepsSessionClearsLogoutState verifies that
+// a failed stateful (e.g. SAML) logout validation:
+//   - returns HTTP 400,
+//   - leaves the auth session intact (so a forged GET with only a session
+//     cookie cannot complete logout), and
+//   - clears LogoutState so the one-shot correlation state cannot be replayed.
+func TestLogoutCallbackStatefulFailureKeepsSessionClearsLogoutState(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	ctx := t.Context()
+	userID := "test-user"
+	connectorID := "stateful-fake"
+	nonce := "testnonce"
+
+	registerTestConnector(t, server, connectorID, fakeStatefulLogoutConnector{})
+
+	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
+		UserID:       userID,
+		ConnectorID:  connectorID,
+		Nonce:        nonce,
+		CreatedAt:    time.Now(),
+		LastActivity: time.Now(),
+		LogoutState: &storage.LogoutState{
+			ConnectorID:    connectorID,
+			ConnectorState: []byte("_req_id"),
+		},
+	}))
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/logout/callback", nil)
+	req.AddCookie(&http.Cookie{
+		Name:  "dex_session",
+		Value: sessionCookieValue(userID, connectorID, nonce, server.sessionConfig.CookieEncryptionKey),
+	})
+	server.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+
+	got, err := server.storage.GetAuthSession(ctx, userID, connectorID)
+	require.NoError(t, err, "session must survive failed stateful logout validation")
+	require.Nil(t, got.LogoutState, "LogoutState must be cleared after failed validation")
+
+	for _, c := range rr.Result().Cookies() {
+		if c.Name == "dex_session" {
+			require.NotEqual(t, -1, c.MaxAge, "session cookie must NOT be cleared on failure")
 		}
 	}
 }
