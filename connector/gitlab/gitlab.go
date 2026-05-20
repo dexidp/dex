@@ -31,8 +31,8 @@ const (
 )
 
 const (
-	//constants for inheritedGroups flag
-	inheritedGroupsPerPage = 100
+	// constants for inheritedGroups flag
+	inheritedGroupsPerPage   = 100
 	accessLevelMinimalAccess = 5
 	accessLevelGuest         = 10
 	accessLevelPlanner       = 15
@@ -62,9 +62,9 @@ type Config struct {
 	GetGroupsPermission bool `json:"getGroupsPermission"`
 	// When enabled, Dex uses /api/v4/groups as the source of truth for group names so
 	// inherited memberships are included as well. This requires GitLab's read_api scope.
-	InheritedGroups bool   `json:"inheritedGroups"`
-    // RootCAData is a PEM-encoded CA bundle used to trust custom TLS certificates on the GitLab instance.
-	RootCAData      []byte `json:"rootCAData,omitempty"`
+	InheritedGroups bool `json:"inheritedGroups"`
+	// RootCAData is a PEM-encoded CA bundle used to trust custom TLS certificates on the GitLab instance.
+	RootCAData []byte `json:"rootCAData,omitempty"`
 }
 
 type gitlabUser struct {
@@ -138,6 +138,7 @@ type gitlabConnector struct {
 	inheritedGroups bool
 }
 
+// oauth2Config builds the OAuth2 client configuration and scopes for this connector.
 func (c *gitlabConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
 	gitlabScopes := []string{scopeUser, scopeOpenID}
 	if c.groupsRequired(scopes.Groups) {
@@ -156,6 +157,7 @@ func (c *gitlabConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
 	}
 }
 
+// LoginURL returns the GitLab authorization URL for the requested scopes.
 func (c *gitlabConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (string, []byte, error) {
 	if c.redirectURI != callbackURL {
 		return "", nil, fmt.Errorf("expected callback URL %q did not match the URL in the config %q", c.redirectURI, callbackURL)
@@ -168,6 +170,7 @@ type oauth2Error struct {
 	errorDescription string
 }
 
+// Error formats the OAuth error returned by GitLab during the callback flow.
 func (e *oauth2Error) Error() string {
 	if e.errorDescription == "" {
 		return e.error
@@ -175,6 +178,7 @@ func (e *oauth2Error) Error() string {
 	return e.error + ": " + e.errorDescription
 }
 
+// HandleCallback exchanges the authorization code and resolves the authenticated identity.
 func (c *gitlabConnector) HandleCallback(s connector.Scopes, connData []byte, r *http.Request) (identity connector.Identity, err error) {
 	q := r.URL.Query()
 	if errType := q.Get("error"); errType != "" {
@@ -196,6 +200,7 @@ func (c *gitlabConnector) HandleCallback(s connector.Scopes, connData []byte, r 
 	return c.identity(ctx, s, token)
 }
 
+// identity resolves the Dex identity fields from a GitLab access token.
 func (c *gitlabConnector) identity(ctx context.Context, s connector.Scopes, token *oauth2.Token) (identity connector.Identity, err error) {
 	oauth2Config := c.oauth2Config(s)
 	client := oauth2Config.Client(ctx, token)
@@ -222,7 +227,7 @@ func (c *gitlabConnector) identity(ctx context.Context, s connector.Scopes, toke
 	}
 
 	if c.groupsRequired(s.Groups) {
-		groups, err := c.getGroups(ctx, client, s.Groups, user.Username, user.ID)
+		groups, err := c.resolveIdentityGroups(ctx, client, s.Groups, user.Username, user.ID)
 		if err != nil {
 			return identity, fmt.Errorf("gitlab: get groups: %v", err)
 		}
@@ -241,6 +246,7 @@ func (c *gitlabConnector) identity(ctx context.Context, s connector.Scopes, toke
 	return identity, nil
 }
 
+// Refresh rebuilds the identity using the stored refresh token or access token.
 func (c *gitlabConnector) Refresh(ctx context.Context, s connector.Scopes, ident connector.Identity) (connector.Identity, error) {
 	var data connectorData
 	if err := json.Unmarshal(ident.ConnectorData, &data); err != nil {
@@ -305,6 +311,7 @@ func (c *gitlabConnector) TokenIdentity(ctx context.Context, _, subjectToken str
 	return c.identity(ctx, scopes, token)
 }
 
+// groupsRequired reports whether this request needs group resolution.
 func (c *gitlabConnector) groupsRequired(groupScope bool) bool {
 	return len(c.groups) > 0 || groupScope
 }
@@ -356,11 +363,98 @@ type gitlabGroupMember struct {
 	AccessLevel int `json:"access_level"`
 }
 
-// userInfo queries the GitLab OIDC userinfo endpoint for profile and direct group membership.
+// resolveIdentityGroups resolves group claims and applies configured group filtering.
+func (c *gitlabConnector) resolveIdentityGroups(ctx context.Context, client *http.Client, groupScope bool, userLogin string, userID int) ([]string, error) {
+	gitlabGroups, err := c.resolveGroupClaims(ctx, client, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(c.groups) > 0 {
+		filteredGroups := groups.Filter(gitlabGroups, c.groups)
+		if len(filteredGroups) == 0 {
+			return nil, fmt.Errorf("gitlab: user %q is not in any of the required groups", userLogin)
+		}
+		return filteredGroups, nil
+	} else if groupScope {
+		return gitlabGroups, nil
+	}
+
+	return nil, nil
+}
+
+// resolveGroupClaims selects the direct or inherited group resolution path.
+func (c *gitlabConnector) resolveGroupClaims(ctx context.Context, client *http.Client, userID int) ([]string, error) {
+	if c.inheritedGroups {
+		return c.resolveInheritedGroupClaims(ctx, client, userID)
+	}
+
+	return c.resolveDirectGroupClaims(ctx, client)
+}
+
+// resolveDirectGroupClaims returns group claims from the OIDC userinfo response.
+func (c *gitlabConnector) resolveDirectGroupClaims(ctx context.Context, client *http.Client) ([]string, error) {
+	u, err := c.fetchUserInfo(ctx, client)
+	if err != nil {
+		return nil, err
+	}
+
+	if !c.getGroupsPermission {
+		return u.Groups, nil
+	}
+
+	return appendPermissionsFromUserInfo(u.Groups, u), nil
+}
+
+// resolveInheritedGroupClaims returns group claims from the GitLab groups API.
+func (c *gitlabConnector) resolveInheritedGroupClaims(ctx context.Context, client *http.Client, userID int) ([]string, error) {
+	groupRecords, err := c.fetchInheritedGroupRecords(ctx, client)
+	if err != nil {
+		return nil, err
+	}
+
+	groupClaims := groupPathsFromRecords(groupRecords)
+	if !c.getGroupsPermission {
+		return groupClaims, nil
+	}
+
+	u, err := c.fetchUserInfo(ctx, client)
+	if err != nil {
+		return nil, err
+	}
+
+	groupClaims = appendPermissionsFromUserInfo(groupClaims, u)
+	if userID == 0 {
+		return nil, errors.New("gitlab: user id is required to fetch effective group permissions")
+	}
+
+	for _, groupRecord := range groupRecords {
+		groupPath := groupPathFromRecord(groupRecord)
+		if groupPath == "" {
+			continue
+		}
+
+		if _, ok := permissionFromUserInfo(groupPath, u); ok {
+			continue
+		}
+
+		permission, ok, err := c.fetchEffectiveGroupPermission(ctx, client, groupRecord.ID, userID)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			groupClaims = append(groupClaims, fmt.Sprintf("%s:%s", groupPath, permission))
+		}
+	}
+
+	return groupClaims, nil
+}
+
+// fetchUserInfo queries the GitLab OIDC userinfo endpoint for profile and direct group membership.
 //
 // The HTTP passed client is expected to be constructed by the golang.org/x/oauth2 package,
 // which inserts a bearer token as part of the request.
-func (c *gitlabConnector) userInfo(ctx context.Context, client *http.Client) (userInfo, error) {
+func (c *gitlabConnector) fetchUserInfo(ctx context.Context, client *http.Client) (userInfo, error) {
 	var u userInfo
 	req, err := http.NewRequest("GET", c.baseURL+"/oauth/userinfo", nil)
 	if err != nil {
@@ -386,10 +480,10 @@ func (c *gitlabConnector) userInfo(ctx context.Context, client *http.Client) (us
 	return u, nil
 }
 
-// apiUserGroups queries the GitLab groups API for all groups the current user is a member of.
+// fetchInheritedGroupRecords queries the GitLab groups API for all groups the current user is a member of.
 // When inheritedGroups is enabled, this becomes the source of truth for group names.
-func (c *gitlabConnector) apiUserGroups(ctx context.Context, client *http.Client) ([]gitlabGroup, error) {
-	apiGroupsAll := make([]gitlabGroup, 0)
+func (c *gitlabConnector) fetchInheritedGroupRecords(ctx context.Context, client *http.Client) ([]gitlabGroup, error) {
+	groupRecords := make([]gitlabGroup, 0)
 	for page := 1; ; page++ {
 		req, err := http.NewRequest("GET", c.baseURL+"/api/v4/groups", nil)
 		if err != nil {
@@ -417,88 +511,25 @@ func (c *gitlabConnector) apiUserGroups(ctx context.Context, client *http.Client
 			return nil, fmt.Errorf("%s: %s", resp.Status, body)
 		}
 
-		var apiGroups []gitlabGroup
-		if err := json.NewDecoder(resp.Body).Decode(&apiGroups); err != nil {
+		var pageGroupRecords []gitlabGroup
+		if err := json.NewDecoder(resp.Body).Decode(&pageGroupRecords); err != nil {
 			_ = resp.Body.Close()
 			return nil, fmt.Errorf("failed to decode response: %v", err)
 		}
 		_ = resp.Body.Close()
 
-		apiGroupsAll = append(apiGroupsAll, apiGroups...)
+		groupRecords = append(groupRecords, pageGroupRecords...)
 
-		if len(apiGroups) < inheritedGroupsPerPage {
+		if len(pageGroupRecords) < inheritedGroupsPerPage {
 			break
 		}
 	}
 
-	return apiGroupsAll, nil
+	return groupRecords, nil
 }
 
-// userGroups queries the GitLab APIs for group membership.
-//
-// The HTTP passed client is expected to be constructed by the golang.org/x/oauth2 package,
-// which inserts a bearer token as part of the request.
-func (c *gitlabConnector) userGroups(ctx context.Context, client *http.Client, userID int) ([]string, error) {
-	if c.inheritedGroups {
-		apiGroups, err := c.apiUserGroups(ctx, client)
-		if err != nil {
-			return nil, err
-		}
-
-		if !c.getGroupsPermission {
-			return groupNames(apiGroups), nil
-		}
-
-		u, err := c.userInfo(ctx, client)
-		if err != nil {
-			return nil, err
-		}
-
-		return c.apiGroupsWithPermission(ctx, client, apiGroups, userID, u)
-	}
-
-	u, err := c.userInfo(ctx, client)
-	if err != nil {
-		return nil, err
-	}
-
-	if c.getGroupsPermission {
-		return c.setGroupsPermission(u), nil
-	}
-
-	return u.Groups, nil
-}
-
-func (c *gitlabConnector) apiGroupsWithPermission(ctx context.Context, client *http.Client, apiGroups []gitlabGroup, userID int, u userInfo) ([]string, error) {
-	if userID == 0 {
-		return nil, errors.New("gitlab: user id is required to fetch effective group permissions")
-	}
-
-	groups := groupNames(apiGroups)
-	for _, g := range apiGroups {
-		groupPath := groupName(g)
-		if groupPath == "" {
-			continue
-		}
-
-		if permission, ok := userInfoPermission(groupPath, u); ok {
-			groups = append(groups, fmt.Sprintf("%s:%s", groupPath, permission))
-			continue
-		}
-
-		permission, ok, err := c.apiGroupPermission(ctx, client, g.ID, userID)
-		if err != nil {
-			return nil, err
-		}
-		if ok {
-			groups = append(groups, fmt.Sprintf("%s:%s", groupPath, permission))
-		}
-	}
-
-	return groups, nil
-}
-
-func (c *gitlabConnector) apiGroupPermission(ctx context.Context, client *http.Client, groupID, userID int) (string, bool, error) {
+// fetchEffectiveGroupPermission returns the effective permission for a user within a GitLab group.
+func (c *gitlabConnector) fetchEffectiveGroupPermission(ctx context.Context, client *http.Client, groupID, userID int) (string, bool, error) {
 	if groupID == 0 {
 		return "", false, errors.New("gitlab: group id is required to fetch effective group permissions")
 	}
@@ -534,43 +565,59 @@ func (c *gitlabConnector) apiGroupPermission(ctx context.Context, client *http.C
 		return "", false, fmt.Errorf("failed to decode response: %v", err)
 	}
 
-	permission, ok := accessLevelPermission(member.AccessLevel)
+	permission, ok := permissionFromAccessLevel(member.AccessLevel)
 	return permission, ok, nil
 }
 
-func groupNames(apiGroups []gitlabGroup) []string {
-	groups := make([]string, 0, len(apiGroups))
-	for _, g := range apiGroups {
-		if groupPath := groupName(g); groupPath != "" {
-			groups = append(groups, groupPath)
+// groupPathsFromRecords extracts claim-ready group paths from GitLab group records.
+func groupPathsFromRecords(groupRecords []gitlabGroup) []string {
+	groupPaths := make([]string, 0, len(groupRecords))
+	for _, groupRecord := range groupRecords {
+		if groupPath := groupPathFromRecord(groupRecord); groupPath != "" {
+			groupPaths = append(groupPaths, groupPath)
 		}
 	}
 
-	return groups
+	return groupPaths
 }
 
-func groupName(g gitlabGroup) string {
-	if g.FullPath != "" {
-		return g.FullPath
+// groupPathFromRecord returns the canonical path for a GitLab group record.
+func groupPathFromRecord(groupRecord gitlabGroup) string {
+	if groupRecord.FullPath != "" {
+		return groupRecord.FullPath
 	}
-	return g.Path
+	return groupRecord.Path
 }
 
-func userInfoPermission(groupPath string, u userInfo) (string, bool) {
-	if permissionMatches(groupPath, u.OwnerPermission) {
+// appendPermissionsFromUserInfo adds permission-qualified group claims derived from userinfo.
+func appendPermissionsFromUserInfo(groupPaths []string, u userInfo) []string {
+	groupsWithPermissions := append([]string(nil), groupPaths...)
+	for _, groupPath := range groupPaths {
+		if permission, ok := permissionFromUserInfo(groupPath, u); ok {
+			groupsWithPermissions = append(groupsWithPermissions, fmt.Sprintf("%s:%s", groupPath, permission))
+		}
+	}
+
+	return groupsWithPermissions
+}
+
+// permissionFromUserInfo resolves a permission suffix for a group path from userinfo claims.
+func permissionFromUserInfo(groupPath string, u userInfo) (string, bool) {
+	if matchesGroupPathOrAncestor(groupPath, u.OwnerPermission) {
 		return "owner", true
 	}
-	if permissionMatches(groupPath, u.MaintainerPermission) {
+	if matchesGroupPathOrAncestor(groupPath, u.MaintainerPermission) {
 		return "maintainer", true
 	}
-	if permissionMatches(groupPath, u.DeveloperPermission) {
+	if matchesGroupPathOrAncestor(groupPath, u.DeveloperPermission) {
 		return "developer", true
 	}
 	return "", false
 }
 
-func permissionMatches(groupPath string, permissions []string) bool {
-	for _, permissionPath := range permissions {
+// matchesGroupPathOrAncestor reports whether a permission path applies to the given group path.
+func matchesGroupPathOrAncestor(groupPath string, permissionPaths []string) bool {
+	for _, permissionPath := range permissionPaths {
 		// Exact group match, for example "ops" matches "ops".
 		if groupPath == permissionPath {
 			return true
@@ -597,7 +644,8 @@ func permissionMatches(groupPath string, permissions []string) bool {
 	return false
 }
 
-func accessLevelPermission(accessLevel int) (string, bool) {
+// permissionFromAccessLevel maps GitLab numeric access levels to permission suffix strings.
+func permissionFromAccessLevel(accessLevel int) (string, bool) {
 	switch accessLevel {
 	case accessLevelMinimalAccess:
 		return "minimal_access", true
@@ -620,71 +668,4 @@ func accessLevelPermission(accessLevel int) (string, bool) {
 	default:
 		return "", false
 	}
-}
-
-func (c *gitlabConnector) setGroupsPermission(u userInfo) []string {
-	groups := u.Groups
-
-L1:
-	for _, g := range groups {
-		for _, op := range u.OwnerPermission {
-			if g == op {
-				groups = append(groups, fmt.Sprintf("%s:owner", g))
-				continue L1
-			}
-			if len(g) > len(op) {
-				if g[0:len(op)] == op && string(g[len(op)]) == "/" {
-					groups = append(groups, fmt.Sprintf("%s:owner", g))
-					continue L1
-				}
-			}
-		}
-
-		for _, mp := range u.MaintainerPermission {
-			if g == mp {
-				groups = append(groups, fmt.Sprintf("%s:maintainer", g))
-				continue L1
-			}
-			if len(g) > len(mp) {
-				if g[0:len(mp)] == mp && string(g[len(mp)]) == "/" {
-					groups = append(groups, fmt.Sprintf("%s:maintainer", g))
-					continue L1
-				}
-			}
-		}
-
-		for _, dp := range u.DeveloperPermission {
-			if g == dp {
-				groups = append(groups, fmt.Sprintf("%s:developer", g))
-				continue L1
-			}
-			if len(g) > len(dp) {
-				if g[0:len(dp)] == dp && string(g[len(dp)]) == "/" {
-					groups = append(groups, fmt.Sprintf("%s:developer", g))
-					continue L1
-				}
-			}
-		}
-	}
-
-	return groups
-}
-
-func (c *gitlabConnector) getGroups(ctx context.Context, client *http.Client, groupScope bool, userLogin string, userID int) ([]string, error) {
-	gitlabGroups, err := c.userGroups(ctx, client, userID)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(c.groups) > 0 {
-		filteredGroups := groups.Filter(gitlabGroups, c.groups)
-		if len(filteredGroups) == 0 {
-			return nil, fmt.Errorf("gitlab: user %q is not in any of the required groups", userLogin)
-		}
-		return filteredGroups, nil
-	} else if groupScope {
-		return gitlabGroups, nil
-	}
-
-	return nil, nil
 }

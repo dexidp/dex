@@ -203,7 +203,7 @@ func TestUserGroups(t *testing.T) {
 	defer s.Close()
 
 	c := gitlabConnector{baseURL: s.URL}
-	groups, err := c.getGroups(context.Background(), newClient(), true, "joebloggs", 12345678)
+	groups, err := c.resolveIdentityGroups(context.Background(), newClient(), true, "joebloggs", 12345678)
 
 	expectNil(t, err)
 	expectEquals(t, groups, []string{
@@ -225,7 +225,7 @@ func TestUserGroupsWithInheritedGroups(t *testing.T) {
 	defer s.Close()
 
 	c := gitlabConnector{baseURL: s.URL, inheritedGroups: true}
-	groups, err := c.getGroups(context.Background(), newClient(), true, "joebloggs", 12345678)
+	groups, err := c.resolveIdentityGroups(context.Background(), newClient(), true, "joebloggs", 12345678)
 
 	expectNil(t, err)
 	expectEquals(t, groups, []string{
@@ -256,7 +256,7 @@ func TestUserGroupsWithInheritedGroupsPagination(t *testing.T) {
 	defer s.Close()
 
 	c := gitlabConnector{baseURL: s.URL, inheritedGroups: true}
-	groups, err := c.getGroups(context.Background(), newClient(), true, "joebloggs", 12345678)
+	groups, err := c.resolveIdentityGroups(context.Background(), newClient(), true, "joebloggs", 12345678)
 
 	expectNil(t, err)
 	expectEquals(t, groups, expectedGroups)
@@ -271,7 +271,7 @@ func TestUserGroupsWithFiltering(t *testing.T) {
 	defer s.Close()
 
 	c := gitlabConnector{baseURL: s.URL, groups: []string{"team-1"}}
-	groups, err := c.getGroups(context.Background(), newClient(), true, "joebloggs", 12345678)
+	groups, err := c.resolveIdentityGroups(context.Background(), newClient(), true, "joebloggs", 12345678)
 
 	expectNil(t, err)
 	expectEquals(t, groups, []string{
@@ -296,7 +296,7 @@ func TestUserGroupsWithInheritedGroupsFiltering(t *testing.T) {
 		groups:          []string{"team-2/sub"},
 		inheritedGroups: true,
 	}
-	groups, err := c.getGroups(context.Background(), newClient(), true, "joebloggs", 12345678)
+	groups, err := c.resolveIdentityGroups(context.Background(), newClient(), true, "joebloggs", 12345678)
 
 	expectNil(t, err)
 	expectEquals(t, groups, []string{
@@ -313,7 +313,7 @@ func TestUserGroupsWithoutOrgs(t *testing.T) {
 	defer s.Close()
 
 	c := gitlabConnector{baseURL: s.URL}
-	groups, err := c.getGroups(context.Background(), newClient(), true, "joebloggs", 12345678)
+	groups, err := c.resolveIdentityGroups(context.Background(), newClient(), true, "joebloggs", 12345678)
 
 	expectNil(t, err)
 	expectEquals(t, len(groups), 0)
