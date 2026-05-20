@@ -28,9 +28,11 @@ const (
 	// used to retrieve groups from /oauth/userinfo
 	// https://docs.gitlab.com/ee/integration/openid_connect_provider.html
 	scopeOpenID = "openid"
+)
 
+const (
+	//constants for inheritedGroups flag
 	inheritedGroupsPerPage = 100
-
 	accessLevelMinimalAccess = 5
 	accessLevelGuest         = 10
 	accessLevelPlanner       = 15
@@ -44,16 +46,24 @@ const (
 
 // Config holds configuration options for gitlab logins.
 type Config struct {
-	BaseURL             string   `json:"baseURL"`
-	ClientID            string   `json:"clientID"`
-	ClientSecret        string   `json:"clientSecret"`
-	RedirectURI         string   `json:"redirectURI"`
-	Groups              []string `json:"groups"`
-	UseLoginAsID        bool     `json:"useLoginAsID"`
-	GetGroupsPermission bool     `json:"getGroupsPermission"`
+	// BaseURL is the root URL of the GitLab instance. Defaults to https://gitlab.com.
+	BaseURL string `json:"baseURL"`
+	// ClientID is the OAuth client ID registered in GitLab.
+	ClientID string `json:"clientID"`
+	// ClientSecret is the OAuth client secret registered in GitLab.
+	ClientSecret string `json:"clientSecret"`
+	// RedirectURI is the callback URL configured for the GitLab OAuth application.
+	RedirectURI string `json:"redirectURI"`
+	// Groups limits logins to users who belong to at least one of the configured GitLab groups.
+	Groups []string `json:"groups"`
+	// UseLoginAsID uses the GitLab username as the Dex user ID instead of the numeric GitLab user ID.
+	UseLoginAsID bool `json:"useLoginAsID"`
+	// GetGroupsPermission appends role-qualified entries, such as group:owner, to the groups claim.
+	GetGroupsPermission bool `json:"getGroupsPermission"`
 	// When enabled, Dex uses /api/v4/groups as the source of truth for group names so
 	// inherited memberships are included as well. This requires GitLab's read_api scope.
 	InheritedGroups bool   `json:"inheritedGroups"`
+    // RootCAData is a PEM-encoded CA bundle used to trust custom TLS certificates on the GitLab instance.
 	RootCAData      []byte `json:"rootCAData,omitempty"`
 }
 
@@ -561,14 +571,28 @@ func userInfoPermission(groupPath string, u userInfo) (string, bool) {
 
 func permissionMatches(groupPath string, permissions []string) bool {
 	for _, permissionPath := range permissions {
+		// Exact group match, for example "ops" matches "ops".
 		if groupPath == permissionPath {
 			return true
 		}
-		if len(groupPath) > len(permissionPath) &&
-			groupPath[0:len(permissionPath)] == permissionPath &&
-			string(groupPath[len(permissionPath)]) == "/" {
-			return true
+
+		// A parent-group permission cannot match a shorter or equally long path.
+		if len(groupPath) <= len(permissionPath) {
+			continue
 		}
+
+		// The permission path must be a prefix of the subgroup path.
+		if groupPath[0:len(permissionPath)] != permissionPath {
+			continue
+		}
+
+		// Require a path separator so "dev" does not match "developer".
+		if string(groupPath[len(permissionPath)]) != "/" {
+			continue
+		}
+
+		// Parent-group permissions apply to descendant subgroups.
+		return true
 	}
 	return false
 }
