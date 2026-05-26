@@ -180,7 +180,7 @@ func TestOAuth2ConfigScopesForInheritedGroups(t *testing.T) {
 	c := gitlabConnector{inheritedGroups: true}
 
 	cfg := c.oauth2Config(connector.Scopes{})
-	expectEquals(t, cfg.Scopes, []string{scopeUser, scopeOpenID})
+	expectEquals(t, cfg.Scopes, []string{scopeUser})
 
 	cfg = c.oauth2Config(connector.Scopes{Groups: true})
 	expectEquals(t, cfg.Scopes, []string{scopeUser, scopeOpenID, scopeReadAPI})
