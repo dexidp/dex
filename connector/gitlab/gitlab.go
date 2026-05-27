@@ -140,8 +140,9 @@ type gitlabConnector struct {
 
 // oauth2Config builds the OAuth2 client configuration and scopes for this connector.
 func (c *gitlabConnector) oauth2Config(scopes connector.Scopes) *oauth2.Config {
-	gitlabScopes := []string{scopeUser, scopeOpenID}
+	gitlabScopes := []string{scopeUser}
 	if c.groupsRequired(scopes.Groups) {
+		gitlabScopes = append(gitlabScopes, scopeOpenID)
 		if c.inheritedGroups {
 			gitlabScopes = append(gitlabScopes, scopeReadAPI)
 		}
