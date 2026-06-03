@@ -147,6 +147,8 @@ type Config struct {
 
 	// DefaultMFAChain is applied to clients that don't specify their own mfaChain.
 	DefaultMFAChain []string
+
+	AllowedScopePrefixes []string
 }
 
 // SessionConfig holds resolved session configuration.
@@ -236,6 +238,8 @@ type Server struct {
 	supportedGrantTypes []string
 
 	pkce PKCEConfig
+
+	allowedScopePrefixes []string
 
 	now func() time.Time
 
@@ -365,6 +369,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		supportedResponseTypes: supportedRes,
 		supportedGrantTypes:    supportedGrants,
 		pkce:                   c.PKCE,
+		allowedScopePrefixes:   c.AllowedScopePrefixes,
 		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
 		authRequestsValidFor:   value(c.AuthRequestsValidFor, 24*time.Hour),
 		deviceRequestsValidFor: value(c.DeviceRequestsValidFor, 5*time.Minute),
