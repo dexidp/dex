@@ -1225,6 +1225,14 @@ func testDeviceRequestCRUD(t *testing.T, s storage.Storage) {
 		t.Fatalf("failed to get device request: %v", err)
 	}
 
+	// Storage backends are not expected to preserve the time.Location of the
+	// stored value, only the instant. Postgres, for example, returns the
+	// expiry in a loaded "Etc/UTC" location rather than the time.UTC
+	// singleton, which makes reflect.DeepEqual (used by require.Equal)
+	// report a difference even though the two times are the same instant.
+	// Normalize to UTC before comparing, matching the other CRUD tests.
+	got.Expiry = got.Expiry.UTC()
+
 	require.Equal(t, d1, got)
 
 	// No manual deletes for device requests, will be handled by garbage collection routines
