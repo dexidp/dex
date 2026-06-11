@@ -243,7 +243,7 @@ func TestPostgres(t *testing.T) {
 			Mode: pgSSLDisable, // Postgres container doesn't support SSL.
 		},
 	}
-	testDB(t, p, true, false)
+	testDB(t, p, true, true)
 }
 
 const testMySQLEnv = "DEX_MYSQL_HOST"
@@ -280,7 +280,7 @@ func TestMySQL(t *testing.T) {
 			"innodb_lock_wait_timeout": "3",
 		},
 	}
-	testDB(t, s, true, false)
+	testDB(t, s, true, true)
 }
 
 const testMySQL8Env = "DEX_MYSQL8_HOST"
@@ -317,5 +317,5 @@ func TestMySQL8(t *testing.T) {
 			"innodb_lock_wait_timeout": "3",
 		},
 	}
-	testDB(t, s, true, false)
+	testDB(t, s, true, true)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/sqlretry"
 )
 
 // CreateRefresh saves provided refresh token into the database.
@@ -66,7 +67,20 @@ func (d *Database) DeleteRefresh(ctx context.Context, id string) error {
 }
 
 // UpdateRefreshToken changes a refresh token by id using an updater function and saves it to the database.
+//
+// The update runs in a SERIALIZABLE transaction; under concurrent refresh-token
+// rotation of the same token the database aborts conflicting transactions with a
+// serialization failure. Retry the whole transaction on those transient errors
+// so concurrent refreshes succeed instead of surfacing as 500s.
 func (d *Database) UpdateRefreshToken(ctx context.Context, id string, updater func(old storage.RefreshToken) (storage.RefreshToken, error)) error {
+	return sqlretry.Do(
+		func() error { return d.updateRefreshTokenOnce(ctx, id, updater) },
+		sqlretry.IsSerializationFailure,
+		nil,
+	)
+}
+
+func (d *Database) updateRefreshTokenOnce(ctx context.Context, id string, updater func(old storage.RefreshToken) (storage.RefreshToken, error)) error {
 	tx, err := d.BeginTx(ctx)
 	if err != nil {
 		return convertDBError("update refresh token tx: %w", err)

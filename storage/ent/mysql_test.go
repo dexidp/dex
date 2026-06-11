@@ -105,11 +105,7 @@ func TestMySQL(t *testing.T) {
 	}
 	conformance.RunTests(t, newStorage)
 	conformance.RunTransactionTests(t, newStorage)
-
-	// TODO(nabokihms): ent MySQL does not retry on deadlocks (Error 1213, SQLSTATE 40001:
-	// Deadlock found when trying to get lock; try restarting transaction).
-	// Under high contention most updates fail.
-	// conformance.RunConcurrencyTests(t, newStorage)
+	conformance.RunConcurrencyTests(t, newStorage)
 }
 
 func TestMySQL8(t *testing.T) {
@@ -131,11 +127,7 @@ func TestMySQL8(t *testing.T) {
 	}
 	conformance.RunTests(t, newStorage)
 	conformance.RunTransactionTests(t, newStorage)
-
-	// TODO(nabokihms): ent MySQL 8 does not retry on deadlocks (Error 1213, SQLSTATE 40001:
-	// Deadlock found when trying to get lock; try restarting transaction).
-	// Under high contention most updates fail.
-	// conformance.RunConcurrencyTests(t, newStorage)
+	conformance.RunConcurrencyTests(t, newStorage)
 }
 
 func TestMySQLDSN(t *testing.T) {
