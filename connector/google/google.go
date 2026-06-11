@@ -168,6 +168,23 @@ func (c *googleConnector) Close() error {
 	return nil
 }
 
+// matchHostedDomain reports whether the given Google "hd" claim is allowed by
+// the configured hostedDomains list. An entry of "*" acts as a wildcard that
+// accepts any non-empty hd claim, allowing operators to require that users
+// authenticate with a Workspace account (any domain) rather than a personal
+// account, without enumerating every domain.
+func matchHostedDomain(claim string, allowed []string) bool {
+	for _, domain := range allowed {
+		if domain == "*" && claim != "" {
+			return true
+		}
+		if claim == domain {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *googleConnector) LoginURL(s connector.Scopes, callbackURL, state string) (string, []byte, error) {
 	if c.redirectURI != callbackURL {
 		return "", nil, fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
@@ -256,18 +273,8 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 		claims.Username = identity.Username
 	}
 
-	if len(c.hostedDomains) > 0 {
-		found := false
-		for _, domain := range c.hostedDomains {
-			if claims.HostedDomain == domain {
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			return identity, fmt.Errorf("oidc: unexpected hd claim %v", claims.HostedDomain)
-		}
+	if len(c.hostedDomains) > 0 && !matchHostedDomain(claims.HostedDomain, c.hostedDomains) {
+		return identity, fmt.Errorf("oidc: unexpected hd claim %v", claims.HostedDomain)
 	}
 
 	var groups []string
