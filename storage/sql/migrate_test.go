@@ -35,7 +35,7 @@ func TestMigrate(t *testing.T) {
 		}
 	}
 
-	c := &conn{db, &flavorSQLite3, logger, errCheck}
+	c := &conn{db, &flavorSQLite3, logger, errCheck, nil}
 	for _, want := range []int{len(sqliteMigrations), 0} {
 		got, err := c.migrate()
 		if err != nil {
