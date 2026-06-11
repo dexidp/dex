@@ -620,6 +620,11 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 			return true
 		}
 	}
+
+	if client.Public && isRedirectURILocalhost(redirectURI) {
+		return true
+	}
+
 	// For non-public clients or when RedirectURIs is set, we allow only explicitly named RedirectURIs.
 	// Otherwise, we check below for special URIs used for desktop or mobile apps.
 	if !client.Public || len(client.RedirectURIs) > 0 {
@@ -630,8 +635,12 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 		return true
 	}
 
-	// verify that the host is of form "http://localhost:(port)(path)", "http://localhost(path)" or numeric form like
-	// "http://127.0.0.1:(port)(path)"
+	return isRedirectURILocalhost(redirectURI)
+}
+
+// verify that the host is of form "http://localhost:(port)(path)", "http://localhost(path)" or numeric form like
+// "http://127.0.0.1:(port)(path)"
+func isRedirectURILocalhost(redirectURI string) bool {
 	u, err := url.Parse(redirectURI)
 	if err != nil {
 		return false
