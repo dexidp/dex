@@ -175,9 +175,8 @@ func (c *microsoftConnector) oauth2Config(scopes connector.Scopes) *oauth2.Confi
 		microsoftScopes = append(microsoftScopes, scopeOfflineAccess)
 	}
 
-	return &oauth2.Config{
-		ClientID:     c.clientID,
-		ClientSecret: c.clientSecret,
+	config := &oauth2.Config{
+		ClientID: c.clientID,
 		Endpoint: oauth2.Endpoint{
 			AuthURL:  c.apiURL + "/" + c.tenant + "/oauth2/v2.0/authorize",
 			TokenURL: c.apiURL + "/" + c.tenant + "/oauth2/v2.0/token",
@@ -185,6 +184,13 @@ func (c *microsoftConnector) oauth2Config(scopes connector.Scopes) *oauth2.Confi
 		Scopes:      microsoftScopes,
 		RedirectURL: c.redirectURI,
 	}
+
+	// Only set ClientSecret if not using client assertion
+	if c.clientAssertion == "" {
+		config.ClientSecret = c.clientSecret
+	}
+
+	return config
 }
 
 func (c *microsoftConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (string, []byte, error) {
