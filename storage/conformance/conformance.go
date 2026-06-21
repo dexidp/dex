@@ -735,11 +735,19 @@ func testConnectorCRUD(t *testing.T, s storage.Storage) {
 
 	id2 := storage.NewID()
 	config2 := []byte(`{"redirectURI": "http://127.0.0.1:5556/dex/callback"}`)
+	disableRotation := true
 	c2 := storage.Connector{
 		ID:     id2,
 		Type:   "Mock",
 		Name:   "Mock",
 		Config: config2,
+		Expiry: &storage.ConnectorExpiry{
+			IDTokens: "5m",
+			RefreshTokens: &storage.ConnectorRefreshExpiry{
+				DisableRotation:  &disableRotation,
+				AbsoluteLifetime: "24h",
+			},
+		},
 	}
 
 	if err := s.CreateConnector(ctx, c2); err != nil {
@@ -764,6 +772,7 @@ func testConnectorCRUD(t *testing.T, s storage.Storage) {
 	if err := s.UpdateConnector(ctx, c1.ID, func(old storage.Connector) (storage.Connector, error) {
 		old.Type = "oidc"
 		old.GrantTypes = []string{"urn:ietf:params:oauth:grant-type:token-exchange"}
+		old.Expiry = &storage.ConnectorExpiry{IDTokens: "10m"}
 		return old, nil
 	}); err != nil {
 		t.Fatalf("failed to update Connector: %v", err)
@@ -771,6 +780,17 @@ func testConnectorCRUD(t *testing.T, s storage.Storage) {
 
 	c1.Type = "oidc"
 	c1.GrantTypes = []string{"urn:ietf:params:oauth:grant-type:token-exchange"}
+	c1.Expiry = &storage.ConnectorExpiry{IDTokens: "10m"}
+	getAndCompare(id1, c1)
+
+	// Roundtrip clearing the expiry override.
+	if err := s.UpdateConnector(ctx, c1.ID, func(old storage.Connector) (storage.Connector, error) {
+		old.Expiry = nil
+		return old, nil
+	}); err != nil {
+		t.Fatalf("failed to clear connector expiry: %v", err)
+	}
+	c1.Expiry = nil
 	getAndCompare(id1, c1)
 
 	connectorList := []storage.Connector{c1, c2}

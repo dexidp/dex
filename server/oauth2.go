@@ -343,9 +343,26 @@ func genSubject(userID string, connID string) (string, error) {
 	return internal.Marshal(sub)
 }
 
+func (s *Server) idTokensValidForConn(connID string) time.Duration {
+	s.mu.Lock()
+	o := s.connectorExpiryOverrides[connID]
+	s.mu.Unlock()
+	return value(o.IDTokensValidFor, s.idTokensValidFor)
+}
+
+func (s *Server) refreshTokenPolicyForConn(connID string) *RefreshTokenPolicy {
+	s.mu.Lock()
+	o := s.connectorExpiryOverrides[connID]
+	s.mu.Unlock()
+	if o.RefreshTokenPolicy != nil {
+		return o.RefreshTokenPolicy
+	}
+	return s.refreshTokenPolicy
+}
+
 func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string, authTime time.Time) (idToken string, expiry time.Time, err error) {
 	issuedAt := s.now()
-	expiry = issuedAt.Add(s.idTokensValidFor)
+	expiry = issuedAt.Add(s.idTokensValidForConn(connID))
 
 	subjectString, err := genSubject(claims.UserID, connID)
 	if err != nil {

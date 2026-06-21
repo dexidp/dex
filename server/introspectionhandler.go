@@ -226,7 +226,7 @@ func (s *Server) introspectRefreshToken(ctx context.Context, token string) (*Int
 		ClientID:  rCtx.storageToken.ClientID,
 		IssuedAt:  rCtx.storageToken.CreatedAt.Unix(),
 		NotBefore: rCtx.storageToken.CreatedAt.Unix(),
-		Expiry:    rCtx.storageToken.CreatedAt.Add(s.refreshTokenPolicy.absoluteLifetime).Unix(),
+		Expiry:    rCtx.storageToken.CreatedAt.Add(s.refreshTokenPolicyForConn(rCtx.storageToken.ConnectorID).absoluteLifetime).Unix(),
 		Subject:   subjectString,
 		Username:  rCtx.storageToken.Claims.PreferredUsername,
 		Audience:  getAudience(rCtx.storageToken.ClientID, rCtx.scopes),
