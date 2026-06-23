@@ -3,17 +3,67 @@ package server
 import (
 	"bytes"
 	"context"
+	"crypto/subtle"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"image/png"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 
 	"github.com/dexidp/dex/storage"
 )
+
+const (
+	totpPeriod = 30 // seconds per TOTP time step
+	totpSkew   = 1  // number of steps tolerated on either side of the current one
+)
+
+var (
+	// errTOTPReplay signals the presented code's time-step was already used.
+	errTOTPReplay = errors.New("totp code already used")
+	// errTOTPNotEnrolled signals the secret disappeared between validation and update.
+	errTOTPNotEnrolled = errors.New("totp not enrolled")
+)
+
+// validateTOTPCode checks code against secret around now (tolerating totpSkew
+// steps) and returns the matched TOTP time-step counter. It returns ok=false
+// when the code does not match, or when the matched counter is <= lastCounter —
+// the latter enforces single use so a captured code cannot be replayed within
+// its validity window.
+func validateTOTPCode(secret, code string, now time.Time, lastCounter int64) (ok bool, counter int64) {
+	opts := totp.ValidateOpts{
+		Period:    totpPeriod,
+		Skew:      totpSkew,
+		Digits:    otp.DigitsSix,
+		Algorithm: otp.AlgorithmSHA1,
+	}
+
+	base := now.Unix() / totpPeriod
+	// Walk the skew window newest-first so the returned counter is the highest
+	// matching step.
+	for d := int64(totpSkew); d >= -int64(totpSkew); d-- {
+		c := base + d
+		if c < 0 {
+			continue
+		}
+		candidate, err := totp.GenerateCodeCustom(secret, time.Unix(c*totpPeriod, 0), opts)
+		if err != nil {
+			continue
+		}
+		if subtle.ConstantTimeCompare([]byte(candidate), []byte(code)) == 1 {
+			if c <= lastCounter {
+				return false, c
+			}
+			return true, c
+		}
+	}
+	return false, 0
+}
 
 // MFAProvider is a pluggable multi-factor authentication method.
 type MFAProvider interface {
@@ -222,23 +272,37 @@ func (s *Server) handleTOTPVerify(w http.ResponseWriter, r *http.Request, ctx co
 			return
 		}
 
-		if !totp.Validate(code, generated.Secret()) {
+		ok, counter := validateTOTPCode(generated.Secret(), code, s.now(), secret.LastUsedCounter)
+		if !ok {
 			s.renderTOTPPage(secret, true, totpProvider.issuer, authReq.ConnectorID, w, r)
 			return
 		}
 
-		// Mark MFA secret as confirmed.
-		if !secret.Confirmed {
-			if err := s.storage.UpdateUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
-				if s := old.MFASecrets[authenticatorID]; s != nil {
-					s.Confirmed = true
-				}
-				return old, nil
-			}); err != nil {
-				s.logger.ErrorContext(ctx, "failed to confirm MFA secret", "err", err)
-				s.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
+		// Record the accepted time-step (single-use / replay protection) and
+		// confirm the secret on first successful use. The counter is re-checked
+		// against the latest stored value inside the updater so two concurrent
+		// requests with the same code cannot both succeed. This burn commits
+		// before completeMFAStep marks the challenge passed, so a code can never
+		// pass the challenge without its counter being recorded first.
+		if err := s.storage.UpdateUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
+			sec := old.MFASecrets[authenticatorID]
+			if sec == nil {
+				return old, errTOTPNotEnrolled
+			}
+			if sec.LastUsedCounter >= counter {
+				return old, errTOTPReplay
+			}
+			sec.Confirmed = true
+			sec.LastUsedCounter = counter
+			return old, nil
+		}); err != nil {
+			if errors.Is(err, errTOTPReplay) || errors.Is(err, errTOTPNotEnrolled) {
+				s.renderTOTPPage(secret, true, totpProvider.issuer, authReq.ConnectorID, w, r)
 				return
 			}
+			s.logger.ErrorContext(ctx, "failed to update MFA secret", "err", err)
+			s.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
+			return
 		}
 
 		redirectURL, err := s.completeMFAStep(ctx, authReq, authenticatorID)

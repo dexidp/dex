@@ -266,7 +266,9 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Update sign count and clone warning for the matched credential.
+	// Update sign count and clone warning for the matched credential. The
+	// CloneWarning flag is persisted even when we reject below so it is visible
+	// to admins (e.g. via ListMFADevices).
 	if err := s.storage.UpdateUserIdentity(ctx, mfa.authReq.Claims.UserID, mfa.authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
 		creds := old.WebAuthnCredentials[mfa.authenticatorID]
 		for i := range creds {
@@ -281,6 +283,16 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 	}); err != nil {
 		s.logger.ErrorContext(ctx, "failed to update credential", "err", err)
 		writeJSONError(w, http.StatusInternalServerError, "Internal server error.")
+		return
+	}
+
+	// go-webauthn sets CloneWarning when the presented signature counter did not
+	// advance past the stored value, which indicates a cloned authenticator (or a
+	// replayed assertion). Reject the assertion instead of completing the MFA step.
+	if credential.Authenticator.CloneWarning {
+		s.logger.ErrorContext(ctx, "webauthn: signature counter regression, possible cloned authenticator — rejecting",
+			"user_id", mfa.authReq.Claims.UserID, "connector_id", mfa.authReq.ConnectorID, "authenticator_id", mfa.authenticatorID)
+		writeJSONError(w, http.StatusUnauthorized, "Authentication failed.")
 		return
 	}
 
