@@ -19,24 +19,37 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Dex_GetClient_FullMethodName       = "/api.Dex/GetClient"
-	Dex_CreateClient_FullMethodName    = "/api.Dex/CreateClient"
-	Dex_UpdateClient_FullMethodName    = "/api.Dex/UpdateClient"
-	Dex_DeleteClient_FullMethodName    = "/api.Dex/DeleteClient"
-	Dex_ListClients_FullMethodName     = "/api.Dex/ListClients"
-	Dex_CreatePassword_FullMethodName  = "/api.Dex/CreatePassword"
-	Dex_UpdatePassword_FullMethodName  = "/api.Dex/UpdatePassword"
-	Dex_DeletePassword_FullMethodName  = "/api.Dex/DeletePassword"
-	Dex_ListPasswords_FullMethodName   = "/api.Dex/ListPasswords"
-	Dex_CreateConnector_FullMethodName = "/api.Dex/CreateConnector"
-	Dex_UpdateConnector_FullMethodName = "/api.Dex/UpdateConnector"
-	Dex_DeleteConnector_FullMethodName = "/api.Dex/DeleteConnector"
-	Dex_ListConnectors_FullMethodName  = "/api.Dex/ListConnectors"
-	Dex_GetVersion_FullMethodName      = "/api.Dex/GetVersion"
-	Dex_GetDiscovery_FullMethodName    = "/api.Dex/GetDiscovery"
-	Dex_ListRefresh_FullMethodName     = "/api.Dex/ListRefresh"
-	Dex_RevokeRefresh_FullMethodName   = "/api.Dex/RevokeRefresh"
-	Dex_VerifyPassword_FullMethodName  = "/api.Dex/VerifyPassword"
+	Dex_GetClient_FullMethodName                    = "/api.Dex/GetClient"
+	Dex_CreateClient_FullMethodName                 = "/api.Dex/CreateClient"
+	Dex_UpdateClient_FullMethodName                 = "/api.Dex/UpdateClient"
+	Dex_DeleteClient_FullMethodName                 = "/api.Dex/DeleteClient"
+	Dex_ListClients_FullMethodName                  = "/api.Dex/ListClients"
+	Dex_CreatePassword_FullMethodName               = "/api.Dex/CreatePassword"
+	Dex_UpdatePassword_FullMethodName               = "/api.Dex/UpdatePassword"
+	Dex_DeletePassword_FullMethodName               = "/api.Dex/DeletePassword"
+	Dex_ListPasswords_FullMethodName                = "/api.Dex/ListPasswords"
+	Dex_CreateConnector_FullMethodName              = "/api.Dex/CreateConnector"
+	Dex_UpdateConnector_FullMethodName              = "/api.Dex/UpdateConnector"
+	Dex_DeleteConnector_FullMethodName              = "/api.Dex/DeleteConnector"
+	Dex_ListConnectors_FullMethodName               = "/api.Dex/ListConnectors"
+	Dex_GetVersion_FullMethodName                   = "/api.Dex/GetVersion"
+	Dex_GetDiscovery_FullMethodName                 = "/api.Dex/GetDiscovery"
+	Dex_ListRefresh_FullMethodName                  = "/api.Dex/ListRefresh"
+	Dex_RevokeRefresh_FullMethodName                = "/api.Dex/RevokeRefresh"
+	Dex_VerifyPassword_FullMethodName               = "/api.Dex/VerifyPassword"
+	Dex_GetAuthSession_FullMethodName               = "/api.Dex/GetAuthSession"
+	Dex_ListAuthSessions_FullMethodName             = "/api.Dex/ListAuthSessions"
+	Dex_DeleteAuthSession_FullMethodName            = "/api.Dex/DeleteAuthSession"
+	Dex_TerminateSessionsByConnector_FullMethodName = "/api.Dex/TerminateSessionsByConnector"
+	Dex_TerminateSessionsByUser_FullMethodName      = "/api.Dex/TerminateSessionsByUser"
+	Dex_GetUserIdentity_FullMethodName              = "/api.Dex/GetUserIdentity"
+	Dex_ListUserIdentities_FullMethodName           = "/api.Dex/ListUserIdentities"
+	Dex_DeleteUserIdentity_FullMethodName           = "/api.Dex/DeleteUserIdentity"
+	Dex_ResetMFA_FullMethodName                     = "/api.Dex/ResetMFA"
+	Dex_ListMFADevices_FullMethodName               = "/api.Dex/ListMFADevices"
+	Dex_DeleteWebAuthnCredential_FullMethodName     = "/api.Dex/DeleteWebAuthnCredential"
+	Dex_DeleteMFASecret_FullMethodName              = "/api.Dex/DeleteMFASecret"
+	Dex_RevokeConsent_FullMethodName                = "/api.Dex/RevokeConsent"
 )
 
 // DexClient is the client API for Dex service.
@@ -83,6 +96,33 @@ type DexClient interface {
 	RevokeRefresh(ctx context.Context, in *RevokeRefreshReq, opts ...grpc.CallOption) (*RevokeRefreshResp, error)
 	// VerifyPassword returns whether a password matches a hash for a specific email or not.
 	VerifyPassword(ctx context.Context, in *VerifyPasswordReq, opts ...grpc.CallOption) (*VerifyPasswordResp, error)
+	// GetAuthSession returns an auth session by user and connector ID.
+	GetAuthSession(ctx context.Context, in *GetAuthSessionReq, opts ...grpc.CallOption) (*GetAuthSessionResp, error)
+	// ListAuthSessions lists auth sessions, optionally filtered by user_id.
+	ListAuthSessions(ctx context.Context, in *ListAuthSessionsReq, opts ...grpc.CallOption) (*ListAuthSessionsResp, error)
+	// DeleteAuthSession deletes an auth session and revokes associated refresh tokens.
+	DeleteAuthSession(ctx context.Context, in *DeleteAuthSessionReq, opts ...grpc.CallOption) (*DeleteAuthSessionResp, error)
+	// TerminateSessionsByConnector terminates all sessions for a connector and revokes associated refresh tokens.
+	TerminateSessionsByConnector(ctx context.Context, in *TerminateSessionsByConnectorReq, opts ...grpc.CallOption) (*TerminateSessionsByConnectorResp, error)
+	// TerminateSessionsByUser terminates all sessions for a user and revokes associated refresh tokens.
+	TerminateSessionsByUser(ctx context.Context, in *TerminateSessionsByUserReq, opts ...grpc.CallOption) (*TerminateSessionsByUserResp, error)
+	// GetUserIdentity returns a user identity by user and connector ID.
+	GetUserIdentity(ctx context.Context, in *GetUserIdentityReq, opts ...grpc.CallOption) (*GetUserIdentityResp, error)
+	// ListUserIdentities lists all user identities.
+	ListUserIdentities(ctx context.Context, in *ListUserIdentitiesReq, opts ...grpc.CallOption) (*ListUserIdentitiesResp, error)
+	// DeleteUserIdentity performs a full data purge for GDPR compliance: deletes the identity,
+	// auth session, refresh tokens, and offline sessions.
+	DeleteUserIdentity(ctx context.Context, in *DeleteUserIdentityReq, opts ...grpc.CallOption) (*DeleteUserIdentityResp, error)
+	// ResetMFA clears all MFA secrets and WebAuthn credentials for a user.
+	ResetMFA(ctx context.Context, in *ResetMFAReq, opts ...grpc.CallOption) (*ResetMFAResp, error)
+	// ListMFADevices lists registered MFA authenticators for a user.
+	ListMFADevices(ctx context.Context, in *ListMFADevicesReq, opts ...grpc.CallOption) (*ListMFADevicesResp, error)
+	// DeleteWebAuthnCredential deletes a specific WebAuthn credential.
+	DeleteWebAuthnCredential(ctx context.Context, in *DeleteWebAuthnCredentialReq, opts ...grpc.CallOption) (*DeleteWebAuthnCredentialResp, error)
+	// DeleteMFASecret deletes a specific MFA authenticator and its associated WebAuthn credentials.
+	DeleteMFASecret(ctx context.Context, in *DeleteMFASecretReq, opts ...grpc.CallOption) (*DeleteMFASecretResp, error)
+	// RevokeConsent revokes consent for a specific client.
+	RevokeConsent(ctx context.Context, in *RevokeConsentReq, opts ...grpc.CallOption) (*RevokeConsentResp, error)
 }
 
 type dexClient struct {
@@ -273,6 +313,136 @@ func (c *dexClient) VerifyPassword(ctx context.Context, in *VerifyPasswordReq, o
 	return out, nil
 }
 
+func (c *dexClient) GetAuthSession(ctx context.Context, in *GetAuthSessionReq, opts ...grpc.CallOption) (*GetAuthSessionResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetAuthSessionResp)
+	err := c.cc.Invoke(ctx, Dex_GetAuthSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) ListAuthSessions(ctx context.Context, in *ListAuthSessionsReq, opts ...grpc.CallOption) (*ListAuthSessionsResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAuthSessionsResp)
+	err := c.cc.Invoke(ctx, Dex_ListAuthSessions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) DeleteAuthSession(ctx context.Context, in *DeleteAuthSessionReq, opts ...grpc.CallOption) (*DeleteAuthSessionResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteAuthSessionResp)
+	err := c.cc.Invoke(ctx, Dex_DeleteAuthSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) TerminateSessionsByConnector(ctx context.Context, in *TerminateSessionsByConnectorReq, opts ...grpc.CallOption) (*TerminateSessionsByConnectorResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TerminateSessionsByConnectorResp)
+	err := c.cc.Invoke(ctx, Dex_TerminateSessionsByConnector_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) TerminateSessionsByUser(ctx context.Context, in *TerminateSessionsByUserReq, opts ...grpc.CallOption) (*TerminateSessionsByUserResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TerminateSessionsByUserResp)
+	err := c.cc.Invoke(ctx, Dex_TerminateSessionsByUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) GetUserIdentity(ctx context.Context, in *GetUserIdentityReq, opts ...grpc.CallOption) (*GetUserIdentityResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetUserIdentityResp)
+	err := c.cc.Invoke(ctx, Dex_GetUserIdentity_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) ListUserIdentities(ctx context.Context, in *ListUserIdentitiesReq, opts ...grpc.CallOption) (*ListUserIdentitiesResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListUserIdentitiesResp)
+	err := c.cc.Invoke(ctx, Dex_ListUserIdentities_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) DeleteUserIdentity(ctx context.Context, in *DeleteUserIdentityReq, opts ...grpc.CallOption) (*DeleteUserIdentityResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteUserIdentityResp)
+	err := c.cc.Invoke(ctx, Dex_DeleteUserIdentity_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) ResetMFA(ctx context.Context, in *ResetMFAReq, opts ...grpc.CallOption) (*ResetMFAResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResetMFAResp)
+	err := c.cc.Invoke(ctx, Dex_ResetMFA_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) ListMFADevices(ctx context.Context, in *ListMFADevicesReq, opts ...grpc.CallOption) (*ListMFADevicesResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListMFADevicesResp)
+	err := c.cc.Invoke(ctx, Dex_ListMFADevices_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) DeleteWebAuthnCredential(ctx context.Context, in *DeleteWebAuthnCredentialReq, opts ...grpc.CallOption) (*DeleteWebAuthnCredentialResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteWebAuthnCredentialResp)
+	err := c.cc.Invoke(ctx, Dex_DeleteWebAuthnCredential_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) DeleteMFASecret(ctx context.Context, in *DeleteMFASecretReq, opts ...grpc.CallOption) (*DeleteMFASecretResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteMFASecretResp)
+	err := c.cc.Invoke(ctx, Dex_DeleteMFASecret_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) RevokeConsent(ctx context.Context, in *RevokeConsentReq, opts ...grpc.CallOption) (*RevokeConsentResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RevokeConsentResp)
+	err := c.cc.Invoke(ctx, Dex_RevokeConsent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DexServer is the server API for Dex service.
 // All implementations must embed UnimplementedDexServer
 // for forward compatibility.
@@ -317,6 +487,33 @@ type DexServer interface {
 	RevokeRefresh(context.Context, *RevokeRefreshReq) (*RevokeRefreshResp, error)
 	// VerifyPassword returns whether a password matches a hash for a specific email or not.
 	VerifyPassword(context.Context, *VerifyPasswordReq) (*VerifyPasswordResp, error)
+	// GetAuthSession returns an auth session by user and connector ID.
+	GetAuthSession(context.Context, *GetAuthSessionReq) (*GetAuthSessionResp, error)
+	// ListAuthSessions lists auth sessions, optionally filtered by user_id.
+	ListAuthSessions(context.Context, *ListAuthSessionsReq) (*ListAuthSessionsResp, error)
+	// DeleteAuthSession deletes an auth session and revokes associated refresh tokens.
+	DeleteAuthSession(context.Context, *DeleteAuthSessionReq) (*DeleteAuthSessionResp, error)
+	// TerminateSessionsByConnector terminates all sessions for a connector and revokes associated refresh tokens.
+	TerminateSessionsByConnector(context.Context, *TerminateSessionsByConnectorReq) (*TerminateSessionsByConnectorResp, error)
+	// TerminateSessionsByUser terminates all sessions for a user and revokes associated refresh tokens.
+	TerminateSessionsByUser(context.Context, *TerminateSessionsByUserReq) (*TerminateSessionsByUserResp, error)
+	// GetUserIdentity returns a user identity by user and connector ID.
+	GetUserIdentity(context.Context, *GetUserIdentityReq) (*GetUserIdentityResp, error)
+	// ListUserIdentities lists all user identities.
+	ListUserIdentities(context.Context, *ListUserIdentitiesReq) (*ListUserIdentitiesResp, error)
+	// DeleteUserIdentity performs a full data purge for GDPR compliance: deletes the identity,
+	// auth session, refresh tokens, and offline sessions.
+	DeleteUserIdentity(context.Context, *DeleteUserIdentityReq) (*DeleteUserIdentityResp, error)
+	// ResetMFA clears all MFA secrets and WebAuthn credentials for a user.
+	ResetMFA(context.Context, *ResetMFAReq) (*ResetMFAResp, error)
+	// ListMFADevices lists registered MFA authenticators for a user.
+	ListMFADevices(context.Context, *ListMFADevicesReq) (*ListMFADevicesResp, error)
+	// DeleteWebAuthnCredential deletes a specific WebAuthn credential.
+	DeleteWebAuthnCredential(context.Context, *DeleteWebAuthnCredentialReq) (*DeleteWebAuthnCredentialResp, error)
+	// DeleteMFASecret deletes a specific MFA authenticator and its associated WebAuthn credentials.
+	DeleteMFASecret(context.Context, *DeleteMFASecretReq) (*DeleteMFASecretResp, error)
+	// RevokeConsent revokes consent for a specific client.
+	RevokeConsent(context.Context, *RevokeConsentReq) (*RevokeConsentResp, error)
 	mustEmbedUnimplementedDexServer()
 }
 
@@ -380,6 +577,45 @@ func (UnimplementedDexServer) RevokeRefresh(context.Context, *RevokeRefreshReq) 
 }
 func (UnimplementedDexServer) VerifyPassword(context.Context, *VerifyPasswordReq) (*VerifyPasswordResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method VerifyPassword not implemented")
+}
+func (UnimplementedDexServer) GetAuthSession(context.Context, *GetAuthSessionReq) (*GetAuthSessionResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAuthSession not implemented")
+}
+func (UnimplementedDexServer) ListAuthSessions(context.Context, *ListAuthSessionsReq) (*ListAuthSessionsResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListAuthSessions not implemented")
+}
+func (UnimplementedDexServer) DeleteAuthSession(context.Context, *DeleteAuthSessionReq) (*DeleteAuthSessionResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteAuthSession not implemented")
+}
+func (UnimplementedDexServer) TerminateSessionsByConnector(context.Context, *TerminateSessionsByConnectorReq) (*TerminateSessionsByConnectorResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TerminateSessionsByConnector not implemented")
+}
+func (UnimplementedDexServer) TerminateSessionsByUser(context.Context, *TerminateSessionsByUserReq) (*TerminateSessionsByUserResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TerminateSessionsByUser not implemented")
+}
+func (UnimplementedDexServer) GetUserIdentity(context.Context, *GetUserIdentityReq) (*GetUserIdentityResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUserIdentity not implemented")
+}
+func (UnimplementedDexServer) ListUserIdentities(context.Context, *ListUserIdentitiesReq) (*ListUserIdentitiesResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListUserIdentities not implemented")
+}
+func (UnimplementedDexServer) DeleteUserIdentity(context.Context, *DeleteUserIdentityReq) (*DeleteUserIdentityResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteUserIdentity not implemented")
+}
+func (UnimplementedDexServer) ResetMFA(context.Context, *ResetMFAReq) (*ResetMFAResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResetMFA not implemented")
+}
+func (UnimplementedDexServer) ListMFADevices(context.Context, *ListMFADevicesReq) (*ListMFADevicesResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListMFADevices not implemented")
+}
+func (UnimplementedDexServer) DeleteWebAuthnCredential(context.Context, *DeleteWebAuthnCredentialReq) (*DeleteWebAuthnCredentialResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteWebAuthnCredential not implemented")
+}
+func (UnimplementedDexServer) DeleteMFASecret(context.Context, *DeleteMFASecretReq) (*DeleteMFASecretResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteMFASecret not implemented")
+}
+func (UnimplementedDexServer) RevokeConsent(context.Context, *RevokeConsentReq) (*RevokeConsentResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RevokeConsent not implemented")
 }
 func (UnimplementedDexServer) mustEmbedUnimplementedDexServer() {}
 func (UnimplementedDexServer) testEmbeddedByValue()             {}
@@ -726,6 +962,240 @@ func _Dex_VerifyPassword_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Dex_GetAuthSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAuthSessionReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).GetAuthSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Dex_GetAuthSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).GetAuthSession(ctx, req.(*GetAuthSessionReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_ListAuthSessions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAuthSessionsReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).ListAuthSessions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Dex_ListAuthSessions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).ListAuthSessions(ctx, req.(*ListAuthSessionsReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_DeleteAuthSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteAuthSessionReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).DeleteAuthSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Dex_DeleteAuthSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).DeleteAuthSession(ctx, req.(*DeleteAuthSessionReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_TerminateSessionsByConnector_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TerminateSessionsByConnectorReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).TerminateSessionsByConnector(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Dex_TerminateSessionsByConnector_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).TerminateSessionsByConnector(ctx, req.(*TerminateSessionsByConnectorReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_TerminateSessionsByUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TerminateSessionsByUserReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).TerminateSessionsByUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Dex_TerminateSessionsByUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).TerminateSessionsByUser(ctx, req.(*TerminateSessionsByUserReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_GetUserIdentity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserIdentityReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).GetUserIdentity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Dex_GetUserIdentity_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).GetUserIdentity(ctx, req.(*GetUserIdentityReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_ListUserIdentities_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListUserIdentitiesReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).ListUserIdentities(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Dex_ListUserIdentities_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).ListUserIdentities(ctx, req.(*ListUserIdentitiesReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_DeleteUserIdentity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteUserIdentityReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).DeleteUserIdentity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Dex_DeleteUserIdentity_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).DeleteUserIdentity(ctx, req.(*DeleteUserIdentityReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_ResetMFA_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResetMFAReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).ResetMFA(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Dex_ResetMFA_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).ResetMFA(ctx, req.(*ResetMFAReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_ListMFADevices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMFADevicesReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).ListMFADevices(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Dex_ListMFADevices_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).ListMFADevices(ctx, req.(*ListMFADevicesReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_DeleteWebAuthnCredential_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteWebAuthnCredentialReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).DeleteWebAuthnCredential(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Dex_DeleteWebAuthnCredential_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).DeleteWebAuthnCredential(ctx, req.(*DeleteWebAuthnCredentialReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_DeleteMFASecret_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteMFASecretReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).DeleteMFASecret(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Dex_DeleteMFASecret_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).DeleteMFASecret(ctx, req.(*DeleteMFASecretReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_RevokeConsent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeConsentReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).RevokeConsent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Dex_RevokeConsent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).RevokeConsent(ctx, req.(*RevokeConsentReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Dex_ServiceDesc is the grpc.ServiceDesc for Dex service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -804,6 +1274,58 @@ var Dex_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "VerifyPassword",
 			Handler:    _Dex_VerifyPassword_Handler,
+		},
+		{
+			MethodName: "GetAuthSession",
+			Handler:    _Dex_GetAuthSession_Handler,
+		},
+		{
+			MethodName: "ListAuthSessions",
+			Handler:    _Dex_ListAuthSessions_Handler,
+		},
+		{
+			MethodName: "DeleteAuthSession",
+			Handler:    _Dex_DeleteAuthSession_Handler,
+		},
+		{
+			MethodName: "TerminateSessionsByConnector",
+			Handler:    _Dex_TerminateSessionsByConnector_Handler,
+		},
+		{
+			MethodName: "TerminateSessionsByUser",
+			Handler:    _Dex_TerminateSessionsByUser_Handler,
+		},
+		{
+			MethodName: "GetUserIdentity",
+			Handler:    _Dex_GetUserIdentity_Handler,
+		},
+		{
+			MethodName: "ListUserIdentities",
+			Handler:    _Dex_ListUserIdentities_Handler,
+		},
+		{
+			MethodName: "DeleteUserIdentity",
+			Handler:    _Dex_DeleteUserIdentity_Handler,
+		},
+		{
+			MethodName: "ResetMFA",
+			Handler:    _Dex_ResetMFA_Handler,
+		},
+		{
+			MethodName: "ListMFADevices",
+			Handler:    _Dex_ListMFADevices_Handler,
+		},
+		{
+			MethodName: "DeleteWebAuthnCredential",
+			Handler:    _Dex_DeleteWebAuthnCredential_Handler,
+		},
+		{
+			MethodName: "DeleteMFASecret",
+			Handler:    _Dex_DeleteMFASecret_Handler,
+		},
+		{
+			MethodName: "RevokeConsent",
+			Handler:    _Dex_RevokeConsent_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"log/slog"
 	"net"
 	"slices"
@@ -922,5 +923,897 @@ func TestListClients(t *testing.T) {
 		if c2.LogoUrl != "http://example.com/logo2.png" {
 			t.Errorf("Expected client2 logo URL 'http://example.com/logo2.png', got '%s'", c2.LogoUrl)
 		}
+	}
+}
+
+func TestGetAuthSession(t *testing.T) {
+	t.Setenv("DEX_API_SESSIONS_IDENTITIES_CRUD", "true")
+
+	logger := newLogger(t)
+	s := memory.New(logger)
+
+	client := newAPI(t, s, logger)
+	defer client.Close()
+
+	ctx := t.Context()
+
+	now := time.Now().UTC().Round(time.Second)
+	session := storage.AuthSession{
+		UserID:      "user1",
+		ConnectorID: "conn1",
+		Nonce:       "nonce123",
+		ClientStates: map[string]*storage.ClientAuthState{
+			"client-a": {
+				Active:            true,
+				ExpiresAt:         now.Add(24 * time.Hour),
+				LastActivity:      now,
+				LastTokenIssuedAt: now,
+			},
+		},
+		CreatedAt:      now,
+		LastActivity:   now,
+		IPAddress:      "10.0.0.1",
+		UserAgent:      "TestAgent/1.0",
+		AbsoluteExpiry: now.Add(24 * time.Hour),
+		IdleExpiry:     now.Add(1 * time.Hour),
+	}
+
+	if err := s.CreateAuthSession(ctx, session); err != nil {
+		t.Fatalf("create auth session: %v", err)
+	}
+
+	resp, err := client.GetAuthSession(ctx, &api.GetAuthSessionReq{
+		UserId:      "user1",
+		ConnectorId: "conn1",
+	})
+	if err != nil {
+		t.Fatalf("get auth session: %v", err)
+	}
+
+	if resp.Session.UserId != "user1" {
+		t.Errorf("expected user_id 'user1', got '%s'", resp.Session.UserId)
+	}
+	if resp.Session.IpAddress != "10.0.0.1" {
+		t.Errorf("expected ip_address '10.0.0.1', got '%s'", resp.Session.IpAddress)
+	}
+	if len(resp.Session.ClientStates) != 1 {
+		t.Fatalf("expected 1 client state, got %d", len(resp.Session.ClientStates))
+	}
+	cs := resp.Session.ClientStates[0]
+	if cs.ClientId != "client-a" {
+		t.Errorf("expected client_id 'client-a', got '%s'", cs.ClientId)
+	}
+	if !cs.Active {
+		t.Error("expected client state to be active")
+	}
+
+	// Not found case.
+	_, err = client.GetAuthSession(ctx, &api.GetAuthSessionReq{
+		UserId:      "nonexistent",
+		ConnectorId: "conn1",
+	})
+	if err == nil {
+		t.Fatal("expected error for non-existent session")
+	}
+}
+
+func TestListAuthSessions(t *testing.T) {
+	t.Setenv("DEX_API_SESSIONS_IDENTITIES_CRUD", "true")
+
+	logger := newLogger(t)
+	s := memory.New(logger)
+
+	client := newAPI(t, s, logger)
+	defer client.Close()
+
+	ctx := t.Context()
+
+	now := time.Now().UTC().Round(time.Second)
+	for _, sess := range []storage.AuthSession{
+		{UserID: "user1", ConnectorID: "conn1", Nonce: "n1", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
+		{UserID: "user1", ConnectorID: "conn2", Nonce: "n2", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
+		{UserID: "user2", ConnectorID: "conn1", Nonce: "n3", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
+	} {
+		if err := s.CreateAuthSession(ctx, sess); err != nil {
+			t.Fatalf("create auth session: %v", err)
+		}
+	}
+
+	// List all.
+	resp, err := client.ListAuthSessions(ctx, &api.ListAuthSessionsReq{})
+	if err != nil {
+		t.Fatalf("list auth sessions: %v", err)
+	}
+	if len(resp.Sessions) != 3 {
+		t.Fatalf("expected 3 sessions, got %d", len(resp.Sessions))
+	}
+
+	// Filter by user_id.
+	resp, err = client.ListAuthSessions(ctx, &api.ListAuthSessionsReq{UserId: "user1"})
+	if err != nil {
+		t.Fatalf("list auth sessions with filter: %v", err)
+	}
+	if len(resp.Sessions) != 2 {
+		t.Fatalf("expected 2 sessions for user1, got %d", len(resp.Sessions))
+	}
+}
+
+func TestDeleteAuthSession(t *testing.T) {
+	t.Setenv("DEX_API_SESSIONS_IDENTITIES_CRUD", "true")
+
+	logger := newLogger(t)
+	s := memory.New(logger)
+
+	client := newAPI(t, s, logger)
+	defer client.Close()
+
+	ctx := t.Context()
+
+	now := time.Now().UTC().Round(time.Second)
+
+	// Create session.
+	session := storage.AuthSession{
+		UserID: "user1", ConnectorID: "conn1", Nonce: "n1",
+		ClientStates:   map[string]*storage.ClientAuthState{},
+		CreatedAt:      now,
+		LastActivity:   now,
+		AbsoluteExpiry: now.Add(time.Hour),
+		IdleExpiry:     now.Add(time.Hour),
+	}
+	if err := s.CreateAuthSession(ctx, session); err != nil {
+		t.Fatalf("create auth session: %v", err)
+	}
+
+	// Create refresh token + offline session to verify cascading revocation.
+	refreshID := storage.NewID()
+	if err := s.CreateRefresh(ctx, storage.RefreshToken{
+		ID: refreshID, Token: "tok", Nonce: "n", ClientID: "client1", ConnectorID: "conn1",
+		Scopes: []string{"openid"}, CreatedAt: now, LastUsed: now,
+		Claims: storage.Claims{UserID: "user1", Username: "test", Email: "test@test.com"},
+	}); err != nil {
+		t.Fatalf("create refresh: %v", err)
+	}
+	if err := s.CreateOfflineSessions(ctx, storage.OfflineSessions{
+		UserID: "user1", ConnID: "conn1",
+		Refresh: map[string]*storage.RefreshTokenRef{
+			"client1": {ID: refreshID, ClientID: "client1", CreatedAt: now, LastUsed: now},
+		},
+	}); err != nil {
+		t.Fatalf("create offline sessions: %v", err)
+	}
+
+	// Delete session.
+	resp, err := client.DeleteAuthSession(ctx, &api.DeleteAuthSessionReq{
+		UserId: "user1", ConnectorId: "conn1",
+	})
+	if err != nil {
+		t.Fatalf("delete auth session: %v", err)
+	}
+	if resp.NotFound {
+		t.Error("expected session to be found")
+	}
+
+	// Verify session is gone.
+	_, err = s.GetAuthSession(ctx, "user1", "conn1")
+	if err == nil {
+		t.Error("expected auth session to be deleted")
+	}
+
+	// Verify refresh token was revoked.
+	_, err = s.GetRefresh(ctx, refreshID)
+	if err == nil {
+		t.Error("expected refresh token to be revoked")
+	}
+
+	// Not found case.
+	resp, err = client.DeleteAuthSession(ctx, &api.DeleteAuthSessionReq{
+		UserId: "user1", ConnectorId: "conn1",
+	})
+	if err != nil {
+		t.Fatalf("delete auth session: %v", err)
+	}
+	if !resp.NotFound {
+		t.Error("expected not_found for already deleted session")
+	}
+}
+
+func TestTerminateSessionsByConnector(t *testing.T) {
+	t.Setenv("DEX_API_SESSIONS_IDENTITIES_CRUD", "true")
+
+	logger := newLogger(t)
+	s := memory.New(logger)
+
+	client := newAPI(t, s, logger)
+	defer client.Close()
+
+	ctx := t.Context()
+
+	now := time.Now().UTC().Round(time.Second)
+	for _, sess := range []storage.AuthSession{
+		{UserID: "user1", ConnectorID: "target-conn", Nonce: "n1", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
+		{UserID: "user2", ConnectorID: "target-conn", Nonce: "n2", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
+		{UserID: "user3", ConnectorID: "other-conn", Nonce: "n3", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
+	} {
+		if err := s.CreateAuthSession(ctx, sess); err != nil {
+			t.Fatalf("create auth session: %v", err)
+		}
+	}
+
+	resp, err := client.TerminateSessionsByConnector(ctx, &api.TerminateSessionsByConnectorReq{
+		ConnectorId: "target-conn",
+	})
+	if err != nil {
+		t.Fatalf("terminate sessions by connector: %v", err)
+	}
+	if resp.SessionsTerminated != 2 {
+		t.Errorf("expected 2 terminated, got %d", resp.SessionsTerminated)
+	}
+
+	// Verify remaining session is untouched.
+	remaining, err := s.ListAuthSessions(ctx)
+	if err != nil {
+		t.Fatalf("list auth sessions: %v", err)
+	}
+	if len(remaining) != 1 || remaining[0].ConnectorID != "other-conn" {
+		t.Errorf("expected only other-conn session to remain, got %v", remaining)
+	}
+}
+
+func TestTerminateSessionsByUser(t *testing.T) {
+	t.Setenv("DEX_API_SESSIONS_IDENTITIES_CRUD", "true")
+
+	logger := newLogger(t)
+	s := memory.New(logger)
+
+	client := newAPI(t, s, logger)
+	defer client.Close()
+
+	ctx := t.Context()
+
+	now := time.Now().UTC().Round(time.Second)
+	for _, sess := range []storage.AuthSession{
+		{UserID: "target-user", ConnectorID: "conn1", Nonce: "n1", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
+		{UserID: "target-user", ConnectorID: "conn2", Nonce: "n2", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
+		{UserID: "other-user", ConnectorID: "conn1", Nonce: "n3", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
+	} {
+		if err := s.CreateAuthSession(ctx, sess); err != nil {
+			t.Fatalf("create auth session: %v", err)
+		}
+	}
+
+	resp, err := client.TerminateSessionsByUser(ctx, &api.TerminateSessionsByUserReq{
+		UserId: "target-user",
+	})
+	if err != nil {
+		t.Fatalf("terminate sessions by user: %v", err)
+	}
+	if resp.SessionsTerminated != 2 {
+		t.Errorf("expected 2 terminated, got %d", resp.SessionsTerminated)
+	}
+
+	remaining, err := s.ListAuthSessions(ctx)
+	if err != nil {
+		t.Fatalf("list auth sessions: %v", err)
+	}
+	if len(remaining) != 1 || remaining[0].UserID != "other-user" {
+		t.Errorf("expected only other-user session to remain")
+	}
+}
+
+func TestGetUserIdentity(t *testing.T) {
+	t.Setenv("DEX_API_SESSIONS_IDENTITIES_CRUD", "true")
+
+	logger := newLogger(t)
+	s := memory.New(logger)
+
+	client := newAPI(t, s, logger)
+	defer client.Close()
+
+	ctx := t.Context()
+
+	now := time.Now().UTC().Round(time.Second)
+	identity := storage.UserIdentity{
+		UserID:      "user1",
+		ConnectorID: "conn1",
+		Claims: storage.Claims{
+			UserID:        "user1",
+			Username:      "testuser",
+			Email:         "test@example.com",
+			EmailVerified: true,
+			Groups:        []string{"admins"},
+		},
+		Consents: map[string][]string{
+			"client-a": {"openid", "email"},
+		},
+		MFASecrets: map[string]*storage.MFASecret{
+			"totp-1": {AuthenticatorID: "totp-1", Type: "TOTP", Secret: "secret123", Confirmed: true, CreatedAt: now},
+		},
+		WebAuthnCredentials: map[string][]storage.WebAuthnCredential{
+			"webauthn-1": {{CredentialID: []byte("cred1"), AttestationType: "none", DisplayName: "YubiKey", CreatedAt: now}},
+		},
+		CreatedAt: now,
+		LastLogin: now,
+	}
+
+	if err := s.CreateUserIdentity(ctx, identity); err != nil {
+		t.Fatalf("create user identity: %v", err)
+	}
+
+	resp, err := client.GetUserIdentity(ctx, &api.GetUserIdentityReq{
+		UserId: "user1", ConnectorId: "conn1",
+	})
+	if err != nil {
+		t.Fatalf("get user identity: %v", err)
+	}
+
+	if resp.Identity.Email != "test@example.com" {
+		t.Errorf("expected email 'test@example.com', got '%s'", resp.Identity.Email)
+	}
+	if !resp.Identity.EmailVerified {
+		t.Error("expected email_verified true")
+	}
+	if resp.Identity.Username != "testuser" {
+		t.Errorf("expected username 'testuser', got '%s'", resp.Identity.Username)
+	}
+	if len(resp.Identity.Consents) != 1 {
+		t.Fatalf("expected 1 consent entry, got %d", len(resp.Identity.Consents))
+	}
+	if len(resp.Identity.MfaDevices) == 0 {
+		t.Fatal("expected MFA devices")
+	}
+}
+
+func TestListUserIdentities(t *testing.T) {
+	t.Setenv("DEX_API_SESSIONS_IDENTITIES_CRUD", "true")
+
+	logger := newLogger(t)
+	s := memory.New(logger)
+
+	client := newAPI(t, s, logger)
+	defer client.Close()
+
+	ctx := t.Context()
+
+	now := time.Now().UTC().Round(time.Second)
+	for _, id := range []storage.UserIdentity{
+		{UserID: "user1", ConnectorID: "conn1", Claims: storage.Claims{Email: "a@test.com"}, CreatedAt: now, LastLogin: now},
+		{UserID: "user2", ConnectorID: "conn1", Claims: storage.Claims{Email: "b@test.com"}, CreatedAt: now, LastLogin: now},
+	} {
+		if err := s.CreateUserIdentity(ctx, id); err != nil {
+			t.Fatalf("create user identity: %v", err)
+		}
+	}
+
+	resp, err := client.ListUserIdentities(ctx, &api.ListUserIdentitiesReq{})
+	if err != nil {
+		t.Fatalf("list user identities: %v", err)
+	}
+	if len(resp.Identities) != 2 {
+		t.Fatalf("expected 2 identities, got %d", len(resp.Identities))
+	}
+}
+
+func TestDeleteUserIdentity(t *testing.T) {
+	t.Setenv("DEX_API_SESSIONS_IDENTITIES_CRUD", "true")
+
+	logger := newLogger(t)
+	s := memory.New(logger)
+
+	client := newAPI(t, s, logger)
+	defer client.Close()
+
+	ctx := t.Context()
+
+	now := time.Now().UTC().Round(time.Second)
+
+	// Create identity + session + offline sessions + refresh token.
+	if err := s.CreateUserIdentity(ctx, storage.UserIdentity{
+		UserID: "user1", ConnectorID: "conn1",
+		Claims: storage.Claims{Email: "test@test.com"}, CreatedAt: now, LastLogin: now,
+	}); err != nil {
+		t.Fatalf("create user identity: %v", err)
+	}
+	if err := s.CreateAuthSession(ctx, storage.AuthSession{
+		UserID: "user1", ConnectorID: "conn1", Nonce: "n",
+		ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now,
+		AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("create auth session: %v", err)
+	}
+	refreshID := storage.NewID()
+	if err := s.CreateRefresh(ctx, storage.RefreshToken{
+		ID: refreshID, Token: "tok", Nonce: "n", ClientID: "c1", ConnectorID: "conn1",
+		Scopes: []string{"openid"}, CreatedAt: now, LastUsed: now,
+		Claims: storage.Claims{UserID: "user1", Email: "test@test.com"},
+	}); err != nil {
+		t.Fatalf("create refresh: %v", err)
+	}
+	if err := s.CreateOfflineSessions(ctx, storage.OfflineSessions{
+		UserID: "user1", ConnID: "conn1",
+		Refresh: map[string]*storage.RefreshTokenRef{
+			"c1": {ID: refreshID, ClientID: "c1", CreatedAt: now, LastUsed: now},
+		},
+	}); err != nil {
+		t.Fatalf("create offline sessions: %v", err)
+	}
+	// Password record linked by the identity's email — must be purged too (GDPR).
+	if err := s.CreatePassword(ctx, storage.Password{
+		Email: "test@test.com", Hash: []byte("$2y$10$XXXXXXXXXXXXXXXXXXXXXX"), Username: "test", UserID: "user1",
+	}); err != nil {
+		t.Fatalf("create password: %v", err)
+	}
+
+	// Delete identity (cascading).
+	resp, err := client.DeleteUserIdentity(ctx, &api.DeleteUserIdentityReq{
+		UserId: "user1", ConnectorId: "conn1",
+	})
+	if err != nil {
+		t.Fatalf("delete user identity: %v", err)
+	}
+	if resp.NotFound {
+		t.Error("expected identity to be found")
+	}
+
+	// Verify everything is deleted.
+	if _, err := s.GetUserIdentity(ctx, "user1", "conn1"); err == nil {
+		t.Error("expected user identity to be deleted")
+	}
+	if _, err := s.GetAuthSession(ctx, "user1", "conn1"); err == nil {
+		t.Error("expected auth session to be deleted")
+	}
+	if _, err := s.GetRefresh(ctx, refreshID); err == nil {
+		t.Error("expected refresh token to be deleted")
+	}
+	if _, err := s.GetOfflineSessions(ctx, "user1", "conn1"); err == nil {
+		t.Error("expected offline sessions to be deleted")
+	}
+	if _, err := s.GetPassword(ctx, "test@test.com"); err == nil {
+		t.Error("expected password record to be deleted")
+	}
+
+	// Not found case.
+	resp, err = client.DeleteUserIdentity(ctx, &api.DeleteUserIdentityReq{
+		UserId: "user1", ConnectorId: "conn1",
+	})
+	if err != nil {
+		t.Fatalf("delete user identity: %v", err)
+	}
+	if !resp.NotFound {
+		t.Error("expected not_found for already deleted identity")
+	}
+}
+
+func TestResetMFA(t *testing.T) {
+	t.Setenv("DEX_API_SESSIONS_IDENTITIES_CRUD", "true")
+
+	logger := newLogger(t)
+	s := memory.New(logger)
+
+	client := newAPI(t, s, logger)
+	defer client.Close()
+
+	ctx := t.Context()
+
+	now := time.Now().UTC().Round(time.Second)
+	if err := s.CreateUserIdentity(ctx, storage.UserIdentity{
+		UserID: "user1", ConnectorID: "conn1",
+		Claims: storage.Claims{Email: "test@test.com"}, CreatedAt: now, LastLogin: now,
+		MFASecrets: map[string]*storage.MFASecret{
+			"totp-1": {AuthenticatorID: "totp-1", Type: "TOTP", Secret: "s", Confirmed: true, CreatedAt: now},
+		},
+		WebAuthnCredentials: map[string][]storage.WebAuthnCredential{
+			"webauthn-1": {{CredentialID: []byte("c1"), CreatedAt: now}},
+		},
+	}); err != nil {
+		t.Fatalf("create user identity: %v", err)
+	}
+
+	resp, err := client.ResetMFA(ctx, &api.ResetMFAReq{
+		UserId: "user1", ConnectorId: "conn1",
+	})
+	if err != nil {
+		t.Fatalf("reset MFA: %v", err)
+	}
+	if resp.NotFound {
+		t.Error("expected identity to be found")
+	}
+
+	// Verify MFA data is cleared.
+	identity, err := s.GetUserIdentity(ctx, "user1", "conn1")
+	if err != nil {
+		t.Fatalf("get user identity: %v", err)
+	}
+	if len(identity.MFASecrets) != 0 {
+		t.Errorf("expected MFASecrets to be cleared, got %d", len(identity.MFASecrets))
+	}
+	if len(identity.WebAuthnCredentials) != 0 {
+		t.Errorf("expected WebAuthnCredentials to be cleared, got %d", len(identity.WebAuthnCredentials))
+	}
+	// Verify other fields are preserved.
+	if identity.Claims.Email != "test@test.com" {
+		t.Errorf("expected email to be preserved, got '%s'", identity.Claims.Email)
+	}
+}
+
+func TestListMFADevices(t *testing.T) {
+	t.Setenv("DEX_API_SESSIONS_IDENTITIES_CRUD", "true")
+
+	logger := newLogger(t)
+	s := memory.New(logger)
+
+	client := newAPI(t, s, logger)
+	defer client.Close()
+
+	ctx := t.Context()
+
+	now := time.Now().UTC().Round(time.Second)
+	if err := s.CreateUserIdentity(ctx, storage.UserIdentity{
+		UserID: "user1", ConnectorID: "conn1",
+		Claims: storage.Claims{Email: "test@test.com"}, CreatedAt: now, LastLogin: now,
+		MFASecrets: map[string]*storage.MFASecret{
+			"totp-1": {AuthenticatorID: "totp-1", Type: "TOTP", Secret: "secret123", Confirmed: true, CreatedAt: now},
+		},
+		WebAuthnCredentials: map[string][]storage.WebAuthnCredential{
+			"webauthn-1": {
+				{CredentialID: []byte("cred1"), PublicKey: []byte("pk1"), DisplayName: "Key1", CreatedAt: now},
+				{CredentialID: []byte("cred2"), PublicKey: []byte("pk2"), DisplayName: "Key2", CreatedAt: now},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("create user identity: %v", err)
+	}
+
+	resp, err := client.ListMFADevices(ctx, &api.ListMFADevicesReq{
+		UserId: "user1", ConnectorId: "conn1",
+	})
+	if err != nil {
+		t.Fatalf("list MFA devices: %v", err)
+	}
+	if len(resp.Devices) != 2 {
+		t.Fatalf("expected 2 device groups, got %d", len(resp.Devices))
+	}
+
+	// Find the TOTP device and verify secret is not exposed.
+	for _, device := range resp.Devices {
+		if device.AuthenticatorId == "totp-1" {
+			if device.MfaSecret == nil {
+				t.Fatal("expected MFA secret for totp-1")
+			}
+			if device.MfaSecret.Type != "TOTP" {
+				t.Errorf("expected type TOTP, got %s", device.MfaSecret.Type)
+			}
+		}
+		if device.AuthenticatorId == "webauthn-1" {
+			if len(device.WebauthnCredentials) != 2 {
+				t.Errorf("expected 2 webauthn credentials, got %d", len(device.WebauthnCredentials))
+			}
+		}
+	}
+}
+
+func TestDeleteWebAuthnCredential(t *testing.T) {
+	t.Setenv("DEX_API_SESSIONS_IDENTITIES_CRUD", "true")
+
+	logger := newLogger(t)
+	s := memory.New(logger)
+
+	client := newAPI(t, s, logger)
+	defer client.Close()
+
+	ctx := t.Context()
+
+	now := time.Now().UTC().Round(time.Second)
+	if err := s.CreateUserIdentity(ctx, storage.UserIdentity{
+		UserID: "user1", ConnectorID: "conn1",
+		Claims: storage.Claims{Email: "test@test.com"}, CreatedAt: now, LastLogin: now,
+		WebAuthnCredentials: map[string][]storage.WebAuthnCredential{
+			"auth-1": {
+				{CredentialID: []byte("cred-to-delete"), DisplayName: "Key1", CreatedAt: now},
+				{CredentialID: []byte("cred-to-keep"), DisplayName: "Key2", CreatedAt: now},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("create user identity: %v", err)
+	}
+
+	// Delete one credential.
+	resp, err := client.DeleteWebAuthnCredential(ctx, &api.DeleteWebAuthnCredentialReq{
+		UserId: "user1", ConnectorId: "conn1", CredentialId: []byte("cred-to-delete"),
+	})
+	if err != nil {
+		t.Fatalf("delete webauthn credential: %v", err)
+	}
+	if resp.NotFound {
+		t.Error("expected credential to be found")
+	}
+
+	// Verify only one credential remains.
+	identity, err := s.GetUserIdentity(ctx, "user1", "conn1")
+	if err != nil {
+		t.Fatalf("get user identity: %v", err)
+	}
+	creds := identity.WebAuthnCredentials["auth-1"]
+	if len(creds) != 1 {
+		t.Fatalf("expected 1 credential remaining, got %d", len(creds))
+	}
+	if !bytes.Equal(creds[0].CredentialID, []byte("cred-to-keep")) {
+		t.Error("wrong credential was deleted")
+	}
+
+	// Not found case.
+	resp, err = client.DeleteWebAuthnCredential(ctx, &api.DeleteWebAuthnCredentialReq{
+		UserId: "user1", ConnectorId: "conn1", CredentialId: []byte("nonexistent"),
+	})
+	if err != nil {
+		t.Fatalf("delete webauthn credential: %v", err)
+	}
+	if !resp.NotFound {
+		t.Error("expected not_found for nonexistent credential")
+	}
+}
+
+func TestDeleteMFASecret(t *testing.T) {
+	t.Setenv("DEX_API_SESSIONS_IDENTITIES_CRUD", "true")
+
+	logger := newLogger(t)
+	s := memory.New(logger)
+
+	client := newAPI(t, s, logger)
+	defer client.Close()
+
+	ctx := t.Context()
+
+	now := time.Now().UTC().Round(time.Second)
+	if err := s.CreateUserIdentity(ctx, storage.UserIdentity{
+		UserID: "user1", ConnectorID: "conn1",
+		Claims: storage.Claims{Email: "test@test.com"}, CreatedAt: now, LastLogin: now,
+		MFASecrets: map[string]*storage.MFASecret{
+			"totp-1": {AuthenticatorID: "totp-1", Type: "TOTP", Secret: "s", Confirmed: true, CreatedAt: now},
+			"totp-2": {AuthenticatorID: "totp-2", Type: "TOTP", Secret: "s2", Confirmed: true, CreatedAt: now},
+		},
+		WebAuthnCredentials: map[string][]storage.WebAuthnCredential{
+			"totp-1": {{CredentialID: []byte("c1"), CreatedAt: now}},
+		},
+	}); err != nil {
+		t.Fatalf("create user identity: %v", err)
+	}
+
+	// Delete totp-1 (should also remove associated webauthn credentials).
+	resp, err := client.DeleteMFASecret(ctx, &api.DeleteMFASecretReq{
+		UserId: "user1", ConnectorId: "conn1", AuthenticatorId: "totp-1",
+	})
+	if err != nil {
+		t.Fatalf("delete MFA secret: %v", err)
+	}
+	if resp.NotFound {
+		t.Error("expected authenticator to be found")
+	}
+
+	identity, err := s.GetUserIdentity(ctx, "user1", "conn1")
+	if err != nil {
+		t.Fatalf("get user identity: %v", err)
+	}
+	if _, ok := identity.MFASecrets["totp-1"]; ok {
+		t.Error("expected totp-1 to be deleted")
+	}
+	if _, ok := identity.MFASecrets["totp-2"]; !ok {
+		t.Error("expected totp-2 to remain")
+	}
+	if _, ok := identity.WebAuthnCredentials["totp-1"]; ok {
+		t.Error("expected webauthn credentials for totp-1 to be deleted")
+	}
+
+	// Not found case.
+	resp, err = client.DeleteMFASecret(ctx, &api.DeleteMFASecretReq{
+		UserId: "user1", ConnectorId: "conn1", AuthenticatorId: "nonexistent",
+	})
+	if err != nil {
+		t.Fatalf("delete MFA secret: %v", err)
+	}
+	if !resp.NotFound {
+		t.Error("expected not_found for nonexistent authenticator")
+	}
+}
+
+func TestRevokeConsent(t *testing.T) {
+	t.Setenv("DEX_API_SESSIONS_IDENTITIES_CRUD", "true")
+
+	logger := newLogger(t)
+	s := memory.New(logger)
+
+	client := newAPI(t, s, logger)
+	defer client.Close()
+
+	ctx := t.Context()
+
+	now := time.Now().UTC().Round(time.Second)
+	if err := s.CreateUserIdentity(ctx, storage.UserIdentity{
+		UserID: "user1", ConnectorID: "conn1",
+		Claims: storage.Claims{Email: "test@test.com"}, CreatedAt: now, LastLogin: now,
+		Consents: map[string][]string{
+			"client-a": {"openid", "email"},
+			"client-b": {"openid"},
+		},
+	}); err != nil {
+		t.Fatalf("create user identity: %v", err)
+	}
+
+	// Revoke consent for client-a.
+	resp, err := client.RevokeConsent(ctx, &api.RevokeConsentReq{
+		UserId: "user1", ConnectorId: "conn1", ClientId: "client-a",
+	})
+	if err != nil {
+		t.Fatalf("revoke consent: %v", err)
+	}
+	if resp.NotFound {
+		t.Error("expected consent to be found")
+	}
+
+	// Verify only client-b consent remains.
+	identity, err := s.GetUserIdentity(ctx, "user1", "conn1")
+	if err != nil {
+		t.Fatalf("get user identity: %v", err)
+	}
+	if _, ok := identity.Consents["client-a"]; ok {
+		t.Error("expected client-a consent to be revoked")
+	}
+	if _, ok := identity.Consents["client-b"]; !ok {
+		t.Error("expected client-b consent to remain")
+	}
+
+	// Not found case.
+	resp, err = client.RevokeConsent(ctx, &api.RevokeConsentReq{
+		UserId: "user1", ConnectorId: "conn1", ClientId: "nonexistent",
+	})
+	if err != nil {
+		t.Fatalf("revoke consent: %v", err)
+	}
+	if !resp.NotFound {
+		t.Error("expected not_found for nonexistent consent")
+	}
+}
+
+func TestMissingSessionsIdentitiesCRUDFeatureFlag(t *testing.T) {
+	logger := newLogger(t)
+	s := memory.New(logger)
+
+	client := newAPI(t, s, logger)
+	defer client.Close()
+
+	ctx := t.Context()
+
+	if _, err := client.GetAuthSession(ctx, &api.GetAuthSessionReq{UserId: "u", ConnectorId: "c"}); err == nil {
+		t.Error("GetAuthSession should fail without feature flag")
+	}
+	if _, err := client.ListAuthSessions(ctx, &api.ListAuthSessionsReq{}); err == nil {
+		t.Error("ListAuthSessions should fail without feature flag")
+	}
+	if _, err := client.DeleteAuthSession(ctx, &api.DeleteAuthSessionReq{UserId: "u", ConnectorId: "c"}); err == nil {
+		t.Error("DeleteAuthSession should fail without feature flag")
+	}
+	if _, err := client.TerminateSessionsByConnector(ctx, &api.TerminateSessionsByConnectorReq{ConnectorId: "c"}); err == nil {
+		t.Error("TerminateSessionsByConnector should fail without feature flag")
+	}
+	if _, err := client.TerminateSessionsByUser(ctx, &api.TerminateSessionsByUserReq{UserId: "u"}); err == nil {
+		t.Error("TerminateSessionsByUser should fail without feature flag")
+	}
+	if _, err := client.GetUserIdentity(ctx, &api.GetUserIdentityReq{UserId: "u", ConnectorId: "c"}); err == nil {
+		t.Error("GetUserIdentity should fail without feature flag")
+	}
+	if _, err := client.ListUserIdentities(ctx, &api.ListUserIdentitiesReq{}); err == nil {
+		t.Error("ListUserIdentities should fail without feature flag")
+	}
+	if _, err := client.DeleteUserIdentity(ctx, &api.DeleteUserIdentityReq{UserId: "u", ConnectorId: "c"}); err == nil {
+		t.Error("DeleteUserIdentity should fail without feature flag")
+	}
+	if _, err := client.ResetMFA(ctx, &api.ResetMFAReq{UserId: "u", ConnectorId: "c"}); err == nil {
+		t.Error("ResetMFA should fail without feature flag")
+	}
+	if _, err := client.ListMFADevices(ctx, &api.ListMFADevicesReq{UserId: "u", ConnectorId: "c"}); err == nil {
+		t.Error("ListMFADevices should fail without feature flag")
+	}
+	if _, err := client.DeleteWebAuthnCredential(ctx, &api.DeleteWebAuthnCredentialReq{UserId: "u", ConnectorId: "c", CredentialId: []byte("cred")}); err == nil {
+		t.Error("DeleteWebAuthnCredential should fail without feature flag")
+	}
+	if _, err := client.DeleteMFASecret(ctx, &api.DeleteMFASecretReq{UserId: "u", ConnectorId: "c", AuthenticatorId: "a"}); err == nil {
+		t.Error("DeleteMFASecret should fail without feature flag")
+	}
+	if _, err := client.RevokeConsent(ctx, &api.RevokeConsentReq{UserId: "u", ConnectorId: "c", ClientId: "cl"}); err == nil {
+		t.Error("RevokeConsent should fail without feature flag")
+	}
+}
+
+// TestSessionsIdentitiesZeroTimeConversion verifies that unset time.Time fields
+// serialize to 0 rather than the misleading year-1 epoch (-62135596800) that a
+// naive t.Unix() produces.
+func TestSessionsIdentitiesZeroTimeConversion(t *testing.T) {
+	t.Setenv("DEX_API_SESSIONS_IDENTITIES_CRUD", "true")
+
+	logger := newLogger(t)
+	s := memory.New(logger)
+
+	client := newAPI(t, s, logger)
+	defer client.Close()
+
+	ctx := t.Context()
+
+	now := time.Now().UTC().Round(time.Second)
+
+	// Client authenticated but no token issued yet: LastTokenIssuedAt is zero.
+	if err := s.CreateAuthSession(ctx, storage.AuthSession{
+		UserID: "user1", ConnectorID: "conn1", Nonce: "n",
+		ClientStates: map[string]*storage.ClientAuthState{
+			"client-a": {Active: true, ExpiresAt: now.Add(time.Hour), LastActivity: now},
+		},
+		CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("create auth session: %v", err)
+	}
+
+	sessResp, err := client.GetAuthSession(ctx, &api.GetAuthSessionReq{UserId: "user1", ConnectorId: "conn1"})
+	if err != nil {
+		t.Fatalf("get auth session: %v", err)
+	}
+	if len(sessResp.Session.ClientStates) != 1 {
+		t.Fatalf("expected 1 client state, got %d", len(sessResp.Session.ClientStates))
+	}
+	if got := sessResp.Session.ClientStates[0].LastTokenIssuedAt; got != 0 {
+		t.Errorf("expected last_token_issued_at 0 for unset time, got %d", got)
+	}
+
+	// Identity that has never logged in and is not blocked: LastLogin and
+	// BlockedUntil are zero.
+	if err := s.CreateUserIdentity(ctx, storage.UserIdentity{
+		UserID: "user1", ConnectorID: "conn1",
+		Claims: storage.Claims{Email: "test@test.com"}, CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("create user identity: %v", err)
+	}
+
+	idResp, err := client.GetUserIdentity(ctx, &api.GetUserIdentityReq{UserId: "user1", ConnectorId: "conn1"})
+	if err != nil {
+		t.Fatalf("get user identity: %v", err)
+	}
+	if got := idResp.Identity.LastLogin; got != 0 {
+		t.Errorf("expected last_login 0 for unset time, got %d", got)
+	}
+	if got := idResp.Identity.BlockedUntil; got != 0 {
+		t.Errorf("expected blocked_until 0 for unset time, got %d", got)
+	}
+}
+
+// TestSessionsIdentitiesValidation verifies that handlers reject requests
+// missing required fields.
+func TestSessionsIdentitiesValidation(t *testing.T) {
+	t.Setenv("DEX_API_SESSIONS_IDENTITIES_CRUD", "true")
+
+	logger := newLogger(t)
+	s := memory.New(logger)
+
+	client := newAPI(t, s, logger)
+	defer client.Close()
+
+	ctx := t.Context()
+
+	if _, err := client.GetAuthSession(ctx, &api.GetAuthSessionReq{ConnectorId: "c"}); err == nil {
+		t.Error("GetAuthSession should reject empty user_id")
+	}
+	if _, err := client.GetAuthSession(ctx, &api.GetAuthSessionReq{UserId: "u"}); err == nil {
+		t.Error("GetAuthSession should reject empty connector_id")
+	}
+	if _, err := client.TerminateSessionsByConnector(ctx, &api.TerminateSessionsByConnectorReq{}); err == nil {
+		t.Error("TerminateSessionsByConnector should reject empty connector_id")
+	}
+	if _, err := client.TerminateSessionsByUser(ctx, &api.TerminateSessionsByUserReq{}); err == nil {
+		t.Error("TerminateSessionsByUser should reject empty user_id")
+	}
+	if _, err := client.DeleteWebAuthnCredential(ctx, &api.DeleteWebAuthnCredentialReq{UserId: "u", ConnectorId: "c"}); err == nil {
+		t.Error("DeleteWebAuthnCredential should reject empty credential_id")
+	}
+	if _, err := client.DeleteMFASecret(ctx, &api.DeleteMFASecretReq{UserId: "u", ConnectorId: "c"}); err == nil {
+		t.Error("DeleteMFASecret should reject empty authenticator_id")
+	}
+	if _, err := client.RevokeConsent(ctx, &api.RevokeConsentReq{UserId: "u", ConnectorId: "c"}); err == nil {
+		t.Error("RevokeConsent should reject empty client_id")
 	}
 }
