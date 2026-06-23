@@ -430,8 +430,8 @@ message ListUserIdentitiesResp {
 
 // DeleteUserIdentityReq is a request to delete a user identity.
 // This is a full data purge for GDPR compliance and account deletion.
-// It cascades to: auth session, all refresh tokens, offline sessions, and the identity itself.
-// Password records must be deleted separately via DeletePassword (linked by email, not user ID).
+// It cascades to: auth session, all refresh tokens, offline sessions, the
+// password record (matched by the identity's email), and the identity itself.
 message DeleteUserIdentityReq {
   string user_id = 1;
   string connector_id = 2;

@@ -3599,8 +3599,8 @@ func (x *ListUserIdentitiesResp) GetIdentities() []*UserIdentity {
 
 // DeleteUserIdentityReq is a request to delete a user identity.
 // This is a full data purge for GDPR compliance and account deletion.
-// It cascades to: auth session, all refresh tokens, offline sessions, and the identity itself.
-// Password records must be deleted separately via DeletePassword (linked by email, not user ID).
+// It cascades to: auth session, all refresh tokens, offline sessions, the
+// password record (matched by the identity's email), and the identity itself.
 type DeleteUserIdentityReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`

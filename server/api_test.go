@@ -1336,6 +1336,12 @@ func TestDeleteUserIdentity(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("create offline sessions: %v", err)
 	}
+	// Password record linked by the identity's email — must be purged too (GDPR).
+	if err := s.CreatePassword(ctx, storage.Password{
+		Email: "test@test.com", Hash: []byte("$2y$10$XXXXXXXXXXXXXXXXXXXXXX"), Username: "test", UserID: "user1",
+	}); err != nil {
+		t.Fatalf("create password: %v", err)
+	}
 
 	// Delete identity (cascading).
 	resp, err := client.DeleteUserIdentity(ctx, &api.DeleteUserIdentityReq{
@@ -1360,6 +1366,9 @@ func TestDeleteUserIdentity(t *testing.T) {
 	}
 	if _, err := s.GetOfflineSessions(ctx, "user1", "conn1"); err == nil {
 		t.Error("expected offline sessions to be deleted")
+	}
+	if _, err := s.GetPassword(ctx, "test@test.com"); err == nil {
+		t.Error("expected password record to be deleted")
 	}
 
 	// Not found case.
@@ -1682,6 +1691,12 @@ func TestMissingSessionsIdentitiesCRUDFeatureFlag(t *testing.T) {
 	if _, err := client.DeleteAuthSession(ctx, &api.DeleteAuthSessionReq{UserId: "u", ConnectorId: "c"}); err == nil {
 		t.Error("DeleteAuthSession should fail without feature flag")
 	}
+	if _, err := client.TerminateSessionsByConnector(ctx, &api.TerminateSessionsByConnectorReq{ConnectorId: "c"}); err == nil {
+		t.Error("TerminateSessionsByConnector should fail without feature flag")
+	}
+	if _, err := client.TerminateSessionsByUser(ctx, &api.TerminateSessionsByUserReq{UserId: "u"}); err == nil {
+		t.Error("TerminateSessionsByUser should fail without feature flag")
+	}
 	if _, err := client.GetUserIdentity(ctx, &api.GetUserIdentityReq{UserId: "u", ConnectorId: "c"}); err == nil {
 		t.Error("GetUserIdentity should fail without feature flag")
 	}
@@ -1697,7 +1712,108 @@ func TestMissingSessionsIdentitiesCRUDFeatureFlag(t *testing.T) {
 	if _, err := client.ListMFADevices(ctx, &api.ListMFADevicesReq{UserId: "u", ConnectorId: "c"}); err == nil {
 		t.Error("ListMFADevices should fail without feature flag")
 	}
+	if _, err := client.DeleteWebAuthnCredential(ctx, &api.DeleteWebAuthnCredentialReq{UserId: "u", ConnectorId: "c", CredentialId: []byte("cred")}); err == nil {
+		t.Error("DeleteWebAuthnCredential should fail without feature flag")
+	}
+	if _, err := client.DeleteMFASecret(ctx, &api.DeleteMFASecretReq{UserId: "u", ConnectorId: "c", AuthenticatorId: "a"}); err == nil {
+		t.Error("DeleteMFASecret should fail without feature flag")
+	}
 	if _, err := client.RevokeConsent(ctx, &api.RevokeConsentReq{UserId: "u", ConnectorId: "c", ClientId: "cl"}); err == nil {
 		t.Error("RevokeConsent should fail without feature flag")
+	}
+}
+
+// TestSessionsIdentitiesZeroTimeConversion verifies that unset time.Time fields
+// serialize to 0 rather than the misleading year-1 epoch (-62135596800) that a
+// naive t.Unix() produces.
+func TestSessionsIdentitiesZeroTimeConversion(t *testing.T) {
+	t.Setenv("DEX_API_SESSIONS_IDENTITIES_CRUD", "true")
+
+	logger := newLogger(t)
+	s := memory.New(logger)
+
+	client := newAPI(t, s, logger)
+	defer client.Close()
+
+	ctx := t.Context()
+
+	now := time.Now().UTC().Round(time.Second)
+
+	// Client authenticated but no token issued yet: LastTokenIssuedAt is zero.
+	if err := s.CreateAuthSession(ctx, storage.AuthSession{
+		UserID: "user1", ConnectorID: "conn1", Nonce: "n",
+		ClientStates: map[string]*storage.ClientAuthState{
+			"client-a": {Active: true, ExpiresAt: now.Add(time.Hour), LastActivity: now},
+		},
+		CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("create auth session: %v", err)
+	}
+
+	sessResp, err := client.GetAuthSession(ctx, &api.GetAuthSessionReq{UserId: "user1", ConnectorId: "conn1"})
+	if err != nil {
+		t.Fatalf("get auth session: %v", err)
+	}
+	if len(sessResp.Session.ClientStates) != 1 {
+		t.Fatalf("expected 1 client state, got %d", len(sessResp.Session.ClientStates))
+	}
+	if got := sessResp.Session.ClientStates[0].LastTokenIssuedAt; got != 0 {
+		t.Errorf("expected last_token_issued_at 0 for unset time, got %d", got)
+	}
+
+	// Identity that has never logged in and is not blocked: LastLogin and
+	// BlockedUntil are zero.
+	if err := s.CreateUserIdentity(ctx, storage.UserIdentity{
+		UserID: "user1", ConnectorID: "conn1",
+		Claims: storage.Claims{Email: "test@test.com"}, CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("create user identity: %v", err)
+	}
+
+	idResp, err := client.GetUserIdentity(ctx, &api.GetUserIdentityReq{UserId: "user1", ConnectorId: "conn1"})
+	if err != nil {
+		t.Fatalf("get user identity: %v", err)
+	}
+	if got := idResp.Identity.LastLogin; got != 0 {
+		t.Errorf("expected last_login 0 for unset time, got %d", got)
+	}
+	if got := idResp.Identity.BlockedUntil; got != 0 {
+		t.Errorf("expected blocked_until 0 for unset time, got %d", got)
+	}
+}
+
+// TestSessionsIdentitiesValidation verifies that handlers reject requests
+// missing required fields.
+func TestSessionsIdentitiesValidation(t *testing.T) {
+	t.Setenv("DEX_API_SESSIONS_IDENTITIES_CRUD", "true")
+
+	logger := newLogger(t)
+	s := memory.New(logger)
+
+	client := newAPI(t, s, logger)
+	defer client.Close()
+
+	ctx := t.Context()
+
+	if _, err := client.GetAuthSession(ctx, &api.GetAuthSessionReq{ConnectorId: "c"}); err == nil {
+		t.Error("GetAuthSession should reject empty user_id")
+	}
+	if _, err := client.GetAuthSession(ctx, &api.GetAuthSessionReq{UserId: "u"}); err == nil {
+		t.Error("GetAuthSession should reject empty connector_id")
+	}
+	if _, err := client.TerminateSessionsByConnector(ctx, &api.TerminateSessionsByConnectorReq{}); err == nil {
+		t.Error("TerminateSessionsByConnector should reject empty connector_id")
+	}
+	if _, err := client.TerminateSessionsByUser(ctx, &api.TerminateSessionsByUserReq{}); err == nil {
+		t.Error("TerminateSessionsByUser should reject empty user_id")
+	}
+	if _, err := client.DeleteWebAuthnCredential(ctx, &api.DeleteWebAuthnCredentialReq{UserId: "u", ConnectorId: "c"}); err == nil {
+		t.Error("DeleteWebAuthnCredential should reject empty credential_id")
+	}
+	if _, err := client.DeleteMFASecret(ctx, &api.DeleteMFASecretReq{UserId: "u", ConnectorId: "c"}); err == nil {
+		t.Error("DeleteMFASecret should reject empty authenticator_id")
+	}
+	if _, err := client.RevokeConsent(ctx, &api.RevokeConsentReq{UserId: "u", ConnectorId: "c"}); err == nil {
+		t.Error("RevokeConsent should reject empty client_id")
 	}
 }

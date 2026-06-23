@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"slices"
 	"strconv"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -627,15 +628,34 @@ func (d dexAPI) revokeUserRefreshTokens(ctx context.Context, userID, connectorID
 	revokeRefreshTokensFromStorage(ctx, d.s, d.logger, userID, connectorID)
 }
 
+// unixOrZero returns the Unix timestamp for t, or 0 when t is the zero value.
+// A naive t.Unix() on a zero time.Time yields -62135596800 (a year-1 epoch),
+// which is a misleading value to expose through the API; callers want 0/unset.
+func unixOrZero(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.Unix()
+}
+
+// errIdentityUnchanged signals that an UpdateUserIdentity callback found nothing
+// to change. Returning it aborts the storage write (avoiding a needless version
+// bump and optimistic-concurrency conflict) and is treated as "not found" by the
+// caller.
+var errIdentityUnchanged = errors.New("identity unchanged")
+
 func storageAuthSessionToAPI(s storage.AuthSession) *api.AuthSession {
 	clientStates := make([]*api.ClientAuthState, 0, len(s.ClientStates))
 	for clientID, state := range s.ClientStates {
+		if state == nil {
+			continue
+		}
 		clientStates = append(clientStates, &api.ClientAuthState{
 			ClientId:          clientID,
 			Active:            state.Active,
-			ExpiresAt:         state.ExpiresAt.Unix(),
-			LastActivity:      state.LastActivity.Unix(),
-			LastTokenIssuedAt: state.LastTokenIssuedAt.Unix(),
+			ExpiresAt:         unixOrZero(state.ExpiresAt),
+			LastActivity:      unixOrZero(state.LastActivity),
+			LastTokenIssuedAt: unixOrZero(state.LastTokenIssuedAt),
 		})
 	}
 
@@ -643,12 +663,12 @@ func storageAuthSessionToAPI(s storage.AuthSession) *api.AuthSession {
 		UserId:         s.UserID,
 		ConnectorId:    s.ConnectorID,
 		ClientStates:   clientStates,
-		CreatedAt:      s.CreatedAt.Unix(),
-		LastActivity:   s.LastActivity.Unix(),
+		CreatedAt:      unixOrZero(s.CreatedAt),
+		LastActivity:   unixOrZero(s.LastActivity),
 		IpAddress:      s.IPAddress,
 		UserAgent:      s.UserAgent,
-		AbsoluteExpiry: s.AbsoluteExpiry.Unix(),
-		IdleExpiry:     s.IdleExpiry.Unix(),
+		AbsoluteExpiry: unixOrZero(s.AbsoluteExpiry),
+		IdleExpiry:     unixOrZero(s.IdleExpiry),
 	}
 }
 
@@ -673,7 +693,7 @@ func storageMFADevicesToAPI(secrets map[string]*storage.MFASecret, credentials m
 				AuthenticatorId: secret.AuthenticatorID,
 				Type:            secret.Type,
 				Confirmed:       secret.Confirmed,
-				CreatedAt:       secret.CreatedAt.Unix(),
+				CreatedAt:       unixOrZero(secret.CreatedAt),
 			}
 		}
 
@@ -690,7 +710,7 @@ func storageMFADevicesToAPI(secrets map[string]*storage.MFASecret, credentials m
 					BackupEligible:  c.BackupEligible,
 					BackupState:     c.BackupState,
 					DisplayName:     c.DisplayName,
-					CreatedAt:       c.CreatedAt.Unix(),
+					CreatedAt:       unixOrZero(c.CreatedAt),
 				})
 			}
 			device.WebauthnCredentials = apiCreds
@@ -719,12 +739,9 @@ func storageUserIdentityToAPI(u storage.UserIdentity) *api.UserIdentity {
 		Groups:        u.Claims.Groups,
 		Consents:      consents,
 		MfaDevices:    storageMFADevicesToAPI(u.MFASecrets, u.WebAuthnCredentials),
-		CreatedAt:     u.CreatedAt.Unix(),
-		LastLogin:     u.LastLogin.Unix(),
-	}
-
-	if !u.BlockedUntil.IsZero() {
-		identity.BlockedUntil = u.BlockedUntil.Unix()
+		CreatedAt:     unixOrZero(u.CreatedAt),
+		LastLogin:     unixOrZero(u.LastLogin),
+		BlockedUntil:  unixOrZero(u.BlockedUntil),
 	}
 
 	return identity
@@ -803,6 +820,7 @@ func (d dexAPI) DeleteAuthSession(ctx context.Context, req *api.DeleteAuthSessio
 		return nil, fmt.Errorf("delete auth session: %v", err)
 	}
 
+	d.logger.Info("api: deleted auth session", "user_id", req.UserId, "connector_id", req.ConnectorId)
 	return &api.DeleteAuthSessionResp{}, nil
 }
 
@@ -847,6 +865,7 @@ func (d dexAPI) TerminateSessionsByConnector(ctx context.Context, req *api.Termi
 		return nil, err
 	}
 
+	d.logger.Info("api: terminated sessions by connector", "connector_id", req.ConnectorId, "count", terminated)
 	return &api.TerminateSessionsByConnectorResp{SessionsTerminated: terminated}, nil
 }
 
@@ -866,6 +885,7 @@ func (d dexAPI) TerminateSessionsByUser(ctx context.Context, req *api.TerminateS
 		return nil, err
 	}
 
+	d.logger.Info("api: terminated sessions by user", "user_id", req.UserId, "count", terminated)
 	return &api.TerminateSessionsByUserResp{SessionsTerminated: terminated}, nil
 }
 
@@ -928,17 +948,43 @@ func (d dexAPI) DeleteUserIdentity(ctx context.Context, req *api.DeleteUserIdent
 		return nil, errors.New("no connector_id supplied")
 	}
 
-	// Cascade: delete auth session (ignore not-found).
-	if err := d.s.DeleteAuthSession(ctx, req.UserId, req.ConnectorId); err != nil && !errors.Is(err, storage.ErrNotFound) {
-		d.logger.Error("api: failed to delete auth session during identity purge", "err", err)
+	// Look up the identity first: report not-found cleanly without performing any
+	// cascade, and capture the email needed to purge the linked password record.
+	identity, err := d.s.GetUserIdentity(ctx, req.UserId, req.ConnectorId)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return &api.DeleteUserIdentityResp{NotFound: true}, nil
+		}
+		d.logger.Error("api: failed to get user identity during purge", "err", err)
+		return nil, fmt.Errorf("delete user identity: %v", err)
 	}
 
-	// Cascade: revoke all refresh tokens.
+	// Cascade deletes. A real (non-not-found) failure aborts the purge and returns
+	// an error so the caller is never told a GDPR purge succeeded while data was
+	// left behind.
+
+	// Cascade: delete auth session.
+	if err := d.s.DeleteAuthSession(ctx, req.UserId, req.ConnectorId); err != nil && !errors.Is(err, storage.ErrNotFound) {
+		d.logger.Error("api: failed to delete auth session during identity purge", "err", err)
+		return nil, fmt.Errorf("purge auth session: %v", err)
+	}
+
+	// Cascade: revoke all refresh tokens (best-effort, consistent with logout flow).
 	d.revokeUserRefreshTokens(ctx, req.UserId, req.ConnectorId)
 
 	// Cascade: delete offline sessions.
 	if err := d.s.DeleteOfflineSessions(ctx, req.UserId, req.ConnectorId); err != nil && !errors.Is(err, storage.ErrNotFound) {
 		d.logger.Error("api: failed to delete offline sessions during identity purge", "err", err)
+		return nil, fmt.Errorf("purge offline sessions: %v", err)
+	}
+
+	// Cascade: delete the password record (keyed by email, may not exist for
+	// non-password connectors).
+	if email := identity.Claims.Email; email != "" {
+		if err := d.s.DeletePassword(ctx, email); err != nil && !errors.Is(err, storage.ErrNotFound) {
+			d.logger.Error("api: failed to delete password during identity purge", "err", err)
+			return nil, fmt.Errorf("purge password: %v", err)
+		}
 	}
 
 	// Delete the user identity itself.
@@ -950,6 +996,7 @@ func (d dexAPI) DeleteUserIdentity(ctx context.Context, req *api.DeleteUserIdent
 		return nil, fmt.Errorf("delete user identity: %v", err)
 	}
 
+	d.logger.Info("api: purged user identity", "user_id", req.UserId, "connector_id", req.ConnectorId)
 	return &api.DeleteUserIdentityResp{}, nil
 }
 
@@ -977,6 +1024,7 @@ func (d dexAPI) ResetMFA(ctx context.Context, req *api.ResetMFAReq) (*api.ResetM
 		return nil, fmt.Errorf("reset MFA: %v", err)
 	}
 
+	d.logger.Info("api: reset MFA", "user_id", req.UserId, "connector_id", req.ConnectorId)
 	return &api.ResetMFAResp{}, nil
 }
 
@@ -1021,12 +1069,10 @@ func (d dexAPI) DeleteWebAuthnCredential(ctx context.Context, req *api.DeleteWeb
 		return nil, errors.New("no credential_id supplied")
 	}
 
-	notFound := true
 	if err := d.s.UpdateUserIdentity(ctx, req.UserId, req.ConnectorId, func(old storage.UserIdentity) (storage.UserIdentity, error) {
 		for authID, creds := range old.WebAuthnCredentials {
 			for i, cred := range creds {
 				if bytes.Equal(cred.CredentialID, req.CredentialId) {
-					notFound = false
 					old.WebAuthnCredentials[authID] = slices.Delete(creds, i, i+1)
 					if len(old.WebAuthnCredentials[authID]) == 0 {
 						delete(old.WebAuthnCredentials, authID)
@@ -1035,19 +1081,16 @@ func (d dexAPI) DeleteWebAuthnCredential(ctx context.Context, req *api.DeleteWeb
 				}
 			}
 		}
-		return old, nil
+		return old, errIdentityUnchanged
 	}); err != nil {
-		if errors.Is(err, storage.ErrNotFound) {
+		if errors.Is(err, errIdentityUnchanged) || errors.Is(err, storage.ErrNotFound) {
 			return &api.DeleteWebAuthnCredentialResp{NotFound: true}, nil
 		}
 		d.logger.Error("api: failed to delete WebAuthn credential", "err", err)
 		return nil, fmt.Errorf("delete WebAuthn credential: %v", err)
 	}
 
-	if notFound {
-		return &api.DeleteWebAuthnCredentialResp{NotFound: true}, nil
-	}
-
+	d.logger.Info("api: deleted WebAuthn credential", "user_id", req.UserId, "connector_id", req.ConnectorId)
 	return &api.DeleteWebAuthnCredentialResp{}, nil
 }
 
@@ -1066,28 +1109,23 @@ func (d dexAPI) DeleteMFASecret(ctx context.Context, req *api.DeleteMFASecretReq
 		return nil, errors.New("no authenticator_id supplied")
 	}
 
-	notFound := true
 	if err := d.s.UpdateUserIdentity(ctx, req.UserId, req.ConnectorId, func(old storage.UserIdentity) (storage.UserIdentity, error) {
 		if _, ok := old.MFASecrets[req.AuthenticatorId]; !ok {
-			return old, nil
+			return old, errIdentityUnchanged
 		}
-		notFound = false
 		delete(old.MFASecrets, req.AuthenticatorId)
 		// Also remove associated WebAuthn credentials for the same authenticator.
 		delete(old.WebAuthnCredentials, req.AuthenticatorId)
 		return old, nil
 	}); err != nil {
-		if errors.Is(err, storage.ErrNotFound) {
+		if errors.Is(err, errIdentityUnchanged) || errors.Is(err, storage.ErrNotFound) {
 			return &api.DeleteMFASecretResp{NotFound: true}, nil
 		}
 		d.logger.Error("api: failed to delete MFA secret", "err", err)
 		return nil, fmt.Errorf("delete MFA secret: %v", err)
 	}
 
-	if notFound {
-		return &api.DeleteMFASecretResp{NotFound: true}, nil
-	}
-
+	d.logger.Info("api: deleted MFA secret", "user_id", req.UserId, "connector_id", req.ConnectorId)
 	return &api.DeleteMFASecretResp{}, nil
 }
 
@@ -1106,25 +1144,20 @@ func (d dexAPI) RevokeConsent(ctx context.Context, req *api.RevokeConsentReq) (*
 		return nil, errors.New("no client_id supplied")
 	}
 
-	notFound := true
 	if err := d.s.UpdateUserIdentity(ctx, req.UserId, req.ConnectorId, func(old storage.UserIdentity) (storage.UserIdentity, error) {
 		if _, ok := old.Consents[req.ClientId]; !ok {
-			return old, nil
+			return old, errIdentityUnchanged
 		}
-		notFound = false
 		delete(old.Consents, req.ClientId)
 		return old, nil
 	}); err != nil {
-		if errors.Is(err, storage.ErrNotFound) {
+		if errors.Is(err, errIdentityUnchanged) || errors.Is(err, storage.ErrNotFound) {
 			return &api.RevokeConsentResp{NotFound: true}, nil
 		}
 		d.logger.Error("api: failed to revoke consent", "err", err)
 		return nil, fmt.Errorf("revoke consent: %v", err)
 	}
 
-	if notFound {
-		return &api.RevokeConsentResp{NotFound: true}, nil
-	}
-
+	d.logger.Info("api: revoked consent", "user_id", req.UserId, "connector_id", req.ConnectorId, "client_id", req.ClientId)
 	return &api.RevokeConsentResp{}, nil
 }
