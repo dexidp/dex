@@ -4556,6 +4556,7 @@ type DeviceRequestMutation struct {
 	scopes        *[]string
 	appendscopes  []string
 	expiry        *time.Time
+	extra_params  map[string]string
 	clearedFields map[string]struct{}
 	done          bool
 	oldValue      func(context.Context) (*DeviceRequest, error)
@@ -4905,6 +4906,53 @@ func (m *DeviceRequestMutation) ResetExpiry() {
 	m.expiry = nil
 }
 
+// SetExtraParams sets the "extra_params" field.
+func (m *DeviceRequestMutation) SetExtraParams(mp map[string]string) {
+	m.extra_params = mp
+}
+
+// ExtraParams returns the value of the "extra_params" field in the mutation.
+func (m *DeviceRequestMutation) ExtraParams() (r map[string]string, exists bool) {
+	v := m.extra_params
+	if v == nil {
+		return
+	}
+	return v, true
+}
+
+// OldExtraParams returns the old "extra_params" field's value of the DeviceRequest entity.
+func (m *DeviceRequestMutation) OldExtraParams(ctx context.Context) (v map[string]string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExtraParams is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExtraParams requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExtraParams: %w", err)
+	}
+	return oldValue.ExtraParams, nil
+}
+
+// ClearExtraParams clears the value of the "extra_params" field.
+func (m *DeviceRequestMutation) ClearExtraParams() {
+	m.extra_params = nil
+	m.clearedFields[devicerequest.FieldExtraParams] = struct{}{}
+}
+
+// ExtraParamsCleared returns if the "extra_params" field was cleared in this mutation.
+func (m *DeviceRequestMutation) ExtraParamsCleared() bool {
+	_, ok := m.clearedFields[devicerequest.FieldExtraParams]
+	return ok
+}
+
+// ResetExtraParams resets all changes to the "extra_params" field.
+func (m *DeviceRequestMutation) ResetExtraParams() {
+	m.extra_params = nil
+	delete(m.clearedFields, devicerequest.FieldExtraParams)
+}
+
 // Where appends a list predicates to the DeviceRequestMutation builder.
 func (m *DeviceRequestMutation) Where(ps ...predicate.DeviceRequest) {
 	m.predicates = append(m.predicates, ps...)
@@ -4939,7 +4987,7 @@ func (m *DeviceRequestMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *DeviceRequestMutation) Fields() []string {
-	fields := make([]string, 0, 6)
+	fields := make([]string, 0, 7)
 	if m.user_code != nil {
 		fields = append(fields, devicerequest.FieldUserCode)
 	}
@@ -4957,6 +5005,9 @@ func (m *DeviceRequestMutation) Fields() []string {
 	}
 	if m.expiry != nil {
 		fields = append(fields, devicerequest.FieldExpiry)
+	}
+	if m.extra_params != nil {
+		fields = append(fields, devicerequest.FieldExtraParams)
 	}
 	return fields
 }
@@ -4978,6 +5029,8 @@ func (m *DeviceRequestMutation) Field(name string) (ent.Value, bool) {
 		return m.Scopes()
 	case devicerequest.FieldExpiry:
 		return m.Expiry()
+	case devicerequest.FieldExtraParams:
+		return m.ExtraParams()
 	}
 	return nil, false
 }
@@ -4999,6 +5052,8 @@ func (m *DeviceRequestMutation) OldField(ctx context.Context, name string) (ent.
 		return m.OldScopes(ctx)
 	case devicerequest.FieldExpiry:
 		return m.OldExpiry(ctx)
+	case devicerequest.FieldExtraParams:
+		return m.OldExtraParams(ctx)
 	}
 	return nil, fmt.Errorf("unknown DeviceRequest field %s", name)
 }
@@ -5050,6 +5105,13 @@ func (m *DeviceRequestMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetExpiry(v)
 		return nil
+	case devicerequest.FieldExtraParams:
+		v, ok := value.(map[string]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExtraParams(v)
+		return nil
 	}
 	return fmt.Errorf("unknown DeviceRequest field %s", name)
 }
@@ -5083,6 +5145,9 @@ func (m *DeviceRequestMutation) ClearedFields() []string {
 	if m.FieldCleared(devicerequest.FieldScopes) {
 		fields = append(fields, devicerequest.FieldScopes)
 	}
+	if m.FieldCleared(devicerequest.FieldExtraParams) {
+		fields = append(fields, devicerequest.FieldExtraParams)
+	}
 	return fields
 }
 
@@ -5099,6 +5164,9 @@ func (m *DeviceRequestMutation) ClearField(name string) error {
 	switch name {
 	case devicerequest.FieldScopes:
 		m.ClearScopes()
+		return nil
+	case devicerequest.FieldExtraParams:
+		m.ClearExtraParams()
 		return nil
 	}
 	return fmt.Errorf("unknown DeviceRequest nullable field %s", name)
@@ -5125,6 +5193,9 @@ func (m *DeviceRequestMutation) ResetField(name string) error {
 		return nil
 	case devicerequest.FieldExpiry:
 		m.ResetExpiry()
+		return nil
+	case devicerequest.FieldExtraParams:
+		m.ResetExtraParams()
 		return nil
 	}
 	return fmt.Errorf("unknown DeviceRequest field %s", name)

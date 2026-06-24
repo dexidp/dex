@@ -17,6 +17,7 @@ func (d *Database) CreateDeviceRequest(ctx context.Context, request storage.Devi
 		SetDeviceCode(request.DeviceCode).
 		// Save utc time into database because ent doesn't support comparing dates with different timezones
 		SetExpiry(request.Expiry.UTC()).
+		SetNillableExtraParams(request.ExtraParams).
 		Save(ctx)
 	if err != nil {
 		return convertDBError("create device request: %w", err)

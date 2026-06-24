@@ -91,6 +91,24 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 
 		s.logger.InfoContext(r.Context(), "received device request", "client_id", clientID, "scoped", scopes)
 
+		// Collect any extra params to forward to /auth (e.g. connector_id)
+		knownParams := map[string]bool{
+			"client_id":             true,
+			"client_secret":         true,
+			"scope":                 true,
+			"code_challenge":        true,
+			"code_challenge_method": true,
+		}
+		var extraParams map[string]string
+		for key, vals := range r.Form {
+			if !knownParams[key] && len(vals) > 0 {
+				if extraParams == nil {
+					extraParams = make(map[string]string)
+				}
+				extraParams[key] = vals[0]
+			}
+		}
+
 		// Make device code
 		deviceCode := storage.NewDeviceCode()
 
@@ -108,6 +126,7 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 			ClientSecret: clientSecret,
 			Scopes:       scopes,
 			Expiry:       expireTime,
+			ExtraParams:  extraParams,
 		}
 
 		if err := s.storage.CreateDeviceRequest(ctx, deviceReq); err != nil {
@@ -444,6 +463,9 @@ func (s *Server) verifyUserCode(w http.ResponseWriter, r *http.Request) {
 		q.Set("response_type", "code")
 		q.Set("redirect_uri", s.absPath(deviceCallbackURI))
 		q.Set("scope", strings.Join(deviceRequest.Scopes, " "))
+		for key, val := range deviceRequest.ExtraParams {
+			q.Set(key, val)
+		}
 		u.RawQuery = q.Encode()
 
 		http.Redirect(w, r, u.String(), http.StatusFound)

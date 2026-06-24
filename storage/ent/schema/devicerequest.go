@@ -42,6 +42,8 @@ func (DeviceRequest) Fields() []ent.Field {
 			Optional(),
 		field.Time("expiry").
 			SchemaType(timeSchema),
+		field.JSON("extra_params", map[string]string{}).
+			Optional(),
 	}
 }
 

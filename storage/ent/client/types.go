@@ -175,6 +175,7 @@ func toStorageDeviceRequest(r *db.DeviceRequest) storage.DeviceRequest {
 		ClientSecret: r.ClientSecret,
 		Scopes:       r.Scopes,
 		Expiry:       r.Expiry,
+		ExtraParams:  r.ExtraParams,
 	}
 }
 

@@ -374,12 +374,13 @@ func toStorageAuthSession(s AuthSession) storage.AuthSession {
 
 // DeviceRequest is a mirrored struct from storage with JSON struct tags
 type DeviceRequest struct {
-	UserCode     string    `json:"user_code"`
-	DeviceCode   string    `json:"device_code"`
-	ClientID     string    `json:"client_id"`
-	ClientSecret string    `json:"client_secret"`
-	Scopes       []string  `json:"scopes"`
-	Expiry       time.Time `json:"expiry"`
+	UserCode     string            `json:"user_code"`
+	DeviceCode   string            `json:"device_code"`
+	ClientID     string            `json:"client_id"`
+	ClientSecret string            `json:"client_secret"`
+	Scopes       []string          `json:"scopes"`
+	Expiry       time.Time         `json:"expiry"`
+	ExtraParams  map[string]string `json:"extra_params,omitempty"`
 }
 
 func fromStorageDeviceRequest(d storage.DeviceRequest) DeviceRequest {
@@ -390,6 +391,7 @@ func fromStorageDeviceRequest(d storage.DeviceRequest) DeviceRequest {
 		ClientSecret: d.ClientSecret,
 		Scopes:       d.Scopes,
 		Expiry:       d.Expiry,
+		ExtraParams:  d.ExtraParams,
 	}
 }
 
@@ -401,6 +403,7 @@ func toStorageDeviceRequest(d DeviceRequest) storage.DeviceRequest {
 		ClientSecret: d.ClientSecret,
 		Scopes:       d.Scopes,
 		Expiry:       d.Expiry,
+		ExtraParams:  d.ExtraParams,
 	}
 }
 

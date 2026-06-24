@@ -56,6 +56,20 @@ func (_c *DeviceRequestCreate) SetExpiry(v time.Time) *DeviceRequestCreate {
 	return _c
 }
 
+// SetExtraParams sets the "extra_params" field.
+func (drc *DeviceRequestCreate) SetExtraParams(m map[string]string) *DeviceRequestCreate {
+	drc.mutation.SetExtraParams(m)
+	return drc
+}
+
+// SetNillableExtraParams sets the "extra_params" field if the given value is not nil.
+func (drc *DeviceRequestCreate) SetNillableExtraParams(m map[string]string) *DeviceRequestCreate {
+	if m != nil {
+		drc.SetExtraParams(m)
+	}
+	return drc
+}
+
 // Mutation returns the DeviceRequestMutation object of the builder.
 func (_c *DeviceRequestCreate) Mutation() *DeviceRequestMutation {
 	return _c.mutation
@@ -174,6 +188,10 @@ func (_c *DeviceRequestCreate) createSpec() (*DeviceRequest, *sqlgraph.CreateSpe
 	if value, ok := _c.mutation.Expiry(); ok {
 		_spec.SetField(devicerequest.FieldExpiry, field.TypeTime, value)
 		_node.Expiry = value
+	}
+	if value, ok := drc.mutation.ExtraParams(); ok {
+		_spec.SetField(devicerequest.FieldExtraParams, field.TypeJSON, value)
+		_node.ExtraParams = value
 	}
 	return _node, _spec
 }

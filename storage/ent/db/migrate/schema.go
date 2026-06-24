@@ -113,6 +113,7 @@ var (
 		{Name: "client_secret", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "scopes", Type: field.TypeJSON, Nullable: true},
 		{Name: "expiry", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)", "postgres": "timestamptz", "sqlite3": "timestamp"}},
+		{Name: "extra_params", Type: field.TypeJSON, Nullable: true},
 	}
 	// DeviceRequestsTable holds the schema information for the "device_requests" table.
 	DeviceRequestsTable = &schema.Table{

@@ -1317,12 +1317,12 @@ func (c *conn) delete(table, field, id string) error {
 func (c *conn) CreateDeviceRequest(ctx context.Context, d storage.DeviceRequest) error {
 	_, err := c.Exec(`
 		insert into device_request (
-			user_code, device_code, client_id, client_secret, scopes, expiry
+			user_code, device_code, client_id, client_secret, scopes, expiry, extra_params
 		)
 		values (
-			$1, $2, $3, $4, $5, $6
+			$1, $2, $3, $4, $5, $6, $7
 		);`,
-		d.UserCode, d.DeviceCode, d.ClientID, d.ClientSecret, encoder(d.Scopes), d.Expiry,
+		d.UserCode, d.DeviceCode, d.ClientID, d.ClientSecret, encoder(d.Scopes), d.Expiry, encoder(d.ExtraParams),
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -1359,10 +1359,10 @@ func (c *conn) GetDeviceRequest(ctx context.Context, userCode string) (storage.D
 func getDeviceRequest(ctx context.Context, q querier, userCode string) (d storage.DeviceRequest, err error) {
 	err = q.QueryRow(`
 		select
-            device_code, client_id, client_secret, scopes, expiry
+            device_code, client_id, client_secret, scopes, expiry, extra_params
 		from device_request where user_code = $1;
 	`, userCode).Scan(
-		&d.DeviceCode, &d.ClientID, &d.ClientSecret, decoder(&d.Scopes), &d.Expiry,
+		&d.DeviceCode, &d.ClientID, &d.ClientSecret, decoder(&d.Scopes), &d.Expiry, decoder(&d.ExtraParams),
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {

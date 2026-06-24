@@ -602,6 +602,8 @@ type DeviceRequest struct {
 	Scopes []string
 	// The expire time
 	Expiry time.Time
+	// Extra parameters to forward to the authorization endpoint (e.g. connector_id)
+	ExtraParams map[string]string
 }
 
 // DeviceToken is a structure which represents the actual token of an authorized device and its rotation parameters

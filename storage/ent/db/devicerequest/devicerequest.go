@@ -23,6 +23,8 @@ const (
 	FieldScopes = "scopes"
 	// FieldExpiry holds the string denoting the expiry field in the database.
 	FieldExpiry = "expiry"
+	// FieldExtraParams holds the string denoting the extra_params field in the database.
+	FieldExtraParams = "extra_params"
 	// Table holds the table name of the devicerequest in the database.
 	Table = "device_requests"
 )
@@ -36,6 +38,7 @@ var Columns = []string{
 	FieldClientSecret,
 	FieldScopes,
 	FieldExpiry,
+	FieldExtraParams,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).

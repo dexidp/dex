@@ -29,7 +29,9 @@ type DeviceRequest struct {
 	// Scopes holds the value of the "scopes" field.
 	Scopes []string `json:"scopes,omitempty"`
 	// Expiry holds the value of the "expiry" field.
-	Expiry       time.Time `json:"expiry,omitempty"`
+	Expiry time.Time `json:"expiry,omitempty"`
+	// ExtraParams holds the value of the "extra_params" field.
+	ExtraParams  map[string]string `json:"extra_params,omitempty"`
 	selectValues sql.SelectValues
 }
 
@@ -38,7 +40,7 @@ func (*DeviceRequest) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case devicerequest.FieldScopes:
+		case devicerequest.FieldScopes, devicerequest.FieldExtraParams:
 			values[i] = new([]byte)
 		case devicerequest.FieldID:
 			values[i] = new(sql.NullInt64)
@@ -105,6 +107,14 @@ func (_m *DeviceRequest) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Expiry = value.Time
 			}
+		case devicerequest.FieldExtraParams:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field extra_params", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &dr.ExtraParams); err != nil {
+					return fmt.Errorf("unmarshal field extra_params: %w", err)
+				}
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -158,6 +168,9 @@ func (_m *DeviceRequest) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("expiry=")
 	builder.WriteString(_m.Expiry.Format(time.ANSIC))
+	builder.WriteString(", ")
+	builder.WriteString("extra_params=")
+	builder.WriteString(fmt.Sprintf("%v", dr.ExtraParams))
 	builder.WriteByte(')')
 	return builder.String()
 }
