@@ -74,6 +74,14 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 		codeChallenge := r.Form.Get("code_challenge")
 		codeChallengeMethod := r.Form.Get("code_challenge_method")
 
+		// RFC 8707 resource indicators. Validated here and carried through the
+		// authorization redirect so the issued access token is audience-bound.
+		resources, err := parseResourceParams(r.Form["resource"])
+		if err != nil {
+			s.tokenErrHelper(w, errInvalidTarget, err.Error(), http.StatusBadRequest)
+			return
+		}
+
 		if codeChallengeMethod == "" {
 			codeChallengeMethod = codeChallengeMethodPlain
 		}
@@ -107,6 +115,7 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 			Scopes:       scopes,
+			Resource:     resources,
 			Expiry:       expireTime,
 		}
 
@@ -444,6 +453,10 @@ func (s *Server) verifyUserCode(w http.ResponseWriter, r *http.Request) {
 		q.Set("response_type", "code")
 		q.Set("redirect_uri", s.absPath(deviceCallbackURI))
 		q.Set("scope", strings.Join(deviceRequest.Scopes, " "))
+		// Carry RFC 8707 resource indicators (repeatable) through to /auth.
+		for _, res := range deviceRequest.Resource {
+			q.Add("resource", res)
+		}
 		u.RawQuery = q.Encode()
 
 		http.Redirect(w, r, u.String(), http.StatusFound)

@@ -209,6 +209,16 @@ func ScopesNotNil() predicate.AuthCode {
 	return predicate.AuthCode(sql.FieldNotNull(FieldScopes))
 }
 
+// ResourceIsNil applies the IsNil predicate on the "resource" field.
+func ResourceIsNil() predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldIsNull(FieldResource))
+}
+
+// ResourceNotNil applies the NotNil predicate on the "resource" field.
+func ResourceNotNil() predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldNotNull(FieldResource))
+}
+
 // NonceEQ applies the EQ predicate on the "nonce" field.
 func NonceEQ(v string) predicate.AuthCode {
 	return predicate.AuthCode(sql.FieldEQ(FieldNonce, v))

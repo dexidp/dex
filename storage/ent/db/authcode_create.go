@@ -32,6 +32,12 @@ func (_c *AuthCodeCreate) SetScopes(v []string) *AuthCodeCreate {
 	return _c
 }
 
+// SetResource sets the "resource" field.
+func (_c *AuthCodeCreate) SetResource(v []string) *AuthCodeCreate {
+	_c.mutation.SetResource(v)
+	return _c
+}
+
 // SetNonce sets the "nonce" field.
 func (_c *AuthCodeCreate) SetNonce(v string) *AuthCodeCreate {
 	_c.mutation.SetNonce(v)
@@ -323,6 +329,10 @@ func (_c *AuthCodeCreate) createSpec() (*AuthCode, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Scopes(); ok {
 		_spec.SetField(authcode.FieldScopes, field.TypeJSON, value)
 		_node.Scopes = value
+	}
+	if value, ok := _c.mutation.Resource(); ok {
+		_spec.SetField(authcode.FieldResource, field.TypeJSON, value)
+		_node.Resource = value
 	}
 	if value, ok := _c.mutation.Nonce(); ok {
 		_spec.SetField(authcode.FieldNonce, field.TypeString, value)

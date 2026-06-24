@@ -61,6 +61,24 @@ func (_u *RefreshTokenUpdate) ClearScopes() *RefreshTokenUpdate {
 	return _u
 }
 
+// SetResource sets the "resource" field.
+func (_u *RefreshTokenUpdate) SetResource(v []string) *RefreshTokenUpdate {
+	_u.mutation.SetResource(v)
+	return _u
+}
+
+// AppendResource appends value to the "resource" field.
+func (_u *RefreshTokenUpdate) AppendResource(v []string) *RefreshTokenUpdate {
+	_u.mutation.AppendResource(v)
+	return _u
+}
+
+// ClearResource clears the value of the "resource" field.
+func (_u *RefreshTokenUpdate) ClearResource() *RefreshTokenUpdate {
+	_u.mutation.ClearResource()
+	return _u
+}
+
 // SetNonce sets the "nonce" field.
 func (_u *RefreshTokenUpdate) SetNonce(v string) *RefreshTokenUpdate {
 	_u.mutation.SetNonce(v)
@@ -338,6 +356,17 @@ func (_u *RefreshTokenUpdate) sqlSave(ctx context.Context) (_node int, err error
 	if _u.mutation.ScopesCleared() {
 		_spec.ClearField(refreshtoken.FieldScopes, field.TypeJSON)
 	}
+	if value, ok := _u.mutation.Resource(); ok {
+		_spec.SetField(refreshtoken.FieldResource, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedResource(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, refreshtoken.FieldResource, value)
+		})
+	}
+	if _u.mutation.ResourceCleared() {
+		_spec.ClearField(refreshtoken.FieldResource, field.TypeJSON)
+	}
 	if value, ok := _u.mutation.Nonce(); ok {
 		_spec.SetField(refreshtoken.FieldNonce, field.TypeString, value)
 	}
@@ -437,6 +466,24 @@ func (_u *RefreshTokenUpdateOne) AppendScopes(v []string) *RefreshTokenUpdateOne
 // ClearScopes clears the value of the "scopes" field.
 func (_u *RefreshTokenUpdateOne) ClearScopes() *RefreshTokenUpdateOne {
 	_u.mutation.ClearScopes()
+	return _u
+}
+
+// SetResource sets the "resource" field.
+func (_u *RefreshTokenUpdateOne) SetResource(v []string) *RefreshTokenUpdateOne {
+	_u.mutation.SetResource(v)
+	return _u
+}
+
+// AppendResource appends value to the "resource" field.
+func (_u *RefreshTokenUpdateOne) AppendResource(v []string) *RefreshTokenUpdateOne {
+	_u.mutation.AppendResource(v)
+	return _u
+}
+
+// ClearResource clears the value of the "resource" field.
+func (_u *RefreshTokenUpdateOne) ClearResource() *RefreshTokenUpdateOne {
+	_u.mutation.ClearResource()
 	return _u
 }
 
@@ -746,6 +793,17 @@ func (_u *RefreshTokenUpdateOne) sqlSave(ctx context.Context) (_node *RefreshTok
 	}
 	if _u.mutation.ScopesCleared() {
 		_spec.ClearField(refreshtoken.FieldScopes, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.Resource(); ok {
+		_spec.SetField(refreshtoken.FieldResource, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedResource(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, refreshtoken.FieldResource, value)
+		})
+	}
+	if _u.mutation.ResourceCleared() {
+		_spec.ClearField(refreshtoken.FieldResource, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.Nonce(); ok {
 		_spec.SetField(refreshtoken.FieldNonce, field.TypeString, value)

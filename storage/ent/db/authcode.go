@@ -22,6 +22,8 @@ type AuthCode struct {
 	ClientID string `json:"client_id,omitempty"`
 	// Scopes holds the value of the "scopes" field.
 	Scopes []string `json:"scopes,omitempty"`
+	// Resource holds the value of the "resource" field.
+	Resource []string `json:"resource,omitempty"`
 	// Nonce holds the value of the "nonce" field.
 	Nonce string `json:"nonce,omitempty"`
 	// RedirectURI holds the value of the "redirect_uri" field.
@@ -58,7 +60,7 @@ func (*AuthCode) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case authcode.FieldScopes, authcode.FieldClaimsGroups, authcode.FieldConnectorData:
+		case authcode.FieldScopes, authcode.FieldResource, authcode.FieldClaimsGroups, authcode.FieldConnectorData:
 			values[i] = new([]byte)
 		case authcode.FieldClaimsEmailVerified:
 			values[i] = new(sql.NullBool)
@@ -99,6 +101,14 @@ func (_m *AuthCode) assignValues(columns []string, values []any) error {
 			} else if value != nil && len(*value) > 0 {
 				if err := json.Unmarshal(*value, &_m.Scopes); err != nil {
 					return fmt.Errorf("unmarshal field scopes: %w", err)
+				}
+			}
+		case authcode.FieldResource:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field resource", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.Resource); err != nil {
+					return fmt.Errorf("unmarshal field resource: %w", err)
 				}
 			}
 		case authcode.FieldNonce:
@@ -228,6 +238,9 @@ func (_m *AuthCode) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("scopes=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Scopes))
+	builder.WriteString(", ")
+	builder.WriteString("resource=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Resource))
 	builder.WriteString(", ")
 	builder.WriteString("nonce=")
 	builder.WriteString(_m.Nonce)

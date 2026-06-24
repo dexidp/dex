@@ -61,6 +61,24 @@ func (_u *AuthRequestUpdate) ClearScopes() *AuthRequestUpdate {
 	return _u
 }
 
+// SetResource sets the "resource" field.
+func (_u *AuthRequestUpdate) SetResource(v []string) *AuthRequestUpdate {
+	_u.mutation.SetResource(v)
+	return _u
+}
+
+// AppendResource appends value to the "resource" field.
+func (_u *AuthRequestUpdate) AppendResource(v []string) *AuthRequestUpdate {
+	_u.mutation.AppendResource(v)
+	return _u
+}
+
+// ClearResource clears the value of the "resource" field.
+func (_u *AuthRequestUpdate) ClearResource() *AuthRequestUpdate {
+	_u.mutation.ClearResource()
+	return _u
+}
+
 // SetResponseTypes sets the "response_types" field.
 func (_u *AuthRequestUpdate) SetResponseTypes(v []string) *AuthRequestUpdate {
 	_u.mutation.SetResponseTypes(v)
@@ -447,6 +465,17 @@ func (_u *AuthRequestUpdate) sqlSave(ctx context.Context) (_node int, err error)
 	if _u.mutation.ScopesCleared() {
 		_spec.ClearField(authrequest.FieldScopes, field.TypeJSON)
 	}
+	if value, ok := _u.mutation.Resource(); ok {
+		_spec.SetField(authrequest.FieldResource, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedResource(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, authrequest.FieldResource, value)
+		})
+	}
+	if _u.mutation.ResourceCleared() {
+		_spec.ClearField(authrequest.FieldResource, field.TypeJSON)
+	}
 	if value, ok := _u.mutation.ResponseTypes(); ok {
 		_spec.SetField(authrequest.FieldResponseTypes, field.TypeJSON, value)
 	}
@@ -593,6 +622,24 @@ func (_u *AuthRequestUpdateOne) AppendScopes(v []string) *AuthRequestUpdateOne {
 // ClearScopes clears the value of the "scopes" field.
 func (_u *AuthRequestUpdateOne) ClearScopes() *AuthRequestUpdateOne {
 	_u.mutation.ClearScopes()
+	return _u
+}
+
+// SetResource sets the "resource" field.
+func (_u *AuthRequestUpdateOne) SetResource(v []string) *AuthRequestUpdateOne {
+	_u.mutation.SetResource(v)
+	return _u
+}
+
+// AppendResource appends value to the "resource" field.
+func (_u *AuthRequestUpdateOne) AppendResource(v []string) *AuthRequestUpdateOne {
+	_u.mutation.AppendResource(v)
+	return _u
+}
+
+// ClearResource clears the value of the "resource" field.
+func (_u *AuthRequestUpdateOne) ClearResource() *AuthRequestUpdateOne {
+	_u.mutation.ClearResource()
 	return _u
 }
 
@@ -1011,6 +1058,17 @@ func (_u *AuthRequestUpdateOne) sqlSave(ctx context.Context) (_node *AuthRequest
 	}
 	if _u.mutation.ScopesCleared() {
 		_spec.ClearField(authrequest.FieldScopes, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.Resource(); ok {
+		_spec.SetField(authrequest.FieldResource, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedResource(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, authrequest.FieldResource, value)
+		})
+	}
+	if _u.mutation.ResourceCleared() {
+		_spec.ClearField(authrequest.FieldResource, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.ResponseTypes(); ok {
 		_spec.SetField(authrequest.FieldResponseTypes, field.TypeJSON, value)

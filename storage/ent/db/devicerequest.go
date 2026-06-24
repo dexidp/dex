@@ -28,6 +28,8 @@ type DeviceRequest struct {
 	ClientSecret string `json:"client_secret,omitempty"`
 	// Scopes holds the value of the "scopes" field.
 	Scopes []string `json:"scopes,omitempty"`
+	// Resource holds the value of the "resource" field.
+	Resource []string `json:"resource,omitempty"`
 	// Expiry holds the value of the "expiry" field.
 	Expiry       time.Time `json:"expiry,omitempty"`
 	selectValues sql.SelectValues
@@ -38,7 +40,7 @@ func (*DeviceRequest) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case devicerequest.FieldScopes:
+		case devicerequest.FieldScopes, devicerequest.FieldResource:
 			values[i] = new([]byte)
 		case devicerequest.FieldID:
 			values[i] = new(sql.NullInt64)
@@ -99,6 +101,14 @@ func (_m *DeviceRequest) assignValues(columns []string, values []any) error {
 					return fmt.Errorf("unmarshal field scopes: %w", err)
 				}
 			}
+		case devicerequest.FieldResource:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field resource", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.Resource); err != nil {
+					return fmt.Errorf("unmarshal field resource: %w", err)
+				}
+			}
 		case devicerequest.FieldExpiry:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field expiry", values[i])
@@ -155,6 +165,9 @@ func (_m *DeviceRequest) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("scopes=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Scopes))
+	builder.WriteString(", ")
+	builder.WriteString("resource=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Resource))
 	builder.WriteString(", ")
 	builder.WriteString("expiry=")
 	builder.WriteString(_m.Expiry.Format(time.ANSIC))

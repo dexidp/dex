@@ -17,6 +17,8 @@ const (
 	FieldClientID = "client_id"
 	// FieldScopes holds the string denoting the scopes field in the database.
 	FieldScopes = "scopes"
+	// FieldResource holds the string denoting the resource field in the database.
+	FieldResource = "resource"
 	// FieldNonce holds the string denoting the nonce field in the database.
 	FieldNonce = "nonce"
 	// FieldClaimsUserID holds the string denoting the claims_user_id field in the database.
@@ -52,6 +54,7 @@ var Columns = []string{
 	FieldID,
 	FieldClientID,
 	FieldScopes,
+	FieldResource,
 	FieldNonce,
 	FieldClaimsUserID,
 	FieldClaimsUsername,

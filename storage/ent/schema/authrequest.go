@@ -48,6 +48,8 @@ func (AuthRequest) Fields() []ent.Field {
 			SchemaType(textSchema),
 		field.JSON("scopes", []string{}).
 			Optional(),
+		field.JSON("resource", []string{}).
+			Optional(),
 		field.JSON("response_types", []string{}).
 			Optional(),
 		field.Text("redirect_uri").

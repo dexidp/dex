@@ -50,6 +50,12 @@ func (_c *DeviceRequestCreate) SetScopes(v []string) *DeviceRequestCreate {
 	return _c
 }
 
+// SetResource sets the "resource" field.
+func (_c *DeviceRequestCreate) SetResource(v []string) *DeviceRequestCreate {
+	_c.mutation.SetResource(v)
+	return _c
+}
+
 // SetExpiry sets the "expiry" field.
 func (_c *DeviceRequestCreate) SetExpiry(v time.Time) *DeviceRequestCreate {
 	_c.mutation.SetExpiry(v)
@@ -170,6 +176,10 @@ func (_c *DeviceRequestCreate) createSpec() (*DeviceRequest, *sqlgraph.CreateSpe
 	if value, ok := _c.mutation.Scopes(); ok {
 		_spec.SetField(devicerequest.FieldScopes, field.TypeJSON, value)
 		_node.Scopes = value
+	}
+	if value, ok := _c.mutation.Resource(); ok {
+		_spec.SetField(devicerequest.FieldResource, field.TypeJSON, value)
+		_node.Resource = value
 	}
 	if value, ok := _c.mutation.Expiry(); ok {
 		_spec.SetField(devicerequest.FieldExpiry, field.TypeTime, value)
