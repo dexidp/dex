@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha512"
+	"encoding/base64"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -488,6 +490,16 @@ func TestAccessTokenHash(t *testing.T) {
 	}
 }
 
+func TestAccessTokenHashEdDSA(t *testing.T) {
+	atHash, err := accessTokenHash(jose.EdDSA, googleAccessToken)
+	require.NoError(t, err)
+
+	// EdDSA (Ed25519) uses SHA-512; at_hash is the base64url of the left-most half.
+	sum := sha512.Sum512([]byte(googleAccessToken))
+	want := base64.RawURLEncoding.EncodeToString(sum[:len(sum)/2])
+	require.Equal(t, want, atHash)
+}
+
 func TestValidRedirectURI(t *testing.T) {
 	tests := []struct {
 		client      storage.Client
@@ -807,6 +819,31 @@ func TestSignerKeySetWithES256LocalSigner(t *testing.T) {
 	require.Equal(t, []byte("payload"), payload)
 }
 
+func TestSignerKeySetWithEdDSALocalSigner(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	logger := slog.New(slog.DiscardHandler)
+	store := memory.New(logger)
+
+	localConfig := signer.LocalConfig{
+		KeysRotationPeriod: time.Hour.String(),
+		Algorithm:          jose.EdDSA,
+	}
+	sig, err := localConfig.Open(ctx, store, time.Hour, time.Now, logger)
+	require.NoError(t, err)
+
+	sig.Start(ctx)
+
+	jwt, err := sig.Sign(ctx, []byte("payload"))
+	require.NoError(t, err)
+
+	keySet := &signerKeySet{signer: sig}
+	payload, err := keySet.VerifySignature(ctx, jwt)
+	require.NoError(t, err)
+	require.Equal(t, []byte("payload"), payload)
+}
+
 func TestRedirectedAuthErrHandler(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -1004,6 +1041,48 @@ func TestValidateIDTokenHint(t *testing.T) {
 		_, err := s.validateIDTokenHint(t.Context(), "not-a-valid-jwt")
 		assert.Error(t, err)
 	})
+}
+
+// TestValidateIDTokenHintEdDSA drives the real validateIDTokenHint verifier path
+// with an EdDSA local signer. Without SupportedSigningAlgs on the oidc.Config,
+// go-oidc defaults to RS256 only and rejects the EdDSA token as "malformed jwt".
+func TestValidateIDTokenHintEdDSA(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	logger := slog.New(slog.DiscardHandler)
+	store := memory.New(logger)
+
+	localConfig := signer.LocalConfig{
+		KeysRotationPeriod: time.Hour.String(),
+		Algorithm:          jose.EdDSA,
+	}
+	sig, err := localConfig.Open(ctx, store, time.Hour, time.Now, logger)
+	require.NoError(t, err)
+	sig.Start(ctx)
+
+	issuerURL, err := url.Parse("https://issuer.example.com")
+	require.NoError(t, err)
+
+	s := &Server{
+		signer:    sig,
+		issuerURL: *issuerURL,
+		logger:    slog.Default(),
+	}
+
+	payload, err := json.Marshal(idTokenClaims{
+		Issuer:  "https://issuer.example.com",
+		Subject: "CgNmb28SA2Jhcg",
+		Expiry:  time.Now().Add(time.Hour).Unix(),
+	})
+	require.NoError(t, err)
+
+	token, err := sig.Sign(ctx, payload)
+	require.NoError(t, err)
+
+	idToken, err := s.validateIDTokenHint(ctx, token)
+	require.NoError(t, err)
+	assert.Equal(t, "CgNmb28SA2Jhcg", idToken.Subject)
 }
 
 func TestNewIDTokenUsesStoredAlgorithmUntilNextRotation(t *testing.T) {

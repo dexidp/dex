@@ -229,6 +229,9 @@ var hashForSigAlg = map[jose.SignatureAlgorithm]func() hash.Hash{
 	jose.ES256: sha256.New,
 	jose.ES384: sha512.New384,
 	jose.ES512: sha512.New,
+	// EdDSA (Ed25519) uses SHA-512 internally, so the at_hash/c_hash is
+	// computed over SHA-512 as well.
+	jose.EdDSA: sha512.New,
 }
 
 // Compute an at_hash from a raw access token and a signature algorithm
@@ -447,7 +450,8 @@ func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage
 // Returns the verified token so callers can extract Subject, Audience, etc.
 func (s *Server) validateIDTokenHint(ctx context.Context, hint string) (*oidc.IDToken, error) {
 	verifier := oidc.NewVerifier(s.issuerURL.String(), &signerKeySet{s.signer}, &oidc.Config{
-		SkipExpiryCheck: true,
+		SupportedSigningAlgs: supportedSigningAlgStrings(),
+		SkipExpiryCheck:      true,
 		// SkipClientIDCheck is set because the hint may originate from any client that
 		// Dex issued a token to — the caller does not know the expected audience in advance.
 		// The signature verification via signerKeySet already guarantees the token was
@@ -764,13 +768,33 @@ func validateConnectorID(connectors []storage.Connector, connectorID string) boo
 	return false
 }
 
+// supportedSigningAlgs lists every JWS signing algorithm a Dex signer (local or
+// Vault) can produce. Verifiers for Dex-issued tokens must allow all of them:
+// otherwise go-oidc's IDTokenVerifier.Verify defaults to RS256 only and rejects
+// ES256/EdDSA tokens before signerKeySet.VerifySignature ever runs.
+var supportedSigningAlgs = []jose.SignatureAlgorithm{
+	jose.RS256, jose.RS384, jose.RS512,
+	jose.ES256, jose.ES384, jose.ES512,
+	jose.EdDSA,
+}
+
+// supportedSigningAlgStrings returns supportedSigningAlgs as strings for use in
+// oidc.Config.SupportedSigningAlgs.
+func supportedSigningAlgStrings() []string {
+	algs := make([]string, len(supportedSigningAlgs))
+	for i, alg := range supportedSigningAlgs {
+		algs[i] = string(alg)
+	}
+	return algs
+}
+
 // signerKeySet implements the oidc.KeySet interface backed by the Dex signer
 type signerKeySet struct {
 	signer signer.Signer
 }
 
 func (s *signerKeySet) VerifySignature(ctx context.Context, jwt string) (payload []byte, err error) {
-	jws, err := jose.ParseSigned(jwt, []jose.SignatureAlgorithm{jose.RS256, jose.RS384, jose.RS512, jose.ES256, jose.ES384, jose.ES512})
+	jws, err := jose.ParseSigned(jwt, supportedSigningAlgs)
 	if err != nil {
 		return nil, err
 	}

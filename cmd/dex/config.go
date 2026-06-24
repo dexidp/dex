@@ -544,7 +544,7 @@ func normalizeLocalSignerConfig(c *signer.LocalConfig) error {
 		c.Algorithm = jose.RS256
 		return nil
 	}
-	if c.Algorithm == jose.RS256 || c.Algorithm == jose.ES256 {
+	if c.Algorithm == jose.RS256 || c.Algorithm == jose.ES256 || c.Algorithm == jose.EdDSA {
 		return nil
 	}
 	return fmt.Errorf("unsupported local signer algorithm %q", c.Algorithm)
