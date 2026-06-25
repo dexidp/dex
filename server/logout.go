@@ -251,11 +251,19 @@ func (s *Server) tryUpstreamLogout(ctx context.Context, userID, connectorID stri
 	}
 
 	// Check that the session exists — we need it to store logout state.
-	_, err = s.storage.GetAuthSession(ctx, userID, connectorID)
+	session, err := s.storage.GetAuthSession(ctx, userID, connectorID)
 	if err != nil {
 		s.logger.DebugContext(ctx, "logout: no auth session for upstream logout, skipping",
 			"user_id", userID, "connector_id", connectorID)
 		return "", false
+	}
+
+	// The auth session connector data should keep an id_token that will be used as hint for RP-Initiated logout
+	if len(session.ConnectorData) > 0 {
+		connectorData = session.ConnectorData
+		s.logger.DebugContext(ctx, "logout: using auth_session.ConnectorData", "connector_id", connectorID)
+	} else if len(connectorData) == 0 {
+		s.logger.DebugContext(ctx, "logout: no connector data available", "connector_id", connectorID)
 	}
 
 	// Store logout parameters in the session.

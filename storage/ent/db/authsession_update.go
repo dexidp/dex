@@ -160,6 +160,18 @@ func (_u *AuthSessionUpdate) SetNillableIdleExpiry(v *time.Time) *AuthSessionUpd
 	return _u
 }
 
+// SetConnectorData sets the "connector_data" field.
+func (_u *AuthSessionUpdate) SetConnectorData(v []byte) *AuthSessionUpdate {
+	_u.mutation.SetConnectorData(v)
+	return _u
+}
+
+// ClearConnectorData clears the value of the "connector_data" field.
+func (_u *AuthSessionUpdate) ClearConnectorData() *AuthSessionUpdate {
+	_u.mutation.ClearConnectorData()
+	return _u
+}
+
 // Mutation returns the AuthSessionMutation object of the builder.
 func (_u *AuthSessionUpdate) Mutation() *AuthSessionMutation {
 	return _u.mutation
@@ -253,6 +265,12 @@ func (_u *AuthSessionUpdate) sqlSave(ctx context.Context) (_node int, err error)
 	}
 	if value, ok := _u.mutation.IdleExpiry(); ok {
 		_spec.SetField(authsession.FieldIdleExpiry, field.TypeTime, value)
+	}
+	if value, ok := _u.mutation.ConnectorData(); ok {
+		_spec.SetField(authsession.FieldConnectorData, field.TypeBytes, value)
+	}
+	if _u.mutation.ConnectorDataCleared() {
+		_spec.ClearField(authsession.FieldConnectorData, field.TypeBytes)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -406,6 +424,18 @@ func (_u *AuthSessionUpdateOne) SetNillableIdleExpiry(v *time.Time) *AuthSession
 	return _u
 }
 
+// SetConnectorData sets the "connector_data" field.
+func (_u *AuthSessionUpdateOne) SetConnectorData(v []byte) *AuthSessionUpdateOne {
+	_u.mutation.SetConnectorData(v)
+	return _u
+}
+
+// ClearConnectorData clears the value of the "connector_data" field.
+func (_u *AuthSessionUpdateOne) ClearConnectorData() *AuthSessionUpdateOne {
+	_u.mutation.ClearConnectorData()
+	return _u
+}
+
 // Mutation returns the AuthSessionMutation object of the builder.
 func (_u *AuthSessionUpdateOne) Mutation() *AuthSessionMutation {
 	return _u.mutation
@@ -529,6 +559,12 @@ func (_u *AuthSessionUpdateOne) sqlSave(ctx context.Context) (_node *AuthSession
 	}
 	if value, ok := _u.mutation.IdleExpiry(); ok {
 		_spec.SetField(authsession.FieldIdleExpiry, field.TypeTime, value)
+	}
+	if value, ok := _u.mutation.ConnectorData(); ok {
+		_spec.SetField(authsession.FieldConnectorData, field.TypeBytes, value)
+	}
+	if _u.mutation.ConnectorDataCleared() {
+		_spec.ClearField(authsession.FieldConnectorData, field.TypeBytes)
 	}
 	_node = &AuthSession{config: _u.config}
 	_spec.Assign = _node.assignValues
