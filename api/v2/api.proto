@@ -278,6 +278,233 @@ message VerifyPasswordResp {
   bool not_found = 2;
 }
 
+// ClientAuthState represents authentication state for a specific client within a session.
+// The user_id and connector_id are on the parent AuthSession message.
+message ClientAuthState {
+  string client_id = 1;
+  bool active = 2;
+  int64 expires_at = 3;
+  int64 last_activity = 4;
+  int64 last_token_issued_at = 5;
+}
+
+// AuthSession represents a user's authentication session.
+message AuthSession {
+  string user_id = 1;
+  string connector_id = 2;
+  repeated ClientAuthState client_states = 3;
+  int64 created_at = 4;
+  int64 last_activity = 5;
+  string ip_address = 6;
+  string user_agent = 7;
+  int64 absolute_expiry = 8;
+  int64 idle_expiry = 9;
+}
+
+// GetAuthSessionReq is a request to retrieve an auth session.
+message GetAuthSessionReq {
+  string user_id = 1;
+  string connector_id = 2;
+}
+
+// GetAuthSessionResp returns the auth session details.
+message GetAuthSessionResp {
+  AuthSession session = 1;
+}
+
+// ListAuthSessionsReq is a request to list auth sessions.
+message ListAuthSessionsReq {
+  // Optional filter: if set, only sessions for this user are returned.
+  string user_id = 1;
+}
+
+// ListAuthSessionsResp returns a list of auth sessions.
+message ListAuthSessionsResp {
+  repeated AuthSession sessions = 1;
+}
+
+// DeleteAuthSessionReq is a request to delete an auth session.
+// Deleting a session also revokes all associated refresh tokens (consistent with logout behavior).
+message DeleteAuthSessionReq {
+  string user_id = 1;
+  string connector_id = 2;
+}
+
+// DeleteAuthSessionResp returns the result of deleting an auth session.
+message DeleteAuthSessionResp {
+  bool not_found = 1;
+}
+
+// TerminateSessionsByConnectorReq is a request to terminate all sessions for a connector.
+// Use when connector configuration changes or is removed. Also revokes associated refresh tokens.
+message TerminateSessionsByConnectorReq {
+  string connector_id = 1;
+}
+
+// TerminateSessionsByConnectorResp returns the count of terminated sessions.
+message TerminateSessionsByConnectorResp {
+  int64 sessions_terminated = 1;
+}
+
+// TerminateSessionsByUserReq is a request to terminate all sessions for a user.
+// Use for account compromise scenarios. Also revokes associated refresh tokens.
+message TerminateSessionsByUserReq {
+  string user_id = 1;
+}
+
+// TerminateSessionsByUserResp returns the count of terminated sessions.
+message TerminateSessionsByUserResp {
+  int64 sessions_terminated = 1;
+}
+
+// ConsentEntry represents approved scopes for a single client.
+message ConsentEntry {
+  string client_id = 1;
+  repeated string scopes = 2;
+}
+
+// MFASecret represents metadata of an enrolled MFA authenticator.
+// The actual secret value is never exposed through the admin API.
+message MFASecret {
+  string authenticator_id = 1;
+  string type = 2;
+  bool confirmed = 3;
+  int64 created_at = 4;
+}
+
+// WebAuthnCredential represents metadata of a registered WebAuthn credential.
+// The public key is never exposed through the admin API.
+message WebAuthnCredential {
+  bytes credential_id = 1;
+  string attestation_type = 2;
+  bytes aaguid = 3;
+  uint32 sign_count = 4;
+  bool clone_warning = 5;
+  repeated string transport = 6;
+  bool backup_eligible = 7;
+  bool backup_state = 8;
+  string display_name = 9;
+  int64 created_at = 10;
+}
+
+// MFADeviceInfo groups MFA secret and WebAuthn credentials for one authenticator.
+message MFADeviceInfo {
+  string authenticator_id = 1;
+  MFASecret mfa_secret = 2;
+  repeated WebAuthnCredential webauthn_credentials = 3;
+}
+
+// UserIdentity represents persistent per-user identity data.
+message UserIdentity {
+  string user_id = 1;
+  string connector_id = 2;
+  string email = 3;
+  bool email_verified = 4;
+  string username = 5;
+  repeated string groups = 6;
+  repeated ConsentEntry consents = 7;
+  repeated MFADeviceInfo mfa_devices = 8;
+  int64 created_at = 9;
+  int64 last_login = 10;
+  int64 blocked_until = 11;
+}
+
+// GetUserIdentityReq is a request to retrieve a user identity.
+message GetUserIdentityReq {
+  string user_id = 1;
+  string connector_id = 2;
+}
+
+// GetUserIdentityResp returns the user identity details.
+message GetUserIdentityResp {
+  UserIdentity identity = 1;
+}
+
+// ListUserIdentitiesReq is a request to list user identities.
+message ListUserIdentitiesReq {}
+
+// ListUserIdentitiesResp returns a list of user identities.
+message ListUserIdentitiesResp {
+  repeated UserIdentity identities = 1;
+}
+
+// DeleteUserIdentityReq is a request to delete a user identity.
+// This is a full data purge for GDPR compliance and account deletion.
+// It cascades to: auth session, all refresh tokens, offline sessions, the
+// password record (matched by the identity's email), and the identity itself.
+message DeleteUserIdentityReq {
+  string user_id = 1;
+  string connector_id = 2;
+}
+
+// DeleteUserIdentityResp returns the result of deleting a user identity.
+message DeleteUserIdentityResp {
+  bool not_found = 1;
+}
+
+// ResetMFAReq is a request to clear all MFA secrets and WebAuthn credentials for a user.
+// Use when a user has lost access to all their MFA devices.
+message ResetMFAReq {
+  string user_id = 1;
+  string connector_id = 2;
+}
+
+// ResetMFAResp returns the result of resetting MFA.
+message ResetMFAResp {
+  bool not_found = 1;
+}
+
+// ListMFADevicesReq is a request to list registered MFA authenticators for a user.
+message ListMFADevicesReq {
+  string user_id = 1;
+  string connector_id = 2;
+}
+
+// ListMFADevicesResp returns MFA device information.
+// Secret values and public keys are never included in the response.
+message ListMFADevicesResp {
+  repeated MFADeviceInfo devices = 1;
+}
+
+// DeleteWebAuthnCredentialReq is a request to delete a specific WebAuthn credential.
+// Use when a user has lost or wants to deregister a specific security key.
+message DeleteWebAuthnCredentialReq {
+  string user_id = 1;
+  string connector_id = 2;
+  bytes credential_id = 3;
+}
+
+// DeleteWebAuthnCredentialResp returns the result of deleting a WebAuthn credential.
+message DeleteWebAuthnCredentialResp {
+  bool not_found = 1;
+}
+
+// DeleteMFASecretReq is a request to delete a specific MFA authenticator secret.
+// Also removes any associated WebAuthn credentials for the same authenticator.
+message DeleteMFASecretReq {
+  string user_id = 1;
+  string connector_id = 2;
+  string authenticator_id = 3;
+}
+
+// DeleteMFASecretResp returns the result of deleting an MFA secret.
+message DeleteMFASecretResp {
+  bool not_found = 1;
+}
+
+// RevokeConsentReq is a request to revoke consent for a specific client.
+// The user will see the consent screen again on next authorization.
+message RevokeConsentReq {
+  string user_id = 1;
+  string connector_id = 2;
+  string client_id = 3;
+}
+
+// RevokeConsentResp returns the result of revoking consent.
+message RevokeConsentResp {
+  bool not_found = 1;
+}
+
 // Dex represents the dex gRPC service.
 service Dex {
   // GetClient gets a client.
@@ -318,4 +545,31 @@ service Dex {
   rpc RevokeRefresh(RevokeRefreshReq) returns (RevokeRefreshResp) {};
   // VerifyPassword returns whether a password matches a hash for a specific email or not.
   rpc VerifyPassword(VerifyPasswordReq) returns (VerifyPasswordResp) {};
+  // GetAuthSession returns an auth session by user and connector ID.
+  rpc GetAuthSession(GetAuthSessionReq) returns (GetAuthSessionResp) {};
+  // ListAuthSessions lists auth sessions, optionally filtered by user_id.
+  rpc ListAuthSessions(ListAuthSessionsReq) returns (ListAuthSessionsResp) {};
+  // DeleteAuthSession deletes an auth session and revokes associated refresh tokens.
+  rpc DeleteAuthSession(DeleteAuthSessionReq) returns (DeleteAuthSessionResp) {};
+  // TerminateSessionsByConnector terminates all sessions for a connector and revokes associated refresh tokens.
+  rpc TerminateSessionsByConnector(TerminateSessionsByConnectorReq) returns (TerminateSessionsByConnectorResp) {};
+  // TerminateSessionsByUser terminates all sessions for a user and revokes associated refresh tokens.
+  rpc TerminateSessionsByUser(TerminateSessionsByUserReq) returns (TerminateSessionsByUserResp) {};
+  // GetUserIdentity returns a user identity by user and connector ID.
+  rpc GetUserIdentity(GetUserIdentityReq) returns (GetUserIdentityResp) {};
+  // ListUserIdentities lists all user identities.
+  rpc ListUserIdentities(ListUserIdentitiesReq) returns (ListUserIdentitiesResp) {};
+  // DeleteUserIdentity performs a full data purge for GDPR compliance: deletes the identity,
+  // auth session, refresh tokens, and offline sessions.
+  rpc DeleteUserIdentity(DeleteUserIdentityReq) returns (DeleteUserIdentityResp) {};
+  // ResetMFA clears all MFA secrets and WebAuthn credentials for a user.
+  rpc ResetMFA(ResetMFAReq) returns (ResetMFAResp) {};
+  // ListMFADevices lists registered MFA authenticators for a user.
+  rpc ListMFADevices(ListMFADevicesReq) returns (ListMFADevicesResp) {};
+  // DeleteWebAuthnCredential deletes a specific WebAuthn credential.
+  rpc DeleteWebAuthnCredential(DeleteWebAuthnCredentialReq) returns (DeleteWebAuthnCredentialResp) {};
+  // DeleteMFASecret deletes a specific MFA authenticator and its associated WebAuthn credentials.
+  rpc DeleteMFASecret(DeleteMFASecretReq) returns (DeleteMFASecretResp) {};
+  // RevokeConsent revokes consent for a specific client.
+  rpc RevokeConsent(RevokeConsentReq) returns (RevokeConsentResp) {};
 }
