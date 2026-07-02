@@ -349,6 +349,16 @@ func ScopesNotNil() predicate.DeviceRequest {
 	return predicate.DeviceRequest(sql.FieldNotNull(FieldScopes))
 }
 
+// ResourceIsNil applies the IsNil predicate on the "resource" field.
+func ResourceIsNil() predicate.DeviceRequest {
+	return predicate.DeviceRequest(sql.FieldIsNull(FieldResource))
+}
+
+// ResourceNotNil applies the NotNil predicate on the "resource" field.
+func ResourceNotNil() predicate.DeviceRequest {
+	return predicate.DeviceRequest(sql.FieldNotNull(FieldResource))
+}
+
 // ExpiryEQ applies the EQ predicate on the "expiry" field.
 func ExpiryEQ(v time.Time) predicate.DeviceRequest {
 	return predicate.DeviceRequest(sql.FieldEQ(FieldExpiry, v))

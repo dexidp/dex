@@ -13,6 +13,7 @@ func (d *Database) CreateAuthRequest(ctx context.Context, authRequest storage.Au
 		SetID(authRequest.ID).
 		SetClientID(authRequest.ClientID).
 		SetScopes(authRequest.Scopes).
+		SetResource(authRequest.Resource).
 		SetResponseTypes(authRequest.ResponseTypes).
 		SetRedirectURI(authRequest.RedirectURI).
 		SetState(authRequest.State).
@@ -82,6 +83,7 @@ func (d *Database) UpdateAuthRequest(ctx context.Context, id string, updater fun
 	_, err = tx.AuthRequest.UpdateOneID(newAuthRequest.ID).
 		SetClientID(newAuthRequest.ClientID).
 		SetScopes(newAuthRequest.Scopes).
+		SetResource(newAuthRequest.Resource).
 		SetResponseTypes(newAuthRequest.ResponseTypes).
 		SetRedirectURI(newAuthRequest.RedirectURI).
 		SetState(newAuthRequest.State).

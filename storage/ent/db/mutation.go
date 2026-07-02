@@ -60,6 +60,8 @@ type AuthCodeMutation struct {
 	client_id                 *string
 	scopes                    *[]string
 	appendscopes              []string
+	resource                  *[]string
+	appendresource            []string
 	nonce                     *string
 	redirect_uri              *string
 	claims_user_id            *string
@@ -284,6 +286,71 @@ func (m *AuthCodeMutation) ResetScopes() {
 	m.scopes = nil
 	m.appendscopes = nil
 	delete(m.clearedFields, authcode.FieldScopes)
+}
+
+// SetResource sets the "resource" field.
+func (m *AuthCodeMutation) SetResource(s []string) {
+	m.resource = &s
+	m.appendresource = nil
+}
+
+// Resource returns the value of the "resource" field in the mutation.
+func (m *AuthCodeMutation) Resource() (r []string, exists bool) {
+	v := m.resource
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResource returns the old "resource" field's value of the AuthCode entity.
+// If the AuthCode object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AuthCodeMutation) OldResource(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResource is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResource requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResource: %w", err)
+	}
+	return oldValue.Resource, nil
+}
+
+// AppendResource adds s to the "resource" field.
+func (m *AuthCodeMutation) AppendResource(s []string) {
+	m.appendresource = append(m.appendresource, s...)
+}
+
+// AppendedResource returns the list of values that were appended to the "resource" field in this mutation.
+func (m *AuthCodeMutation) AppendedResource() ([]string, bool) {
+	if len(m.appendresource) == 0 {
+		return nil, false
+	}
+	return m.appendresource, true
+}
+
+// ClearResource clears the value of the "resource" field.
+func (m *AuthCodeMutation) ClearResource() {
+	m.resource = nil
+	m.appendresource = nil
+	m.clearedFields[authcode.FieldResource] = struct{}{}
+}
+
+// ResourceCleared returns if the "resource" field was cleared in this mutation.
+func (m *AuthCodeMutation) ResourceCleared() bool {
+	_, ok := m.clearedFields[authcode.FieldResource]
+	return ok
+}
+
+// ResetResource resets all changes to the "resource" field.
+func (m *AuthCodeMutation) ResetResource() {
+	m.resource = nil
+	m.appendresource = nil
+	delete(m.clearedFields, authcode.FieldResource)
 }
 
 // SetNonce sets the "nonce" field.
@@ -879,12 +946,15 @@ func (m *AuthCodeMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AuthCodeMutation) Fields() []string {
-	fields := make([]string, 0, 16)
+	fields := make([]string, 0, 17)
 	if m.client_id != nil {
 		fields = append(fields, authcode.FieldClientID)
 	}
 	if m.scopes != nil {
 		fields = append(fields, authcode.FieldScopes)
+	}
+	if m.resource != nil {
+		fields = append(fields, authcode.FieldResource)
 	}
 	if m.nonce != nil {
 		fields = append(fields, authcode.FieldNonce)
@@ -940,6 +1010,8 @@ func (m *AuthCodeMutation) Field(name string) (ent.Value, bool) {
 		return m.ClientID()
 	case authcode.FieldScopes:
 		return m.Scopes()
+	case authcode.FieldResource:
+		return m.Resource()
 	case authcode.FieldNonce:
 		return m.Nonce()
 	case authcode.FieldRedirectURI:
@@ -981,6 +1053,8 @@ func (m *AuthCodeMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldClientID(ctx)
 	case authcode.FieldScopes:
 		return m.OldScopes(ctx)
+	case authcode.FieldResource:
+		return m.OldResource(ctx)
 	case authcode.FieldNonce:
 		return m.OldNonce(ctx)
 	case authcode.FieldRedirectURI:
@@ -1031,6 +1105,13 @@ func (m *AuthCodeMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetScopes(v)
+		return nil
+	case authcode.FieldResource:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResource(v)
 		return nil
 	case authcode.FieldNonce:
 		v, ok := value.(string)
@@ -1163,6 +1244,9 @@ func (m *AuthCodeMutation) ClearedFields() []string {
 	if m.FieldCleared(authcode.FieldScopes) {
 		fields = append(fields, authcode.FieldScopes)
 	}
+	if m.FieldCleared(authcode.FieldResource) {
+		fields = append(fields, authcode.FieldResource)
+	}
 	if m.FieldCleared(authcode.FieldClaimsGroups) {
 		fields = append(fields, authcode.FieldClaimsGroups)
 	}
@@ -1189,6 +1273,9 @@ func (m *AuthCodeMutation) ClearField(name string) error {
 	case authcode.FieldScopes:
 		m.ClearScopes()
 		return nil
+	case authcode.FieldResource:
+		m.ClearResource()
+		return nil
 	case authcode.FieldClaimsGroups:
 		m.ClearClaimsGroups()
 		return nil
@@ -1211,6 +1298,9 @@ func (m *AuthCodeMutation) ResetField(name string) error {
 		return nil
 	case authcode.FieldScopes:
 		m.ResetScopes()
+		return nil
+	case authcode.FieldResource:
+		m.ResetResource()
 		return nil
 	case authcode.FieldNonce:
 		m.ResetNonce()
@@ -1315,6 +1405,8 @@ type AuthRequestMutation struct {
 	client_id                 *string
 	scopes                    *[]string
 	appendscopes              []string
+	resource                  *[]string
+	appendresource            []string
 	response_types            *[]string
 	appendresponse_types      []string
 	redirect_uri              *string
@@ -1550,6 +1642,71 @@ func (m *AuthRequestMutation) ResetScopes() {
 	m.scopes = nil
 	m.appendscopes = nil
 	delete(m.clearedFields, authrequest.FieldScopes)
+}
+
+// SetResource sets the "resource" field.
+func (m *AuthRequestMutation) SetResource(s []string) {
+	m.resource = &s
+	m.appendresource = nil
+}
+
+// Resource returns the value of the "resource" field in the mutation.
+func (m *AuthRequestMutation) Resource() (r []string, exists bool) {
+	v := m.resource
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResource returns the old "resource" field's value of the AuthRequest entity.
+// If the AuthRequest object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AuthRequestMutation) OldResource(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResource is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResource requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResource: %w", err)
+	}
+	return oldValue.Resource, nil
+}
+
+// AppendResource adds s to the "resource" field.
+func (m *AuthRequestMutation) AppendResource(s []string) {
+	m.appendresource = append(m.appendresource, s...)
+}
+
+// AppendedResource returns the list of values that were appended to the "resource" field in this mutation.
+func (m *AuthRequestMutation) AppendedResource() ([]string, bool) {
+	if len(m.appendresource) == 0 {
+		return nil, false
+	}
+	return m.appendresource, true
+}
+
+// ClearResource clears the value of the "resource" field.
+func (m *AuthRequestMutation) ClearResource() {
+	m.resource = nil
+	m.appendresource = nil
+	m.clearedFields[authrequest.FieldResource] = struct{}{}
+}
+
+// ResourceCleared returns if the "resource" field was cleared in this mutation.
+func (m *AuthRequestMutation) ResourceCleared() bool {
+	_, ok := m.clearedFields[authrequest.FieldResource]
+	return ok
+}
+
+// ResetResource resets all changes to the "resource" field.
+func (m *AuthRequestMutation) ResetResource() {
+	m.resource = nil
+	m.appendresource = nil
+	delete(m.clearedFields, authrequest.FieldResource)
 }
 
 // SetResponseTypes sets the "response_types" field.
@@ -2531,12 +2688,15 @@ func (m *AuthRequestMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AuthRequestMutation) Fields() []string {
-	fields := make([]string, 0, 25)
+	fields := make([]string, 0, 26)
 	if m.client_id != nil {
 		fields = append(fields, authrequest.FieldClientID)
 	}
 	if m.scopes != nil {
 		fields = append(fields, authrequest.FieldScopes)
+	}
+	if m.resource != nil {
+		fields = append(fields, authrequest.FieldResource)
 	}
 	if m.response_types != nil {
 		fields = append(fields, authrequest.FieldResponseTypes)
@@ -2619,6 +2779,8 @@ func (m *AuthRequestMutation) Field(name string) (ent.Value, bool) {
 		return m.ClientID()
 	case authrequest.FieldScopes:
 		return m.Scopes()
+	case authrequest.FieldResource:
+		return m.Resource()
 	case authrequest.FieldResponseTypes:
 		return m.ResponseTypes()
 	case authrequest.FieldRedirectURI:
@@ -2678,6 +2840,8 @@ func (m *AuthRequestMutation) OldField(ctx context.Context, name string) (ent.Va
 		return m.OldClientID(ctx)
 	case authrequest.FieldScopes:
 		return m.OldScopes(ctx)
+	case authrequest.FieldResource:
+		return m.OldResource(ctx)
 	case authrequest.FieldResponseTypes:
 		return m.OldResponseTypes(ctx)
 	case authrequest.FieldRedirectURI:
@@ -2746,6 +2910,13 @@ func (m *AuthRequestMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetScopes(v)
+		return nil
+	case authrequest.FieldResource:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResource(v)
 		return nil
 	case authrequest.FieldResponseTypes:
 		v, ok := value.([]string)
@@ -2956,6 +3127,9 @@ func (m *AuthRequestMutation) ClearedFields() []string {
 	if m.FieldCleared(authrequest.FieldScopes) {
 		fields = append(fields, authrequest.FieldScopes)
 	}
+	if m.FieldCleared(authrequest.FieldResource) {
+		fields = append(fields, authrequest.FieldResource)
+	}
 	if m.FieldCleared(authrequest.FieldResponseTypes) {
 		fields = append(fields, authrequest.FieldResponseTypes)
 	}
@@ -2988,6 +3162,9 @@ func (m *AuthRequestMutation) ClearField(name string) error {
 	case authrequest.FieldScopes:
 		m.ClearScopes()
 		return nil
+	case authrequest.FieldResource:
+		m.ClearResource()
+		return nil
 	case authrequest.FieldResponseTypes:
 		m.ClearResponseTypes()
 		return nil
@@ -3016,6 +3193,9 @@ func (m *AuthRequestMutation) ResetField(name string) error {
 		return nil
 	case authrequest.FieldScopes:
 		m.ResetScopes()
+		return nil
+	case authrequest.FieldResource:
+		m.ResetResource()
 		return nil
 	case authrequest.FieldResponseTypes:
 		m.ResetResponseTypes()
@@ -4546,20 +4726,22 @@ func (m *ConnectorMutation) ResetEdge(name string) error {
 // DeviceRequestMutation represents an operation that mutates the DeviceRequest nodes in the graph.
 type DeviceRequestMutation struct {
 	config
-	op            Op
-	typ           string
-	id            *int
-	user_code     *string
-	device_code   *string
-	client_id     *string
-	client_secret *string
-	scopes        *[]string
-	appendscopes  []string
-	expiry        *time.Time
-	clearedFields map[string]struct{}
-	done          bool
-	oldValue      func(context.Context) (*DeviceRequest, error)
-	predicates    []predicate.DeviceRequest
+	op             Op
+	typ            string
+	id             *int
+	user_code      *string
+	device_code    *string
+	client_id      *string
+	client_secret  *string
+	scopes         *[]string
+	appendscopes   []string
+	resource       *[]string
+	appendresource []string
+	expiry         *time.Time
+	clearedFields  map[string]struct{}
+	done           bool
+	oldValue       func(context.Context) (*DeviceRequest, error)
+	predicates     []predicate.DeviceRequest
 }
 
 var _ ent.Mutation = (*DeviceRequestMutation)(nil)
@@ -4869,6 +5051,71 @@ func (m *DeviceRequestMutation) ResetScopes() {
 	delete(m.clearedFields, devicerequest.FieldScopes)
 }
 
+// SetResource sets the "resource" field.
+func (m *DeviceRequestMutation) SetResource(s []string) {
+	m.resource = &s
+	m.appendresource = nil
+}
+
+// Resource returns the value of the "resource" field in the mutation.
+func (m *DeviceRequestMutation) Resource() (r []string, exists bool) {
+	v := m.resource
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResource returns the old "resource" field's value of the DeviceRequest entity.
+// If the DeviceRequest object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeviceRequestMutation) OldResource(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResource is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResource requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResource: %w", err)
+	}
+	return oldValue.Resource, nil
+}
+
+// AppendResource adds s to the "resource" field.
+func (m *DeviceRequestMutation) AppendResource(s []string) {
+	m.appendresource = append(m.appendresource, s...)
+}
+
+// AppendedResource returns the list of values that were appended to the "resource" field in this mutation.
+func (m *DeviceRequestMutation) AppendedResource() ([]string, bool) {
+	if len(m.appendresource) == 0 {
+		return nil, false
+	}
+	return m.appendresource, true
+}
+
+// ClearResource clears the value of the "resource" field.
+func (m *DeviceRequestMutation) ClearResource() {
+	m.resource = nil
+	m.appendresource = nil
+	m.clearedFields[devicerequest.FieldResource] = struct{}{}
+}
+
+// ResourceCleared returns if the "resource" field was cleared in this mutation.
+func (m *DeviceRequestMutation) ResourceCleared() bool {
+	_, ok := m.clearedFields[devicerequest.FieldResource]
+	return ok
+}
+
+// ResetResource resets all changes to the "resource" field.
+func (m *DeviceRequestMutation) ResetResource() {
+	m.resource = nil
+	m.appendresource = nil
+	delete(m.clearedFields, devicerequest.FieldResource)
+}
+
 // SetExpiry sets the "expiry" field.
 func (m *DeviceRequestMutation) SetExpiry(t time.Time) {
 	m.expiry = &t
@@ -4939,7 +5186,7 @@ func (m *DeviceRequestMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *DeviceRequestMutation) Fields() []string {
-	fields := make([]string, 0, 6)
+	fields := make([]string, 0, 7)
 	if m.user_code != nil {
 		fields = append(fields, devicerequest.FieldUserCode)
 	}
@@ -4954,6 +5201,9 @@ func (m *DeviceRequestMutation) Fields() []string {
 	}
 	if m.scopes != nil {
 		fields = append(fields, devicerequest.FieldScopes)
+	}
+	if m.resource != nil {
+		fields = append(fields, devicerequest.FieldResource)
 	}
 	if m.expiry != nil {
 		fields = append(fields, devicerequest.FieldExpiry)
@@ -4976,6 +5226,8 @@ func (m *DeviceRequestMutation) Field(name string) (ent.Value, bool) {
 		return m.ClientSecret()
 	case devicerequest.FieldScopes:
 		return m.Scopes()
+	case devicerequest.FieldResource:
+		return m.Resource()
 	case devicerequest.FieldExpiry:
 		return m.Expiry()
 	}
@@ -4997,6 +5249,8 @@ func (m *DeviceRequestMutation) OldField(ctx context.Context, name string) (ent.
 		return m.OldClientSecret(ctx)
 	case devicerequest.FieldScopes:
 		return m.OldScopes(ctx)
+	case devicerequest.FieldResource:
+		return m.OldResource(ctx)
 	case devicerequest.FieldExpiry:
 		return m.OldExpiry(ctx)
 	}
@@ -5043,6 +5297,13 @@ func (m *DeviceRequestMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetScopes(v)
 		return nil
+	case devicerequest.FieldResource:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResource(v)
+		return nil
 	case devicerequest.FieldExpiry:
 		v, ok := value.(time.Time)
 		if !ok {
@@ -5083,6 +5344,9 @@ func (m *DeviceRequestMutation) ClearedFields() []string {
 	if m.FieldCleared(devicerequest.FieldScopes) {
 		fields = append(fields, devicerequest.FieldScopes)
 	}
+	if m.FieldCleared(devicerequest.FieldResource) {
+		fields = append(fields, devicerequest.FieldResource)
+	}
 	return fields
 }
 
@@ -5099,6 +5363,9 @@ func (m *DeviceRequestMutation) ClearField(name string) error {
 	switch name {
 	case devicerequest.FieldScopes:
 		m.ClearScopes()
+		return nil
+	case devicerequest.FieldResource:
+		m.ClearResource()
 		return nil
 	}
 	return fmt.Errorf("unknown DeviceRequest nullable field %s", name)
@@ -5122,6 +5389,9 @@ func (m *DeviceRequestMutation) ResetField(name string) error {
 		return nil
 	case devicerequest.FieldScopes:
 		m.ResetScopes()
+		return nil
+	case devicerequest.FieldResource:
+		m.ResetResource()
 		return nil
 	case devicerequest.FieldExpiry:
 		m.ResetExpiry()
@@ -8847,6 +9117,8 @@ type RefreshTokenMutation struct {
 	client_id                 *string
 	scopes                    *[]string
 	appendscopes              []string
+	resource                  *[]string
+	appendresource            []string
 	nonce                     *string
 	claims_user_id            *string
 	claims_username           *string
@@ -9070,6 +9342,71 @@ func (m *RefreshTokenMutation) ResetScopes() {
 	m.scopes = nil
 	m.appendscopes = nil
 	delete(m.clearedFields, refreshtoken.FieldScopes)
+}
+
+// SetResource sets the "resource" field.
+func (m *RefreshTokenMutation) SetResource(s []string) {
+	m.resource = &s
+	m.appendresource = nil
+}
+
+// Resource returns the value of the "resource" field in the mutation.
+func (m *RefreshTokenMutation) Resource() (r []string, exists bool) {
+	v := m.resource
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResource returns the old "resource" field's value of the RefreshToken entity.
+// If the RefreshToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RefreshTokenMutation) OldResource(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResource is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResource requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResource: %w", err)
+	}
+	return oldValue.Resource, nil
+}
+
+// AppendResource adds s to the "resource" field.
+func (m *RefreshTokenMutation) AppendResource(s []string) {
+	m.appendresource = append(m.appendresource, s...)
+}
+
+// AppendedResource returns the list of values that were appended to the "resource" field in this mutation.
+func (m *RefreshTokenMutation) AppendedResource() ([]string, bool) {
+	if len(m.appendresource) == 0 {
+		return nil, false
+	}
+	return m.appendresource, true
+}
+
+// ClearResource clears the value of the "resource" field.
+func (m *RefreshTokenMutation) ClearResource() {
+	m.resource = nil
+	m.appendresource = nil
+	m.clearedFields[refreshtoken.FieldResource] = struct{}{}
+}
+
+// ResourceCleared returns if the "resource" field was cleared in this mutation.
+func (m *RefreshTokenMutation) ResourceCleared() bool {
+	_, ok := m.clearedFields[refreshtoken.FieldResource]
+	return ok
+}
+
+// ResetResource resets all changes to the "resource" field.
+func (m *RefreshTokenMutation) ResetResource() {
+	m.resource = nil
+	m.appendresource = nil
+	delete(m.clearedFields, refreshtoken.FieldResource)
 }
 
 // SetNonce sets the "nonce" field.
@@ -9616,12 +9953,15 @@ func (m *RefreshTokenMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *RefreshTokenMutation) Fields() []string {
-	fields := make([]string, 0, 15)
+	fields := make([]string, 0, 16)
 	if m.client_id != nil {
 		fields = append(fields, refreshtoken.FieldClientID)
 	}
 	if m.scopes != nil {
 		fields = append(fields, refreshtoken.FieldScopes)
+	}
+	if m.resource != nil {
+		fields = append(fields, refreshtoken.FieldResource)
 	}
 	if m.nonce != nil {
 		fields = append(fields, refreshtoken.FieldNonce)
@@ -9674,6 +10014,8 @@ func (m *RefreshTokenMutation) Field(name string) (ent.Value, bool) {
 		return m.ClientID()
 	case refreshtoken.FieldScopes:
 		return m.Scopes()
+	case refreshtoken.FieldResource:
+		return m.Resource()
 	case refreshtoken.FieldNonce:
 		return m.Nonce()
 	case refreshtoken.FieldClaimsUserID:
@@ -9713,6 +10055,8 @@ func (m *RefreshTokenMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldClientID(ctx)
 	case refreshtoken.FieldScopes:
 		return m.OldScopes(ctx)
+	case refreshtoken.FieldResource:
+		return m.OldResource(ctx)
 	case refreshtoken.FieldNonce:
 		return m.OldNonce(ctx)
 	case refreshtoken.FieldClaimsUserID:
@@ -9761,6 +10105,13 @@ func (m *RefreshTokenMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetScopes(v)
+		return nil
+	case refreshtoken.FieldResource:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResource(v)
 		return nil
 	case refreshtoken.FieldNonce:
 		v, ok := value.(string)
@@ -9886,6 +10237,9 @@ func (m *RefreshTokenMutation) ClearedFields() []string {
 	if m.FieldCleared(refreshtoken.FieldScopes) {
 		fields = append(fields, refreshtoken.FieldScopes)
 	}
+	if m.FieldCleared(refreshtoken.FieldResource) {
+		fields = append(fields, refreshtoken.FieldResource)
+	}
 	if m.FieldCleared(refreshtoken.FieldClaimsGroups) {
 		fields = append(fields, refreshtoken.FieldClaimsGroups)
 	}
@@ -9909,6 +10263,9 @@ func (m *RefreshTokenMutation) ClearField(name string) error {
 	case refreshtoken.FieldScopes:
 		m.ClearScopes()
 		return nil
+	case refreshtoken.FieldResource:
+		m.ClearResource()
+		return nil
 	case refreshtoken.FieldClaimsGroups:
 		m.ClearClaimsGroups()
 		return nil
@@ -9928,6 +10285,9 @@ func (m *RefreshTokenMutation) ResetField(name string) error {
 		return nil
 	case refreshtoken.FieldScopes:
 		m.ResetScopes()
+		return nil
+	case refreshtoken.FieldResource:
+		m.ResetResource()
 		return nil
 	case refreshtoken.FieldNonce:
 		m.ResetNonce()

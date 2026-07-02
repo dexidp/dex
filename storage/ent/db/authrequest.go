@@ -22,6 +22,8 @@ type AuthRequest struct {
 	ClientID string `json:"client_id,omitempty"`
 	// Scopes holds the value of the "scopes" field.
 	Scopes []string `json:"scopes,omitempty"`
+	// Resource holds the value of the "resource" field.
+	Resource []string `json:"resource,omitempty"`
 	// ResponseTypes holds the value of the "response_types" field.
 	ResponseTypes []string `json:"response_types,omitempty"`
 	// RedirectURI holds the value of the "redirect_uri" field.
@@ -76,7 +78,7 @@ func (*AuthRequest) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case authrequest.FieldScopes, authrequest.FieldResponseTypes, authrequest.FieldClaimsGroups, authrequest.FieldConnectorData, authrequest.FieldHmacKey, authrequest.FieldWebauthnSessionData:
+		case authrequest.FieldScopes, authrequest.FieldResource, authrequest.FieldResponseTypes, authrequest.FieldClaimsGroups, authrequest.FieldConnectorData, authrequest.FieldHmacKey, authrequest.FieldWebauthnSessionData:
 			values[i] = new([]byte)
 		case authrequest.FieldForceApprovalPrompt, authrequest.FieldLoggedIn, authrequest.FieldClaimsEmailVerified, authrequest.FieldMfaValidated:
 			values[i] = new(sql.NullBool)
@@ -119,6 +121,14 @@ func (_m *AuthRequest) assignValues(columns []string, values []any) error {
 			} else if value != nil && len(*value) > 0 {
 				if err := json.Unmarshal(*value, &_m.Scopes); err != nil {
 					return fmt.Errorf("unmarshal field scopes: %w", err)
+				}
+			}
+		case authrequest.FieldResource:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field resource", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.Resource); err != nil {
+					return fmt.Errorf("unmarshal field resource: %w", err)
 				}
 			}
 		case authrequest.FieldResponseTypes:
@@ -304,6 +314,9 @@ func (_m *AuthRequest) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("scopes=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Scopes))
+	builder.WriteString(", ")
+	builder.WriteString("resource=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Resource))
 	builder.WriteString(", ")
 	builder.WriteString("response_types=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ResponseTypes))

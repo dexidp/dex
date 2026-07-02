@@ -21,6 +21,8 @@ const (
 	FieldClientSecret = "client_secret"
 	// FieldScopes holds the string denoting the scopes field in the database.
 	FieldScopes = "scopes"
+	// FieldResource holds the string denoting the resource field in the database.
+	FieldResource = "resource"
 	// FieldExpiry holds the string denoting the expiry field in the database.
 	FieldExpiry = "expiry"
 	// Table holds the table name of the devicerequest in the database.
@@ -35,6 +37,7 @@ var Columns = []string{
 	FieldClientID,
 	FieldClientSecret,
 	FieldScopes,
+	FieldResource,
 	FieldExpiry,
 }
 

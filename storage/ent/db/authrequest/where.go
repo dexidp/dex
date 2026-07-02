@@ -249,6 +249,16 @@ func ScopesNotNil() predicate.AuthRequest {
 	return predicate.AuthRequest(sql.FieldNotNull(FieldScopes))
 }
 
+// ResourceIsNil applies the IsNil predicate on the "resource" field.
+func ResourceIsNil() predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldIsNull(FieldResource))
+}
+
+// ResourceNotNil applies the NotNil predicate on the "resource" field.
+func ResourceNotNil() predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldNotNull(FieldResource))
+}
+
 // ResponseTypesIsNil applies the IsNil predicate on the "response_types" field.
 func ResponseTypesIsNil() predicate.AuthRequest {
 	return predicate.AuthRequest(sql.FieldIsNull(FieldResponseTypes))

@@ -12,6 +12,7 @@ func (d *Database) CreateAuthCode(ctx context.Context, code storage.AuthCode) er
 		SetID(code.ID).
 		SetClientID(code.ClientID).
 		SetScopes(code.Scopes).
+		SetResource(code.Resource).
 		SetRedirectURI(code.RedirectURI).
 		SetNonce(code.Nonce).
 		SetClaimsUserID(code.Claims.UserID).
