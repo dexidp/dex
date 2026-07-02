@@ -17,6 +17,7 @@ import (
 	"github.com/lib/pq"
 
 	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/sqlretry"
 )
 
 const (
@@ -195,7 +196,7 @@ func (p *Postgres) open(logger *slog.Logger) (*conn, error) {
 		return sqlErr.Code == pgErrUniqueViolation
 	}
 
-	c := &conn{db, &flavorPostgres, logger, errCheck}
+	c := &conn{db, &flavorPostgres, logger, errCheck, sqlretry.IsSerializationFailure}
 	if _, err := c.migrate(); err != nil {
 		return nil, fmt.Errorf("failed to perform migrations: %v", err)
 	}
@@ -307,7 +308,7 @@ func (s *MySQL) open(logger *slog.Logger) (*conn, error) {
 			sqlErr.Number == mysqlErrDupEntryWithKeyName
 	}
 
-	c := &conn{db, &flavorMySQL, logger, errCheck}
+	c := &conn{db, &flavorMySQL, logger, errCheck, sqlretry.IsSerializationFailure}
 	if _, err := c.migrate(); err != nil {
 		return nil, fmt.Errorf("failed to perform migrations: %v", err)
 	}
