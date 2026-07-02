@@ -184,6 +184,63 @@ func TestUserNotInRequiredGroupFromGraphAPI(t *testing.T) {
 	}
 }
 
+// TestGetGroupNamesBatchLimit verifies that getGroupNames splits large ID lists
+// into batches of ≤999, matching the Graph API limit. The mock returns HTTP 400
+// when a batch exceeds 999 — the same error Graph returns in production.
+func TestGetGroupNamesBatchLimit(t *testing.T) {
+	const totalGroups = 1500
+
+	ids := make([]string, totalGroups)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("group-id-%d", i)
+	}
+
+	batchCalls := 0
+
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1.0/directoryObjects/getByIds" {
+			http.NotFound(w, r)
+			return
+		}
+		batchCalls++
+
+		var body struct {
+			IDs   []string `json:"ids"`
+			Types []string `json:"types"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		if len(body.IDs) > 999 {
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(w, `{"error":{"code":"Request_BadRequest","message":"Number of included identifiers cannot exceed '1000'."}}`)
+			return
+		}
+
+		out := make([]group, len(body.IDs))
+		for i, id := range body.IDs {
+			out[i] = group{Name: "name-for-" + id}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"value": out})
+	}))
+	defer s.Close()
+
+	c := microsoftConnector{graphURL: s.URL, logger: slog.Default()}
+	names, err := c.getGroupNames(t.Context(), s.Client(), ids)
+	if err != nil {
+		t.Fatalf("getGroupNames returned error: %v", err)
+	}
+	if len(names) != totalGroups {
+		t.Errorf("got %d names, want %d", len(names), totalGroups)
+	}
+	// ceil(1500 / 999) = 2 batches
+	if batchCalls != 2 {
+		t.Errorf("expected 2 batch calls, got %d", batchCalls)
+	}
+}
+
 func newTestServer(responses map[string]testResponse) *httptest.Server {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		response, found := responses[r.RequestURI]

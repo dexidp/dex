@@ -481,29 +481,41 @@ func (c *microsoftConnector) getGroupNames(ctx context.Context, client *http.Cli
 		return
 	}
 
-	// https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/api/directoryobject_getbyids
-	in := &struct {
-		IDs   []string `json:"ids"`
-		Types []string `json:"types"`
-	}{ids, []string{"group"}}
-	reqURL := c.graphURL + "/v1.0/directoryObjects/getByIds"
-	for {
-		var out []group
-		var next string
+	// Graph API caps /directoryObjects/getByIds at 1000 identifiers per request.
+	// See: https://learn.microsoft.com/en-us/graph/api/directoryobject-getbyids?view=graph-rest-1.0&tabs=http#http-request
+	const maxBatchSize = 999
 
-		next, err = c.post(ctx, client, reqURL, in, &out)
-		if err != nil {
-			return groups, err
+	for i := 0; i < len(ids); i += maxBatchSize {
+		end := i + maxBatchSize
+		if end > len(ids) {
+			end = len(ids)
 		}
 
-		for _, g := range out {
-			groups = append(groups, g.Name)
+		// https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/api/directoryobject_getbyids
+		in := &struct {
+			IDs   []string `json:"ids"`
+			Types []string `json:"types"`
+		}{ids[i:end], []string{"group"}}
+		reqURL := c.graphURL + "/v1.0/directoryObjects/getByIds"
+		for {
+			var out []group
+			var next string
+
+			next, err = c.post(ctx, client, reqURL, in, &out)
+			if err != nil {
+				return groups, err
+			}
+
+			for _, g := range out {
+				groups = append(groups, g.Name)
+			}
+			if next == "" {
+				break
+			}
+			reqURL = next
 		}
-		if next == "" {
-			return
-		}
-		reqURL = next
 	}
+	return
 }
 
 func (c *microsoftConnector) post(ctx context.Context, client *http.Client, reqURL string, in interface{}, out interface{}) (string, error) {
