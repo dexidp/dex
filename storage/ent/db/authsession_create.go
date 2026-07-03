@@ -96,6 +96,12 @@ func (_c *AuthSessionCreate) SetIdleExpiry(v time.Time) *AuthSessionCreate {
 	return _c
 }
 
+// SetLogoutState sets the "logout_state" field.
+func (_c *AuthSessionCreate) SetLogoutState(v []byte) *AuthSessionCreate {
+	_c.mutation.SetLogoutState(v)
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *AuthSessionCreate) SetID(v string) *AuthSessionCreate {
 	_c.mutation.SetID(v)
@@ -273,6 +279,10 @@ func (_c *AuthSessionCreate) createSpec() (*AuthSession, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.IdleExpiry(); ok {
 		_spec.SetField(authsession.FieldIdleExpiry, field.TypeTime, value)
 		_node.IdleExpiry = value
+	}
+	if value, ok := _c.mutation.LogoutState(); ok {
+		_spec.SetField(authsession.FieldLogoutState, field.TypeBytes, value)
+		_node.LogoutState = &value
 	}
 	return _node, _spec
 }

@@ -41,6 +41,9 @@ func (AuthSession) Fields() []ent.Field {
 			SchemaType(timeSchema),
 		field.Time("idle_expiry").
 			SchemaType(timeSchema),
+		field.Bytes("logout_state").
+			Nillable().
+			Optional(),
 	}
 }
 
