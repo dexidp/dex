@@ -395,8 +395,17 @@ func (cli *client) ListClients(ctx context.Context) ([]storage.Client, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (cli *client) ListRefreshTokens(ctx context.Context) ([]storage.RefreshToken, error) {
-	return nil, errors.New("not implemented")
+func (cli *client) ListRefreshTokens(ctx context.Context) (tokens []storage.RefreshToken, err error) {
+	var refreshTokenList RefreshList
+	if err = cli.list(resourceRefreshToken, &refreshTokenList); err != nil {
+		return tokens, fmt.Errorf("failed to list passwords: %v", err)
+	}
+
+	for _, token := range refreshTokenList.RefreshTokens {
+		tokens = append(tokens, toStorageRefreshToken(token))
+	}
+
+	return
 }
 
 func (cli *client) ListPasswords(ctx context.Context) (passwords []storage.Password, err error) {
@@ -679,6 +688,25 @@ func (cli *client) GarbageCollect(ctx context.Context, now time.Time) (result st
 		}
 	}
 
+	refreshTokens, err := cli.ListRefreshTokens(ctx)
+	if err != nil {
+		return result, err
+	}
+
+	for _, refreshToken := range refreshTokens {
+		matches, err := cli.refreshTokenMatchesOfflineSession(ctx, refreshToken)
+		if err != nil {
+			return result, err
+		}
+		if matches {
+			continue
+		}
+		if err := cli.DeleteRefresh(ctx, refreshToken.ID); err != nil && err != storage.ErrNotFound {
+			cli.logger.Error("failed to delete orphan refresh token", "err", err)
+			delErr = fmt.Errorf("failed to delete orphan refresh token: %v", err)
+		}
+	}
+
 	var deviceTokens DeviceTokenList
 	if err := cli.listN(resourceDeviceToken, &deviceTokens, gcResultLimit); err != nil {
 		return result, fmt.Errorf("failed to list device tokens: %v", err)
@@ -714,6 +742,19 @@ func (cli *client) GarbageCollect(ctx context.Context, now time.Time) (result st
 		return result, delErr
 	}
 	return result, delErr
+}
+
+func (cli *client) refreshTokenMatchesOfflineSession(ctx context.Context, refreshToken storage.RefreshToken) (bool, error) {
+	offlineSessions, err := cli.GetOfflineSessions(ctx, refreshToken.Claims.UserID, refreshToken.ConnectorID)
+	if err != nil {
+		if err == storage.ErrNotFound {
+			return false, nil
+		}
+		return false, err
+	}
+
+	ref := offlineSessions.Refresh[refreshToken.ClientID]
+	return ref != nil && ref.ID == refreshToken.ID, nil
 }
 
 func (cli *client) CreateDeviceRequest(ctx context.Context, d storage.DeviceRequest) error {

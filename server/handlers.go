@@ -1769,11 +1769,13 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 				return
 			}
 		} else {
+			inconsitentDB := false
 			if oldTokenRef, ok := session.Refresh[tokenRef.ClientID]; ok {
 				// Delete old refresh token from storage.
 				if err := s.storage.DeleteRefresh(ctx, oldTokenRef.ID); err != nil {
 					if err == storage.ErrNotFound {
 						s.logger.Warn("database inconsistent, refresh token missing", "token_id", oldTokenRef.ID)
+						inconsitentDB = true
 					} else {
 						s.logger.ErrorContext(r.Context(), "failed to delete refresh token", "err", err)
 						s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -1785,6 +1787,12 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 
 			// Update existing OfflineSession obj with new RefreshTokenRef.
 			if err := s.storage.UpdateOfflineSessions(ctx, session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
+				// Perform removal of the old concurrent/uncached refresh token from a freshly fetched instance
+				if inconsitentDB && old.Refresh[tokenRef.ClientID] != nil {
+					if err := s.storage.DeleteRefresh(ctx, old.Refresh[tokenRef.ClientID].ID); err != nil {
+						s.logger.Warn("failover cleanup failed, database inconsistent, refresh token missing", "token_id", old.Refresh[tokenRef.ClientID].ID, "err", err)
+					}
+				}
 				old.Refresh[tokenRef.ClientID] = &tokenRef
 				old.ConnectorData = identity.ConnectorData
 				return old, nil
