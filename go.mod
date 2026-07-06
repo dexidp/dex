@@ -17,7 +17,7 @@ require (
 	github.com/go-ldap/ldap/v3 v3.4.13
 	github.com/go-sql-driver/mysql v1.10.0
 	github.com/go-webauthn/webauthn v0.17.4
-	github.com/google/cel-go v0.28.1
+	github.com/google/cel-go v0.29.1
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/mux v1.8.1
