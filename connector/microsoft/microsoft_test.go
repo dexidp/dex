@@ -185,8 +185,8 @@ func TestUserNotInRequiredGroupFromGraphAPI(t *testing.T) {
 }
 
 // TestGetGroupNamesBatchLimit verifies that getGroupNames splits large ID lists
-// into batches of ≤999, matching the Graph API limit. The mock returns HTTP 400
-// when a batch exceeds 999 — the same error Graph returns in production.
+// into batches of ≤1000, matching the Graph API limit. The mock returns HTTP 400
+// when a batch exceeds 1000 — the same error Graph returns in production.
 func TestGetGroupNamesBatchLimit(t *testing.T) {
 	const totalGroups = 1500
 
@@ -212,7 +212,7 @@ func TestGetGroupNamesBatchLimit(t *testing.T) {
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
-		if len(body.IDs) > 999 {
+		if len(body.IDs) > 1000 {
 			w.WriteHeader(http.StatusBadRequest)
 			fmt.Fprintf(w, `{"error":{"code":"Request_BadRequest","message":"Number of included identifiers cannot exceed '1000'."}}`)
 			return
@@ -235,7 +235,7 @@ func TestGetGroupNamesBatchLimit(t *testing.T) {
 	if len(names) != totalGroups {
 		t.Errorf("got %d names, want %d", len(names), totalGroups)
 	}
-	// ceil(1500 / 999) = 2 batches
+	// ceil(1500 / 1000) = 2 batches
 	if batchCalls != 2 {
 		t.Errorf("expected 2 batch calls, got %d", batchCalls)
 	}

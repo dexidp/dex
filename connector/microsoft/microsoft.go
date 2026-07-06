@@ -483,7 +483,7 @@ func (c *microsoftConnector) getGroupNames(ctx context.Context, client *http.Cli
 
 	// Graph API caps /directoryObjects/getByIds at 1000 identifiers per request.
 	// See: https://learn.microsoft.com/en-us/graph/api/directoryobject-getbyids?view=graph-rest-1.0&tabs=http#http-request
-	const maxBatchSize = 999
+	const maxBatchSize = 1000
 
 	for i := 0; i < len(ids); i += maxBatchSize {
 		end := i + maxBatchSize
