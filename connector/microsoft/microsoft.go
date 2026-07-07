@@ -54,6 +54,15 @@ type Config struct {
 	UseGroupsAsWhitelist bool            `json:"useGroupsAsWhitelist"`
 	EmailToLowercase     bool            `json:"emailToLowercase"`
 
+	// BatchGroupLookups controls whether group name lookups are split into
+	// batches of 1000 IDs (the Graph API's per-request limit for
+	// /directoryObjects/getByIds). When false (the default), all group IDs
+	// are sent in a single request, which fails for users in more than 1000
+	// groups — this preserves existing behavior for deployments that haven't
+	// opted in. When true, lookups are chunked, adding one Graph API request
+	// per 1000 groups a user belongs to.
+	BatchGroupLookups bool `json:"batchGroupLookups"`
+
 	APIURL   string `json:"apiURL"`
 	GraphURL string `json:"graphURL"`
 
@@ -83,6 +92,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 		groups:                 c.Groups,
 		groupNameFormat:        c.GroupNameFormat,
 		useGroupsAsWhitelist:   c.UseGroupsAsWhitelist,
+		batchGroupLookups:      c.BatchGroupLookups,
 		logger:                 logger.With(slog.Group("connector", "type", "microsoft", "id", id)),
 		emailToLowercase:       c.EmailToLowercase,
 		promptType:             c.PromptType,
@@ -139,6 +149,7 @@ type microsoftConnector struct {
 	groupNameFormat        GroupNameFormat
 	groups                 []string
 	useGroupsAsWhitelist   bool
+	batchGroupLookups      bool
 	logger                 *slog.Logger
 	emailToLowercase       bool
 	promptType             string
@@ -485,8 +496,17 @@ func (c *microsoftConnector) getGroupNames(ctx context.Context, client *http.Cli
 	// See: https://learn.microsoft.com/en-us/graph/api/directoryobject-getbyids?view=graph-rest-1.0&tabs=http#http-request
 	const maxBatchSize = 1000
 
-	for i := 0; i < len(ids); i += maxBatchSize {
-		end := i + maxBatchSize
+	// Default to a single request covering all IDs, matching pre-existing
+	// behavior. Only chunk into multiple requests when BatchGroupLookups is
+	// enabled, since that trades a login failure (>1000 groups) for
+	// additional Graph API requests.
+	batchSize := len(ids)
+	if c.batchGroupLookups {
+		batchSize = maxBatchSize
+	}
+
+	for i := 0; i < len(ids); i += batchSize {
+		end := i + batchSize
 		if end > len(ids) {
 			end = len(ids)
 		}

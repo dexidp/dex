@@ -184,25 +184,16 @@ func TestUserNotInRequiredGroupFromGraphAPI(t *testing.T) {
 	}
 }
 
-// TestGetGroupNamesBatchLimit verifies that getGroupNames splits large ID lists
-// into batches of ≤1000, matching the Graph API limit. The mock returns HTTP 400
-// when a batch exceeds 1000 — the same error Graph returns in production.
-func TestGetGroupNamesBatchLimit(t *testing.T) {
-	const totalGroups = 1500
-
-	ids := make([]string, totalGroups)
-	for i := range ids {
-		ids[i] = fmt.Sprintf("group-id-%d", i)
-	}
-
-	batchCalls := 0
-
-	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// newGetByIdsBatchServer starts a test server simulating the Graph API's
+// /directoryObjects/getByIds endpoint, which rejects requests with more than
+// 1000 IDs — the same error Graph returns in production.
+func newGetByIdsBatchServer(batchCalls *int) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1.0/directoryObjects/getByIds" {
 			http.NotFound(w, r)
 			return
 		}
-		batchCalls++
+		*batchCalls++
 
 		var body struct {
 			IDs   []string `json:"ids"`
@@ -225,9 +216,24 @@ func TestGetGroupNamesBatchLimit(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"value": out})
 	}))
+}
+
+// TestGetGroupNamesBatchLimit verifies that, when BatchGroupLookups is
+// enabled, getGroupNames splits large ID lists into batches of ≤1000,
+// matching the Graph API limit.
+func TestGetGroupNamesBatchLimit(t *testing.T) {
+	const totalGroups = 1500
+
+	ids := make([]string, totalGroups)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("group-id-%d", i)
+	}
+
+	batchCalls := 0
+	s := newGetByIdsBatchServer(&batchCalls)
 	defer s.Close()
 
-	c := microsoftConnector{graphURL: s.URL, logger: slog.Default()}
+	c := microsoftConnector{graphURL: s.URL, logger: slog.Default(), batchGroupLookups: true}
 	names, err := c.getGroupNames(t.Context(), s.Client(), ids)
 	if err != nil {
 		t.Fatalf("getGroupNames returned error: %v", err)
@@ -238,6 +244,32 @@ func TestGetGroupNamesBatchLimit(t *testing.T) {
 	// ceil(1500 / 1000) = 2 batches
 	if batchCalls != 2 {
 		t.Errorf("expected 2 batch calls, got %d", batchCalls)
+	}
+}
+
+// TestGetGroupNamesSingleRequestByDefault verifies that, without
+// BatchGroupLookups enabled, getGroupNames sends all IDs in a single request
+// — preserving pre-existing behavior — and that a user in more than 1000
+// groups gets the same Graph API error as before this feature existed.
+func TestGetGroupNamesSingleRequestByDefault(t *testing.T) {
+	const totalGroups = 1500
+
+	ids := make([]string, totalGroups)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("group-id-%d", i)
+	}
+
+	batchCalls := 0
+	s := newGetByIdsBatchServer(&batchCalls)
+	defer s.Close()
+
+	c := microsoftConnector{graphURL: s.URL, logger: slog.Default()}
+	_, err := c.getGroupNames(t.Context(), s.Client(), ids)
+	if err == nil {
+		t.Fatal("expected error for >1000 groups when BatchGroupLookups is disabled, got nil")
+	}
+	if batchCalls != 1 {
+		t.Errorf("expected exactly 1 request, got %d", batchCalls)
 	}
 }
 
