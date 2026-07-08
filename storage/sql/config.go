@@ -64,6 +64,11 @@ type NetworkDB struct {
 	MaxOpenConns    int // default: 5
 	MaxIdleConns    int // default: 5
 	ConnMaxLifetime int // Seconds, default: not set
+
+	// RetryOnSerializationFailure enables bounded, jittered retry of refresh-token
+	// updates aborted by transient serialization failures / deadlocks under
+	// SERIALIZABLE isolation. Off by default. Retry parameters are not configurable.
+	RetryOnSerializationFailure bool
 }
 
 // SSL represents SSL options for network databases.
@@ -196,7 +201,12 @@ func (p *Postgres) open(logger *slog.Logger) (*conn, error) {
 		return sqlErr.Code == pgErrUniqueViolation
 	}
 
-	c := &conn{db, &flavorPostgres, logger, errCheck, sqlretry.IsSerializationFailure}
+	var txRetryCheck func(error) bool
+	if p.RetryOnSerializationFailure {
+		txRetryCheck = sqlretry.IsSerializationFailure
+	}
+
+	c := &conn{db, &flavorPostgres, logger, errCheck, txRetryCheck}
 	if _, err := c.migrate(); err != nil {
 		return nil, fmt.Errorf("failed to perform migrations: %v", err)
 	}
@@ -308,7 +318,12 @@ func (s *MySQL) open(logger *slog.Logger) (*conn, error) {
 			sqlErr.Number == mysqlErrDupEntryWithKeyName
 	}
 
-	c := &conn{db, &flavorMySQL, logger, errCheck, sqlretry.IsSerializationFailure}
+	var txRetryCheck func(error) bool
+	if s.RetryOnSerializationFailure {
+		txRetryCheck = sqlretry.IsSerializationFailure
+	}
+
+	c := &conn{db, &flavorMySQL, logger, errCheck, txRetryCheck}
 	if _, err := c.migrate(); err != nil {
 		return nil, fmt.Errorf("failed to perform migrations: %v", err)
 	}

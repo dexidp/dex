@@ -75,7 +75,7 @@ func (d *Database) DeleteRefresh(ctx context.Context, id string) error {
 func (d *Database) UpdateRefreshToken(ctx context.Context, id string, updater func(old storage.RefreshToken) (storage.RefreshToken, error)) error {
 	return sqlretry.Do(
 		func() error { return d.updateRefreshTokenOnce(ctx, id, updater) },
-		sqlretry.IsSerializationFailure,
+		d.txRetryCheck,
 		nil,
 	)
 }

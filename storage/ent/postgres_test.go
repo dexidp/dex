@@ -28,6 +28,9 @@ func postgresTestConfig(host string, port uint64) *Postgres {
 			Password: getenv(PostgresEntPasswordEnv, "postgres"),
 			Host:     host,
 			Port:     uint16(port),
+			// Concurrency conformance tests rotate the same token from many
+			// goroutines; without retry the SERIALIZABLE aborts surface as errors.
+			RetryOnSerializationFailure: true,
 		},
 		SSL: SSL{
 			Mode: pgSSLDisable, // Postgres container doesn't support SSL.

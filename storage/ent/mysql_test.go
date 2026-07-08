@@ -34,6 +34,9 @@ func mysqlTestConfig(host string, port uint64) *MySQL {
 			Password: getenv(MySQLEntPasswordEnv, "mysql"),
 			Host:     host,
 			Port:     uint16(port),
+			// Concurrency conformance tests rotate the same token from many
+			// goroutines; without retry the deadlock aborts surface as errors.
+			RetryOnSerializationFailure: true,
 		},
 		SSL: SSL{
 			// This was originally mysqlSSLSkipVerify. It lead to handshake errors.
@@ -54,6 +57,9 @@ func mysql8TestConfig(host string, port uint64) *MySQL {
 			Password: getenv(MySQL8EntPasswordEnv, "mysql"),
 			Host:     host,
 			Port:     uint16(port),
+			// Concurrency conformance tests rotate the same token from many
+			// goroutines; without retry the deadlock aborts surface as errors.
+			RetryOnSerializationFailure: true,
 		},
 		SSL: SSL{
 			Mode: mysqlSSLFalse,

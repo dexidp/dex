@@ -238,6 +238,9 @@ func TestPostgres(t *testing.T) {
 			Host:              host,
 			Port:              uint16(port),
 			ConnectionTimeout: 5,
+			// Concurrency conformance tests rotate the same token from many
+			// goroutines; without retry the SERIALIZABLE aborts surface as errors.
+			RetryOnSerializationFailure: true,
 		},
 		SSL: SSL{
 			Mode: pgSSLDisable, // Postgres container doesn't support SSL.
@@ -272,6 +275,9 @@ func TestMySQL(t *testing.T) {
 			Host:              host,
 			Port:              uint16(port),
 			ConnectionTimeout: 5,
+			// Concurrency conformance tests rotate the same token from many
+			// goroutines; without retry the deadlock aborts surface as errors.
+			RetryOnSerializationFailure: true,
 		},
 		SSL: SSL{
 			Mode: mysqlSSLFalse,
@@ -309,6 +315,9 @@ func TestMySQL8(t *testing.T) {
 			Host:              host,
 			Port:              uint16(port),
 			ConnectionTimeout: 5,
+			// Concurrency conformance tests rotate the same token from many
+			// goroutines; without retry the deadlock aborts surface as errors.
+			RetryOnSerializationFailure: true,
 		},
 		SSL: SSL{
 			Mode: mysqlSSLFalse,
