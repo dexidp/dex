@@ -394,6 +394,11 @@ type MFASecret struct {
 	Secret          string    `json:"secret"`
 	Confirmed       bool      `json:"confirmed"`
 	CreatedAt       time.Time `json:"createdAt"`
+
+	// LastUsedCounter is the TOTP time-step counter of the most recently accepted
+	// code. Codes whose counter is <= this value are rejected to make each code
+	// single-use (replay protection). Zero means no code has been accepted yet.
+	LastUsedCounter int64 `json:"lastUsedCounter,omitempty"`
 }
 
 // WebAuthnCredential stores a registered WebAuthn credential for a user.
