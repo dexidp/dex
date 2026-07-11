@@ -353,6 +353,14 @@ func (s *Server) findSSOSession(ctx context.Context, session *storage.AuthSessio
 			continue
 		}
 
+		// Only directly-authenticated states may act as SSO sources. Skipping
+		// SSO-derived states keeps sharing unidirectional and prevents transitive
+		// A->B->C chains (a user authenticated only to A must not be SSO'd into C
+		// just because B shares with C).
+		if state.ViaSSO {
+			continue
+		}
+
 		sourceClient, err := s.storage.GetClient(ctx, sourceClientID)
 		if err != nil {
 			s.logger.DebugContext(ctx, "session: SSO lookup failed to get source client",
@@ -403,6 +411,7 @@ func (s *Server) trySessionLoginWithSession(ctx context.Context, r *http.Request
 				Active:       true,
 				ExpiresAt:    expiresAt,
 				LastActivity: now,
+				ViaSSO:       true,
 			}
 			old.LastActivity = now
 			old.IdleExpiry = now.Add(s.sessionConfig.ValidIfNotUsedFor)

@@ -435,6 +435,12 @@ type ClientAuthState struct {
 	ExpiresAt         time.Time
 	LastActivity      time.Time
 	LastTokenIssuedAt time.Time
+
+	// ViaSSO is true when this state was derived from another client's session
+	// via ssoSharedWith rather than a direct authentication. SSO-derived states
+	// are not eligible as SSO sources themselves, which keeps sharing
+	// unidirectional and prevents transitive A->B->C chains.
+	ViaSSO bool
 }
 
 // LogoutState holds RP parameters saved in the auth session during logout.

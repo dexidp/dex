@@ -2045,6 +2045,73 @@ func TestSSO_Unidirectional(t *testing.T) {
 	})
 }
 
+// TestSSO_TransitiveTrustChain verifies SSO sharing does not chain: A shares
+// only with B and B shares only with C (A never shares with C), so a user
+// authenticated only to A must not be SSO'd into C via B.
+func TestSSO_TransitiveTrustChain(t *testing.T) {
+	ctx := t.Context()
+
+	s := newTestSessionServer(t)
+	s.skipApproval = true
+	now := s.now()
+
+	require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+		ID: "client-a", Secret: "s", Name: "A", SSOSharedWith: []string{"client-b"},
+	}))
+	require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+		ID: "client-b", Secret: "s", Name: "B", SSOSharedWith: []string{"client-c"},
+	}))
+	require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+		ID: "client-c", Secret: "s", Name: "C", SSOSharedWith: []string{},
+	}))
+
+	// User authenticated only to A.
+	require.NoError(t, s.storage.CreateAuthSession(ctx, storage.AuthSession{
+		UserID: "user-1", ConnectorID: "mock", Nonce: "test-nonce",
+		ClientStates: map[string]*storage.ClientAuthState{
+			"client-a": {Active: true, ExpiresAt: now.Add(24 * time.Hour), LastActivity: now.Add(-1 * time.Minute)},
+		},
+		CreatedAt: now.Add(-30 * time.Minute), LastActivity: now.Add(-1 * time.Minute),
+		AbsoluteExpiry: now.Add(24 * time.Hour), IdleExpiry: now.Add(59 * time.Minute),
+	}))
+	require.NoError(t, s.storage.CreateUserIdentity(ctx, storage.UserIdentity{
+		UserID: "user-1", ConnectorID: "mock",
+		Claims:    storage.Claims{UserID: "user-1", Username: "testuser", Email: "test@example.com"},
+		Consents:  map[string][]string{},
+		CreatedAt: now.Add(-1 * time.Hour), LastLogin: now.Add(-30 * time.Minute),
+	}))
+
+	tryLogin := func(target string) bool {
+		req := storage.AuthRequest{
+			ID: storage.NewID(), ClientID: target, ConnectorID: "mock",
+			Scopes: []string{"openid"}, RedirectURI: "http://localhost/callback",
+			MaxAge: -1, HMACKey: storage.NewHMACKey(crypto.SHA256), Expiry: now.Add(10 * time.Minute),
+		}
+		require.NoError(t, s.storage.CreateAuthRequest(ctx, req))
+		r := sessionCookieRequest("user-1", "mock", "test-nonce")
+		w := httptest.NewRecorder()
+		session := s.getValidAuthSession(ctx, w, r, &req)
+		require.NotNil(t, session)
+		_, ok := s.trySessionLoginWithSession(ctx, r, w, &req, session)
+		return ok
+	}
+
+	// Hop 1: A→B succeeds and records an SSO-derived state for B.
+	require.True(t, tryLogin("client-b"), "A→B SSO should succeed")
+
+	// The derived B state must be marked ViaSSO, which is what makes it ineligible
+	// as a source below — assert it directly so a regression localizes here.
+	sess, err := s.storage.GetAuthSession(ctx, "user-1", "mock")
+	require.NoError(t, err)
+	require.NotNil(t, sess.ClientStates["client-b"])
+	assert.True(t, sess.ClientStates["client-b"].ViaSSO, "B's SSO-derived state must be marked ViaSSO")
+
+	// Hop 2: C has no eligible SSO source — A does not share with C and B's state
+	// is SSO-derived. Pin the exact invariant, then the login outcome.
+	assert.Nil(t, s.findSSOSession(ctx, &sess, "client-c"), "no eligible SSO source for C")
+	assert.False(t, tryLogin("client-c"), "transitive A→B→C SSO must be denied")
+}
+
 // TestRememberMeDefault tests that the rememberMeDefault helper
 // returns the correct value based on session configuration.
 func TestRememberMeDefault(t *testing.T) {

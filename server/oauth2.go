@@ -480,10 +480,9 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		return nil, "", newDisplayedErr(http.StatusBadRequest, "Failed to parse request.")
 	}
 	q := r.Form
-	redirectURI, err := url.QueryUnescape(q.Get("redirect_uri"))
-	if err != nil {
-		return nil, "", newDisplayedErr(http.StatusBadRequest, "No redirect_uri provided.")
-	}
+	// r.ParseForm already URL-decodes query values once; decoding redirect_uri a
+	// second time created a normalization differential with the token endpoint.
+	redirectURI := q.Get("redirect_uri")
 
 	clientID := q.Get("client_id")
 	state := q.Get("state")
