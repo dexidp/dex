@@ -2099,8 +2099,16 @@ func TestSSO_TransitiveTrustChain(t *testing.T) {
 	// Hop 1: A→B succeeds and records an SSO-derived state for B.
 	require.True(t, tryLogin("client-b"), "A→B SSO should succeed")
 
-	// Hop 2: B→C must be denied — B's state is SSO-derived (not an eligible SSO
-	// source) and A never shared with C.
+	// The derived B state must be marked ViaSSO, which is what makes it ineligible
+	// as a source below — assert it directly so a regression localizes here.
+	sess, err := s.storage.GetAuthSession(ctx, "user-1", "mock")
+	require.NoError(t, err)
+	require.NotNil(t, sess.ClientStates["client-b"])
+	assert.True(t, sess.ClientStates["client-b"].ViaSSO, "B's SSO-derived state must be marked ViaSSO")
+
+	// Hop 2: C has no eligible SSO source — A does not share with C and B's state
+	// is SSO-derived. Pin the exact invariant, then the login outcome.
+	assert.Nil(t, s.findSSOSession(ctx, &sess, "client-c"), "no eligible SSO source for C")
 	assert.False(t, tryLogin("client-c"), "transitive A→B→C SSO must be denied")
 }
 
