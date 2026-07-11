@@ -124,9 +124,13 @@ func buildWebAuthnUser(identity storage.UserIdentity, authenticatorID string) *w
 				BackupState:    c.BackupState,
 			},
 			Authenticator: webauthn.Authenticator{
-				AAGUID:       c.AAGUID,
-				SignCount:    c.SignCount,
-				CloneWarning: c.CloneWarning,
+				AAGUID:    c.AAGUID,
+				SignCount: c.SignCount,
+				// CloneWarning is intentionally not loaded from storage. go-webauthn
+				// only ever sets it true and never clears it, so feeding a stored
+				// true value back would make FinishLogin report a clone on every
+				// future login and permanently lock out the credential. Starting
+				// fresh makes clone detection evaluate the current assertion only.
 			},
 		})
 	}

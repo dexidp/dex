@@ -49,10 +49,35 @@ func TestValidateTOTPCode(t *testing.T) {
 	require.Greater(t, nextCounter, counter)
 }
 
+// TestBuildWebAuthnUserDropsCloneWarning verifies the stored CloneWarning flag
+// is not fed back into the credential, so a credential that once tripped clone
+// detection is not permanently locked out (go-webauthn never clears the flag).
+func TestBuildWebAuthnUserDropsCloneWarning(t *testing.T) {
+	identity := storage.UserIdentity{
+		UserID:      "user-1",
+		ConnectorID: "mock",
+		WebAuthnCredentials: map[string][]storage.WebAuthnCredential{
+			"webauthn-1": {{
+				CredentialID: []byte("cred"),
+				SignCount:    42,
+				CloneWarning: true,
+			}},
+		},
+	}
+
+	user := buildWebAuthnUser(identity, "webauthn-1")
+	creds := user.WebAuthnCredentials()
+	require.Len(t, creds, 1)
+	require.Equal(t, uint32(42), creds[0].Authenticator.SignCount, "sign count must be preserved")
+	require.False(t, creds[0].Authenticator.CloneWarning, "stored CloneWarning must not be loaded back")
+}
+
 // TestFinalizeLoginBlockedAccount verifies that login finalization is refused
 // while the user identity's BlockedUntil is in the future, and proceeds once it
 // has elapsed.
 func TestFinalizeLoginBlockedAccount(t *testing.T) {
+	t.Setenv("DEX_SESSIONS_ENABLED", "true")
+
 	httpServer, server := newTestServer(t, func(c *Config) {
 		c.SessionConfig = &SessionConfig{AbsoluteLifetime: time.Hour, ValidIfNotUsedFor: time.Hour}
 	})

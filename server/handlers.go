@@ -813,18 +813,20 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 // the approval page's path.
 func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity, authReq storage.AuthRequest, conn connector.Connector) (string, bool, error) {
 	// Refuse to complete login for a locked account. BlockedUntil lives on the
-	// persisted UserIdentity, so this only applies when identities are stored; a
-	// first-time login (no stored identity yet) cannot be blocked.
-	storedIdentity, err := s.storage.GetUserIdentity(ctx, identity.UserID, authReq.ConnectorID)
-	switch {
-	case err == nil:
-		if !storedIdentity.BlockedUntil.IsZero() && s.now().Before(storedIdentity.BlockedUntil) {
-			s.logger.WarnContext(ctx, "login rejected for locked account",
-				"connector_id", authReq.ConnectorID, "user_id", identity.UserID, "blocked_until", storedIdentity.BlockedUntil)
-			return "", false, fmt.Errorf("account is locked until %s", storedIdentity.BlockedUntil.Format(time.RFC3339))
+	// persisted UserIdentity, which only exists when the sessions feature is on;
+	// a first-time login (no stored identity yet) cannot be blocked.
+	if featureflags.SessionsEnabled.Enabled() {
+		storedIdentity, err := s.storage.GetUserIdentity(ctx, identity.UserID, authReq.ConnectorID)
+		switch {
+		case err == nil:
+			if !storedIdentity.BlockedUntil.IsZero() && s.now().Before(storedIdentity.BlockedUntil) {
+				s.logger.WarnContext(ctx, "login rejected for locked account",
+					"connector_id", authReq.ConnectorID, "user_id", identity.UserID, "blocked_until", storedIdentity.BlockedUntil)
+				return "", false, fmt.Errorf("account is locked until %s", storedIdentity.BlockedUntil.Format(time.RFC3339))
+			}
+		case !errors.Is(err, storage.ErrNotFound):
+			return "", false, fmt.Errorf("failed to look up user identity: %w", err)
 		}
-	case !errors.Is(err, storage.ErrNotFound):
-		return "", false, fmt.Errorf("failed to look up user identity: %w", err)
 	}
 
 	claims := storage.Claims{
