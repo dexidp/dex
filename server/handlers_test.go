@@ -1893,6 +1893,61 @@ func TestHandleTokenExchangeAllowedConnectors(t *testing.T) {
 	}
 }
 
+// TestHandlePasswordAllowedConnectors verifies the password grant enforces the
+// client's AllowedConnectors (mirrors TestHandleTokenExchangeAllowedConnectors
+// and TestHandleRefreshTokenAllowedConnectors — every token grant must enforce it).
+func TestHandlePasswordAllowedConnectors(t *testing.T) {
+	tests := []struct {
+		name              string
+		allowedConnectors []string
+		expectedCode      int
+	}{
+		{"connector in allowed list", []string{"test"}, http.StatusOK},
+		{"connector matches non-first entry", []string{"other", "test"}, http.StatusOK},
+		{"connector not in allowed list", []string{"other"}, http.StatusBadRequest},
+		{"empty allowed list permits any connector", nil, http.StatusOK},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			httpServer, s := newTestServer(t, func(c *Config) {
+				c.PasswordConnector = "test"
+				c.Now = time.Now
+			})
+			defer httpServer.Close()
+
+			mockConnectorDataTestStorage(t, s.storage)
+			require.NoError(t, s.storage.UpdateClient(ctx, "test", func(c storage.Client) (storage.Client, error) {
+				c.AllowedConnectors = tc.allowedConnectors
+				return c, nil
+			}))
+
+			u, err := url.Parse(s.issuerURL.String())
+			require.NoError(t, err)
+			u.Path = path.Join(u.Path, "/token")
+
+			v := url.Values{}
+			v.Add("scope", "openid email")
+			v.Add("grant_type", "password")
+			v.Add("username", "test")
+			v.Add("password", "test")
+
+			req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(v.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.SetBasicAuth("test", "barfoo")
+
+			rr := httptest.NewRecorder()
+			s.ServeHTTP(rr, req)
+			require.Equal(t, tc.expectedCode, rr.Code, rr.Body.String())
+			if tc.expectedCode == http.StatusBadRequest {
+				require.Contains(t, rr.Body.String(), "Connector not allowed",
+					"rejection must be for the connector policy, not an unrelated reason")
+			}
+		})
+	}
+}
+
 func TestHandleAuthorizationConnectorGrantTypeFiltering(t *testing.T) {
 	tests := []struct {
 		name string
