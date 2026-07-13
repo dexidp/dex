@@ -114,6 +114,11 @@ func IdleExpiry(v time.Time) predicate.AuthSession {
 	return predicate.AuthSession(sql.FieldEQ(FieldIdleExpiry, v))
 }
 
+// LogoutState applies equality check predicate on the "logout_state" field. It's identical to LogoutStateEQ.
+func LogoutState(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldEQ(FieldLogoutState, v))
+}
+
 // UserIDEQ applies the EQ predicate on the "user_id" field.
 func UserIDEQ(v string) predicate.AuthSession {
 	return predicate.AuthSession(sql.FieldEQ(FieldUserID, v))
@@ -637,6 +642,56 @@ func IdleExpiryLT(v time.Time) predicate.AuthSession {
 // IdleExpiryLTE applies the LTE predicate on the "idle_expiry" field.
 func IdleExpiryLTE(v time.Time) predicate.AuthSession {
 	return predicate.AuthSession(sql.FieldLTE(FieldIdleExpiry, v))
+}
+
+// LogoutStateEQ applies the EQ predicate on the "logout_state" field.
+func LogoutStateEQ(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldEQ(FieldLogoutState, v))
+}
+
+// LogoutStateNEQ applies the NEQ predicate on the "logout_state" field.
+func LogoutStateNEQ(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldNEQ(FieldLogoutState, v))
+}
+
+// LogoutStateIn applies the In predicate on the "logout_state" field.
+func LogoutStateIn(vs ...[]byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldIn(FieldLogoutState, vs...))
+}
+
+// LogoutStateNotIn applies the NotIn predicate on the "logout_state" field.
+func LogoutStateNotIn(vs ...[]byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldNotIn(FieldLogoutState, vs...))
+}
+
+// LogoutStateGT applies the GT predicate on the "logout_state" field.
+func LogoutStateGT(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldGT(FieldLogoutState, v))
+}
+
+// LogoutStateGTE applies the GTE predicate on the "logout_state" field.
+func LogoutStateGTE(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldGTE(FieldLogoutState, v))
+}
+
+// LogoutStateLT applies the LT predicate on the "logout_state" field.
+func LogoutStateLT(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldLT(FieldLogoutState, v))
+}
+
+// LogoutStateLTE applies the LTE predicate on the "logout_state" field.
+func LogoutStateLTE(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldLTE(FieldLogoutState, v))
+}
+
+// LogoutStateIsNil applies the IsNil predicate on the "logout_state" field.
+func LogoutStateIsNil() predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldIsNull(FieldLogoutState))
+}
+
+// LogoutStateNotNil applies the NotNil predicate on the "logout_state" field.
+func LogoutStateNotNil() predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldNotNull(FieldLogoutState))
 }
 
 // And groups predicates with the AND operator between them.

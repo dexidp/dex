@@ -450,6 +450,13 @@ type LogoutState struct {
 	State                 string // RP's opaque state parameter
 	ClientID              string
 	ConnectorID           string
+
+	// ConnectorState is opaque bytes returned by LogoutCallbackConnector.LogoutURL
+	// and handed back to HandleLogoutCallback. Used by the SAML connector to
+	// remember the outgoing LogoutRequest ID so it can validate InResponseTo
+	// against a server-side, one-shot value (defense against replay of captured
+	// LogoutResponses). Nil for connectors that don't need correlation state.
+	ConnectorState []byte
 }
 
 // AuthSession represents a user's authentication session from a specific connector.

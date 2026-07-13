@@ -3,14 +3,21 @@ package saml
 
 import (
 	"bytes"
+	"compress/flate"
 	"context"
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"encoding/xml"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -48,6 +55,9 @@ const (
 
 	// allowed clock drift for timestamp validation
 	allowedClockDrift = time.Duration(30) * time.Second
+
+	// Default RSA algorithm for SAML HTTP-Redirect query-string signatures (SP logout).
+	defaultRedirectSigAlg = "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"
 )
 
 var (
@@ -83,6 +93,20 @@ type Config struct {
 	CAData []byte `json:"caData"`
 
 	InsecureSkipSignatureValidation bool `json:"insecureSkipSignatureValidation"`
+
+	// SLOURL is the IdP's Single Logout Service URL (HTTP-Redirect binding).
+	// If empty, SLO is not available for this connector.
+	SLOURL string `json:"sloURL"`
+
+	// SLOSigningKey and SLOSigningKeyData are a PEM-encoded RSA private key used to
+	// sign SP-initiated SAML LogoutRequests on the HTTP-Redirect binding (SigAlg +
+	// Signature query parameters per SAML 2.0 Bindings §3.4.4). Optional: when both
+	// are empty, LogoutRequest is sent unsigned.
+	//
+	// This is not the same as ca/caData: those are public certificates for verifying
+	// the IdP; signing requires the SP's own key pair registered with the IdP.
+	SLOSigningKey     string `json:"sloSigningKey"`
+	SLOSigningKeyData []byte `json:"sloSigningKeyData"`
 
 	// Assertion attribute names to lookup various claims with.
 	UsernameAttr string `json:"usernameAttr"`
@@ -164,6 +188,47 @@ func (c *Config) openConnector(logger *slog.Logger) (*provider, error) {
 		logger:        logger,
 
 		nameIDPolicyFormat: c.NameIDPolicyFormat,
+
+		sloURL: c.SLOURL,
+	}
+
+	if c.SLOSigningKey != "" && len(c.SLOSigningKeyData) > 0 {
+		return nil, errors.New("saml: specify at most one of sloSigningKey and sloSigningKeyData")
+	}
+	if c.SLOURL != "" && c.EntityIssuer == "" {
+		// Single Logout Profile (§4.4.4.1) requires <Issuer> on every LogoutRequest;
+		// without entityIssuer we have no SP entityID to populate it with, and
+		// most production IdPs (Keycloak, ADFS, Okta, ...) reject Issuer-less
+		// LogoutRequests outright.
+		return nil, errors.New("saml: entityIssuer is required when sloURL is set")
+	}
+	if c.SLOSigningKey != "" || len(c.SLOSigningKeyData) > 0 {
+		if c.SLOURL == "" {
+			return nil, errors.New("saml: sloSigningKey or sloSigningKeyData requires sloURL")
+		}
+		var keyPEM []byte
+		if c.SLOSigningKey != "" {
+			data, err := os.ReadFile(c.SLOSigningKey)
+			if err != nil {
+				return nil, fmt.Errorf("saml: read sloSigningKey: %v", err)
+			}
+			keyPEM = data
+		} else {
+			keyPEM = c.SLOSigningKeyData
+		}
+		sloKey, err := parseRSAPrivateKeyPEM(keyPEM)
+		if err != nil {
+			return nil, fmt.Errorf("saml: parse sloSigningKey: %v", err)
+		}
+		p.sloSignKey = sloKey
+	} else if c.SLOURL != "" {
+		// Per SAML 2.0 Profiles §4.4.3.4 / §4.4.4.1, LogoutRequests sent over
+		// HTTP-Redirect or HTTP-POST MUST be signed. We allow the unsigned
+		// configuration (some test setups need it), but warn loudly so the
+		// operator notices before the IdP rejects every logout.
+		logger.Warn("saml: sloURL configured without sloSigningKey/sloSigningKeyData; " +
+			"LogoutRequest will be sent unsigned, which violates SAML 2.0 Profiles §4.4.3.4 " +
+			"and is rejected by most production IdPs")
 	}
 
 	if p.nameIDPolicyFormat == "" {
@@ -228,13 +293,45 @@ func (c *Config) openConnector(logger *slog.Logger) (*provider, error) {
 			return nil, errors.New("no certificates found in ca data")
 		}
 		p.validator = dsig.NewDefaultValidationContext(certStore{certs})
+		p.certs = certs
 	}
 	return p, nil
 }
 
+// parseRSAPrivateKeyPEM loads the first RSA private key from PEM data (PKCS#1 or PKCS#8).
+func parseRSAPrivateKeyPEM(pemData []byte) (*rsa.PrivateKey, error) {
+	for len(pemData) > 0 {
+		block, rest := pem.Decode(pemData)
+		if block == nil {
+			break
+		}
+		switch block.Type {
+		case "RSA PRIVATE KEY":
+			k, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+			if err != nil {
+				return nil, err
+			}
+			return k, nil
+		case "PRIVATE KEY":
+			k, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+			if err != nil {
+				return nil, err
+			}
+			rsaK, ok := k.(*rsa.PrivateKey)
+			if !ok {
+				return nil, fmt.Errorf("private key is %T, want RSA", k)
+			}
+			return rsaK, nil
+		}
+		pemData = rest
+	}
+	return nil, errors.New("no RSA private key found in PEM data")
+}
+
 var (
-	_ connector.SAMLConnector    = (*provider)(nil)
-	_ connector.RefreshConnector = (*provider)(nil)
+	_ connector.SAMLConnector                   = (*provider)(nil)
+	_ connector.RefreshConnector                = (*provider)(nil)
+	_ connector.StatefulLogoutCallbackConnector = (*provider)(nil)
 )
 
 type provider struct {
@@ -246,6 +343,9 @@ type provider struct {
 
 	// If nil, don't do signature validation.
 	validator *dsig.ValidationContext
+	// Stored separately for HTTP-Redirect binding signature verification,
+	// which uses raw RSA/ECDSA over query string rather than XML digital signatures.
+	certs []*x509.Certificate
 
 	// Attribute mappings
 	usernameAttr  string
@@ -259,12 +359,17 @@ type provider struct {
 
 	nameIDPolicyFormat string
 
+	sloURL string
+
+	// If non-nil, SP-initiated LogoutRequests use HTTP-Redirect query signing.
+	sloSignKey *rsa.PrivateKey
+
 	logger *slog.Logger
 }
 
-// cachedIdentity stores the identity from SAML assertion for refresh token support.
-// Since SAML has no native refresh mechanism, we cache the identity obtained during
-// the initial authentication and return it on subsequent refresh requests.
+// cachedIdentity stores the identity from SAML assertion for refresh token support
+// and SLO (Single Logout). The NameID/NameIDFormat/SessionIndex fields are used
+// to build a SAML LogoutRequest when the user logs out.
 type cachedIdentity struct {
 	UserID            string   `json:"userId"`
 	Username          string   `json:"username"`
@@ -272,10 +377,15 @@ type cachedIdentity struct {
 	Email             string   `json:"email"`
 	EmailVerified     bool     `json:"emailVerified"`
 	Groups            []string `json:"groups,omitempty"`
+	NameID            string   `json:"nameId,omitempty"`
+	NameIDFormat      string   `json:"nameIdFormat,omitempty"`
+	SessionIndex      string   `json:"sessionIndex,omitempty"`
 }
 
-// marshalCachedIdentity serializes the identity into ConnectorData for refresh token support.
-func marshalCachedIdentity(ident connector.Identity) (connector.Identity, error) {
+// marshalCachedIdentity serializes the identity along with SAML-specific SLO
+// fields into ConnectorData. The nameIDFormat and sessionIdx parameters come
+// from the parsed SAML assertion and are needed to construct a LogoutRequest.
+func marshalCachedIdentity(ident connector.Identity, nameIDFormat, sessionIdx string) (connector.Identity, error) {
 	ci := cachedIdentity{
 		UserID:            ident.UserID,
 		Username:          ident.Username,
@@ -283,6 +393,9 @@ func marshalCachedIdentity(ident connector.Identity) (connector.Identity, error)
 		Email:             ident.Email,
 		EmailVerified:     ident.EmailVerified,
 		Groups:            ident.Groups,
+		NameID:            ident.UserID,
+		NameIDFormat:      nameIDFormat,
+		SessionIndex:      sessionIdx,
 	}
 	connectorData, err := json.Marshal(ci)
 	if err != nil {
@@ -407,13 +520,20 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 		}
 	}
 
+	var nameIDFormat string
 	switch {
 	case subject.NameID != nil:
 		if ident.UserID = subject.NameID.Value; ident.UserID == "" {
 			return ident, fmt.Errorf("element NameID does not contain a value")
 		}
+		nameIDFormat = subject.NameID.Format
 	default:
 		return ident, fmt.Errorf("subject does not contain an NameID element")
+	}
+
+	var sessionIdx string
+	if len(assertion.AuthnStatements) > 0 {
+		sessionIdx = assertion.AuthnStatements[0].SessionIndex
 	}
 
 	// After verifying the assertion, map data in the attribute statements to
@@ -442,7 +562,7 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 
 	if len(p.allowedGroups) == 0 && (!s.Groups || p.groupsAttr == "") {
 		// Groups not requested or not configured. We're done.
-		return marshalCachedIdentity(ident)
+		return marshalCachedIdentity(ident, nameIDFormat, sessionIdx)
 	}
 
 	if len(p.allowedGroups) > 0 && (!s.Groups || p.groupsAttr == "") {
@@ -468,7 +588,7 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 
 	if len(p.allowedGroups) == 0 {
 		// No allowed groups set, just return the ident
-		return marshalCachedIdentity(ident)
+		return marshalCachedIdentity(ident, nameIDFormat, sessionIdx)
 	}
 
 	// Look for membership in one of the allowed groups
@@ -484,7 +604,7 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 	}
 
 	// Otherwise, we're good
-	return marshalCachedIdentity(ident)
+	return marshalCachedIdentity(ident, nameIDFormat, sessionIdx)
 }
 
 // Refresh implements connector.RefreshConnector.
@@ -710,4 +830,402 @@ func before(now, notBefore time.Time) bool {
 // allowed clock drift.
 func after(now, notOnOrAfter time.Time) bool {
 	return now.After(notOnOrAfter.Add(allowedClockDrift))
+}
+
+// newRequestID generates a random ID suitable for SAML request IDs.
+func newRequestID() (string, error) {
+	buf := make([]byte, 16)
+	if _, err := io.ReadFull(rand.Reader, buf); err != nil {
+		return "", fmt.Errorf("crypto/rand failed: %v", err)
+	}
+	return fmt.Sprintf("_%x", buf), nil
+}
+
+// sloCallbackURLFromRequest reconstructs the absolute URL of this HTTP request (SLO callback).
+// Used to validate LogoutResponse Destination per SAML 2.0 Bindings §3.4.5.2. When Host is
+// missing (e.g. some unit tests), returns empty and Destination checking is skipped.
+func sloCallbackURLFromRequest(r *http.Request) string {
+	host := r.Host
+	if h := r.Header.Get("X-Forwarded-Host"); h != "" {
+		if i := strings.IndexByte(h, ','); i >= 0 {
+			h = strings.TrimSpace(h[:i])
+		} else {
+			h = strings.TrimSpace(h)
+		}
+		host = h
+	}
+	if host == "" {
+		return ""
+	}
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	if p := r.Header.Get("X-Forwarded-Proto"); p != "" {
+		if i := strings.IndexByte(p, ','); i >= 0 {
+			p = strings.TrimSpace(p[:i])
+		} else {
+			p = strings.TrimSpace(p)
+		}
+		scheme = p
+	}
+	return scheme + "://" + host + r.URL.Path
+}
+
+// sloURLsMatch compares two URLs ignoring trailing slashes, with case-insensitive
+// scheme/host comparison per RFC 3986 §3.1/§3.2.2. Default-port normalization
+// (e.g. https://x → https://x:443) is intentionally NOT performed: SAML IdPs
+// typically echo the exact Destination they received, and pretending two URLs
+// are equal when an operator wrote them differently in their config tends to
+// hide misconfigurations rather than fix them.
+func sloURLsMatch(a, b string) bool {
+	pa, errA := url.Parse(strings.TrimSpace(a))
+	pb, errB := url.Parse(strings.TrimSpace(b))
+	if errA != nil || errB != nil {
+		return strings.TrimSuffix(strings.TrimSpace(a), "/") == strings.TrimSuffix(strings.TrimSpace(b), "/")
+	}
+	if !strings.EqualFold(pa.Scheme, pb.Scheme) {
+		return false
+	}
+	if !strings.EqualFold(pa.Host, pb.Host) {
+		return false
+	}
+	return strings.TrimSuffix(pa.Path, "/") == strings.TrimSuffix(pb.Path, "/") &&
+		pa.RawQuery == pb.RawQuery
+}
+
+// LogoutURLWithState builds a SAML LogoutRequest and returns the IdP's SLO
+// endpoint URL with the request encoded using HTTP-Redirect binding
+// (deflate + base64). The second return value is the outgoing LogoutRequest
+// ID, which the server persists in storage.LogoutState.ConnectorState and
+// hands back to HandleLogoutCallbackWithState so InResponseTo can be matched
+// against a server-side, one-shot value (defeats replay of captured
+// LogoutResponses).
+//
+// postLogoutRedirectURI is Dex's own /logout/callback URL; SAML doesn't carry
+// it in the request (the IdP knows where to send the LogoutResponse via its
+// configured SP metadata), so it is intentionally ignored here.
+//
+// See: https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf §3.4
+// and https://docs.oasis-open.org/security/saml/v2.0/saml-profiles-2.0-os.pdf §4.4.
+func (p *provider) LogoutURLWithState(_ context.Context, connectorData []byte, _ string) (string, []byte, error) {
+	if p.sloURL == "" {
+		return "", nil, nil
+	}
+
+	var ci cachedIdentity
+	if len(connectorData) > 0 {
+		if err := json.Unmarshal(connectorData, &ci); err != nil {
+			return "", nil, fmt.Errorf("saml: failed to unmarshal connector data for logout: %v", err)
+		}
+	}
+
+	if ci.NameID == "" {
+		return "", nil, nil
+	}
+
+	reqID, err := newRequestID()
+	if err != nil {
+		return "", nil, fmt.Errorf("saml: %v", err)
+	}
+
+	req := &logoutRequest{
+		ID:           reqID,
+		IssueInstant: xmlTime(p.now()),
+		Destination:  p.sloURL,
+		Issuer:       &issuer{Issuer: p.entityIssuer}, // §4.4.4.1: Issuer is REQUIRED
+		NameID: nameID{
+			Format: ci.NameIDFormat,
+			Value:  ci.NameID,
+		},
+	}
+	if ci.SessionIndex != "" {
+		req.SessionIndex = []sessionIndex{{Value: ci.SessionIndex}}
+	}
+
+	data, err := xml.Marshal(req)
+	if err != nil {
+		return "", nil, fmt.Errorf("saml: failed to marshal LogoutRequest: %v", err)
+	}
+
+	// HTTP-Redirect binding: deflate then base64-encode.
+	var buf bytes.Buffer
+	fw, err := flate.NewWriter(&buf, flate.DefaultCompression)
+	if err != nil {
+		return "", nil, fmt.Errorf("saml: failed to create deflate writer: %v", err)
+	}
+	if _, err := fw.Write(data); err != nil {
+		return "", nil, fmt.Errorf("saml: failed to deflate LogoutRequest: %v", err)
+	}
+	if err := fw.Close(); err != nil {
+		return "", nil, fmt.Errorf("saml: failed to close deflate writer: %v", err)
+	}
+
+	encoded := base64.StdEncoding.EncodeToString(buf.Bytes())
+
+	u, err := url.Parse(p.sloURL)
+	if err != nil {
+		return "", nil, fmt.Errorf("saml: failed to parse SLO URL: %v", err)
+	}
+
+	// We do not emit RelayState. SAML 2.0 Bindings §3.4.3 limits it to 80
+	// bytes and Dex correlates the SLO flow through the session cookie +
+	// server-side LogoutState; InResponseTo is matched against the request
+	// ID we hand back to the server below.
+	samlReqEscaped := url.QueryEscape(encoded)
+	baseQuery := "SAMLRequest=" + samlReqEscaped
+
+	if p.sloSignKey != nil {
+		sigAlgEscaped := url.QueryEscape(defaultRedirectSigAlg)
+		signedContent := baseQuery + "&SigAlg=" + sigAlgEscaped
+		h := crypto.SHA256.New()
+		h.Write([]byte(signedContent))
+		sig, err := rsa.SignPKCS1v15(rand.Reader, p.sloSignKey, crypto.SHA256, h.Sum(nil))
+		if err != nil {
+			return "", nil, fmt.Errorf("saml: sign LogoutRequest redirect binding: %v", err)
+		}
+		sigB64 := base64.StdEncoding.EncodeToString(sig)
+		u.RawQuery = signedContent + "&Signature=" + url.QueryEscape(sigB64)
+	} else {
+		u.RawQuery = baseQuery
+	}
+
+	return u.String(), []byte(reqID), nil
+}
+
+// HandleLogoutCallbackWithState validates the IdP's LogoutResponse received
+// after an SP-initiated logout redirect. The response arrives as a
+// SAMLResponse parameter via either GET query (HTTP-Redirect binding:
+// deflated + base64) or POST form (HTTP-POST binding: base64 only).
+//
+// state is the value previously returned by LogoutURLWithState — for SAML,
+// the bytes of the outgoing LogoutRequest ID. The server retrieves it from
+// storage.LogoutState.ConnectorState; using a server-side, single-use value
+// (instead of an IdP-echoed RelayState) makes InResponseTo replay-resistant
+// even when the LogoutResponse is HTTP-POST and RelayState isn't covered by
+// the signature.
+func (p *provider) HandleLogoutCallbackWithState(_ context.Context, r *http.Request, state []byte) error {
+	var samlResponse string
+	if r.Method == http.MethodGet {
+		samlResponse = r.URL.Query().Get("SAMLResponse")
+	} else {
+		if err := r.ParseForm(); err != nil {
+			return fmt.Errorf("saml slo: failed to parse form: %v", err)
+		}
+		samlResponse = r.FormValue("SAMLResponse")
+	}
+
+	if samlResponse == "" {
+		return fmt.Errorf("saml slo: missing SAMLResponse parameter")
+	}
+
+	compressed, err := base64.StdEncoding.DecodeString(samlResponse)
+	if err != nil {
+		return fmt.Errorf("saml slo: failed to decode SAMLResponse: %v", err)
+	}
+
+	// Per SAML 2.0 Bindings:
+	//   §3.4 HTTP-Redirect: SAMLResponse MUST be DEFLATE-encoded, then base64.
+	//   §3.5 HTTP-POST:     SAMLResponse is base64 of the raw XML, no DEFLATE.
+	// Mixing the two would let a malformed response slip through one path while
+	// pretending to satisfy the other, so we treat the binding strictly.
+	var rawResp []byte
+	if r.Method == http.MethodGet {
+		rawResp, err = io.ReadAll(flate.NewReader(bytes.NewReader(compressed)))
+		if err != nil {
+			return fmt.Errorf("saml slo: failed to inflate SAMLResponse (HTTP-Redirect binding requires DEFLATE): %w", err)
+		}
+	} else {
+		rawResp = compressed
+	}
+
+	byteReader := bytes.NewReader(rawResp)
+	if xrvErr := xrv.Validate(byteReader); xrvErr != nil {
+		return fmt.Errorf("saml slo: %w", xrvErr)
+	}
+
+	if r.Method == http.MethodGet && len(p.certs) > 0 {
+		if err := p.validateRedirectSignature(r, "SAMLResponse"); err != nil {
+			return fmt.Errorf("saml slo: %v", err)
+		}
+	} else if r.Method != http.MethodGet && p.validator != nil {
+		if _, err := p.validateSignature(rawResp); err != nil {
+			return fmt.Errorf("saml slo: %v", err)
+		}
+	}
+
+	var resp logoutResponse
+	if err := xml.Unmarshal(rawResp, &resp); err != nil {
+		return fmt.Errorf("saml slo: failed to unmarshal LogoutResponse: %v", err)
+	}
+
+	if resp.Status != nil {
+		if err := p.validateStatus(resp.Status); err != nil {
+			return fmt.Errorf("saml slo: %v", err)
+		}
+	}
+
+	// §4.4.4.2: <Issuer> MUST be present in LogoutResponse. When ssoIssuer is
+	// configured, treat a missing Issuer as a rejection too.
+	if p.ssoIssuer != "" {
+		if resp.Issuer == nil {
+			return fmt.Errorf("saml slo: LogoutResponse is missing required Issuer element (expected %q)", p.ssoIssuer)
+		}
+		if resp.Issuer.Issuer != p.ssoIssuer {
+			return fmt.Errorf("saml slo: expected Issuer value %q, got %q", p.ssoIssuer, resp.Issuer.Issuer)
+		}
+	}
+
+	issueInstant := time.Time(resp.IssueInstant)
+	if !issueInstant.IsZero() {
+		now := p.now()
+		if before(now, issueInstant) {
+			return fmt.Errorf("saml slo: LogoutResponse IssueInstant %s is in the future (now: %s)", issueInstant, now)
+		}
+		const maxAge = 5 * time.Minute
+		if now.After(issueInstant.Add(maxAge + allowedClockDrift)) {
+			return fmt.Errorf("saml slo: LogoutResponse IssueInstant %s is too old (now: %s)", issueInstant, now)
+		}
+	}
+
+	if resp.Destination != "" {
+		if recv := sloCallbackURLFromRequest(r); recv != "" {
+			if !sloURLsMatch(resp.Destination, recv) {
+				return fmt.Errorf("saml slo: expected Destination %q, callback URL was %q", resp.Destination, recv)
+			}
+		}
+	}
+
+	// Match InResponseTo against the one-shot request ID the server kept in
+	// LogoutState.ConnectorState. An empty state means the server didn't have
+	// one (e.g. legacy session predating this change) — skip the check rather
+	// than break upgrade flows, but log so it's noticed.
+	if len(state) > 0 {
+		expectedReqID := string(state)
+		if resp.InResponseTo != expectedReqID {
+			return fmt.Errorf("saml slo: InResponseTo mismatch: expected %q, got %q", expectedReqID, resp.InResponseTo)
+		}
+	} else if p.logger != nil {
+		p.logger.Warn("saml slo: no server-side request ID for InResponseTo check; replay protection disabled for this callback")
+	}
+
+	return nil
+}
+
+// redirectSigAlgToHash maps XML Signature algorithm URIs used in SAML HTTP-Redirect
+// binding to Go crypto.Hash values. Only RSA algorithms are supported.
+// See: https://www.w3.org/TR/xmldsig-core1/#sec-AlgID
+var redirectSigAlgToHash = map[string]crypto.Hash{
+	"http://www.w3.org/2000/09/xmldsig#rsa-sha1":        crypto.SHA1,
+	"http://www.w3.org/2001/04/xmldsig-more#rsa-sha256": crypto.SHA256,
+	"http://www.w3.org/2001/04/xmldsig-more#rsa-sha384": crypto.SHA384,
+	"http://www.w3.org/2001/04/xmldsig-more#rsa-sha512": crypto.SHA512,
+}
+
+// rawQueryParam extracts the raw (still URL-encoded) value of a query parameter
+// from a raw query string. This is needed for SAML HTTP-Redirect binding signature
+// validation, which signs over the URL-encoded parameter values.
+func rawQueryParam(rawQuery, key string) (string, bool) {
+	prefix := key + "="
+	for rawQuery != "" {
+		var pair string
+		if i := strings.IndexByte(rawQuery, '&'); i >= 0 {
+			pair, rawQuery = rawQuery[:i], rawQuery[i+1:]
+		} else {
+			pair, rawQuery = rawQuery, ""
+		}
+		if strings.HasPrefix(pair, prefix) {
+			return pair[len(prefix):], true
+		}
+	}
+	return "", false
+}
+
+// validateRedirectSignature verifies the query-string signature used in SAML
+// HTTP-Redirect binding. Unlike HTTP-POST where the signature is embedded in
+// the XML (<ds:Signature>), HTTP-Redirect carries it as Signature and SigAlg
+// query parameters. The signed content is reconstructed per SAML 2.0 Bindings
+// Section 3.4.4.1: SAMLRequest or SAMLResponse, then optional RelayState, then
+// SigAlg (using the original URL-encoded values).
+func (p *provider) validateRedirectSignature(r *http.Request, samlMsgParam string) error {
+	rawQuery := r.URL.RawQuery
+
+	sigEncoded, ok := rawQueryParam(rawQuery, "Signature")
+	if !ok || sigEncoded == "" {
+		return fmt.Errorf("missing Signature query parameter")
+	}
+
+	sigAlgEncoded, ok := rawQueryParam(rawQuery, "SigAlg")
+	if !ok || sigAlgEncoded == "" {
+		return fmt.Errorf("missing SigAlg query parameter")
+	}
+
+	sigAlg, err := url.QueryUnescape(sigAlgEncoded)
+	if err != nil {
+		return fmt.Errorf("failed to decode SigAlg: %v", err)
+	}
+
+	hashAlg, ok := redirectSigAlgToHash[sigAlg]
+	if !ok {
+		return fmt.Errorf("unsupported signature algorithm: %s", sigAlg)
+	}
+
+	// Reconstruct the signed content in the spec-mandated order.
+	var parts []string
+	if v, ok := rawQueryParam(rawQuery, samlMsgParam); ok {
+		parts = append(parts, samlMsgParam+"="+v)
+	}
+	if v, ok := rawQueryParam(rawQuery, "RelayState"); ok {
+		parts = append(parts, "RelayState="+v)
+	}
+	parts = append(parts, "SigAlg="+sigAlgEncoded)
+	signedContent := strings.Join(parts, "&")
+
+	sigB64, err := url.QueryUnescape(sigEncoded)
+	if err != nil {
+		return fmt.Errorf("failed to URL-decode Signature: %v", err)
+	}
+	sig, err := base64.StdEncoding.DecodeString(sigB64)
+	if err != nil {
+		return fmt.Errorf("failed to base64-decode Signature: %v", err)
+	}
+
+	h := hashAlg.New()
+	h.Write([]byte(signedContent))
+	hashed := h.Sum(nil)
+
+	for _, cert := range p.certs {
+		rsaPub, ok := cert.PublicKey.(*rsa.PublicKey)
+		if !ok {
+			continue
+		}
+		if rsa.VerifyPKCS1v15(rsaPub, hashAlg, hashed, sig) == nil {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("redirect binding signature validation failed")
+}
+
+// validateSignature validates the XML digital signature of the given raw XML.
+func (p *provider) validateSignature(rawXML []byte) ([]byte, error) {
+	if p.validator == nil {
+		return nil, fmt.Errorf("signature validation unavailable (no validator configured)")
+	}
+
+	doc := etree.NewDocument()
+	if err := doc.ReadFromBytes(rawXML); err != nil {
+		return nil, fmt.Errorf("failed to parse XML: %v", err)
+	}
+
+	root := doc.Root()
+	if root == nil {
+		return nil, fmt.Errorf("empty XML document")
+	}
+
+	if _, err := p.validator.Validate(root); err != nil {
+		return nil, fmt.Errorf("signature validation failed: %v", err)
+	}
+
+	return rawXML, nil
 }
