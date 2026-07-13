@@ -442,11 +442,9 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 
 	// The connector may have been removed from the client's allowed list after
 	// this refresh token was issued; re-check on every refresh so a tightened
-	// policy takes effect.
-	if !isConnectorAllowed(client.AllowedConnectors, rCtx.storageToken.ConnectorID) {
-		s.logger.WarnContext(r.Context(), "connector not allowed for client",
-			"client_id", client.ID, "connector_id", rCtx.storageToken.ConnectorID)
-		s.refreshTokenErrHelper(w, &refreshError{msg: errInvalidGrant, desc: "Connector not allowed for this client.", code: http.StatusBadRequest})
+	// policy takes effect. (The connector's own refresh-grant policy is already
+	// enforced by getRefreshTokenFromStorage, which introspection shares.)
+	if !s.checkConnectorAllowed(w, r, client, rCtx.storageToken.ConnectorID) {
 		return
 	}
 

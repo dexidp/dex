@@ -1889,6 +1889,10 @@ func TestHandleTokenExchangeAllowedConnectors(t *testing.T) {
 			s.handleToken(rr, req)
 
 			require.Equal(t, tc.expectedCode, rr.Code, rr.Body.String())
+			if tc.expectedCode == http.StatusBadRequest {
+				require.Contains(t, rr.Body.String(), "Connector not allowed",
+					"rejection must be for the connector policy, not an unrelated reason")
+			}
 		})
 	}
 }

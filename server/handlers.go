@@ -327,6 +327,24 @@ func isConnectorAllowed(allowedConnectors []string, connectorID string) bool {
 	return false
 }
 
+// checkConnectorAllowed writes an OAuth2 token error and returns false if connID is
+// not in the client's AllowedConnectors. Token grant handlers call it before
+// resolving the connector, so a disallowed connector is rejected without being
+// instantiated and no grant can silently forget the check. The connector's own
+// grant-type policy (GrantTypes) is enforced separately, right after the connector
+// is resolved, because it needs the resolved connector and a grant-specific message.
+// Browser/auth-code paths enforce the same AllowedConnectors policy with their own
+// HTML/redirect error surface.
+func (s *Server) checkConnectorAllowed(w http.ResponseWriter, r *http.Request, client storage.Client, connID string) bool {
+	if isConnectorAllowed(client.AllowedConnectors, connID) {
+		return true
+	}
+	s.logger.WarnContext(r.Context(), "connector not allowed for client",
+		"client_id", client.ID, "connector_id", connID)
+	s.tokenErrHelper(w, errInvalidGrant, "Connector not allowed for this client.", http.StatusBadRequest)
+	return false
+}
+
 // getClientWithAuthError retrieves a client by ID and returns a displayedAuthErr on failure.
 // Invalid client_id is not treated as a redirect error per RFC 6749 §4.1.2.1.
 // https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.2.1
@@ -1634,8 +1652,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 
 	// Which connector
 	connID := s.passwordConnector
-	if !isConnectorAllowed(client.AllowedConnectors, connID) {
-		s.tokenErrHelper(w, errInvalidGrant, "Connector not allowed for this client.", http.StatusBadRequest)
+	if !s.checkConnectorAllowed(w, r, client, connID) {
 		return
 	}
 	conn, err := s.getConnector(ctx, connID)
@@ -1853,13 +1870,9 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 		return
 	}
 
-	if !isConnectorAllowed(client.AllowedConnectors, connID) {
-		s.logger.ErrorContext(r.Context(), "connector not allowed for client",
-			"connector_id", connID, "client_id", client.ID)
-		s.tokenErrHelper(w, errInvalidRequest, "Connector not allowed for this client.", http.StatusBadRequest)
+	if !s.checkConnectorAllowed(w, r, client, connID) {
 		return
 	}
-
 	conn, err := s.getConnector(ctx, connID)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to get connector", "err", err)
