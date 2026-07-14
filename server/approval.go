@@ -182,7 +182,14 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 			implicitOrHybrid = true
 			var err error
 
-			accessToken, _, err = s.newAccessToken(r.Context(), authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, authReq.ConnectorID, authReq.AuthTime)
+			accessToken, _, err = s.issuer.signer.signAccessToken(r.Context(), Authorization{
+				Client:      storage.Client{ID: authReq.ClientID},
+				Claims:      authReq.Claims,
+				Scopes:      authReq.Scopes,
+				ConnectorID: authReq.ConnectorID,
+				Nonce:       authReq.Nonce,
+				AuthTime:    authReq.AuthTime,
+			})
 			if err != nil {
 				s.logger.ErrorContext(r.Context(), "failed to create new access token", "err", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -192,7 +199,14 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 			implicitOrHybrid = true
 			var err error
 
-			idToken, idTokenExpiry, err = s.newIDToken(r.Context(), authReq.ClientID, authReq.Claims, authReq.Scopes, authReq.Nonce, accessToken, code.ID, authReq.ConnectorID, authReq.AuthTime)
+			idToken, idTokenExpiry, err = s.issuer.signer.signIDToken(r.Context(), Authorization{
+				Client:      storage.Client{ID: authReq.ClientID},
+				Claims:      authReq.Claims,
+				Scopes:      authReq.Scopes,
+				ConnectorID: authReq.ConnectorID,
+				Nonce:       authReq.Nonce,
+				AuthTime:    authReq.AuthTime,
+			}, accessToken, code.ID)
 			if err != nil {
 				s.logger.ErrorContext(r.Context(), "failed to create ID token", "err", err)
 				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)

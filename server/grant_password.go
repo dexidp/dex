@@ -5,11 +5,10 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
-	"time"
 
 	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -114,145 +113,30 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 		Groups:            identity.Groups,
 	}
 
-	accessToken, _, err := s.newAccessToken(ctx, client.ID, claims, scopes, nonce, connID, time.Time{})
+	// A refresh token is issued only when the connector supports it, the grant type
+	// is allowed, and offline_access was requested (RFC 6749 §1.5, never mandatory).
+	wantRefresh := false
+	if _, ok := conn.Connector.(connector.RefreshConnector); ok && GrantTypeAllowed(conn.GrantTypes, grantTypeRefreshToken) {
+		wantRefresh = slices.Contains(scopes, scopeOfflineAccess)
+	}
+
+	tokens, err := s.issuer.Issue(ctx, Authorization{
+		Client:        client,
+		Claims:        claims,
+		Scopes:        scopes,
+		ConnectorID:   connID,
+		Nonce:         nonce,
+		ConnectorData: identity.ConnectorData,
+	}, wantRefresh)
 	if err != nil {
-		s.logger.ErrorContext(r.Context(), "password grant failed to create new access token", "err", err)
+		s.logger.ErrorContext(r.Context(), "password grant failed to issue tokens", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		return
 	}
 
-	idToken, expiry, err := s.newIDToken(ctx, client.ID, claims, scopes, nonce, accessToken, "", connID, time.Time{})
-	if err != nil {
-		s.logger.ErrorContext(r.Context(), "password grant failed to create new ID token", "err", err)
+	if err := writeTokenResponse(w, tokens, s.now()); err != nil {
+		s.logger.ErrorContext(r.Context(), "failed to write token response", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		return
 	}
-
-	reqRefresh := func() bool {
-		// Same logic as in exchangeAuthCode: silently omit refresh token
-		// when the connector doesn't support it or grantTypes forbids it.
-		// See RFC 6749 §1.5 — refresh tokens are never mandatory.
-		// https://datatracker.ietf.org/doc/html/rfc6749#section-1.5
-		if _, ok := conn.Connector.(connector.RefreshConnector); !ok {
-			return false
-		}
-
-		if !GrantTypeAllowed(conn.GrantTypes, grantTypeRefreshToken) {
-			return false
-		}
-
-		for _, scope := range scopes {
-			if scope == scopeOfflineAccess {
-				return true
-			}
-		}
-		return false
-	}()
-	var refreshToken string
-	if reqRefresh {
-		refresh := storage.RefreshToken{
-			ID:          storage.NewID(),
-			Token:       storage.NewID(),
-			ClientID:    client.ID,
-			ConnectorID: connID,
-			Scopes:      scopes,
-			Claims:      claims,
-			Nonce:       nonce,
-			// ConnectorData: authCode.ConnectorData,
-			CreatedAt: s.now(),
-			LastUsed:  s.now(),
-		}
-		token := &internal.RefreshToken{
-			RefreshId: refresh.ID,
-			Token:     refresh.Token,
-		}
-		if refreshToken, err = internal.Marshal(token); err != nil {
-			s.logger.ErrorContext(r.Context(), "failed to marshal refresh token", "err", err)
-			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-			return
-		}
-
-		if err := s.storage.CreateRefresh(ctx, refresh); err != nil {
-			s.logger.ErrorContext(r.Context(), "failed to create refresh token", "err", err)
-			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-			return
-		}
-
-		// deleteToken determines if we need to delete the newly created refresh token
-		// due to a failure in updating/creating the OfflineSession object for the
-		// corresponding user.
-		var deleteToken bool
-		defer func() {
-			if deleteToken {
-				// Delete newly created refresh token from storage.
-				if err := s.storage.DeleteRefresh(ctx, refresh.ID); err != nil {
-					s.logger.ErrorContext(r.Context(), "failed to delete refresh token", "err", err)
-					s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-					return
-				}
-			}
-		}()
-
-		tokenRef := storage.RefreshTokenRef{
-			ID:        refresh.ID,
-			ClientID:  refresh.ClientID,
-			CreatedAt: refresh.CreatedAt,
-			LastUsed:  refresh.LastUsed,
-		}
-
-		// Try to retrieve an existing OfflineSession object for the corresponding user.
-		if session, err := s.storage.GetOfflineSessions(ctx, refresh.Claims.UserID, refresh.ConnectorID); err != nil {
-			if err != storage.ErrNotFound {
-				s.logger.ErrorContext(r.Context(), "failed to get offline session", "err", err)
-				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-				deleteToken = true
-				return
-			}
-			offlineSessions := storage.OfflineSessions{
-				UserID:        refresh.Claims.UserID,
-				ConnID:        refresh.ConnectorID,
-				Refresh:       make(map[string]*storage.RefreshTokenRef),
-				ConnectorData: identity.ConnectorData,
-			}
-			offlineSessions.Refresh[tokenRef.ClientID] = &tokenRef
-
-			// Create a new OfflineSession object for the user and add a reference object for
-			// the newly received refreshtoken.
-			if err := s.storage.CreateOfflineSessions(ctx, offlineSessions); err != nil {
-				s.logger.ErrorContext(r.Context(), "failed to create offline session", "err", err)
-				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-				deleteToken = true
-				return
-			}
-		} else {
-			if oldTokenRef, ok := session.Refresh[tokenRef.ClientID]; ok {
-				// Delete old refresh token from storage.
-				if err := s.storage.DeleteRefresh(ctx, oldTokenRef.ID); err != nil {
-					if err == storage.ErrNotFound {
-						s.logger.Warn("database inconsistent, refresh token missing", "token_id", oldTokenRef.ID)
-					} else {
-						s.logger.ErrorContext(r.Context(), "failed to delete refresh token", "err", err)
-						s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-						deleteToken = true
-						return
-					}
-				}
-			}
-
-			// Update existing OfflineSession obj with new RefreshTokenRef.
-			if err := s.storage.UpdateOfflineSessions(ctx, session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
-				old.Refresh[tokenRef.ClientID] = &tokenRef
-				old.ConnectorData = identity.ConnectorData
-				return old, nil
-			}); err != nil {
-				s.logger.ErrorContext(r.Context(), "failed to update offline session", "err", err)
-				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-				deleteToken = true
-				return
-			}
-		}
-	}
-
-	resp := s.toAccessTokenResponse(idToken, accessToken, refreshToken, expiry)
-	s.writeAccessToken(w, resp)
 }

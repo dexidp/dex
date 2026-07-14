@@ -127,9 +127,13 @@ func TestHandleLogoutWithValidHint(t *testing.T) {
 		LastActivity: time.Now(),
 	}))
 
-	idToken, _, err := server.newIDToken(ctx, clientID, storage.Claims{
-		UserID: userID, Username: "testuser", Email: "test@example.com",
-	}, []string{"openid"}, "", "", "", connectorID, time.Now())
+	idToken, _, err := server.issuer.signer.signIDToken(ctx, Authorization{
+		Client:      storage.Client{ID: clientID},
+		Claims:      storage.Claims{UserID: userID, Username: "testuser", Email: "test@example.com"},
+		Scopes:      []string{"openid"},
+		ConnectorID: connectorID,
+		AuthTime:    time.Now(),
+	}, "", "")
 	require.NoError(t, err)
 
 	logoutURL := fmt.Sprintf("/logout?id_token_hint=%s&post_logout_redirect_uri=%s&state=mystate",
@@ -170,9 +174,13 @@ func TestHandleLogoutUnregisteredRedirectURI(t *testing.T) {
 		PostLogoutRedirectURIs: []string{"https://example.com/done"},
 	}))
 
-	idToken, _, err := server.newIDToken(ctx, clientID, storage.Claims{
-		UserID: "user1", Username: "testuser", Email: "test@example.com",
-	}, []string{"openid"}, "", "", "", "mock", time.Now())
+	idToken, _, err := server.issuer.signer.signIDToken(ctx, Authorization{
+		Client:      storage.Client{ID: clientID},
+		Claims:      storage.Claims{UserID: "user1", Username: "testuser", Email: "test@example.com"},
+		Scopes:      []string{"openid"},
+		ConnectorID: "mock",
+		AuthTime:    time.Now(),
+	}, "", "")
 	require.NoError(t, err)
 
 	logoutURL := fmt.Sprintf("/logout?id_token_hint=%s&post_logout_redirect_uri=%s",
@@ -236,9 +244,13 @@ func TestHandleLogoutRevokesRefreshTokens(t *testing.T) {
 		CreatedAt: time.Now(), LastActivity: time.Now(),
 	}))
 
-	idToken, _, err := server.newIDToken(ctx, clientID, storage.Claims{
-		UserID: userID, Username: "testuser", Email: "test@example.com",
-	}, []string{"openid"}, "", "", "", connectorID, time.Now())
+	idToken, _, err := server.issuer.signer.signIDToken(ctx, Authorization{
+		Client:      storage.Client{ID: clientID},
+		Claims:      storage.Claims{UserID: userID, Username: "testuser", Email: "test@example.com"},
+		Scopes:      []string{"openid"},
+		ConnectorID: connectorID,
+		AuthTime:    time.Now(),
+	}, "", "")
 	require.NoError(t, err)
 
 	logoutURL := fmt.Sprintf("/logout?id_token_hint=%s&post_logout_redirect_uri=%s",
@@ -277,9 +289,13 @@ func TestHandleLogoutRepeat(t *testing.T) {
 		CreatedAt: time.Now(), LastActivity: time.Now(),
 	}))
 
-	idToken, _, err := server.newIDToken(ctx, clientID, storage.Claims{
-		UserID: userID, Username: "testuser", Email: "test@example.com",
-	}, []string{"openid"}, "", "", "", connectorID, time.Now())
+	idToken, _, err := server.issuer.signer.signIDToken(ctx, Authorization{
+		Client:      storage.Client{ID: clientID},
+		Claims:      storage.Claims{UserID: userID, Username: "testuser", Email: "test@example.com"},
+		Scopes:      []string{"openid"},
+		ConnectorID: connectorID,
+		AuthTime:    time.Now(),
+	}, "", "")
 	require.NoError(t, err)
 
 	logoutURL := fmt.Sprintf("/logout?id_token_hint=%s&post_logout_redirect_uri=%s",
