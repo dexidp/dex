@@ -998,15 +998,17 @@ func (c *conn) CreateAuthSession(ctx context.Context, s storage.AuthSession) err
 			created_at, last_activity,
 			ip_address, user_agent,
 			absolute_expiry, idle_expiry,
+			connector_data,
 			logout_state
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);
 	`,
 		s.UserID, s.ConnectorID, s.Nonce,
 		encoder(s.ClientStates),
 		s.CreatedAt, s.LastActivity,
 		s.IPAddress, s.UserAgent,
 		s.AbsoluteExpiry, s.IdleExpiry,
+		s.ConnectorData,
 		encoder(s.LogoutState),
 	)
 	if err != nil {
@@ -1036,12 +1038,14 @@ func (c *conn) UpdateAuthSession(ctx context.Context, userID, connectorID string
 				last_activity = $2,
 				ip_address = $3,
 				user_agent = $4,
-				logout_state = $5
-			where user_id = $6 AND connector_id = $7;
+				connector_data = $5,
+				logout_state = $6
+			where user_id = $7 AND connector_id = $8;
 		`,
 			encoder(newSession.ClientStates),
 			newSession.LastActivity,
 			newSession.IPAddress, newSession.UserAgent,
+			newSession.ConnectorData,
 			encoder(newSession.LogoutState),
 			userID, connectorID,
 		)
@@ -1062,6 +1066,7 @@ const authSessionColumns = `
 	created_at, last_activity,
 	ip_address, user_agent,
 	absolute_expiry, idle_expiry,
+	connector_data,
 	logout_state
 `
 
@@ -1081,6 +1086,7 @@ func scanAuthSession(s scanner) (session storage.AuthSession, err error) {
 		&session.CreatedAt, &session.LastActivity,
 		&session.IPAddress, &session.UserAgent,
 		&session.AbsoluteExpiry, &session.IdleExpiry,
+		&session.ConnectorData,
 		&logoutState,
 	)
 	if err != nil {

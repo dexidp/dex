@@ -261,6 +261,7 @@ func (s *Server) createOrUpdateAuthSession(ctx context.Context, r *http.Request,
 				old.ClientStates = make(map[string]*storage.ClientAuthState)
 			}
 			old.ClientStates[authReq.ClientID] = clientState
+			old.ConnectorData = authReq.ConnectorData
 			return old, nil
 		}); err != nil {
 			return fmt.Errorf("update auth session: %w", err)
@@ -289,6 +290,7 @@ func (s *Server) createOrUpdateAuthSession(ctx context.Context, r *http.Request,
 		UserAgent:      r.UserAgent(),
 		AbsoluteExpiry: now.Add(s.sessionConfig.AbsoluteLifetime),
 		IdleExpiry:     now.Add(s.sessionConfig.ValidIfNotUsedFor),
+		ConnectorData:  authReq.ConnectorData,
 	}
 
 	if err := s.storage.CreateAuthSession(ctx, newSession); err != nil {
