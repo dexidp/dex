@@ -440,6 +440,14 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		return
 	}
 
+	// The connector may have been removed from the client's allowed list after
+	// this refresh token was issued; re-check on every refresh so a tightened
+	// policy takes effect. (The connector's own refresh-grant policy is already
+	// enforced by getRefreshTokenFromStorage, which introspection shares.)
+	if !s.checkConnectorAllowed(w, r, client, rCtx.storageToken.ConnectorID) {
+		return
+	}
+
 	rCtx.scopes, rerr = s.getRefreshScopes(r, rCtx.storageToken)
 	if rerr != nil {
 		s.refreshTokenErrHelper(w, rerr)

@@ -508,3 +508,58 @@ func TestRefreshTokenPolicy(t *testing.T) {
 		require.Equal(t, true, r.CompletelyExpired(lastTime))
 	})
 }
+
+// TestHandleRefreshTokenAllowedConnectors verifies the refresh grant enforces
+// the client's AllowedConnectors (mirrors TestHandleTokenExchangeAllowedConnectors
+// and TestHandlePasswordAllowedConnectors — every token grant must enforce it).
+func TestHandleRefreshTokenAllowedConnectors(t *testing.T) {
+	tests := []struct {
+		name              string
+		allowedConnectors []string
+		expectedCode      int
+	}{
+		{"connector in allowed list", []string{"test"}, http.StatusOK},
+		{"connector matches non-first entry", []string{"other", "test"}, http.StatusOK},
+		{"connector not in allowed list", []string{"other"}, http.StatusBadRequest},
+		{"empty allowed list permits any connector", nil, http.StatusOK},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			httpServer, s := newTestServer(t, func(c *Config) {
+				c.RefreshTokenPolicy = &RefreshTokenPolicy{rotateRefreshTokens: true}
+			})
+			defer httpServer.Close()
+
+			mockRefreshTokenTestStorage(t, s.storage, false)
+			require.NoError(t, s.storage.UpdateClient(ctx, "test", func(c storage.Client) (storage.Client, error) {
+				c.AllowedConnectors = tc.allowedConnectors
+				return c, nil
+			}))
+
+			tokenData, err := internal.Marshal(&internal.RefreshToken{RefreshId: "test", Token: "bar"})
+			require.NoError(t, err)
+
+			u, err := url.Parse(s.issuerURL.String())
+			require.NoError(t, err)
+			u.Path = path.Join(u.Path, "/token")
+
+			v := url.Values{}
+			v.Add("grant_type", "refresh_token")
+			v.Add("refresh_token", tokenData)
+
+			req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(v.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.SetBasicAuth("test", "barfoo")
+
+			rr := httptest.NewRecorder()
+			s.ServeHTTP(rr, req)
+			require.Equal(t, tc.expectedCode, rr.Code, rr.Body.String())
+			if tc.expectedCode == http.StatusBadRequest {
+				require.Contains(t, rr.Body.String(), "Connector not allowed",
+					"rejection must be for the connector policy, not an unrelated reason")
+			}
+		})
+	}
+}
