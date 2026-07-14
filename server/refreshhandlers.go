@@ -486,14 +486,14 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		Groups:            ident.Groups,
 	}
 
-	accessToken, _, err := s.newAccessToken(r.Context(), client.ID, claims, rCtx.scopes, rCtx.storageToken.Nonce, rCtx.storageToken.ConnectorID, authTime)
+	accessToken, _, err := s.newAccessToken(r.Context(), client.ID, claims, rCtx.scopes, rCtx.storageToken.Nonce, rCtx.storageToken.ConnectorID, authTime, rCtx.storageToken.Resource)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to create new access token", "err", err)
 		s.refreshTokenErrHelper(w, newInternalServerError())
 		return
 	}
 
-	idToken, expiry, err := s.newIDToken(r.Context(), client.ID, claims, rCtx.scopes, rCtx.storageToken.Nonce, accessToken, "", rCtx.storageToken.ConnectorID, authTime)
+	idToken, expiry, err := s.newIDToken(r.Context(), client.ID, claims, rCtx.scopes, rCtx.storageToken.Nonce, accessToken, "", rCtx.storageToken.ConnectorID, authTime, nil)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to create ID token", "err", err)
 		s.refreshTokenErrHelper(w, newInternalServerError())

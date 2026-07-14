@@ -32,6 +32,12 @@ func (_c *RefreshTokenCreate) SetScopes(v []string) *RefreshTokenCreate {
 	return _c
 }
 
+// SetResource sets the "resource" field.
+func (_c *RefreshTokenCreate) SetResource(v []string) *RefreshTokenCreate {
+	_c.mutation.SetResource(v)
+	return _c
+}
+
 // SetNonce sets the "nonce" field.
 func (_c *RefreshTokenCreate) SetNonce(v string) *RefreshTokenCreate {
 	_c.mutation.SetNonce(v)
@@ -328,6 +334,10 @@ func (_c *RefreshTokenCreate) createSpec() (*RefreshToken, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.Scopes(); ok {
 		_spec.SetField(refreshtoken.FieldScopes, field.TypeJSON, value)
 		_node.Scopes = value
+	}
+	if value, ok := _c.mutation.Resource(); ok {
+		_spec.SetField(refreshtoken.FieldResource, field.TypeJSON, value)
+		_node.Resource = value
 	}
 	if value, ok := _c.mutation.Nonce(); ok {
 		_spec.SetField(refreshtoken.FieldNonce, field.TypeString, value)

@@ -129,7 +129,7 @@ func TestHandleLogoutWithValidHint(t *testing.T) {
 
 	idToken, _, err := server.newIDToken(ctx, clientID, storage.Claims{
 		UserID: userID, Username: "testuser", Email: "test@example.com",
-	}, []string{"openid"}, "", "", "", connectorID, time.Now())
+	}, []string{"openid"}, "", "", "", connectorID, time.Now(), nil)
 	require.NoError(t, err)
 
 	logoutURL := fmt.Sprintf("/logout?id_token_hint=%s&post_logout_redirect_uri=%s&state=mystate",
@@ -172,7 +172,7 @@ func TestHandleLogoutUnregisteredRedirectURI(t *testing.T) {
 
 	idToken, _, err := server.newIDToken(ctx, clientID, storage.Claims{
 		UserID: "user1", Username: "testuser", Email: "test@example.com",
-	}, []string{"openid"}, "", "", "", "mock", time.Now())
+	}, []string{"openid"}, "", "", "", "mock", time.Now(), nil)
 	require.NoError(t, err)
 
 	logoutURL := fmt.Sprintf("/logout?id_token_hint=%s&post_logout_redirect_uri=%s",
@@ -238,7 +238,7 @@ func TestHandleLogoutRevokesRefreshTokens(t *testing.T) {
 
 	idToken, _, err := server.newIDToken(ctx, clientID, storage.Claims{
 		UserID: userID, Username: "testuser", Email: "test@example.com",
-	}, []string{"openid"}, "", "", "", connectorID, time.Now())
+	}, []string{"openid"}, "", "", "", connectorID, time.Now(), nil)
 	require.NoError(t, err)
 
 	logoutURL := fmt.Sprintf("/logout?id_token_hint=%s&post_logout_redirect_uri=%s",
@@ -279,7 +279,7 @@ func TestHandleLogoutRepeat(t *testing.T) {
 
 	idToken, _, err := server.newIDToken(ctx, clientID, storage.Claims{
 		UserID: userID, Username: "testuser", Email: "test@example.com",
-	}, []string{"openid"}, "", "", "", connectorID, time.Now())
+	}, []string{"openid"}, "", "", "", connectorID, time.Now(), nil)
 	require.NoError(t, err)
 
 	logoutURL := fmt.Sprintf("/logout?id_token_hint=%s&post_logout_redirect_uri=%s",

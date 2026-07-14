@@ -13,6 +13,7 @@ func (d *Database) CreateDeviceRequest(ctx context.Context, request storage.Devi
 		SetClientID(request.ClientID).
 		SetClientSecret(request.ClientSecret).
 		SetScopes(request.Scopes).
+		SetResource(request.Resource).
 		SetUserCode(request.UserCode).
 		SetDeviceCode(request.DeviceCode).
 		// Save utc time into database because ent doesn't support comparing dates with different timezones

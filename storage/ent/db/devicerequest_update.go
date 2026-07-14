@@ -103,6 +103,24 @@ func (_u *DeviceRequestUpdate) ClearScopes() *DeviceRequestUpdate {
 	return _u
 }
 
+// SetResource sets the "resource" field.
+func (_u *DeviceRequestUpdate) SetResource(v []string) *DeviceRequestUpdate {
+	_u.mutation.SetResource(v)
+	return _u
+}
+
+// AppendResource appends value to the "resource" field.
+func (_u *DeviceRequestUpdate) AppendResource(v []string) *DeviceRequestUpdate {
+	_u.mutation.AppendResource(v)
+	return _u
+}
+
+// ClearResource clears the value of the "resource" field.
+func (_u *DeviceRequestUpdate) ClearResource() *DeviceRequestUpdate {
+	_u.mutation.ClearResource()
+	return _u
+}
+
 // SetExpiry sets the "expiry" field.
 func (_u *DeviceRequestUpdate) SetExpiry(v time.Time) *DeviceRequestUpdate {
 	_u.mutation.SetExpiry(v)
@@ -209,6 +227,17 @@ func (_u *DeviceRequestUpdate) sqlSave(ctx context.Context) (_node int, err erro
 	if _u.mutation.ScopesCleared() {
 		_spec.ClearField(devicerequest.FieldScopes, field.TypeJSON)
 	}
+	if value, ok := _u.mutation.Resource(); ok {
+		_spec.SetField(devicerequest.FieldResource, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedResource(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, devicerequest.FieldResource, value)
+		})
+	}
+	if _u.mutation.ResourceCleared() {
+		_spec.ClearField(devicerequest.FieldResource, field.TypeJSON)
+	}
 	if value, ok := _u.mutation.Expiry(); ok {
 		_spec.SetField(devicerequest.FieldExpiry, field.TypeTime, value)
 	}
@@ -303,6 +332,24 @@ func (_u *DeviceRequestUpdateOne) AppendScopes(v []string) *DeviceRequestUpdateO
 // ClearScopes clears the value of the "scopes" field.
 func (_u *DeviceRequestUpdateOne) ClearScopes() *DeviceRequestUpdateOne {
 	_u.mutation.ClearScopes()
+	return _u
+}
+
+// SetResource sets the "resource" field.
+func (_u *DeviceRequestUpdateOne) SetResource(v []string) *DeviceRequestUpdateOne {
+	_u.mutation.SetResource(v)
+	return _u
+}
+
+// AppendResource appends value to the "resource" field.
+func (_u *DeviceRequestUpdateOne) AppendResource(v []string) *DeviceRequestUpdateOne {
+	_u.mutation.AppendResource(v)
+	return _u
+}
+
+// ClearResource clears the value of the "resource" field.
+func (_u *DeviceRequestUpdateOne) ClearResource() *DeviceRequestUpdateOne {
+	_u.mutation.ClearResource()
 	return _u
 }
 
@@ -441,6 +488,17 @@ func (_u *DeviceRequestUpdateOne) sqlSave(ctx context.Context) (_node *DeviceReq
 	}
 	if _u.mutation.ScopesCleared() {
 		_spec.ClearField(devicerequest.FieldScopes, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.Resource(); ok {
+		_spec.SetField(devicerequest.FieldResource, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedResource(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, devicerequest.FieldResource, value)
+		})
+	}
+	if _u.mutation.ResourceCleared() {
+		_spec.ClearField(devicerequest.FieldResource, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.Expiry(); ok {
 		_spec.SetField(devicerequest.FieldExpiry, field.TypeTime, value)

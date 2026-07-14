@@ -130,6 +130,7 @@ const (
 	errUnsupportedGrantType    = "unsupported_grant_type"
 	errInvalidGrant            = "invalid_grant"
 	errInvalidClient           = "invalid_client"
+	errInvalidTarget           = "invalid_target" // RFC 8707 §2.1
 	errInactiveToken           = "inactive_token"
 	errLoginRequired           = "login_required"
 	errInteractionRequired     = "interaction_required"
@@ -296,8 +297,8 @@ type federatedIDClaims struct {
 	UserID      string `json:"user_id,omitempty"`
 }
 
-func (s *Server) newAccessToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, connID string, authTime time.Time) (accessToken string, expiry time.Time, err error) {
-	return s.newIDToken(ctx, clientID, claims, scopes, nonce, storage.NewID(), "", connID, authTime)
+func (s *Server) newAccessToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, connID string, authTime time.Time, resources []string) (accessToken string, expiry time.Time, err error) {
+	return s.newIDToken(ctx, clientID, claims, scopes, nonce, storage.NewID(), "", connID, authTime, resources)
 }
 
 func getClientID(aud audience, azp string) (string, error) {
@@ -334,6 +335,38 @@ func getAudience(clientID string, scopes []string) audience {
 	return aud
 }
 
+// parseResourceParams reads and validates the RFC 8707 "resource" parameters
+// from a request form. The parameter is repeatable, so multiple values are
+// allowed. Each value MUST be an absolute URI without a fragment component
+// (RFC 8707 §2). An invalid value yields an error so callers can respond with
+// the "invalid_target" error code. Returns nil when no resource is requested.
+func parseResourceParams(values []string) ([]string, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	resources := make([]string, 0, len(values))
+	for _, raw := range values {
+		if raw == "" {
+			continue
+		}
+		u, err := url.Parse(raw)
+		if err != nil {
+			return nil, fmt.Errorf("invalid resource %q: %v", raw, err)
+		}
+		if !u.IsAbs() {
+			return nil, fmt.Errorf("resource %q must be an absolute URI", raw)
+		}
+		if u.Fragment != "" || strings.Contains(raw, "#") {
+			return nil, fmt.Errorf("resource %q must not include a fragment", raw)
+		}
+		resources = append(resources, raw)
+	}
+	if len(resources) == 0 {
+		return nil, nil
+	}
+	return resources, nil
+}
+
 func genSubject(userID string, connID string) (string, error) {
 	sub := &internal.IDTokenSubject{
 		UserId: userID,
@@ -343,7 +376,15 @@ func genSubject(userID string, connID string) (string, error) {
 	return internal.Marshal(sub)
 }
 
-func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string, authTime time.Time) (idToken string, expiry time.Time, err error) {
+// newIDToken builds and signs a Dex JWT. The same builder produces both ID
+// tokens and access tokens (the access token is itself a signed JWT).
+//
+// resources carries the validated RFC 8707 resource indicators. It is only
+// ever non-empty for access tokens: when set, the token's audience is bound to
+// the requested resource(s) and the client becomes the authorizing party
+// (azp). ID-token call sites always pass nil so the ID token's aud stays equal
+// to the client ID, as required by OIDC Core.
+func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string, authTime time.Time, resources []string) (idToken string, expiry time.Time, err error) {
 	issuedAt := s.now()
 	expiry = issuedAt.Add(s.idTokensValidFor)
 
@@ -425,10 +466,19 @@ func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage
 		}
 	}
 
-	tok.Audience = getAudience(clientID, scopes)
-	if len(tok.Audience) > 1 {
-		// The current client becomes the authorizing party.
+	if len(resources) > 0 {
+		// RFC 8707: bind the access token's audience to the requested
+		// resource(s) instead of the client. The client becomes the
+		// authorizing party. This path is only reached for access tokens;
+		// ID-token call sites pass no resources, keeping aud == client_id.
+		tok.Audience = audience(resources)
 		tok.AuthorizingParty = clientID
+	} else {
+		tok.Audience = getAudience(clientID, scopes)
+		if len(tok.Audience) > 1 {
+			// The current client becomes the authorizing party.
+			tok.AuthorizingParty = clientID
+		}
 	}
 
 	payload, err := json.Marshal(tok)
@@ -664,6 +714,13 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		idTokenHintSubject = idToken.Subject
 	}
 
+	// RFC 8707 resource indicators. When present, the issued access token's
+	// audience is bound to these values (see newIDToken).
+	resources, err := parseResourceParams(q["resource"])
+	if err != nil {
+		return nil, "", newRedirectedErr(errInvalidTarget, "%s", err.Error())
+	}
+
 	return &storage.AuthRequest{
 		ID:                  storage.NewID(),
 		ClientID:            client.ID,
@@ -673,6 +730,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		Prompt:              prompt.String(),
 		MaxAge:              maxAge,
 		Scopes:              scopes,
+		Resource:            resources,
 		RedirectURI:         redirectURI,
 		ResponseTypes:       responseTypes,
 		ConnectorID:         connectorID,

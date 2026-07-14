@@ -15,6 +15,8 @@ const (
 	FieldClientID = "client_id"
 	// FieldScopes holds the string denoting the scopes field in the database.
 	FieldScopes = "scopes"
+	// FieldResource holds the string denoting the resource field in the database.
+	FieldResource = "resource"
 	// FieldResponseTypes holds the string denoting the response_types field in the database.
 	FieldResponseTypes = "response_types"
 	// FieldRedirectURI holds the string denoting the redirect_uri field in the database.
@@ -70,6 +72,7 @@ var Columns = []string{
 	FieldID,
 	FieldClientID,
 	FieldScopes,
+	FieldResource,
 	FieldResponseTypes,
 	FieldRedirectURI,
 	FieldNonce,

@@ -32,6 +32,12 @@ func (_c *AuthRequestCreate) SetScopes(v []string) *AuthRequestCreate {
 	return _c
 }
 
+// SetResource sets the "resource" field.
+func (_c *AuthRequestCreate) SetResource(v []string) *AuthRequestCreate {
+	_c.mutation.SetResource(v)
+	return _c
+}
+
 // SetResponseTypes sets the "response_types" field.
 func (_c *AuthRequestCreate) SetResponseTypes(v []string) *AuthRequestCreate {
 	_c.mutation.SetResponseTypes(v)
@@ -399,6 +405,10 @@ func (_c *AuthRequestCreate) createSpec() (*AuthRequest, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Scopes(); ok {
 		_spec.SetField(authrequest.FieldScopes, field.TypeJSON, value)
 		_node.Scopes = value
+	}
+	if value, ok := _c.mutation.Resource(); ok {
+		_spec.SetField(authrequest.FieldResource, field.TypeJSON, value)
+		_node.Resource = value
 	}
 	if value, ok := _c.mutation.ResponseTypes(); ok {
 		_spec.SetField(authrequest.FieldResponseTypes, field.TypeJSON, value)

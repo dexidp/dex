@@ -25,6 +25,7 @@ func toStorageAuthRequest(a *db.AuthRequest) storage.AuthRequest {
 		ClientID:            a.ClientID,
 		ResponseTypes:       a.ResponseTypes,
 		Scopes:              a.Scopes,
+		Resource:            a.Resource,
 		RedirectURI:         a.RedirectURI,
 		Nonce:               a.Nonce,
 		State:               a.State,
@@ -64,6 +65,7 @@ func toStorageAuthCode(a *db.AuthCode) storage.AuthCode {
 		ID:            a.ID,
 		ClientID:      a.ClientID,
 		Scopes:        a.Scopes,
+		Resource:      a.Resource,
 		RedirectURI:   a.RedirectURI,
 		Nonce:         a.Nonce,
 		ConnectorID:   a.ConnectorID,
@@ -142,6 +144,7 @@ func toStorageRefreshToken(r *db.RefreshToken) storage.RefreshToken {
 		ConnectorID:   r.ConnectorID,
 		ConnectorData: *r.ConnectorData,
 		Scopes:        r.Scopes,
+		Resource:      r.Resource,
 		Nonce:         r.Nonce,
 		Claims: storage.Claims{
 			UserID:            r.ClaimsUserID,
@@ -174,6 +177,7 @@ func toStorageDeviceRequest(r *db.DeviceRequest) storage.DeviceRequest {
 		ClientID:     r.ClientID,
 		ClientSecret: r.ClientSecret,
 		Scopes:       r.Scopes,
+		Resource:     r.Resource,
 		Expiry:       r.Expiry,
 	}
 }

@@ -44,6 +44,8 @@ func (AuthCode) Fields() []ent.Field {
 			NotEmpty(),
 		field.JSON("scopes", []string{}).
 			Optional(),
+		field.JSON("resource", []string{}).
+			Optional(),
 		field.Text("nonce").
 			SchemaType(textSchema).
 			NotEmpty(),

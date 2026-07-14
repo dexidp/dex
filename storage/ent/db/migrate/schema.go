@@ -13,6 +13,7 @@ var (
 		{Name: "id", Type: field.TypeString, Unique: true, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "client_id", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "scopes", Type: field.TypeJSON, Nullable: true},
+		{Name: "resource", Type: field.TypeJSON, Nullable: true},
 		{Name: "nonce", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "redirect_uri", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "claims_user_id", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
@@ -39,6 +40,7 @@ var (
 		{Name: "id", Type: field.TypeString, Unique: true, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "client_id", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "scopes", Type: field.TypeJSON, Nullable: true},
+		{Name: "resource", Type: field.TypeJSON, Nullable: true},
 		{Name: "response_types", Type: field.TypeJSON, Nullable: true},
 		{Name: "redirect_uri", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "nonce", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
@@ -112,6 +114,7 @@ var (
 		{Name: "client_id", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "client_secret", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "scopes", Type: field.TypeJSON, Nullable: true},
+		{Name: "resource", Type: field.TypeJSON, Nullable: true},
 		{Name: "expiry", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)", "postgres": "timestamptz", "sqlite3": "timestamp"}},
 	}
 	// DeviceRequestsTable holds the schema information for the "device_requests" table.
@@ -210,6 +213,7 @@ var (
 		{Name: "id", Type: field.TypeString, Unique: true, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "client_id", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "scopes", Type: field.TypeJSON, Nullable: true},
+		{Name: "resource", Type: field.TypeJSON, Nullable: true},
 		{Name: "nonce", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "claims_user_id", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "claims_username", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},

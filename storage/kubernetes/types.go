@@ -383,6 +383,7 @@ type AuthRequest struct {
 	ClientID      string   `json:"clientID"`
 	ResponseTypes []string `json:"responseTypes,omitempty"`
 	Scopes        []string `json:"scopes,omitempty"`
+	Resource      []string `json:"resource,omitempty"`
 	RedirectURI   string   `json:"redirectURI"`
 
 	Nonce string `json:"nonce,omitempty"`
@@ -431,6 +432,7 @@ func toStorageAuthRequest(req AuthRequest) storage.AuthRequest {
 		ClientID:            req.ClientID,
 		ResponseTypes:       req.ResponseTypes,
 		Scopes:              req.Scopes,
+		Resource:            req.Resource,
 		RedirectURI:         req.RedirectURI,
 		Nonce:               req.Nonce,
 		State:               req.State,
@@ -467,6 +469,7 @@ func (cli *client) fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		ClientID:            a.ClientID,
 		ResponseTypes:       a.ResponseTypes,
 		Scopes:              a.Scopes,
+		Resource:            a.Resource,
 		RedirectURI:         a.RedirectURI,
 		Nonce:               a.Nonce,
 		State:               a.State,
@@ -558,6 +561,7 @@ type AuthCode struct {
 
 	ClientID    string   `json:"clientID"`
 	Scopes      []string `json:"scopes,omitempty"`
+	Resource    []string `json:"resource,omitempty"`
 	RedirectURI string   `json:"redirectURI"`
 
 	Nonce string `json:"nonce,omitempty"`
@@ -599,6 +603,7 @@ func (cli *client) fromStorageAuthCode(a storage.AuthCode) AuthCode {
 		ConnectorData:       a.ConnectorData,
 		Nonce:               a.Nonce,
 		Scopes:              a.Scopes,
+		Resource:            a.Resource,
 		Claims:              fromStorageClaims(a.Claims),
 		Expiry:              a.Expiry,
 		CodeChallenge:       a.PKCE.CodeChallenge,
@@ -616,6 +621,7 @@ func toStorageAuthCode(a AuthCode) storage.AuthCode {
 		ConnectorData: a.ConnectorData,
 		Nonce:         a.Nonce,
 		Scopes:        a.Scopes,
+		Resource:      a.Resource,
 		Claims:        toStorageClaims(a.Claims),
 		Expiry:        a.Expiry,
 		PKCE: storage.PKCE{
@@ -637,6 +643,7 @@ type RefreshToken struct {
 
 	ClientID string   `json:"clientID"`
 	Scopes   []string `json:"scopes,omitempty"`
+	Resource []string `json:"resource,omitempty"`
 
 	Token         string `json:"token,omitempty"`
 	ObsoleteToken string `json:"obsoleteToken,omitempty"`
@@ -666,6 +673,7 @@ func toStorageRefreshToken(r RefreshToken) storage.RefreshToken {
 		ConnectorID:   r.ConnectorID,
 		ConnectorData: r.ConnectorData,
 		Scopes:        r.Scopes,
+		Resource:      r.Resource,
 		Nonce:         r.Nonce,
 		Claims:        toStorageClaims(r.Claims),
 	}
@@ -689,6 +697,7 @@ func (cli *client) fromStorageRefreshToken(r storage.RefreshToken) RefreshToken 
 		ConnectorID:   r.ConnectorID,
 		ConnectorData: r.ConnectorData,
 		Scopes:        r.Scopes,
+		Resource:      r.Resource,
 		Nonce:         r.Nonce,
 		Claims:        fromStorageClaims(r.Claims),
 	}
@@ -843,6 +852,7 @@ type DeviceRequest struct {
 	ClientID     string    `json:"client_id,omitempty"`
 	ClientSecret string    `json:"client_secret,omitempty"`
 	Scopes       []string  `json:"scopes,omitempty"`
+	Resource     []string  `json:"resource,omitempty"`
 	Expiry       time.Time `json:"expiry"`
 }
 
@@ -867,6 +877,7 @@ func (cli *client) fromStorageDeviceRequest(a storage.DeviceRequest) DeviceReque
 		ClientID:     a.ClientID,
 		ClientSecret: a.ClientSecret,
 		Scopes:       a.Scopes,
+		Resource:     a.Resource,
 		Expiry:       a.Expiry,
 	}
 	return req
@@ -879,6 +890,7 @@ func toStorageDeviceRequest(req DeviceRequest) storage.DeviceRequest {
 		ClientID:     req.ClientID,
 		ClientSecret: req.ClientSecret,
 		Scopes:       req.Scopes,
+		Resource:     req.Resource,
 		Expiry:       req.Expiry,
 	}
 }
