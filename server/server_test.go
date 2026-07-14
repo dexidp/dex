@@ -21,6 +21,7 @@ import (
 	"time"
 
 	gosundheit "github.com/AppsFlyer/go-sundheit"
+	"github.com/AppsFlyer/go-sundheit/checks"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/kylelemons/godebug/pretty"
@@ -2053,5 +2054,40 @@ func TestConnectorFailureHandling(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestHandleHealth(t *testing.T) {
+	httpServer, server := newTestServer(t, nil)
+	defer httpServer.Close()
+
+	rr := httptest.NewRecorder()
+	server.ServeHTTP(rr, httptest.NewRequest("GET", "/healthz", nil))
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200 got %d", rr.Code)
+	}
+}
+
+func TestHandleHealthFailure(t *testing.T) {
+	httpServer, server := newTestServer(t, func(c *Config) {
+		c.HealthChecker = gosundheit.New()
+
+		c.HealthChecker.RegisterCheck(
+			&checks.CustomCheck{
+				CheckName: "fail",
+				CheckFunc: func(_ context.Context) (details interface{}, err error) {
+					return nil, errors.New("error")
+				},
+			},
+			gosundheit.InitiallyPassing(false),
+			gosundheit.ExecutionPeriod(1*time.Second),
+		)
+	})
+	defer httpServer.Close()
+
+	rr := httptest.NewRecorder()
+	server.ServeHTTP(rr, httptest.NewRequest("GET", "/healthz", nil))
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 got %d", rr.Code)
 	}
 }

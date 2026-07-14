@@ -9,10 +9,11 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/gorilla/mux"
+
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/storage"
-	"github.com/gorilla/mux"
 )
 
 func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
