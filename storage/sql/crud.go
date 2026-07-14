@@ -774,7 +774,7 @@ func (c *conn) CreateOfflineSessions(ctx context.Context, s storage.OfflineSessi
 }
 
 func (c *conn) UpdateOfflineSessions(ctx context.Context, userID string, connID string, updater func(s storage.OfflineSessions) (storage.OfflineSessions, error)) error {
-	return c.ExecTx(func(tx *trans) error {
+	return c.execTxWithRetry(func(tx *trans) error {
 		s, err := getOfflineSessions(ctx, tx, userID, connID)
 		if err != nil {
 			return err
