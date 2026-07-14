@@ -1,5 +1,7 @@
 package server
 
+// grant_clientcredentials.go implements the client_credentials grant (dispatch in token.go).
+
 import (
 	"fmt"
 	"net/http"

@@ -1,5 +1,7 @@
 package server
 
+// grant_password.go implements the password grant (dispatch in token.go).
+
 import (
 	"fmt"
 	"net/http"

@@ -1,5 +1,8 @@
 package server
 
+// approval.go handles the consent/approval step and builds the authorization-code
+// or token response back to the client.
+
 import (
 	"net/http"
 	"net/url"

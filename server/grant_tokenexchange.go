@@ -1,5 +1,7 @@
 package server
 
+// grant_tokenexchange.go implements the token-exchange grant, RFC 8693 (dispatch in token.go).
+
 import (
 	"encoding/json"
 	"net/http"

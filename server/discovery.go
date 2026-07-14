@@ -1,5 +1,8 @@
 package server
 
+// discovery.go serves the OIDC discovery document
+// (/.well-known/openid-configuration) and the JWKS endpoint (/keys).
+
 import (
 	"context"
 	"encoding/json"

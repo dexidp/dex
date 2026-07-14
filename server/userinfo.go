@@ -1,5 +1,7 @@
 package server
 
+// userinfo.go serves the OIDC /userinfo endpoint.
+
 import (
 	"encoding/json"
 	"net/http"

@@ -1,5 +1,8 @@
 package server
 
+// login.go implements the browser login flow: connector login, the password
+// login form, the connector callback, and login finalization.
+
 import (
 	"context"
 	"errors"

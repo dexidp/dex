@@ -1,5 +1,8 @@
 package server
 
+// authorize.go handles the /auth authorization endpoint: parsing the request,
+// selecting a connector, and the browser-facing (HTML/redirect) error surface.
+
 import (
 	"context"
 	"html/template"

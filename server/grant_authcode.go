@@ -1,5 +1,7 @@
 package server
 
+// grant_authcode.go implements the authorization_code grant (dispatch in token.go).
+
 import (
 	"context"
 	"net/http"

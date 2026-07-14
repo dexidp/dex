@@ -1,5 +1,8 @@
 package server
 
+// token.go implements the /token endpoint: grant dispatch plus shared
+// token-response and error helpers. Each grant lives in its own grant_*.go.
+
 import (
 	"crypto/sha256"
 	"crypto/subtle"

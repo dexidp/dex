@@ -1,5 +1,7 @@
 package server
 
+// grant_refresh.go implements the refresh_token grant (dispatch in token.go).
+
 import (
 	"context"
 	"errors"
