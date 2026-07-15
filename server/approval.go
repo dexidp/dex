@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dexidp/dex/pkg/featureflags"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -182,7 +183,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 			implicitOrHybrid = true
 			var err error
 
-			accessToken, _, err = s.issuer.signer.signAccessToken(r.Context(), Authorization{
+			accessToken, _, err = s.issuer.SignAccessToken(r.Context(), tokens.Authorization{
 				Client:      storage.Client{ID: authReq.ClientID},
 				Claims:      authReq.Claims,
 				Scopes:      authReq.Scopes,
@@ -199,7 +200,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 			implicitOrHybrid = true
 			var err error
 
-			idToken, idTokenExpiry, err = s.issuer.signer.signIDToken(r.Context(), Authorization{
+			idToken, idTokenExpiry, err = s.issuer.SignIDToken(r.Context(), tokens.Authorization{
 				Client:      storage.Client{ID: authReq.ClientID},
 				Claims:      authReq.Claims,
 				Scopes:      authReq.Scopes,
@@ -275,7 +276,7 @@ func scopesCoveredByConsent(approved, requested []string) bool {
 	}
 
 	for _, scope := range requested {
-		if scope == scopeOpenID {
+		if scope == tokens.ScopeOpenID {
 			continue
 		}
 		if _, ok := approvedSet[scope]; !ok {

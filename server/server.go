@@ -48,6 +48,7 @@ import (
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/templates"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/web"
 )
@@ -104,7 +105,7 @@ type Config struct {
 	DeviceRequestsValidFor time.Duration // Defaults to 5 minutes
 
 	// Refresh token expiration settings
-	RefreshTokenPolicy *RefreshTokenPolicy
+	RefreshTokenPolicy *tokens.RefreshStrategy
 
 	// If set, the server will use this connector to handle password grants
 	PasswordConnector string
@@ -234,14 +235,14 @@ type Server struct {
 	authRequestsValidFor   time.Duration
 	deviceRequestsValidFor time.Duration
 
-	refreshTokenPolicy *RefreshTokenPolicy
+	refreshTokenPolicy *tokens.RefreshStrategy
 
 	logger *slog.Logger
 
 	signer signer.Signer
 
 	// issuer turns an Authorization into a TokenSet (see token_issuer.go).
-	issuer *tokenIssuer
+	issuer *tokens.Issuer
 
 	sessionConfig *SessionConfig
 
@@ -373,7 +374,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		mfaProviders:           c.MFAProviders,
 		defaultMFAChain:        c.DefaultMFAChain,
 	}
-	s.issuer = newTokenIssuer(s)
+	s.issuer = tokens.NewIssuer(s.storage, s.signer, s.issuerURL, s.idTokensValidFor, s.now, s.logger)
 	s.connectors = connectors.NewCache(s.storage, s.resolveConnector)
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors

@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/server/connectors"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
 )
@@ -781,11 +782,11 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 func TestTrySessionLoginWithSession_IDTokenHint(t *testing.T) {
 	ctx := t.Context()
 
-	// genSubject("user-1", "mock") produces a deterministic subject string.
-	hintSubjectForUser1Mock, err := genSubject("user-1", "mock")
+	// tokens.GenSubject("user-1", "mock") produces a deterministic subject string.
+	hintSubjectForUser1Mock, err := tokens.GenSubject("user-1", "mock")
 	require.NoError(t, err)
 
-	hintSubjectOther, err := genSubject("other-user", "mock")
+	hintSubjectOther, err := tokens.GenSubject("other-user", "mock")
 	require.NoError(t, err)
 
 	t.Run("hint matches session user - session login succeeds", func(t *testing.T) {

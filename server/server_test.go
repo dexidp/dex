@@ -33,6 +33,7 @@ import (
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/connector/mock"
 	"github.com/dexidp/dex/server/signer"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
 )
@@ -133,11 +134,7 @@ func newTestServer(t *testing.T, updateConfig func(c *Config)) (*httptest.Server
 
 	// Default rotation policy
 	if server.refreshTokenPolicy == nil {
-		server.refreshTokenPolicy, err = NewRefreshTokenPolicy(logger, false, "", "", "")
-		if err != nil {
-			t.Fatalf("failed to prepare rotation policy: %v", err)
-		}
-		server.refreshTokenPolicy.now = config.Now
+		server.refreshTokenPolicy = tokens.NewRefreshStrategy(true, 0, 0, 0, config.Now)
 	}
 
 	return s, server
@@ -371,7 +368,7 @@ func makeOAuth2Tests(clientID string, clientSecret string, now func() time.Time)
 					if claims.AtHash == "" {
 						return errors.New("no at_hash value in id_token")
 					}
-					wantAtHash, err := accessTokenHash(jose.RS256, token.AccessToken)
+					wantAtHash, err := tokens.AccessTokenHash(jose.RS256, token.AccessToken)
 					if err != nil {
 						return fmt.Errorf("computed expected at hash: %v", err)
 					}
@@ -1729,7 +1726,7 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 				}
 
 				// Parse the response
-				var tokenRes accessTokenResponse
+				var tokenRes tokens.Response
 				if err := json.Unmarshal(responseBody, &tokenRes); err != nil {
 					t.Errorf("Unexpected Device Access Token Response Format %v", string(responseBody))
 				}

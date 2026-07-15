@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -127,7 +128,7 @@ func TestHandleLogoutWithValidHint(t *testing.T) {
 		LastActivity: time.Now(),
 	}))
 
-	idToken, _, err := server.issuer.signer.signIDToken(ctx, Authorization{
+	idToken, _, err := server.issuer.SignIDToken(ctx, tokens.Authorization{
 		Client:      storage.Client{ID: clientID},
 		Claims:      storage.Claims{UserID: userID, Username: "testuser", Email: "test@example.com"},
 		Scopes:      []string{"openid"},
@@ -174,7 +175,7 @@ func TestHandleLogoutUnregisteredRedirectURI(t *testing.T) {
 		PostLogoutRedirectURIs: []string{"https://example.com/done"},
 	}))
 
-	idToken, _, err := server.issuer.signer.signIDToken(ctx, Authorization{
+	idToken, _, err := server.issuer.SignIDToken(ctx, tokens.Authorization{
 		Client:      storage.Client{ID: clientID},
 		Claims:      storage.Claims{UserID: "user1", Username: "testuser", Email: "test@example.com"},
 		Scopes:      []string{"openid"},
@@ -244,7 +245,7 @@ func TestHandleLogoutRevokesRefreshTokens(t *testing.T) {
 		CreatedAt: time.Now(), LastActivity: time.Now(),
 	}))
 
-	idToken, _, err := server.issuer.signer.signIDToken(ctx, Authorization{
+	idToken, _, err := server.issuer.SignIDToken(ctx, tokens.Authorization{
 		Client:      storage.Client{ID: clientID},
 		Claims:      storage.Claims{UserID: userID, Username: "testuser", Email: "test@example.com"},
 		Scopes:      []string{"openid"},
@@ -289,7 +290,7 @@ func TestHandleLogoutRepeat(t *testing.T) {
 		CreatedAt: time.Now(), LastActivity: time.Now(),
 	}))
 
-	idToken, _, err := server.issuer.signer.signIDToken(ctx, Authorization{
+	idToken, _, err := server.issuer.SignIDToken(ctx, tokens.Authorization{
 		Client:      storage.Client{ID: clientID},
 		Claims:      storage.Claims{UserID: userID, Username: "testuser", Email: "test@example.com"},
 		Scopes:      []string{"openid"},
@@ -425,7 +426,7 @@ func TestRevokeRefreshTokens(t *testing.T) {
 		Refresh: map[string]*storage.RefreshTokenRef{"client1": {ID: refreshID, ClientID: "client1"}},
 	}))
 
-	server.issuer.refresh.revoke(ctx, userID, connectorID)
+	server.issuer.Refresh.Revoke(ctx, userID, connectorID)
 
 	_, err := server.storage.GetRefresh(ctx, refreshID)
 	require.ErrorIs(t, err, storage.ErrNotFound)

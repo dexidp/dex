@@ -18,40 +18,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/server/signer"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
 )
-
-func TestGetClientID(t *testing.T) {
-	cid, err := getClientID(audience{}, "")
-	require.Equal(t, "", cid)
-	require.Equal(t, "no audience is set, could not find ClientID", err.Error())
-
-	cid, err = getClientID(audience{"a"}, "")
-	require.Equal(t, "a", cid)
-	require.NoError(t, err)
-
-	cid, err = getClientID(audience{"a", "b"}, "azp")
-	require.Equal(t, "azp", cid)
-	require.NoError(t, err)
-}
-
-func TestGetAudience(t *testing.T) {
-	aud := getAudience("client-id", []string{})
-	require.Equal(t, aud, audience{"client-id"})
-
-	aud = getAudience("client-id", []string{"ascope"})
-	require.Equal(t, aud, audience{"client-id"})
-
-	aud = getAudience("client-id", []string{"ascope", "audience:server:client_id:aa", "audience:server:client_id:bb"})
-	require.Equal(t, aud, audience{"aa", "bb", "client-id"})
-}
-
-func TestGetSubject(t *testing.T) {
-	sub, err := genSubject("foo", "bar")
-	require.Equal(t, "CgNmb28SA2Jhcg", sub)
-	require.NoError(t, err)
-}
 
 func TestParseAuthorizationRequest(t *testing.T) {
 	tests := []struct {
@@ -468,23 +438,6 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-const (
-	// at_hash value and access_token returned by Google.
-	googleAccessTokenHash = "piwt8oCH-K2D9pXlaS1Y-w"
-	googleAccessToken     = "ya29.CjHSA1l5WUn8xZ6HanHFzzdHdbXm-14rxnC7JHch9eFIsZkQEGoWzaYG4o7k5f6BnPLj"
-	googleSigningAlg      = jose.RS256
-)
-
-func TestAccessTokenHash(t *testing.T) {
-	atHash, err := accessTokenHash(googleSigningAlg, googleAccessToken)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if atHash != googleAccessTokenHash {
-		t.Errorf("expected %q got %q", googleAccessTokenHash, atHash)
 	}
 }
 
@@ -947,7 +900,7 @@ func TestValidateIDTokenHint(t *testing.T) {
 	now := time.Now()
 
 	t.Run("valid hint (not expired)", func(t *testing.T) {
-		token := signTestIDToken(t, idTokenClaims{
+		token := signTestIDToken(t, tokens.IDTokenClaims{
 			Issuer:  "https://issuer.example.com",
 			Subject: "CgNmb28SA2Jhcg",
 			Expiry:  now.Add(1 * time.Hour).Unix(),
@@ -958,7 +911,7 @@ func TestValidateIDTokenHint(t *testing.T) {
 	})
 
 	t.Run("valid hint (expired)", func(t *testing.T) {
-		token := signTestIDToken(t, idTokenClaims{
+		token := signTestIDToken(t, tokens.IDTokenClaims{
 			Issuer:  "https://issuer.example.com",
 			Subject: "CgNmb28SA2Jhcg",
 			Expiry:  now.Add(-1 * time.Hour).Unix(),
@@ -972,7 +925,7 @@ func TestValidateIDTokenHint(t *testing.T) {
 		otherKey, err := rsa.GenerateKey(rand.Reader, 2048)
 		require.NoError(t, err)
 
-		payload, err := json.Marshal(idTokenClaims{
+		payload, err := json.Marshal(tokens.IDTokenClaims{
 			Issuer:  "https://issuer.example.com",
 			Subject: "CgNmb28SA2Jhcg",
 			Expiry:  now.Add(1 * time.Hour).Unix(),
@@ -991,7 +944,7 @@ func TestValidateIDTokenHint(t *testing.T) {
 	})
 
 	t.Run("wrong issuer", func(t *testing.T) {
-		token := signTestIDToken(t, idTokenClaims{
+		token := signTestIDToken(t, tokens.IDTokenClaims{
 			Issuer:  "https://wrong-issuer.example.com",
 			Subject: "CgNmb28SA2Jhcg",
 			Expiry:  now.Add(1 * time.Hour).Unix(),
@@ -1056,11 +1009,11 @@ func TestNewIDTokenUsesStoredAlgorithmUntilNextRotation(t *testing.T) {
 		idTokensValidFor: time.Hour,
 	}
 
-	s.issuer = newTokenIssuer(s)
+	s.issuer = tokens.NewIssuer(s.storage, s.signer, s.issuerURL, s.idTokensValidFor, s.now, s.logger)
 
 	accessToken := "test-access-token"
 	code := "test-auth-code"
-	idToken, _, err := s.issuer.signer.signIDToken(ctx, Authorization{
+	idToken, _, err := s.issuer.SignIDToken(ctx, tokens.Authorization{
 		Client:      storage.Client{ID: "test-client"},
 		Claims:      storage.Claims{UserID: "1", Username: "jane"},
 		Scopes:      []string{"openid"},
@@ -1088,11 +1041,11 @@ func TestNewIDTokenUsesStoredAlgorithmUntilNextRotation(t *testing.T) {
 	err = json.Unmarshal(payload, &claims)
 	require.NoError(t, err)
 
-	wantAtHash, err := accessTokenHash(jose.RS256, accessToken)
+	wantAtHash, err := tokens.AccessTokenHash(jose.RS256, accessToken)
 	require.NoError(t, err)
 	require.Equal(t, wantAtHash, claims.AccessTokenHash)
 
-	wantCodeHash, err := accessTokenHash(jose.RS256, code)
+	wantCodeHash, err := tokens.AccessTokenHash(jose.RS256, code)
 	require.NoError(t, err)
 	require.Equal(t, wantCodeHash, claims.CodeHash)
 }
@@ -1143,7 +1096,7 @@ func TestNewIDTokenContainsJTI(t *testing.T) {
 		idTokensValidFor: time.Hour,
 	}
 
-	s.issuer = newTokenIssuer(s)
+	s.issuer = tokens.NewIssuer(s.storage, s.signer, s.issuerURL, s.idTokensValidFor, s.now, s.logger)
 
 	keys, err := sig.ValidationKeys(ctx)
 	require.NoError(t, err)
@@ -1165,7 +1118,7 @@ func TestNewIDTokenContainsJTI(t *testing.T) {
 
 	mint := func(nonce string) string {
 		t.Helper()
-		token, _, err := s.issuer.signer.signIDToken(ctx, Authorization{
+		token, _, err := s.issuer.SignIDToken(ctx, tokens.Authorization{
 			Client:      storage.Client{ID: "client"},
 			Claims:      storage.Claims{UserID: "1", Username: "alice"},
 			Scopes:      []string{"openid"},
@@ -1187,7 +1140,7 @@ func TestNewIDTokenContainsJTI(t *testing.T) {
 }
 
 func TestSessionMatchesHint(t *testing.T) {
-	// genSubject("foo", "bar") == "CgNmb28SA2Jhcg" (from TestGetSubject)
+	// tokens.GenSubject("foo", "bar") == "CgNmb28SA2Jhcg" (from TestGetSubject)
 	assert.True(t, sessionMatchesHint(&storage.AuthSession{UserID: "foo", ConnectorID: "bar"}, "CgNmb28SA2Jhcg"))
 	assert.False(t, sessionMatchesHint(&storage.AuthSession{UserID: "other", ConnectorID: "bar"}, "CgNmb28SA2Jhcg"))
 	assert.False(t, sessionMatchesHint(&storage.AuthSession{UserID: "foo", ConnectorID: "other"}, "CgNmb28SA2Jhcg"))
@@ -1210,7 +1163,7 @@ func TestParseAuthorizationRequest_IDTokenHint(t *testing.T) {
 		})
 		defer httpServer.Close()
 
-		token := signTestIDToken(t, idTokenClaims{
+		token := signTestIDToken(t, tokens.IDTokenClaims{
 			Issuer:  httpServer.URL,
 			Subject: "CgNmb28SA2Jhcg",
 			Expiry:  now.Add(1 * time.Hour).Unix(),

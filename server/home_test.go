@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/server/signer"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
 )
@@ -70,9 +71,7 @@ func newTestServerWithSessions(t *testing.T, updateConfig func(c *Config)) (*htt
 	require.NoError(t, err)
 
 	if server.refreshTokenPolicy == nil {
-		server.refreshTokenPolicy, err = NewRefreshTokenPolicy(logger, false, "", "", "")
-		require.NoError(t, err)
-		server.refreshTokenPolicy.now = config.Now
+		server.refreshTokenPolicy = tokens.NewRefreshStrategy(true, 0, 0, 0, config.Now)
 	}
 
 	return s, server

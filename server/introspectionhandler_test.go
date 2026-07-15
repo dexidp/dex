@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -149,7 +150,7 @@ func TestGetTokenFromRequestSuccess(t *testing.T) {
 	mockTestStorage(t, s.storage)
 
 	// Generate a valid RS256-signed access token
-	accessToken, _, err := s.issuer.signer.signIDToken(ctx, Authorization{
+	accessToken, _, err := s.issuer.SignIDToken(ctx, tokens.Authorization{
 		Client:      storage.Client{ID: "test"},
 		Claims:      storage.Claims{UserID: "1", Username: "jane"},
 		Scopes:      []string{"openid"},
@@ -250,13 +251,7 @@ func TestHandleIntrospect(t *testing.T) {
 	// Setup a dex server.
 	now := func() time.Time { return t0 }
 
-	logger := newLogger(t)
-
-	refreshTokenPolicy, err := NewRefreshTokenPolicy(logger, false, "", "24h", "")
-	if err != nil {
-		t.Fatalf("failed to prepare rotation policy: %v", err)
-	}
-	refreshTokenPolicy.now = now
+	refreshTokenPolicy := tokens.NewRefreshStrategy(true, 24*time.Hour, 0, 0, now)
 
 	httpServer, s := newTestServer(t, func(c *Config) {
 		c.Issuer += "/non-root-path"
@@ -267,7 +262,7 @@ func TestHandleIntrospect(t *testing.T) {
 
 	mockTestStorage(t, s.storage)
 
-	activeAccessToken, expiry, err := s.issuer.signer.signIDToken(ctx, Authorization{
+	activeAccessToken, expiry, err := s.issuer.SignIDToken(ctx, tokens.Authorization{
 		Client: storage.Client{ID: "test"},
 		Claims: storage.Claims{
 			UserID:        "1",
@@ -320,7 +315,7 @@ func TestHandleIntrospect(t *testing.T) {
 		{
 			testName:           "Refresh Token: active",
 			token:              activeRefreshToken,
-			response:           toJSON(getIntrospectionValue(s.issuerURL, t0, t0.Add(s.refreshTokenPolicy.absoluteLifetime), "refresh_token")),
+			response:           toJSON(getIntrospectionValue(s.issuerURL, t0, t0.Add(s.refreshTokenPolicy.AbsoluteLifetime()), "refresh_token")),
 			responseStatusCode: 200,
 		},
 		{

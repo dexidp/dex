@@ -13,27 +13,19 @@ import (
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
-type RefreshTokenPolicy struct {
-	rotateRefreshTokens bool // enable rotation
-
-	absoluteLifetime  time.Duration // interval from token creation to the end of its life
-	validIfNotUsedFor time.Duration // interval from last token update to the end of its life
-	reuseInterval     time.Duration // interval within which old refresh token is allowed to be reused
-
-	now func() time.Time
-
-	logger *slog.Logger
-}
-
-func NewRefreshTokenPolicy(logger *slog.Logger, rotation bool, validIfNotUsedFor, absoluteLifetime, reuseInterval string) (*RefreshTokenPolicy, error) {
-	r := RefreshTokenPolicy{now: time.Now, logger: logger}
+// NewRefreshTokenPolicy parses the refresh-token configuration into a rotation
+// strategy. It is the config-reading adapter; the strategy object itself lives
+// in the refresh package, independent of how its intervals are configured.
+func NewRefreshTokenPolicy(logger *slog.Logger, rotation bool, validIfNotUsedFor, absoluteLifetime, reuseInterval string) (*tokens.RefreshStrategy, error) {
+	var validDur, absoluteDur, reuseDur time.Duration
 	var err error
 
 	if validIfNotUsedFor != "" {
-		r.validIfNotUsedFor, err = time.ParseDuration(validIfNotUsedFor)
+		validDur, err = time.ParseDuration(validIfNotUsedFor)
 		if err != nil {
 			return nil, fmt.Errorf("invalid config value %q for refresh token valid if not used for: %v", validIfNotUsedFor, err)
 		}
@@ -41,7 +33,7 @@ func NewRefreshTokenPolicy(logger *slog.Logger, rotation bool, validIfNotUsedFor
 	}
 
 	if absoluteLifetime != "" {
-		r.absoluteLifetime, err = time.ParseDuration(absoluteLifetime)
+		absoluteDur, err = time.ParseDuration(absoluteLifetime)
 		if err != nil {
 			return nil, fmt.Errorf("invalid config value %q for refresh tokens absolute lifetime: %v", absoluteLifetime, err)
 		}
@@ -49,41 +41,16 @@ func NewRefreshTokenPolicy(logger *slog.Logger, rotation bool, validIfNotUsedFor
 	}
 
 	if reuseInterval != "" {
-		r.reuseInterval, err = time.ParseDuration(reuseInterval)
+		reuseDur, err = time.ParseDuration(reuseInterval)
 		if err != nil {
 			return nil, fmt.Errorf("invalid config value %q for refresh tokens reuse interval: %v", reuseInterval, err)
 		}
 		logger.Info("config refresh tokens", "reuse_interval", reuseInterval)
 	}
 
-	r.rotateRefreshTokens = !rotation
-	logger.Info("config refresh tokens rotation", "enabled", r.rotateRefreshTokens)
-	return &r, nil
-}
-
-func (r *RefreshTokenPolicy) RotationEnabled() bool {
-	return r.rotateRefreshTokens
-}
-
-func (r *RefreshTokenPolicy) CompletelyExpired(lastUsed time.Time) bool {
-	if r.absoluteLifetime == 0 {
-		return false // expiration disabled
-	}
-	return r.now().After(lastUsed.Add(r.absoluteLifetime))
-}
-
-func (r *RefreshTokenPolicy) ExpiredBecauseUnused(lastUsed time.Time) bool {
-	if r.validIfNotUsedFor == 0 {
-		return false // expiration disabled
-	}
-	return r.now().After(lastUsed.Add(r.validIfNotUsedFor))
-}
-
-func (r *RefreshTokenPolicy) AllowedToReuse(lastUsed time.Time) bool {
-	if r.reuseInterval == 0 {
-		return false // expiration disabled
-	}
-	return !r.now().After(lastUsed.Add(r.reuseInterval))
+	rotate := !rotation
+	logger.Info("config refresh tokens rotation", "enabled", rotate)
+	return tokens.NewRefreshStrategy(rotate, absoluteDur, validDur, reuseDur, time.Now), nil
 }
 
 func contains(arr []string, item string) bool {
@@ -339,27 +306,27 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 	// is only needed on the connector-refresh path.
 	freshIdentity := func(ctx context.Context) (connector.Identity, error) {
 		if userIdent != nil {
-			return identityFromClaims(userIdent.Claims), nil
+			return tokens.IdentityFromClaims(userIdent.Claims), nil
 		}
 		connectorData, rerr := s.refreshConnectorData(ctx, refresh)
 		if rerr != nil {
 			return connector.Identity{}, rerr
 		}
-		ident, rerr := s.refreshWithConnector(ctx, conn, connectorData, scopes, identityFromClaims(refresh.Claims))
+		ident, rerr := s.refreshWithConnector(ctx, conn, connectorData, scopes, tokens.IdentityFromClaims(refresh.Claims))
 		if rerr != nil {
 			return ident, rerr
 		}
 		return ident, nil
 	}
 
-	rawNewToken, ident, err := s.issuer.refresh.rotate(r.Context(), refresh, token, s.refreshTokenPolicy, freshIdentity)
+	rawNewToken, ident, err := s.issuer.Refresh.Rotate(r.Context(), refresh, token, s.refreshTokenPolicy, freshIdentity)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to rotate refresh token", "err", err)
 		s.refreshTokenErrHelper(w, newInternalServerError())
 		return
 	}
 
-	auth := Authorization{
+	auth := tokens.Authorization{
 		Client: client,
 		Claims: storage.Claims{
 			UserID:            ident.UserID,
@@ -375,22 +342,22 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		AuthTime:    authTime,
 	}
 
-	accessToken, _, err := s.issuer.signer.signAccessToken(r.Context(), auth)
+	accessToken, _, err := s.issuer.SignAccessToken(r.Context(), auth)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to create new access token", "err", err)
 		s.refreshTokenErrHelper(w, newInternalServerError())
 		return
 	}
 
-	idToken, expiry, err := s.issuer.signer.signIDToken(r.Context(), auth, accessToken, "")
+	idToken, expiry, err := s.issuer.SignIDToken(r.Context(), auth, accessToken, "")
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to create ID token", "err", err)
 		s.refreshTokenErrHelper(w, newInternalServerError())
 		return
 	}
 
-	tokens := TokenSet{AccessToken: accessToken, IDToken: idToken, RefreshToken: rawNewToken, Expiry: expiry}
-	if err := writeTokenResponse(w, tokens, s.now()); err != nil {
+	ts := tokens.TokenSet{AccessToken: accessToken, IDToken: idToken, RefreshToken: rawNewToken, Expiry: expiry}
+	if err := writeTokenResponse(w, ts, s.now()); err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to write token response", "err", err)
 		s.refreshTokenErrHelper(w, newInternalServerError())
 		return

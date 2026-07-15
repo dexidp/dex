@@ -140,7 +140,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 	// Revoke refresh tokens (does not touch the auth session or user identity).
 	if userID != "" && connectorID != "" {
-		s.issuer.refresh.revoke(ctx, userID, connectorID)
+		s.issuer.Refresh.Revoke(ctx, userID, connectorID)
 	}
 
 	// Try upstream logout. This requires a live auth session to store the HMAC key

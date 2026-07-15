@@ -16,6 +16,7 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/featureflags"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -537,7 +538,7 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 
 	offlineAccessRequested := false
 	for _, scope := range authReq.Scopes {
-		if scope == scopeOfflineAccess {
+		if scope == tokens.ScopeOfflineAccess {
 			offlineAccessRequested = true
 			break
 		}

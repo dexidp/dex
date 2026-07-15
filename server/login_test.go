@@ -16,6 +16,7 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/connectors"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -700,7 +701,7 @@ func TestConnectorDataPersistence(t *testing.T) {
 	// Test that ConnectorData is correctly stored in refresh token
 	// and can be used for subsequent refresh operations.
 	httpServer, server := newTestServer(t, func(c *Config) {
-		c.RefreshTokenPolicy = &RefreshTokenPolicy{rotateRefreshTokens: true}
+		c.RefreshTokenPolicy = tokens.NewRefreshStrategy(true, 0, 0, 0, nil)
 	})
 	defer httpServer.Close()
 
