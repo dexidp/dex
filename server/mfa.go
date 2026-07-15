@@ -205,7 +205,7 @@ func (s *Server) handleWebAuthn(w http.ResponseWriter, r *http.Request) {
 		mode = "register"
 	}
 
-	if err := s.templates.webauthnVerify(r, w, mode, mfa.authenticatorID); err != nil {
+	if err := s.templates.WebAuthnVerify(r, w, mode, mfa.authenticatorID); err != nil {
 		s.logger.ErrorContext(r.Context(), "server template error", "err", err)
 	}
 }
@@ -334,7 +334,7 @@ func (s *Server) renderTOTPPage(secret *storage.MFASecret, lastFail bool, issuer
 			return
 		}
 	}
-	if err := s.templates.totpVerify(r, w, r.URL.String(), issuer, connectorID, qrCode, lastFail); err != nil {
+	if err := s.templates.TOTPVerify(r, w, r.URL.String(), issuer, connectorID, qrCode, lastFail); err != nil {
 		s.logger.ErrorContext(r.Context(), "server template error", "err", err)
 	}
 }

@@ -49,7 +49,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	// This follows the OIDC spec recommendation and prevents CSRF via
 	// cross-site image/link requests (e.g. <img src="/logout">).
 	if idTokenHint == "" && r.Method == http.MethodGet {
-		if err := s.templates.logout(r, w, "", false, true); err != nil {
+		if err := s.templates.Logout(r, w, "", false, true); err != nil {
 			s.logger.ErrorContext(ctx, "server template error", "err", err)
 		}
 		return
@@ -236,7 +236,7 @@ func (s *Server) finishLogout(w http.ResponseWriter, r *http.Request, postLogout
 		}
 	}
 
-	if err := s.templates.logout(r, w, backURL, loggedOut, false); err != nil {
+	if err := s.templates.Logout(r, w, backURL, loggedOut, false); err != nil {
 		s.logger.ErrorContext(r.Context(), "server template error", "err", err)
 	}
 }

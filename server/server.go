@@ -46,6 +46,7 @@ import (
 	"github.com/dexidp/dex/connector/openshift"
 	"github.com/dexidp/dex/connector/saml"
 	"github.com/dexidp/dex/pkg/featureflags"
+	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/web"
@@ -220,7 +221,7 @@ type Server struct {
 
 	mux http.Handler
 
-	templates *templates
+	templates *templates.Templates
 
 	// If enabled, don't prompt user for approval after logging in through connector.
 	skipApproval bool
@@ -342,16 +343,16 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		webFS = c.Web.WebFS
 	}
 
-	web := webConfig{
-		webFS:     webFS,
-		logoURL:   c.Web.LogoURL,
-		issuerURL: c.Issuer,
-		issuer:    c.Web.Issuer,
-		theme:     c.Web.Theme,
-		extra:     c.Web.Extra,
+	web := templates.Config{
+		WebFS:     webFS,
+		LogoURL:   c.Web.LogoURL,
+		IssuerURL: c.Issuer,
+		Issuer:    c.Web.Issuer,
+		Theme:     c.Web.Theme,
+		Extra:     c.Web.Extra,
 	}
 
-	static, theme, robots, tmpls, err := loadWebConfig(web)
+	static, theme, robots, tmpls, err := templates.LoadWebConfig(web)
 	if err != nil {
 		return nil, fmt.Errorf("server: failed to load web static: %v", err)
 	}
