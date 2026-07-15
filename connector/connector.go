@@ -124,10 +124,9 @@ type TokenIdentityConnector interface {
 // the upstream session.
 type LogoutCallbackConnector interface {
 	// LogoutURL returns the upstream provider's logout URL.
-	// connectorData is the data stored during the user's authentication session.
 	// postLogoutRedirectURI is the URL the upstream provider should redirect back to after logout.
 	// Returns the upstream logout URL or empty string if upstream logout is not available.
-	LogoutURL(ctx context.Context, connectorData []byte, postLogoutRedirectURI string) (string, error)
+	LogoutURL(ctx context.Context, postLogoutRedirectURI string) (string, error)
 
 	// HandleLogoutCallback validates the upstream provider's logout response
 	// received in the callback request. For example, SAML connectors should

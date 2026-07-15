@@ -405,7 +405,7 @@ func TestLogoutCallbackWithExpiredSession(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
-func TestRevokeRefreshTokensReturnsConnectorData(t *testing.T) {
+func TestRevokeRefreshTokens(t *testing.T) {
 	httpServer, server := newTestServerWithSessions(t, nil)
 	defer httpServer.Close()
 
@@ -425,12 +425,12 @@ func TestRevokeRefreshTokensReturnsConnectorData(t *testing.T) {
 		Refresh: map[string]*storage.RefreshTokenRef{"client1": {ID: refreshID, ClientID: "client1"}},
 	}))
 
-	connData := server.revokeRefreshTokens(ctx, userID, connectorID)
-	require.Equal(t, expectedConnData, connData)
+	server.issuer.refresh.revoke(ctx, userID, connectorID)
 
 	_, err := server.storage.GetRefresh(ctx, refreshID)
 	require.ErrorIs(t, err, storage.ErrNotFound)
 
+	// Revocation clears the refresh references but keeps the session object.
 	os, err := server.storage.GetOfflineSessions(ctx, userID, connectorID)
 	require.NoError(t, err)
 	require.Empty(t, os.Refresh)

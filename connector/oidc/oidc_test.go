@@ -1019,7 +1019,7 @@ func TestLogoutURL(t *testing.T) {
 				},
 			}
 
-			got, err := conn.LogoutURL(context.Background(), nil, tc.postLogoutRedirectURI)
+			got, err := conn.LogoutURL(context.Background(), tc.postLogoutRedirectURI)
 			require.NoError(t, err)
 
 			if tc.wantEmpty {

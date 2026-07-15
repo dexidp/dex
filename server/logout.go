@@ -139,15 +139,14 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Revoke refresh tokens (does not touch the auth session or user identity).
-	var connectorData []byte
 	if userID != "" && connectorID != "" {
-		connectorData = s.revokeRefreshTokens(ctx, userID, connectorID)
+		s.issuer.refresh.revoke(ctx, userID, connectorID)
 	}
 
 	// Try upstream logout. This requires a live auth session to store the HMAC key
 	// and logout parameters. If the session doesn't exist (expired, no cookie, etc.)
 	// upstream logout is skipped — RP-Initiated Logout treats upstream SLO as best-effort.
-	if redirectURL, ok := s.tryUpstreamLogout(ctx, userID, connectorID, connectorData, postLogoutRedirectURI, state, clientID); ok {
+	if redirectURL, ok := s.tryUpstreamLogout(ctx, userID, connectorID, postLogoutRedirectURI, state, clientID); ok {
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 		return
 	}
@@ -246,7 +245,7 @@ func (s *Server) finishLogout(w http.ResponseWriter, r *http.Request, postLogout
 // It stores LogoutState in the auth session before redirecting so the callback can
 // read it back. Returns the redirect URL and true on success, or ("", false) if
 // upstream logout is not possible (no session, connector doesn't support it, etc.).
-func (s *Server) tryUpstreamLogout(ctx context.Context, userID, connectorID string, connectorData []byte, postLogoutRedirectURI, state, clientID string) (string, bool) {
+func (s *Server) tryUpstreamLogout(ctx context.Context, userID, connectorID, postLogoutRedirectURI, state, clientID string) (string, bool) {
 	if connectorID == "" {
 		return "", false
 	}
@@ -284,7 +283,7 @@ func (s *Server) tryUpstreamLogout(ctx context.Context, userID, connectorID stri
 	}
 
 	callbackURI := s.absURL("/logout/callback")
-	upstreamURL, err := logoutConn.LogoutURL(ctx, connectorData, callbackURI)
+	upstreamURL, err := logoutConn.LogoutURL(ctx, callbackURI)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "logout: upstream connector error", "err", err)
 		return "", false
@@ -315,11 +314,4 @@ func (s *Server) deleteAuthSession(ctx context.Context, userID, connectorID stri
 	}
 	s.logger.InfoContext(ctx, "logout successful", "user_id", userID, "connector_id", connectorID)
 	return true
-}
-
-// revokeRefreshTokens deletes all refresh tokens for the given user/connector
-// and clears the references in the offline session (but keeps the session object).
-// Returns the connector data from the offline session (for upstream logout).
-func (s *Server) revokeRefreshTokens(ctx context.Context, userID, connectorID string) []byte {
-	return revokeRefreshTokensFromStorage(ctx, s.storage, s.logger, userID, connectorID)
 }

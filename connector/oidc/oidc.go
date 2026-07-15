@@ -766,7 +766,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 // LogoutURL returns the upstream OIDC provider's end_session_endpoint URL.
 // Per the OIDC RP-Initiated Logout spec, the post_logout_redirect_uri parameter
 // tells the upstream where to redirect after logout.
-func (c *oidcConnector) LogoutURL(_ context.Context, _ []byte, postLogoutRedirectURI string) (string, error) {
+func (c *oidcConnector) LogoutURL(_ context.Context, postLogoutRedirectURI string) (string, error) {
 	if c.endSessionURL == "" {
 		return "", nil
 	}

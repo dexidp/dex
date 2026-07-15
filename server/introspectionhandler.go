@@ -205,7 +205,7 @@ func (s *Server) introspectRefreshToken(ctx context.Context, token string) (*Int
 		rToken = &internal.RefreshToken{RefreshId: token, Token: ""}
 	}
 
-	rCtx, err := s.getRefreshTokenFromStorage(ctx, nil, rToken)
+	refresh, err := s.getRefreshTokenFromStorage(ctx, nil, rToken)
 	if err != nil {
 		if errors.Is(err, invalidErr) || errors.Is(err, expiredErr) {
 			return nil, newIntrospectInactiveTokenError()
@@ -215,7 +215,7 @@ func (s *Server) introspectRefreshToken(ctx context.Context, token string) (*Int
 		return nil, newIntrospectInternalServerError()
 	}
 
-	subjectString, sErr := genSubject(rCtx.storageToken.Claims.UserID, rCtx.storageToken.ConnectorID)
+	subjectString, sErr := genSubject(refresh.Claims.UserID, refresh.ConnectorID)
 	if sErr != nil {
 		s.logger.ErrorContext(ctx, "failed to marshal offline session ID", "err", err)
 		return nil, newIntrospectInternalServerError()
@@ -223,21 +223,23 @@ func (s *Server) introspectRefreshToken(ctx context.Context, token string) (*Int
 
 	return &Introspection{
 		Active:    true,
-		ClientID:  rCtx.storageToken.ClientID,
-		IssuedAt:  rCtx.storageToken.CreatedAt.Unix(),
-		NotBefore: rCtx.storageToken.CreatedAt.Unix(),
-		Expiry:    rCtx.storageToken.CreatedAt.Add(s.refreshTokenPolicy.absoluteLifetime).Unix(),
+		ClientID:  refresh.ClientID,
+		IssuedAt:  refresh.CreatedAt.Unix(),
+		NotBefore: refresh.CreatedAt.Unix(),
+		Expiry:    refresh.CreatedAt.Add(s.refreshTokenPolicy.absoluteLifetime).Unix(),
 		Subject:   subjectString,
-		Username:  rCtx.storageToken.Claims.PreferredUsername,
-		Audience:  getAudience(rCtx.storageToken.ClientID, rCtx.scopes),
-		Issuer:    s.issuerURL.String(),
+		Username:  refresh.Claims.PreferredUsername,
+		// Refresh-token introspection does not resolve scopes, so the audience is
+		// the token's own client only.
+		Audience: getAudience(refresh.ClientID, nil),
+		Issuer:   s.issuerURL.String(),
 
 		Extra: IntrospectionExtra{
-			Email:             rCtx.storageToken.Claims.Email,
-			EmailVerified:     &rCtx.storageToken.Claims.EmailVerified,
-			Groups:            rCtx.storageToken.Claims.Groups,
-			Name:              rCtx.storageToken.Claims.Username,
-			PreferredUsername: rCtx.storageToken.Claims.PreferredUsername,
+			Email:             refresh.Claims.Email,
+			EmailVerified:     &refresh.Claims.EmailVerified,
+			Groups:            refresh.Claims.Groups,
+			Name:              refresh.Claims.Username,
+			PreferredUsername: refresh.Claims.PreferredUsername,
 		},
 		TokenType: "Bearer",
 		TokenUse:  "refresh_token",

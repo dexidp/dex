@@ -36,11 +36,13 @@ const (
 
 // NewAPI returns a server which implements the gRPC API interface.
 func NewAPI(s storage.Storage, logger *slog.Logger, version string, server *Server) api.DexServer {
+	apiLogger := logger.With("component", "api")
 	return dexAPI{
 		s:       s,
-		logger:  logger.With("component", "api"),
+		logger:  apiLogger,
 		version: version,
 		server:  server,
+		refresh: &refreshTokens{storage: s, now: time.Now, logger: apiLogger},
 	}
 }
 
@@ -51,6 +53,7 @@ type dexAPI struct {
 	logger  *slog.Logger
 	version string
 	server  *Server
+	refresh *refreshTokens
 }
 
 func (d dexAPI) GetClient(ctx context.Context, req *api.GetClientReq) (*api.GetClientResp, error) {
@@ -623,9 +626,9 @@ func defaultTo[T comparable](v, def T) T {
 
 // revokeUserRefreshTokens revokes all refresh tokens for a user/connector pair
 // and cleans up offline session references. Errors are logged but not returned
-// (best-effort). Uses the shared revokeRefreshTokensFromStorage helper.
+// (best-effort).
 func (d dexAPI) revokeUserRefreshTokens(ctx context.Context, userID, connectorID string) {
-	revokeRefreshTokensFromStorage(ctx, d.s, d.logger, userID, connectorID)
+	d.refresh.revoke(ctx, userID, connectorID)
 }
 
 // unixOrZero returns the Unix timestamp for t, or 0 when t is the zero value.
