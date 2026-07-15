@@ -497,7 +497,7 @@ func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq
 
 	// Make sure we don't reuse stale entries in the cache
 	if d.server != nil {
-		d.server.CloseConnector(req.Connector.Id)
+		d.server.connectors.Close(req.Connector.Id)
 	}
 
 	return &api.CreateConnectorResp{}, nil

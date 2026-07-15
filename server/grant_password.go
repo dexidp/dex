@@ -72,7 +72,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 	if !s.checkConnectorAllowed(w, r, client, connID) {
 		return
 	}
-	conn, err := s.getConnector(ctx, connID)
+	conn, err := s.connectors.Get(ctx, connID)
 	if err != nil {
 		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
 		return

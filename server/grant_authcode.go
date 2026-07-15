@@ -113,7 +113,7 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 		// rather than returning an error. This matches the OAuth2 spec: the
 		// server is never required to issue a refresh token (RFC 6749 §1.5).
 		// https://datatracker.ietf.org/doc/html/rfc6749#section-1.5
-		conn, err := s.getConnector(ctx, authCode.ConnectorID)
+		conn, err := s.connectors.Get(ctx, authCode.ConnectorID)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "connector not found", "connector_id", authCode.ConnectorID, "err", err)
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)

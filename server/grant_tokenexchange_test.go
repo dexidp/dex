@@ -186,9 +186,7 @@ func TestHandleTokenExchangeConnectorGrantTypeRestriction(t *testing.T) {
 	})
 	require.NoError(t, err)
 	// Clear cached connector to pick up new grant types
-	s.mu.Lock()
-	delete(s.connectors, "mock")
-	s.mu.Unlock()
+	s.connectors.Close("mock")
 
 	vals := make(url.Values)
 	vals.Set("grant_type", grantTypeTokenExchange)

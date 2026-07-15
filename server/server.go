@@ -16,7 +16,6 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -46,8 +45,9 @@ import (
 	"github.com/dexidp/dex/connector/openshift"
 	"github.com/dexidp/dex/connector/saml"
 	"github.com/dexidp/dex/pkg/featureflags"
-	"github.com/dexidp/dex/server/templates"
+	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/signer"
+	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/web"
 )
@@ -55,14 +55,6 @@ import (
 // LocalConnector is the local passwordDB connector which is an internal
 // connector maintained by the server.
 const LocalConnector = "local"
-
-// Connector is a connector with resource version metadata.
-type Connector struct {
-	Type            string
-	ResourceVersion string
-	Connector       connector.Connector
-	GrantTypes      []string
-}
 
 // GrantTypeAllowed checks if the given grant type is allowed for this connector.
 // If no grant types are configured, all are allowed.
@@ -212,10 +204,8 @@ func value(val, defaultValue time.Duration) time.Duration {
 type Server struct {
 	issuerURL url.URL
 
-	// mutex for the connectors map.
-	mu sync.Mutex
-	// Map of connector IDs to connectors.
-	connectors map[string]Connector
+	// In-memory cache of opened connectors.
+	connectors *connectors.Cache
 
 	storage storage.Storage
 
@@ -364,7 +354,6 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 
 	s := &Server{
 		issuerURL:              *issuerURL,
-		connectors:             make(map[string]Connector),
 		storage:                newKeyCacher(c.Storage, now),
 		supportedResponseTypes: supportedRes,
 		supportedGrantTypes:    supportedGrants,
@@ -385,6 +374,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		defaultMFAChain:        c.DefaultMFAChain,
 	}
 	s.issuer = newTokenIssuer(s)
+	s.connectors = connectors.NewCache(s.storage, s.resolveConnector)
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
 	// defined in the ConfigMap and dynamic connectors retrieved from the storage.
@@ -393,7 +383,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		return nil, fmt.Errorf("server: failed to list connector objects from storage: %v", err)
 	}
 
-	if len(storageConnectors) == 0 && len(s.connectors) == 0 {
+	if len(storageConnectors) == 0 && s.connectors.Len() == 0 {
 		return nil, errors.New("server: no connectors specified")
 	}
 
@@ -799,65 +789,23 @@ func openConnector(logger *slog.Logger, conn storage.Connector) (connector.Conne
 	return c, nil
 }
 
-// OpenConnector updates server connector map with specified connector object.
-func (s *Server) OpenConnector(conn storage.Connector) (Connector, error) {
-	var c connector.Connector
-
+// resolveConnector builds the underlying connector implementation for a stored
+// connector: the built-in local password DB, or a configured connector.
+func (s *Server) resolveConnector(conn storage.Connector) (connector.Connector, error) {
 	if conn.Type == LocalConnector {
-		c = newPasswordDB(s.storage)
-	} else {
-		var err error
-		c, err = openConnector(s.logger, conn)
-		if err != nil {
-			return Connector{}, fmt.Errorf("failed to open connector: %v", err)
-		}
+		return newPasswordDB(s.storage), nil
 	}
-
-	connector := Connector{
-		Type:            conn.Type,
-		ResourceVersion: conn.ResourceVersion,
-		Connector:       c,
-		GrantTypes:      conn.GrantTypes,
-	}
-	s.mu.Lock()
-	s.connectors[conn.ID] = connector
-	s.mu.Unlock()
-
-	return connector, nil
+	return openConnector(s.logger, conn)
 }
 
-// CloseConnector removes the connector from the server's in-memory map.
+// OpenConnector opens the given connector and records it in the in-memory cache.
+func (s *Server) OpenConnector(conn storage.Connector) (connectors.Connector, error) {
+	return s.connectors.Open(conn)
+}
+
+// CloseConnector removes the connector from the in-memory cache.
 func (s *Server) CloseConnector(id string) {
-	s.mu.Lock()
-	delete(s.connectors, id)
-	s.mu.Unlock()
-}
-
-// getConnector retrieves the connector object with the given id from the storage
-// and updates the connector list for server if necessary.
-func (s *Server) getConnector(ctx context.Context, id string) (Connector, error) {
-	storageConnector, err := s.storage.GetConnector(ctx, id)
-	if err != nil {
-		return Connector{}, fmt.Errorf("failed to get connector object from storage: %v", err)
-	}
-
-	var conn Connector
-	var ok bool
-	s.mu.Lock()
-	conn, ok = s.connectors[id]
-	s.mu.Unlock()
-
-	if !ok || storageConnector.ResourceVersion != conn.ResourceVersion {
-		// Connector object does not exist in server connectors map or
-		// has been updated in the storage. Need to get latest.
-		conn, err := s.OpenConnector(storageConnector)
-		if err != nil {
-			return Connector{}, fmt.Errorf("failed to open connector: %v", err)
-		}
-		return conn, nil
-	}
-
-	return conn, nil
+	s.connectors.Close(id)
 }
 
 // buildApprovalURL builds an HMAC-protected approval URL.

@@ -396,7 +396,7 @@ func (s *Server) mfaChainForClient(ctx context.Context, clientID, connectorID st
 
 // getConnectorType returns the type of the connector with the given ID.
 func (s *Server) getConnectorType(ctx context.Context, connectorID string) (string, error) {
-	conn, err := s.getConnector(ctx, connectorID)
+	conn, err := s.connectors.Get(ctx, connectorID)
 	if err != nil {
 		return "", fmt.Errorf("get connector %q: %w", connectorID, err)
 	}

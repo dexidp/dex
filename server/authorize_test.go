@@ -83,9 +83,7 @@ func TestHandleAuthorizationConnectorGrantTypeFiltering(t *testing.T) {
 					return c, nil
 				})
 				require.NoError(t, err)
-				s.mu.Lock()
-				delete(s.connectors, id)
-				s.mu.Unlock()
+				s.connectors.Close(id)
 			}
 
 			rr := httptest.NewRecorder()

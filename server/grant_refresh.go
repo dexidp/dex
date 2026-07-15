@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
@@ -248,7 +249,7 @@ func (s *Server) getRefreshScopes(r *http.Request, refresh *storage.RefreshToken
 // refreshWithConnector re-reads the identity from the upstream connector when it
 // supports refreshing. Callers pass the connector data and scopes resolved for
 // this refresh so the connector can validate and update the session.
-func (s *Server) refreshWithConnector(ctx context.Context, conn Connector, connectorData []byte, scopes []string, ident connector.Identity) (connector.Identity, *refreshError) {
+func (s *Server) refreshWithConnector(ctx context.Context, conn connectors.Connector, connectorData []byte, scopes []string, ident connector.Identity) (connector.Identity, *refreshError) {
 	// Can the connector refresh the identity? If so, attempt to refresh the data
 	// in the connector.
 	//
@@ -295,7 +296,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 	}
 
 	// Resolve the connector and confirm it still permits the refresh grant.
-	conn, err := s.getConnector(r.Context(), refresh.ConnectorID)
+	conn, err := s.connectors.Get(r.Context(), refresh.ConnectorID)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "connector not found", "connector_id", refresh.ConnectorID, "err", err)
 		s.refreshTokenErrHelper(w, newInternalServerError())

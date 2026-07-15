@@ -203,7 +203,7 @@ func (s *Server) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 
 	// Let the connector validate the upstream logout response if it supports it.
 	if ls.ConnectorID != "" {
-		conn, err := s.getConnector(ctx, ls.ConnectorID)
+		conn, err := s.connectors.Get(ctx, ls.ConnectorID)
 		if err == nil {
 			if logoutConn, ok := conn.Connector.(connector.LogoutCallbackConnector); ok {
 				if err := logoutConn.HandleLogoutCallback(ctx, r); err != nil {
@@ -250,7 +250,7 @@ func (s *Server) tryUpstreamLogout(ctx context.Context, userID, connectorID, pos
 		return "", false
 	}
 
-	conn, err := s.getConnector(ctx, connectorID)
+	conn, err := s.connectors.Get(ctx, connectorID)
 	if err != nil {
 		return "", false
 	}

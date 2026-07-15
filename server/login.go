@@ -57,7 +57,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := s.getConnector(ctx, connID)
+	conn, err := s.connectors.Get(ctx, connID)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "Failed to get connector", "err", err)
 		s.renderError(r, w, http.StatusBadRequest, "Connector failed to initialize")
@@ -149,7 +149,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	// Include prompt=select_account so that handleAuthorization skips
 	// session-based connector reuse and shows the connector list.
 	backLink := ""
-	if len(s.connectors) > 1 {
+	if s.connectors.Len() > 1 {
 		backLinkParams := make(url.Values)
 		maps.Copy(backLinkParams, r.Form)
 		if s.sessionConfig != nil {
@@ -264,7 +264,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := s.getConnector(ctx, authReq.ConnectorID)
+	conn, err := s.connectors.Get(ctx, authReq.ConnectorID)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to get connector", "connector_id", authReq.ConnectorID, "err", err)
 		s.renderError(r, w, http.StatusInternalServerError, "Connector failed to initialize.")
@@ -416,7 +416,7 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	conn, err := s.getConnector(ctx, authReq.ConnectorID)
+	conn, err := s.connectors.Get(ctx, authReq.ConnectorID)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to get connector", "connector_id", authReq.ConnectorID, "err", err)
 		s.renderError(r, w, http.StatusInternalServerError, "Requested resource does not exist.")

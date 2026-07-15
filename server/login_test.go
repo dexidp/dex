@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -561,9 +562,8 @@ func TestHandlePasswordLogin_SPNEGOShortCircuit(t *testing.T) {
 	}))
 
 	// Replace the server connector with a SPNEGO-aware fake that short-circuits
-	s.mu.Lock()
-	orig := s.connectors[connID]
-	s.connectors[connID] = Connector{
+	orig, _ := s.connectors.Get(ctx, connID)
+	s.connectors.Set(connID, connectors.Connector{
 		ResourceVersion: orig.ResourceVersion,
 		Connector: spnegoShortCircuit{Identity: connector.Identity{
 			UserID:        "user-id",
@@ -571,8 +571,7 @@ func TestHandlePasswordLogin_SPNEGOShortCircuit(t *testing.T) {
 			Email:         "user@example.com",
 			EmailVerified: true,
 		}},
-	}
-	s.mu.Unlock()
+	})
 
 	// Need a client for finalizeLogin to succeed
 	require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
@@ -633,13 +632,11 @@ func TestHandlePasswordLogin_SPNEGOError(t *testing.T) {
 	}))
 
 	// Replace the server connector with a SPNEGO-aware fake that returns an error
-	s.mu.Lock()
-	orig := s.connectors[connID]
-	s.connectors[connID] = Connector{
+	orig, _ := s.connectors.Get(ctx, connID)
+	s.connectors.Set(connID, connectors.Connector{
 		ResourceVersion: orig.ResourceVersion,
 		Connector:       spnegoError{Err: errors.New("ldap: user lookup failed for kerberos principal")},
-	}
-	s.mu.Unlock()
+	})
 
 	// Need a client for the flow
 	require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
@@ -687,9 +684,7 @@ func TestHandleConnectorLoginGrantTypeRejection(t *testing.T) {
 		return c, nil
 	})
 	require.NoError(t, err)
-	s.mu.Lock()
-	delete(s.connectors, "mock")
-	s.mu.Unlock()
+	s.connectors.Close("mock")
 
 	// Try to use mock connector for auth code flow via the full server router
 	rr := httptest.NewRecorder()

@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
@@ -419,8 +420,7 @@ func TestRefreshDisconnectsUpstreamWhenSessionsEnabled(t *testing.T) {
 			// Replace the connector with one that always fails on Refresh.
 			// When sessions are enabled this connector should never be called;
 			// when sessions are disabled, the failure proves the error path works.
-			s.mu.Lock()
-			s.connectors["test"] = Connector{
+			s.connectors.Set("test", connectors.Connector{
 				Connector: &failingRefreshConnector{
 					identity: connector.Identity{
 						UserID:   "0-385-28089-0",
@@ -428,8 +428,7 @@ func TestRefreshDisconnectsUpstreamWhenSessionsEnabled(t *testing.T) {
 						Email:    "kilgore@kilgore.trout",
 					},
 				},
-			}
-			s.mu.Unlock()
+			})
 
 			if tc.createUserIdentity {
 				err := s.storage.CreateUserIdentity(t.Context(), storage.UserIdentity{

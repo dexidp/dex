@@ -755,7 +755,7 @@ func TestOAuth2CodeFlow(t *testing.T) {
 			})
 			defer httpServer.Close()
 
-			mockConn := s.connectors["mock"]
+			mockConn, _ := s.connectors.Cached("mock")
 			conn = mockConn.Connector.(*mock.Callback)
 
 			// Query server's provider metadata.
@@ -1631,7 +1631,7 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 				})
 				defer httpServer.Close()
 
-				mockConn := s.connectors["mock"]
+				mockConn, _ := s.connectors.Cached("mock")
 				conn = mockConn.Connector.(*mock.Callback)
 
 				p, err := oidc.NewProvider(ctx, httpServer.URL)
@@ -2030,7 +2030,7 @@ func TestConnectorFailureHandling(t *testing.T) {
 				} else {
 					// Verify expected connectors are loaded
 					for _, id := range tc.expectConnectors {
-						if _, exists := server.connectors[id]; !exists {
+						if _, exists := server.connectors.Cached(id); !exists {
 							t.Errorf("expected connector %q to be loaded", id)
 						}
 					}
@@ -2044,7 +2044,7 @@ func TestConnectorFailureHandling(t *testing.T) {
 								break
 							}
 						}
-						_, exists := server.connectors[conn.ID]
+						_, exists := server.connectors.Cached(conn.ID)
 						if shouldExist && !exists {
 							t.Errorf("connector %q should have been loaded but wasn't", conn.ID)
 						} else if !shouldExist && exists {
