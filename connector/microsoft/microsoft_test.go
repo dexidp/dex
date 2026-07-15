@@ -192,17 +192,19 @@ func TestClientAssertionTokenExchange(t *testing.T) {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
 	defer os.Remove(file.Name())
-	file.WriteString(assertion)
+	file.WriteString(assertion + "\n")
 	file.Close()
 
 	tokenCalled := false
-	var receivedAssertion, receivedSecret string
+	var receivedAssertion, receivedClientID, receivedSecret, receivedAuthorization string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "POST" && r.URL.Path == "/testtenant/oauth2/v2.0/token" {
+			receivedAuthorization = r.Header.Get("Authorization")
 			bodyBytes, _ := io.ReadAll(r.Body)
 			r.Body.Close()
 			form, _ := url.ParseQuery(string(bodyBytes))
 			receivedAssertion = form.Get("client_assertion")
+			receivedClientID = form.Get("client_id")
 			receivedSecret = form.Get("client_secret")
 			tokenCalled = true
 			w.Header().Set("Content-Type", "application/json")
@@ -230,8 +232,14 @@ func TestClientAssertionTokenExchange(t *testing.T) {
 	if receivedAssertion != assertion {
 		t.Errorf("Expected client_assertion to be %q, got %q", assertion, receivedAssertion)
 	}
+	if receivedClientID != clientID {
+		t.Errorf("Expected client_id to be %q, got %q", clientID, receivedClientID)
+	}
 	if receivedSecret != "" {
 		t.Errorf("Expected client_secret to be empty, got %q", receivedSecret)
+	}
+	if receivedAuthorization != "" {
+		t.Errorf("Expected Authorization header to be empty, got %q", receivedAuthorization)
 	}
 }
 

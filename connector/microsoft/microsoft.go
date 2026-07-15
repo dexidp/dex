@@ -188,6 +188,8 @@ func (c *microsoftConnector) oauth2Config(scopes connector.Scopes) *oauth2.Confi
 	// Only set ClientSecret if not using client assertion
 	if c.clientAssertion == "" {
 		config.ClientSecret = c.clientSecret
+	} else {
+		config.Endpoint.AuthStyle = oauth2.AuthStyleInParams
 	}
 
 	return config
@@ -269,7 +271,7 @@ func (c *microsoftConnector) HandleCallback(s connector.Scopes, connData []byte,
 		// Create HTTP client with custom transport that injects client_assertion
 		httpClient := &http.Client{
 			Transport: &assertionTransport{
-				assertion: string(assertionBytes),
+				assertion: strings.TrimSpace(string(assertionBytes)),
 				tokenURL:  oauth2Config.Endpoint.TokenURL,
 				base:      http.DefaultTransport,
 			},
@@ -377,7 +379,7 @@ func (c *microsoftConnector) Refresh(ctx context.Context, s connector.Scopes, id
 		oauth2Config := c.oauth2Config(s)
 		httpClient := &http.Client{
 			Transport: &assertionTransport{
-				assertion: string(assertionBytes),
+				assertion: strings.TrimSpace(string(assertionBytes)),
 				tokenURL:  oauth2Config.Endpoint.TokenURL,
 				base:      http.DefaultTransport,
 			},
