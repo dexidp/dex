@@ -7,17 +7,18 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/storage"
 )
 
 func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
-	if s.sessionConfig == nil || s.templates.homeTmpl == nil {
+	if s.sessionConfig == nil || !s.templates.HasHome() {
 		s.handleHomeInline(w, r)
 		return
 	}
 
 	ctx := r.Context()
-	data := homeData{
+	data := templates.HomeData{
 		DiscoveryURL: s.issuerURL.JoinPath(".well-known", "openid-configuration").String(),
 		LogoutURL:    s.absURL("/logout"),
 	}
@@ -36,7 +37,7 @@ func (s *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := s.templates.home(r, w, data); err != nil {
+	if err := s.templates.Home(r, w, data); err != nil {
 		s.logger.ErrorContext(ctx, "failed to render home template", "err", err)
 		s.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 	}
@@ -55,7 +56,7 @@ func (s *Server) handleHomeInline(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) populateHomeData(ctx context.Context, data *homeData, userID, connectorID string) {
+func (s *Server) populateHomeData(ctx context.Context, data *templates.HomeData, userID, connectorID string) {
 	ui, err := s.storage.GetUserIdentity(ctx, userID, connectorID)
 	if err != nil {
 		if !errors.Is(err, storage.ErrNotFound) {

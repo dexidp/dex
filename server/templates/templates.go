@@ -1,4 +1,4 @@
-package server
+package templates
 
 import (
 	"fmt"
@@ -42,7 +42,7 @@ var requiredTmpls = []string{
 	tmplLogout,
 }
 
-type templates struct {
+type Templates struct {
 	loginTmpl          *template.Template
 	approvalTmpl       *template.Template
 	passwordTmpl       *template.Template
@@ -56,27 +56,27 @@ type templates struct {
 	logoutTmpl         *template.Template
 }
 
-type webConfig struct {
-	webFS     fs.FS
-	logoURL   string
-	issuer    string
-	theme     string
-	issuerURL string
-	extra     map[string]string
+type Config struct {
+	WebFS     fs.FS
+	LogoURL   string
+	Issuer    string
+	Theme     string
+	IssuerURL string
+	Extra     map[string]string
 }
 
-func getFuncMap(c webConfig) (template.FuncMap, error) {
+func getFuncMap(c Config) (template.FuncMap, error) {
 	funcs := sprig.FuncMap()
 
-	issuerURL, err := url.Parse(c.issuerURL)
+	issuerURL, err := url.Parse(c.IssuerURL)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing issuerURL: %v", err)
 	}
 
 	additionalFuncs := map[string]interface{}{
-		"extra":  func(k string) string { return c.extra[k] },
-		"issuer": func() string { return c.issuer },
-		"logo":   func() string { return c.logoURL },
+		"extra":  func(k string) string { return c.Extra[k] },
+		"issuer": func() string { return c.Issuer },
+		"logo":   func() string { return c.LogoURL },
 		"url": func(reqPath, assetPath string) string {
 			return relativeURL(issuerURL.Path, reqPath, assetPath)
 		},
@@ -100,30 +100,30 @@ func getFuncMap(c webConfig) (template.FuncMap, error) {
 //	|- themes
 //	|  |- (theme name)
 //	|- templates
-func loadWebConfig(c webConfig) (http.Handler, http.Handler, http.HandlerFunc, *templates, error) {
+func LoadWebConfig(c Config) (http.Handler, http.Handler, http.HandlerFunc, *Templates, error) {
 	// fallback to the default theme if the legacy theme name is provided
-	if c.theme == "coreos" || c.theme == "tectonic" {
-		c.theme = ""
+	if c.Theme == "coreos" || c.Theme == "tectonic" {
+		c.Theme = ""
 	}
-	if c.theme == "" {
-		c.theme = "light"
+	if c.Theme == "" {
+		c.Theme = "light"
 	}
-	if c.issuer == "" {
-		c.issuer = "dex"
+	if c.Issuer == "" {
+		c.Issuer = "dex"
 	}
-	if c.logoURL == "" {
-		c.logoURL = "theme/logo.png"
+	if c.LogoURL == "" {
+		c.LogoURL = "theme/logo.png"
 	}
 
-	staticFiles, err := fs.Sub(c.webFS, "static")
+	staticFiles, err := fs.Sub(c.WebFS, "static")
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("read static dir: %v", err)
 	}
-	themeFiles, err := fs.Sub(c.webFS, path.Join("themes", c.theme))
+	themeFiles, err := fs.Sub(c.WebFS, path.Join("themes", c.Theme))
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("read themes dir: %v", err)
 	}
-	robotsContent, err := fs.ReadFile(c.webFS, "robots.txt")
+	robotsContent, err := fs.ReadFile(c.WebFS, "robots.txt")
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("read robots.txt dir: %v", err)
 	}
@@ -138,8 +138,8 @@ func loadWebConfig(c webConfig) (http.Handler, http.Handler, http.HandlerFunc, *
 }
 
 // loadTemplates parses the expected templates from the provided directory.
-func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
-	files, err := fs.ReadDir(c.webFS, templatesDir)
+func loadTemplates(c Config, templatesDir string) (*Templates, error) {
+	files, err := fs.ReadDir(c.WebFS, templatesDir)
 	if err != nil {
 		return nil, fmt.Errorf("read dir: %v", err)
 	}
@@ -160,7 +160,7 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 		return nil, err
 	}
 
-	tmpls, err := template.New("").Funcs(funcs).ParseFS(c.webFS, filenames...)
+	tmpls, err := template.New("").Funcs(funcs).ParseFS(c.WebFS, filenames...)
 	if err != nil {
 		return nil, fmt.Errorf("parse files: %v", err)
 	}
@@ -173,7 +173,7 @@ func loadTemplates(c webConfig, templatesDir string) (*templates, error) {
 	if len(missingTmpls) > 0 {
 		return nil, fmt.Errorf("missing template(s): %s", missingTmpls)
 	}
-	return &templates{
+	return &Templates{
 		loginTmpl:          tmpls.Lookup(tmplLogin),
 		approvalTmpl:       tmpls.Lookup(tmplApproval),
 		passwordTmpl:       tmpls.Lookup(tmplPassword),
@@ -271,20 +271,20 @@ var scopeDescriptions = map[string]string{
 	"groups": "View your groups",
 }
 
-type connectorInfo struct {
+type ConnectorInfo struct {
 	ID   string
 	Name string
 	URL  template.URL
 	Type string
 }
 
-type byName []connectorInfo
+type byName []ConnectorInfo
 
 func (n byName) Len() int           { return len(n) }
 func (n byName) Less(i, j int) bool { return n[i].Name < n[j].Name }
 func (n byName) Swap(i, j int)      { n[i], n[j] = n[j], n[i] }
 
-func (t *templates) device(r *http.Request, w http.ResponseWriter, postURL string, userCode string, lastWasInvalid bool) error {
+func (t *Templates) Device(r *http.Request, w http.ResponseWriter, postURL string, userCode string, lastWasInvalid bool) error {
 	if lastWasInvalid {
 		w.WriteHeader(http.StatusBadRequest)
 	}
@@ -297,7 +297,7 @@ func (t *templates) device(r *http.Request, w http.ResponseWriter, postURL strin
 	return renderTemplate(w, t.deviceTmpl, data)
 }
 
-func (t *templates) deviceSuccess(r *http.Request, w http.ResponseWriter, clientName string) error {
+func (t *Templates) DeviceSuccess(r *http.Request, w http.ResponseWriter, clientName string) error {
 	data := struct {
 		ClientName string
 		ReqPath    string
@@ -305,16 +305,16 @@ func (t *templates) deviceSuccess(r *http.Request, w http.ResponseWriter, client
 	return renderTemplate(w, t.deviceSuccessTmpl, data)
 }
 
-func (t *templates) login(r *http.Request, w http.ResponseWriter, connectors []connectorInfo) error {
+func (t *Templates) Login(r *http.Request, w http.ResponseWriter, connectors []ConnectorInfo) error {
 	sort.Sort(byName(connectors))
 	data := struct {
-		Connectors []connectorInfo
+		Connectors []ConnectorInfo
 		ReqPath    string
 	}{connectors, r.URL.Path}
 	return renderTemplate(w, t.loginTmpl, data)
 }
 
-func (t *templates) password(r *http.Request, w http.ResponseWriter, postURL, lastUsername, usernamePrompt string, lastWasInvalid bool, backLink string, rememberMe *bool) error {
+func (t *Templates) Password(r *http.Request, w http.ResponseWriter, postURL, lastUsername, usernamePrompt string, lastWasInvalid bool, backLink string, rememberMe *bool) error {
 	if lastWasInvalid {
 		w.WriteHeader(http.StatusUnauthorized)
 	}
@@ -342,7 +342,7 @@ func (t *templates) password(r *http.Request, w http.ResponseWriter, postURL, la
 	return renderTemplate(w, t.passwordTmpl, data)
 }
 
-func (t *templates) approval(r *http.Request, w http.ResponseWriter, authReqID, username, clientName string, scopes []string) error {
+func (t *Templates) Approval(r *http.Request, w http.ResponseWriter, authReqID, username, clientName string, scopes []string) error {
 	accesses := []string{}
 	for _, scope := range scopes {
 		access, ok := scopeDescriptions[scope]
@@ -361,7 +361,7 @@ func (t *templates) approval(r *http.Request, w http.ResponseWriter, authReqID, 
 	return renderTemplate(w, t.approvalTmpl, data)
 }
 
-func (t *templates) totpVerify(r *http.Request, w http.ResponseWriter, postURL, issuer, connector, qrCode string, lastWasInvalid bool) error {
+func (t *Templates) TOTPVerify(r *http.Request, w http.ResponseWriter, postURL, issuer, connector, qrCode string, lastWasInvalid bool) error {
 	if lastWasInvalid {
 		w.WriteHeader(http.StatusUnauthorized)
 	}
@@ -376,7 +376,7 @@ func (t *templates) totpVerify(r *http.Request, w http.ResponseWriter, postURL, 
 	return renderTemplate(w, t.totpVerifyTmpl, data)
 }
 
-type homeData struct {
+type HomeData struct {
 	LoggedIn       bool
 	Username       string
 	Email          string
@@ -391,12 +391,17 @@ type homeData struct {
 	ReqPath        string
 }
 
-func (t *templates) home(r *http.Request, w http.ResponseWriter, data homeData) error {
+// HasHome reports whether the home template was loaded.
+func (t *Templates) HasHome() bool {
+	return t.homeTmpl != nil
+}
+
+func (t *Templates) Home(r *http.Request, w http.ResponseWriter, data HomeData) error {
 	data.ReqPath = r.URL.Path
 	return renderTemplate(w, t.homeTmpl, data)
 }
 
-func (t *templates) logout(r *http.Request, w http.ResponseWriter, backURL string, loggedOut bool, showConfirmation bool) error {
+func (t *Templates) Logout(r *http.Request, w http.ResponseWriter, backURL string, loggedOut bool, showConfirmation bool) error {
 	data := struct {
 		BackURL          string
 		LoggedOut        bool
@@ -406,7 +411,7 @@ func (t *templates) logout(r *http.Request, w http.ResponseWriter, backURL strin
 	return renderTemplate(w, t.logoutTmpl, data)
 }
 
-func (t *templates) webauthnVerify(r *http.Request, w http.ResponseWriter, mode, authenticatorID string) error {
+func (t *Templates) WebAuthnVerify(r *http.Request, w http.ResponseWriter, mode, authenticatorID string) error {
 	data := struct {
 		// Mode must be server-controlled ("register" or "login") and never derived
 		// from user input to prevent XSS in the template's script context.
@@ -417,7 +422,7 @@ func (t *templates) webauthnVerify(r *http.Request, w http.ResponseWriter, mode,
 	return renderTemplate(w, t.webauthnVerifyTmpl, data)
 }
 
-func (t *templates) oob(r *http.Request, w http.ResponseWriter, code string) error {
+func (t *Templates) OOB(r *http.Request, w http.ResponseWriter, code string) error {
 	data := struct {
 		Code    string
 		ReqPath string
@@ -425,7 +430,7 @@ func (t *templates) oob(r *http.Request, w http.ResponseWriter, code string) err
 	return renderTemplate(w, t.oobTmpl, data)
 }
 
-func (t *templates) err(r *http.Request, w http.ResponseWriter, errCode int, errMsg string) error {
+func (t *Templates) Err(r *http.Request, w http.ResponseWriter, errCode int, errMsg string) error {
 	w.WriteHeader(errCode)
 	data := struct {
 		ErrType string

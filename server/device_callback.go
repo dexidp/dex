@@ -114,7 +114,7 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if err := s.templates.deviceSuccess(r, w, client.Name); err != nil {
+		if err := s.templates.DeviceSuccess(r, w, client.Name); err != nil {
 			s.logger.ErrorContext(r.Context(), "Server template error", "err", err)
 			s.renderError(r, w, http.StatusNotFound, "Page not found")
 		}

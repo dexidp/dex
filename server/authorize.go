@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -141,10 +142,10 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	connectorInfos := make([]connectorInfo, 0, len(connectors))
+	connectorInfos := make([]templates.ConnectorInfo, 0, len(connectors))
 	for _, conn := range connectors {
 		connURL.Path = s.absPath("/auth", url.PathEscape(conn.ID))
-		connectorInfos = append(connectorInfos, connectorInfo{
+		connectorInfos = append(connectorInfos, templates.ConnectorInfo{
 			ID:   conn.ID,
 			Name: conn.Name,
 			Type: conn.Type,
@@ -152,7 +153,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	if err := s.templates.login(r, w, connectorInfos); err != nil {
+	if err := s.templates.Login(r, w, connectorInfos); err != nil {
 		s.logger.ErrorContext(r.Context(), "server template error", "err", err)
 	}
 }
@@ -174,7 +175,7 @@ func (s *Server) getClientWithAuthError(ctx context.Context, clientID string) (s
 }
 
 func (s *Server) renderError(r *http.Request, w http.ResponseWriter, status int, description string) {
-	if err := s.templates.err(r, w, status, description); err != nil {
+	if err := s.templates.Err(r, w, status, description); err != nil {
 		s.logger.ErrorContext(r.Context(), "server template error", "err", err)
 	}
 }

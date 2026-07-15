@@ -16,6 +16,7 @@ import (
 	"github.com/dexidp/dex/api/v2"
 	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -42,7 +43,7 @@ func NewAPI(s storage.Storage, logger *slog.Logger, version string, server *Serv
 		logger:  apiLogger,
 		version: version,
 		server:  server,
-		refresh: &refreshTokens{storage: s, now: time.Now, logger: apiLogger},
+		refresh: tokens.NewRefreshStore(s, time.Now, apiLogger),
 	}
 }
 
@@ -53,7 +54,7 @@ type dexAPI struct {
 	logger  *slog.Logger
 	version string
 	server  *Server
-	refresh *refreshTokens
+	refresh *tokens.RefreshStore
 }
 
 func (d dexAPI) GetClient(ctx context.Context, req *api.GetClientReq) (*api.GetClientResp, error) {
@@ -497,7 +498,7 @@ func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq
 
 	// Make sure we don't reuse stale entries in the cache
 	if d.server != nil {
-		d.server.CloseConnector(req.Connector.Id)
+		d.server.connectors.Close(req.Connector.Id)
 	}
 
 	return &api.CreateConnectorResp{}, nil
@@ -628,7 +629,7 @@ func defaultTo[T comparable](v, def T) T {
 // and cleans up offline session references. Errors are logged but not returned
 // (best-effort).
 func (d dexAPI) revokeUserRefreshTokens(ctx context.Context, userID, connectorID string) {
-	d.refresh.revoke(ctx, userID, connectorID)
+	d.refresh.Revoke(ctx, userID, connectorID)
 }
 
 // unixOrZero returns the Unix timestamp for t, or 0 when t is the zero value.

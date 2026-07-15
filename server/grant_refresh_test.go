@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -19,7 +18,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -89,71 +90,47 @@ func TestRefreshTokenExpirationScenarios(t *testing.T) {
 	t0 := time.Now()
 	tests := []struct {
 		name        string
-		policy      *RefreshTokenPolicy
+		policy      *tokens.RefreshStrategy
 		useObsolete bool
 		error       string
 	}{
 		{
 			name:   "Normal",
-			policy: &RefreshTokenPolicy{rotateRefreshTokens: true},
+			policy: tokens.NewRefreshStrategy(true, 0, 0, 0, nil),
 			error:  ``,
 		},
 		{
-			name: "Not expired because used",
-			policy: &RefreshTokenPolicy{
-				rotateRefreshTokens: false,
-				validIfNotUsedFor:   time.Second * 60,
-				now:                 func() time.Time { return t0.Add(time.Second * 25) },
-			},
-			error: ``,
+			name:   "Not expired because used",
+			policy: tokens.NewRefreshStrategy(false, 0, time.Second*60, 0, func() time.Time { return t0.Add(time.Second * 25) }),
+			error:  ``,
 		},
 		{
-			name: "Expired because not used",
-			policy: &RefreshTokenPolicy{
-				rotateRefreshTokens: false,
-				validIfNotUsedFor:   time.Second * 60,
-				now:                 func() time.Time { return t0.Add(time.Hour) },
-			},
-			error: `{"error":"invalid_request","error_description":"Refresh token expired."}`,
+			name:   "Expired because not used",
+			policy: tokens.NewRefreshStrategy(false, 0, time.Second*60, 0, func() time.Time { return t0.Add(time.Hour) }),
+			error:  `{"error":"invalid_request","error_description":"Refresh token expired."}`,
 		},
 		{
-			name: "Absolutely expired",
-			policy: &RefreshTokenPolicy{
-				rotateRefreshTokens: true,
-				absoluteLifetime:    time.Second * 60,
-				now:                 func() time.Time { return t0.Add(time.Hour) },
-			},
-			error: `{"error":"invalid_request","error_description":"Refresh token expired."}`,
+			name:   "Absolutely expired",
+			policy: tokens.NewRefreshStrategy(true, time.Second*60, 0, 0, func() time.Time { return t0.Add(time.Hour) }),
+			error:  `{"error":"invalid_request","error_description":"Refresh token expired."}`,
 		},
 		{
 			name:        "Obsolete tokens are allowed",
 			useObsolete: true,
-			policy: &RefreshTokenPolicy{
-				rotateRefreshTokens: true,
-				reuseInterval:       time.Second * 30,
-				now:                 func() time.Time { return t0.Add(time.Second * 25) },
-			},
-			error: ``,
+			policy:      tokens.NewRefreshStrategy(true, 0, 0, time.Second*30, func() time.Time { return t0.Add(time.Second * 25) }),
+			error:       ``,
 		},
 		{
 			name:        "Obsolete tokens are not allowed",
 			useObsolete: true,
-			policy: &RefreshTokenPolicy{
-				rotateRefreshTokens: true,
-				now:                 func() time.Time { return t0.Add(time.Second * 25) },
-			},
-			error: `{"error":"invalid_request","error_description":"Refresh token is invalid or has already been claimed by another client."}`,
+			policy:      tokens.NewRefreshStrategy(true, 0, 0, 0, func() time.Time { return t0.Add(time.Second * 25) }),
+			error:       `{"error":"invalid_request","error_description":"Refresh token is invalid or has already been claimed by another client."}`,
 		},
 		{
 			name:        "Obsolete tokens are allowed but token is expired globally",
 			useObsolete: true,
-			policy: &RefreshTokenPolicy{
-				rotateRefreshTokens: true,
-				reuseInterval:       time.Second * 30,
-				absoluteLifetime:    time.Second * 20,
-				now:                 func() time.Time { return t0.Add(time.Second * 25) },
-			},
-			error: `{"error":"invalid_request","error_description":"Refresh token expired."}`,
+			policy:      tokens.NewRefreshStrategy(true, time.Second*20, 0, time.Second*30, func() time.Time { return t0.Add(time.Second * 25) }),
+			error:       `{"error":"invalid_request","error_description":"Refresh token expired."}`,
 		},
 	}
 
@@ -200,7 +177,7 @@ func TestRefreshTokenExpirationScenarios(t *testing.T) {
 			err = json.Unmarshal(rr.Body.Bytes(), &ref)
 			require.NoError(t, err)
 
-			if tc.policy.rotateRefreshTokens == false {
+			if !tc.policy.RotationEnabled() {
 				require.Equal(t, tokenData, ref.Token)
 			} else {
 				require.NotEqual(t, tokenData, ref.Token)
@@ -419,8 +396,7 @@ func TestRefreshDisconnectsUpstreamWhenSessionsEnabled(t *testing.T) {
 			// Replace the connector with one that always fails on Refresh.
 			// When sessions are enabled this connector should never be called;
 			// when sessions are disabled, the failure proves the error path works.
-			s.mu.Lock()
-			s.connectors["test"] = Connector{
+			s.connectors.Set("test", connectors.Connector{
 				Connector: &failingRefreshConnector{
 					identity: connector.Identity{
 						UserID:   "0-385-28089-0",
@@ -428,8 +404,7 @@ func TestRefreshDisconnectsUpstreamWhenSessionsEnabled(t *testing.T) {
 						Email:    "kilgore@kilgore.trout",
 					},
 				},
-			}
-			s.mu.Unlock()
+			})
 
 			if tc.createUserIdentity {
 				err := s.storage.CreateUserIdentity(t.Context(), storage.UserIdentity{
@@ -487,28 +462,6 @@ func TestRefreshDisconnectsUpstreamWhenSessionsEnabled(t *testing.T) {
 	}
 }
 
-func TestRefreshTokenPolicy(t *testing.T) {
-	lastTime := time.Now()
-	l := slog.New(slog.DiscardHandler)
-
-	r, err := NewRefreshTokenPolicy(l, true, "1m", "1m", "1m")
-	require.NoError(t, err)
-
-	t.Run("Allowed", func(t *testing.T) {
-		r.now = func() time.Time { return lastTime }
-		require.Equal(t, true, r.AllowedToReuse(lastTime))
-		require.Equal(t, false, r.ExpiredBecauseUnused(lastTime))
-		require.Equal(t, false, r.CompletelyExpired(lastTime))
-	})
-
-	t.Run("Expired", func(t *testing.T) {
-		r.now = func() time.Time { return lastTime.Add(2 * time.Minute) }
-		require.Equal(t, false, r.AllowedToReuse(lastTime))
-		require.Equal(t, true, r.ExpiredBecauseUnused(lastTime))
-		require.Equal(t, true, r.CompletelyExpired(lastTime))
-	})
-}
-
 // TestHandleRefreshTokenAllowedConnectors verifies the refresh grant enforces
 // the client's AllowedConnectors (mirrors TestHandleTokenExchangeAllowedConnectors
 // and TestHandlePasswordAllowedConnectors — every token grant must enforce it).
@@ -528,7 +481,7 @@ func TestHandleRefreshTokenAllowedConnectors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := t.Context()
 			httpServer, s := newTestServer(t, func(c *Config) {
-				c.RefreshTokenPolicy = &RefreshTokenPolicy{rotateRefreshTokens: true}
+				c.RefreshTokenPolicy = tokens.NewRefreshStrategy(true, 0, 0, 0, nil)
 			})
 			defer httpServer.Close()
 

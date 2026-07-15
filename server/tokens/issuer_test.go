@@ -1,6 +1,8 @@
-package server
+package tokens
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"log/slog"
 	"net/url"
 	"testing"
@@ -14,23 +16,20 @@ import (
 	"github.com/dexidp/dex/storage/memory"
 )
 
-func newTestIssuer(t *testing.T) (*tokenIssuer, storage.Storage) {
+func newTestIssuer(t *testing.T) (*Issuer, storage.Storage) {
 	t.Helper()
 	logger := slog.New(slog.DiscardHandler)
 	store := memory.New(logger)
-	sig, err := signer.NewMockSigner(testKey)
+
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
+	sig, err := signer.NewMockSigner(key)
+	require.NoError(t, err)
+
 	issuerURL, err := url.Parse("https://issuer.example.com")
 	require.NoError(t, err)
 
-	iss := &tokenIssuer{
-		signer: &tokenSigner{
-			storage: store, signer: sig, issuerURL: *issuerURL,
-			idTokensValidFor: time.Hour, now: time.Now, logger: logger,
-		},
-		refresh: &refreshTokens{storage: store, now: time.Now, logger: logger},
-	}
-	return iss, store
+	return NewIssuer(store, sig, *issuerURL, time.Hour, time.Now, logger), store
 }
 
 func testAuthorization() Authorization {
@@ -44,7 +43,7 @@ func testAuthorization() Authorization {
 	}
 }
 
-func TestTokenIssuerIssue(t *testing.T) {
+func TestIssuerIssue(t *testing.T) {
 	ctx := t.Context()
 	iss, store := newTestIssuer(t)
 	auth := testAuthorization()
@@ -74,34 +73,4 @@ func TestTokenIssuerIssue(t *testing.T) {
 	require.NotEmpty(t, ts2.AccessToken)
 	require.NotEmpty(t, ts2.IDToken)
 	require.Empty(t, ts2.RefreshToken)
-}
-
-func TestRefreshTokensCreateReplacesExisting(t *testing.T) {
-	ctx := t.Context()
-	iss, store := newTestIssuer(t)
-	auth := testAuthorization()
-
-	first, err := iss.refresh.create(ctx, auth)
-	require.NoError(t, err)
-	var firstTok internal.RefreshToken
-	require.NoError(t, internal.Unmarshal(first, &firstTok))
-
-	// A second create for the same client replaces the old token: the old one is
-	// deleted and the offline session points at the new one.
-	second, err := iss.refresh.create(ctx, auth)
-	require.NoError(t, err)
-	var secondTok internal.RefreshToken
-	require.NoError(t, internal.Unmarshal(second, &secondTok))
-	require.NotEqual(t, firstTok.RefreshId, secondTok.RefreshId)
-
-	if _, err := store.GetRefresh(ctx, firstTok.RefreshId); err == nil {
-		t.Error("expected the previous refresh token to be deleted")
-	}
-	stored, err := store.GetRefresh(ctx, secondTok.RefreshId)
-	require.NoError(t, err)
-	require.Equal(t, "client-1", stored.ClientID)
-
-	sess, err := store.GetOfflineSessions(ctx, "u1", "mock")
-	require.NoError(t, err)
-	require.Equal(t, secondTok.RefreshId, sess.Refresh["client-1"].ID)
 }

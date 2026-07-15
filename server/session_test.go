@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/connectors"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
 )
@@ -23,7 +25,7 @@ func newTestSessionServer(t *testing.T) *Server {
 	issuerURL, err := url.Parse("https://example.com/dex")
 	require.NoError(t, err)
 
-	return &Server{
+	s := &Server{
 		storage: memory.New(nil),
 		logger:  slog.Default(),
 		now:     func() time.Time { return now },
@@ -34,6 +36,8 @@ func newTestSessionServer(t *testing.T) *Server {
 		},
 		issuerURL: *issuerURL,
 	}
+	s.connectors = connectors.NewCache(s.storage, s.resolveConnector)
+	return s
 }
 
 func TestSetSessionCookie(t *testing.T) {
@@ -778,11 +782,11 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 func TestTrySessionLoginWithSession_IDTokenHint(t *testing.T) {
 	ctx := t.Context()
 
-	// genSubject("user-1", "mock") produces a deterministic subject string.
-	hintSubjectForUser1Mock, err := genSubject("user-1", "mock")
+	// tokens.GenSubject("user-1", "mock") produces a deterministic subject string.
+	hintSubjectForUser1Mock, err := tokens.GenSubject("user-1", "mock")
 	require.NoError(t, err)
 
-	hintSubjectOther, err := genSubject("other-user", "mock")
+	hintSubjectOther, err := tokens.GenSubject("other-user", "mock")
 	require.NoError(t, err)
 
 	t.Run("hint matches session user - session login succeeds", func(t *testing.T) {
@@ -1372,11 +1376,7 @@ func TestFinishSessionLogin_MFA(t *testing.T) {
 			Name:            "Mock LDAP",
 			ResourceVersion: "1",
 		}))
-		s.mu.Lock()
-		s.connectors = map[string]Connector{
-			"mock": {Type: "ldap", ResourceVersion: "1"},
-		}
-		s.mu.Unlock()
+		s.connectors.Set("mock", connectors.Connector{Type: "ldap", ResourceVersion: "1"})
 
 		// Create client with MFA chain.
 		require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
@@ -1627,9 +1627,7 @@ func TestPromptNone(t *testing.T) {
 		require.NoError(t, s.storage.CreateConnector(ctx, storage.Connector{
 			ID: "mock", Type: "ldap", Name: "Mock", ResourceVersion: "1",
 		}))
-		s.mu.Lock()
-		s.connectors = map[string]Connector{"mock": {Type: "ldap", ResourceVersion: "1"}}
-		s.mu.Unlock()
+		s.connectors.Set("mock", connectors.Connector{Type: "ldap", ResourceVersion: "1"})
 		require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
 			ID: "client-1", Secret: "secret", Name: "Test", MFAChain: []string{"totp"},
 		}))
@@ -1762,9 +1760,7 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 		require.NoError(t, s.storage.CreateConnector(ctx, storage.Connector{
 			ID: "mock", Type: "ldap", Name: "Mock", ResourceVersion: "1",
 		}))
-		s.mu.Lock()
-		s.connectors = map[string]Connector{"mock": {Type: "ldap", ResourceVersion: "1"}}
-		s.mu.Unlock()
+		s.connectors.Set("mock", connectors.Connector{Type: "ldap", ResourceVersion: "1"})
 
 		// client-b requires MFA.
 		require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
@@ -1794,9 +1790,7 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 		require.NoError(t, s.storage.CreateConnector(ctx, storage.Connector{
 			ID: "mock", Type: "ldap", Name: "Mock", ResourceVersion: "1",
 		}))
-		s.mu.Lock()
-		s.connectors = map[string]Connector{"mock": {Type: "ldap", ResourceVersion: "1"}}
-		s.mu.Unlock()
+		s.connectors.Set("mock", connectors.Connector{Type: "ldap", ResourceVersion: "1"})
 
 		// client-a has NO MFA, client-b requires MFA.
 		require.NoError(t, s.storage.CreateClient(ctx, storage.Client{

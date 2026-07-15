@@ -49,7 +49,7 @@ func (s *Server) handleDeviceExchange(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			invalidAttempt = false
 		}
-		if err := s.templates.device(r, w, s.getDeviceVerificationURI(), userCode, invalidAttempt); err != nil {
+		if err := s.templates.Device(r, w, s.getDeviceVerificationURI(), userCode, invalidAttempt); err != nil {
 			s.logger.ErrorContext(r.Context(), "server template error", "err", err)
 			s.renderError(r, w, http.StatusNotFound, "Page not found")
 		}
@@ -206,7 +206,7 @@ func (s *Server) verifyUserCode(w http.ResponseWriter, r *http.Request) {
 			if err != nil && err != storage.ErrNotFound {
 				s.logger.ErrorContext(r.Context(), "failed to get device request", "err", err)
 			}
-			if err := s.templates.device(r, w, s.getDeviceVerificationURI(), userCode, true); err != nil {
+			if err := s.templates.Device(r, w, s.getDeviceVerificationURI(), userCode, true); err != nil {
 				s.logger.ErrorContext(r.Context(), "Server template error", "err", err)
 				s.renderError(r, w, http.StatusNotFound, "Page not found")
 			}

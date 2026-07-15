@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dexidp/dex/pkg/featureflags"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -83,7 +84,7 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 			s.renderError(r, w, http.StatusInternalServerError, "Failed to retrieve client.")
 			return
 		}
-		if err := s.templates.approval(r, w, authReq.ID, authReq.Claims.Username, client.Name, authReq.Scopes); err != nil {
+		if err := s.templates.Approval(r, w, authReq.ID, authReq.Claims.Username, client.Name, authReq.Scopes); err != nil {
 			s.logger.ErrorContext(r.Context(), "server template error", "err", err)
 		}
 	case http.MethodPost:
@@ -173,7 +174,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 			// Implicit and hybrid flows that try to use the OOB redirect URI are
 			// rejected earlier. If we got here we're using the code flow.
 			if authReq.RedirectURI == redirectURIOOB {
-				if err := s.templates.oob(r, w, code.ID); err != nil {
+				if err := s.templates.OOB(r, w, code.ID); err != nil {
 					s.logger.ErrorContext(r.Context(), "server template error", "err", err)
 				}
 				return
@@ -182,7 +183,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 			implicitOrHybrid = true
 			var err error
 
-			accessToken, _, err = s.issuer.signer.signAccessToken(r.Context(), Authorization{
+			accessToken, _, err = s.issuer.SignAccessToken(r.Context(), tokens.Authorization{
 				Client:      storage.Client{ID: authReq.ClientID},
 				Claims:      authReq.Claims,
 				Scopes:      authReq.Scopes,
@@ -199,7 +200,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 			implicitOrHybrid = true
 			var err error
 
-			idToken, idTokenExpiry, err = s.issuer.signer.signIDToken(r.Context(), Authorization{
+			idToken, idTokenExpiry, err = s.issuer.SignIDToken(r.Context(), tokens.Authorization{
 				Client:      storage.Client{ID: authReq.ClientID},
 				Claims:      authReq.Claims,
 				Scopes:      authReq.Scopes,
@@ -275,7 +276,7 @@ func scopesCoveredByConsent(approved, requested []string) bool {
 	}
 
 	for _, scope := range requested {
-		if scope == scopeOpenID {
+		if scope == tokens.ScopeOpenID {
 			continue
 		}
 		if _, ok := approvedSet[scope]; !ok {

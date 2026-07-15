@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -110,7 +111,7 @@ func TestHandleTokenExchange(t *testing.T) {
 			require.Equal(t, tc.expectedCode, rr.Code, rr.Body.String())
 			require.Equal(t, "application/json", rr.Result().Header.Get("content-type"))
 			if tc.expectedCode == http.StatusOK {
-				var res accessTokenResponse
+				var res tokens.Response
 				err := json.NewDecoder(rr.Result().Body).Decode(&res)
 				require.NoError(t, err)
 				require.Equal(t, tc.expectedTokenType, res.IssuedTokenType)
@@ -186,9 +187,7 @@ func TestHandleTokenExchangeConnectorGrantTypeRestriction(t *testing.T) {
 	})
 	require.NoError(t, err)
 	// Clear cached connector to pick up new grant types
-	s.mu.Lock()
-	delete(s.connectors, "mock")
-	s.mu.Unlock()
+	s.connectors.Close("mock")
 
 	vals := make(url.Values)
 	vals.Set("grant_type", grantTypeTokenExchange)

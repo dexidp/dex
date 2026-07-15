@@ -49,7 +49,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	// This follows the OIDC spec recommendation and prevents CSRF via
 	// cross-site image/link requests (e.g. <img src="/logout">).
 	if idTokenHint == "" && r.Method == http.MethodGet {
-		if err := s.templates.logout(r, w, "", false, true); err != nil {
+		if err := s.templates.Logout(r, w, "", false, true); err != nil {
 			s.logger.ErrorContext(ctx, "server template error", "err", err)
 		}
 		return
@@ -140,7 +140,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 	// Revoke refresh tokens (does not touch the auth session or user identity).
 	if userID != "" && connectorID != "" {
-		s.issuer.refresh.revoke(ctx, userID, connectorID)
+		s.issuer.Refresh.Revoke(ctx, userID, connectorID)
 	}
 
 	// Try upstream logout. This requires a live auth session to store the HMAC key
@@ -203,7 +203,7 @@ func (s *Server) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 
 	// Let the connector validate the upstream logout response if it supports it.
 	if ls.ConnectorID != "" {
-		conn, err := s.getConnector(ctx, ls.ConnectorID)
+		conn, err := s.connectors.Get(ctx, ls.ConnectorID)
 		if err == nil {
 			if logoutConn, ok := conn.Connector.(connector.LogoutCallbackConnector); ok {
 				if err := logoutConn.HandleLogoutCallback(ctx, r); err != nil {
@@ -236,7 +236,7 @@ func (s *Server) finishLogout(w http.ResponseWriter, r *http.Request, postLogout
 		}
 	}
 
-	if err := s.templates.logout(r, w, backURL, loggedOut, false); err != nil {
+	if err := s.templates.Logout(r, w, backURL, loggedOut, false); err != nil {
 		s.logger.ErrorContext(r.Context(), "server template error", "err", err)
 	}
 }
@@ -250,7 +250,7 @@ func (s *Server) tryUpstreamLogout(ctx context.Context, userID, connectorID, pos
 		return "", false
 	}
 
-	conn, err := s.getConnector(ctx, connectorID)
+	conn, err := s.connectors.Get(ctx, connectorID)
 	if err != nil {
 		return "", false
 	}

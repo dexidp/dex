@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -123,12 +124,10 @@ func registerTestConnector(t *testing.T, s *Server, connID string, c connector.C
 		t.Fatalf("failed to create connector in storage: %v", err)
 	}
 
-	s.mu.Lock()
-	s.connectors[connID] = Connector{
+	s.connectors.Set(connID, connectors.Connector{
 		ResourceVersion: "1",
 		Connector:       c,
-	}
-	s.mu.Unlock()
+	})
 }
 
 // mockSAMLRefreshConnector implements SAMLConnector + RefreshConnector for testing.

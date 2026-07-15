@@ -205,7 +205,7 @@ func (s *Server) handleWebAuthn(w http.ResponseWriter, r *http.Request) {
 		mode = "register"
 	}
 
-	if err := s.templates.webauthnVerify(r, w, mode, mfa.authenticatorID); err != nil {
+	if err := s.templates.WebAuthnVerify(r, w, mode, mfa.authenticatorID); err != nil {
 		s.logger.ErrorContext(r.Context(), "server template error", "err", err)
 	}
 }
@@ -334,7 +334,7 @@ func (s *Server) renderTOTPPage(secret *storage.MFASecret, lastFail bool, issuer
 			return
 		}
 	}
-	if err := s.templates.totpVerify(r, w, r.URL.String(), issuer, connectorID, qrCode, lastFail); err != nil {
+	if err := s.templates.TOTPVerify(r, w, r.URL.String(), issuer, connectorID, qrCode, lastFail); err != nil {
 		s.logger.ErrorContext(r.Context(), "server template error", "err", err)
 	}
 }
@@ -396,7 +396,7 @@ func (s *Server) mfaChainForClient(ctx context.Context, clientID, connectorID st
 
 // getConnectorType returns the type of the connector with the given ID.
 func (s *Server) getConnectorType(ctx context.Context, connectorID string) (string, error) {
-	conn, err := s.getConnector(ctx, connectorID)
+	conn, err := s.connectors.Get(ctx, connectorID)
 	if err != nil {
 		return "", fmt.Errorf("get connector %q: %w", connectorID, err)
 	}

@@ -7,13 +7,12 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"time"
 
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -114,41 +113,17 @@ func (s *Server) calculateCodeChallenge(codeVerifier, codeChallengeMethod string
 	}
 }
 
-type accessTokenResponse struct {
-	AccessToken     string `json:"access_token"`
-	IssuedTokenType string `json:"issued_token_type,omitempty"`
-	TokenType       string `json:"token_type"`
-	ExpiresIn       int    `json:"expires_in,omitempty"`
-	RefreshToken    string `json:"refresh_token,omitempty"`
-	IDToken         string `json:"id_token,omitempty"`
-	Scope           string `json:"scope,omitempty"`
+func (s *Server) toAccessTokenResponse(idToken, accessToken, refreshToken string, expiry time.Time) tokens.Response {
+	ts := tokens.TokenSet{AccessToken: accessToken, IDToken: idToken, RefreshToken: refreshToken, Expiry: expiry}
+	return ts.Response(s.now())
 }
 
-func (s *Server) toAccessTokenResponse(idToken, accessToken, refreshToken string, expiry time.Time) *accessTokenResponse {
-	return &accessTokenResponse{
-		AccessToken:  accessToken,
-		TokenType:    "bearer",
-		ExpiresIn:    int(expiry.Sub(s.now()).Seconds()),
-		RefreshToken: refreshToken,
-		IDToken:      idToken,
-	}
-}
-
-func (s *Server) writeAccessToken(w http.ResponseWriter, resp *accessTokenResponse) {
-	data, err := json.Marshal(resp)
-	if err != nil {
+func (s *Server) writeAccessToken(w http.ResponseWriter, resp tokens.Response) {
+	if err := resp.Write(w); err != nil {
 		// TODO(nabokihms): error with context
-		s.logger.Error("failed to marshal access token response", "err", err)
+		s.logger.Error("failed to write access token response", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
-
-	// Token response must include cache headers https://tools.ietf.org/html/rfc6749#section-5.1
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Pragma", "no-cache")
-	w.Write(data)
 }
 
 func (s *Server) tokenErrHelper(w http.ResponseWriter, typ string, description string, statusCode int) {
@@ -156,4 +131,9 @@ func (s *Server) tokenErrHelper(w http.ResponseWriter, typ string, description s
 		// TODO(nabokihms): error with context
 		s.logger.Error("token error response", "err", err)
 	}
+}
+
+// writeTokenResponse writes a tokens.TokenSet as an OAuth2 token response.
+func writeTokenResponse(w http.ResponseWriter, ts tokens.TokenSet, now time.Time) error {
+	return ts.Response(now).Write(w)
 }

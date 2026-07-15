@@ -16,6 +16,7 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/featureflags"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -57,7 +58,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := s.getConnector(ctx, connID)
+	conn, err := s.connectors.Get(ctx, connID)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "Failed to get connector", "err", err)
 		s.renderError(r, w, http.StatusBadRequest, "Connector failed to initialize")
@@ -149,7 +150,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	// Include prompt=select_account so that handleAuthorization skips
 	// session-based connector reuse and shows the connector list.
 	backLink := ""
-	if len(s.connectors) > 1 {
+	if s.connectors.Len() > 1 {
 		backLinkParams := make(url.Values)
 		maps.Copy(backLinkParams, r.Form)
 		if s.sessionConfig != nil {
@@ -264,7 +265,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := s.getConnector(ctx, authReq.ConnectorID)
+	conn, err := s.connectors.Get(ctx, authReq.ConnectorID)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to get connector", "connector_id", authReq.ConnectorID, "err", err)
 		s.renderError(r, w, http.StatusInternalServerError, "Connector failed to initialize.")
@@ -321,7 +322,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		if err := s.templates.password(r, w, r.URL.String(), "", usernamePrompt(pwConn), false, backLink, rememberMe); err != nil {
+		if err := s.templates.Password(r, w, r.URL.String(), "", usernamePrompt(pwConn), false, backLink, rememberMe); err != nil {
 			s.logger.ErrorContext(r.Context(), "server template error", "err", err)
 		}
 	case http.MethodPost:
@@ -336,7 +337,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !ok {
-			if err := s.templates.password(r, w, r.URL.String(), username, usernamePrompt(pwConn), true, backLink, rememberMe); err != nil {
+			if err := s.templates.Password(r, w, r.URL.String(), username, usernamePrompt(pwConn), true, backLink, rememberMe); err != nil {
 				s.logger.ErrorContext(r.Context(), "server template error", "err", err)
 			}
 			s.logger.ErrorContext(r.Context(), "failed login attempt: Invalid credentials.", "user", username)
@@ -416,7 +417,7 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	conn, err := s.getConnector(ctx, authReq.ConnectorID)
+	conn, err := s.connectors.Get(ctx, authReq.ConnectorID)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to get connector", "connector_id", authReq.ConnectorID, "err", err)
 		s.renderError(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
@@ -537,7 +538,7 @@ func (s *Server) finalizeLogin(ctx context.Context, identity connector.Identity,
 
 	offlineAccessRequested := false
 	for _, scope := range authReq.Scopes {
-		if scope == scopeOfflineAccess {
+		if scope == tokens.ScopeOfflineAccess {
 			offlineAccessRequested = true
 			break
 		}

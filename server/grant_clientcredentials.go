@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -34,18 +35,18 @@ func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Req
 	hasOpenIDScope := false
 	for _, scope := range scopes {
 		switch scope {
-		case scopeOpenID:
+		case tokens.ScopeOpenID:
 			hasOpenIDScope = true
-		case scopeEmail, scopeProfile, scopeGroups:
+		case tokens.ScopeEmail, tokens.ScopeProfile, tokens.ScopeGroups:
 			// allowed
-		case scopeOfflineAccess:
+		case tokens.ScopeOfflineAccess:
 			s.tokenErrHelper(w, errInvalidScope, "client_credentials grant does not support offline_access scope.", http.StatusBadRequest)
 			return
-		case scopeFederatedID:
+		case tokens.ScopeFederatedID:
 			s.tokenErrHelper(w, errInvalidScope, "client_credentials grant does not support federated:id scope.", http.StatusBadRequest)
 			return
 		default:
-			peerID, ok := parseCrossClientScope(scope)
+			peerID, ok := tokens.ParseCrossClientScope(scope)
 			if !ok {
 				unrecognized = append(unrecognized, scope)
 				continue
@@ -79,10 +80,10 @@ func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Req
 	// Populate optional claims based on requested scopes.
 	for _, scope := range scopes {
 		switch scope {
-		case scopeProfile:
+		case tokens.ScopeProfile:
 			claims.Username = client.Name
 			claims.PreferredUsername = client.Name
-		case scopeGroups:
+		case tokens.ScopeGroups:
 			if client.ClientCredentialsClaims != nil {
 				claims.Groups = client.ClientCredentialsClaims.Groups
 			}
@@ -95,7 +96,7 @@ func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Req
 	// Creating connectors with an empty ID with the config and API is prohibited
 	connID := ""
 
-	auth := Authorization{
+	auth := tokens.Authorization{
 		Client:      client,
 		Claims:      claims,
 		Scopes:      scopes,
@@ -103,7 +104,7 @@ func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Req
 		Nonce:       nonce,
 	}
 
-	accessToken, expiry, err := s.issuer.signer.signAccessToken(ctx, auth)
+	accessToken, expiry, err := s.issuer.SignAccessToken(ctx, auth)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "client_credentials grant failed to create new access token", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -112,7 +113,7 @@ func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Req
 
 	var idToken string
 	if hasOpenIDScope {
-		idToken, expiry, err = s.issuer.signer.signIDToken(ctx, auth, accessToken, "")
+		idToken, expiry, err = s.issuer.SignIDToken(ctx, auth, accessToken, "")
 		if err != nil {
 			s.logger.ErrorContext(ctx, "client_credentials grant failed to create new ID token", "err", err)
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -120,7 +121,7 @@ func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	if err := writeTokenResponse(w, TokenSet{AccessToken: accessToken, IDToken: idToken, Expiry: expiry}, s.now()); err != nil {
+	if err := writeTokenResponse(w, tokens.TokenSet{AccessToken: accessToken, IDToken: idToken, Expiry: expiry}, s.now()); err != nil {
 		s.logger.ErrorContext(ctx, "failed to write token response", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		return

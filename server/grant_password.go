@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -33,11 +34,11 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 	hasOpenIDScope := false
 	for _, scope := range scopes {
 		switch scope {
-		case scopeOpenID:
+		case tokens.ScopeOpenID:
 			hasOpenIDScope = true
-		case scopeOfflineAccess, scopeEmail, scopeProfile, scopeGroups, scopeFederatedID:
+		case tokens.ScopeOfflineAccess, tokens.ScopeEmail, tokens.ScopeProfile, tokens.ScopeGroups, tokens.ScopeFederatedID:
 		default:
-			peerID, ok := parseCrossClientScope(scope)
+			peerID, ok := tokens.ParseCrossClientScope(scope)
 			if !ok {
 				unrecognized = append(unrecognized, scope)
 				continue
@@ -72,7 +73,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 	if !s.checkConnectorAllowed(w, r, client, connID) {
 		return
 	}
-	conn, err := s.getConnector(ctx, connID)
+	conn, err := s.connectors.Get(ctx, connID)
 	if err != nil {
 		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
 		return
@@ -117,10 +118,10 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 	// is allowed, and offline_access was requested (RFC 6749 §1.5, never mandatory).
 	wantRefresh := false
 	if _, ok := conn.Connector.(connector.RefreshConnector); ok && GrantTypeAllowed(conn.GrantTypes, grantTypeRefreshToken) {
-		wantRefresh = slices.Contains(scopes, scopeOfflineAccess)
+		wantRefresh = slices.Contains(scopes, tokens.ScopeOfflineAccess)
 	}
 
-	tokens, err := s.issuer.Issue(ctx, Authorization{
+	ts, err := s.issuer.Issue(ctx, tokens.Authorization{
 		Client:        client,
 		Claims:        claims,
 		Scopes:        scopes,
@@ -134,7 +135,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 		return
 	}
 
-	if err := writeTokenResponse(w, tokens, s.now()); err != nil {
+	if err := writeTokenResponse(w, ts, s.now()); err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to write token response", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		return

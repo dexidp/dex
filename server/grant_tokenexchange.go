@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -46,7 +47,7 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 	if !s.checkConnectorAllowed(w, r, client, connID) {
 		return
 	}
-	conn, err := s.getConnector(ctx, connID)
+	conn, err := s.connectors.Get(ctx, connID)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to get connector", "err", err)
 		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
@@ -90,11 +91,11 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 		EmailVerified:     identity.EmailVerified,
 		Groups:            identity.Groups,
 	}
-	resp := accessTokenResponse{
+	resp := tokens.Response{
 		IssuedTokenType: requestedTokenType,
 		TokenType:       "bearer",
 	}
-	auth := Authorization{
+	auth := tokens.Authorization{
 		Client:      client,
 		Claims:      claims,
 		Scopes:      scopes,
@@ -103,9 +104,9 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 	var expiry time.Time
 	switch requestedTokenType {
 	case tokenTypeID:
-		resp.AccessToken, expiry, err = s.issuer.signer.signIDToken(r.Context(), auth, "", "")
+		resp.AccessToken, expiry, err = s.issuer.SignIDToken(r.Context(), auth, "", "")
 	case tokenTypeAccess:
-		resp.AccessToken, expiry, err = s.issuer.signer.signAccessToken(r.Context(), auth)
+		resp.AccessToken, expiry, err = s.issuer.SignAccessToken(r.Context(), auth)
 	default:
 		s.tokenErrHelper(w, errRequestNotSupported, "Invalid requested_token_type.", http.StatusBadRequest)
 		return

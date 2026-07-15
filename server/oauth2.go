@@ -3,14 +3,9 @@ package server
 import (
 	"context"
 	"crypto"
-	"crypto/sha256"
-	"crypto/sha512"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -22,8 +17,8 @@ import (
 	"github.com/go-jose/go-jose/v4"
 
 	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/signer"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -135,16 +130,6 @@ const (
 )
 
 const (
-	scopeOfflineAccess     = "offline_access" // Request a refresh token.
-	scopeOpenID            = "openid"
-	scopeGroups            = "groups"
-	scopeEmail             = "email"
-	scopeProfile           = "profile"
-	scopeFederatedID       = "federated:id"
-	scopeCrossClientPrefix = "audience:server:client_id:"
-)
-
-const (
 	deviceCallbackURI = "/device/callback"
 )
 
@@ -203,9 +188,9 @@ func parseScopes(scopes []string) connector.Scopes {
 	var s connector.Scopes
 	for _, scope := range scopes {
 		switch scope {
-		case scopeOfflineAccess:
+		case tokens.ScopeOfflineAccess:
 			s.OfflineAccess = true
-		case scopeGroups:
+		case tokens.ScopeGroups:
 			s.Groups = true
 		}
 	}
@@ -220,123 +205,6 @@ func parseScopes(scopes []string) connector.Scopes {
 //	hash the access_token value with SHA-256
 //
 // https://openid.net/specs/openid-connect-core-1_0.html#ImplicitIDToken
-var hashForSigAlg = map[jose.SignatureAlgorithm]func() hash.Hash{
-	jose.RS256: sha256.New,
-	jose.RS384: sha512.New384,
-	jose.RS512: sha512.New,
-	jose.ES256: sha256.New,
-	jose.ES384: sha512.New384,
-	jose.ES512: sha512.New,
-}
-
-// Compute an at_hash from a raw access token and a signature algorithm
-//
-// See: https://openid.net/specs/openid-connect-core-1_0.html#ImplicitIDToken
-func accessTokenHash(alg jose.SignatureAlgorithm, accessToken string) (string, error) {
-	newHash, ok := hashForSigAlg[alg]
-	if !ok {
-		return "", fmt.Errorf("unsupported signature algorithm: %s", alg)
-	}
-
-	hashFunc := newHash()
-	if _, err := io.WriteString(hashFunc, accessToken); err != nil {
-		return "", fmt.Errorf("computing hash: %v", err)
-	}
-	sum := hashFunc.Sum(nil)
-	return base64.RawURLEncoding.EncodeToString(sum[:len(sum)/2]), nil
-}
-
-type audience []string
-
-func (a audience) contains(aud string) bool {
-	for _, e := range a {
-		if aud == e {
-			return true
-		}
-	}
-	return false
-}
-
-func (a audience) MarshalJSON() ([]byte, error) {
-	if len(a) == 1 {
-		return json.Marshal(a[0])
-	}
-	return json.Marshal([]string(a))
-}
-
-type idTokenClaims struct {
-	Issuer           string   `json:"iss"`
-	Subject          string   `json:"sub"`
-	Audience         audience `json:"aud"`
-	Expiry           int64    `json:"exp"`
-	IssuedAt         int64    `json:"iat"`
-	JWTID            string   `json:"jti,omitempty"`
-	AuthorizingParty string   `json:"azp,omitempty"`
-	Nonce            string   `json:"nonce,omitempty"`
-	AuthTime         int64    `json:"auth_time,omitempty"`
-
-	AccessTokenHash string `json:"at_hash,omitempty"`
-	CodeHash        string `json:"c_hash,omitempty"`
-
-	Email         string `json:"email,omitempty"`
-	EmailVerified *bool  `json:"email_verified,omitempty"`
-
-	Groups []string `json:"groups,omitempty"`
-
-	Name              string `json:"name,omitempty"`
-	PreferredUsername string `json:"preferred_username,omitempty"`
-
-	FederatedIDClaims *federatedIDClaims `json:"federated_claims,omitempty"`
-}
-
-type federatedIDClaims struct {
-	ConnectorID string `json:"connector_id,omitempty"`
-	UserID      string `json:"user_id,omitempty"`
-}
-
-func getClientID(aud audience, azp string) (string, error) {
-	switch len(aud) {
-	case 0:
-		return "", fmt.Errorf("no audience is set, could not find ClientID")
-	case 1:
-		return aud[0], nil
-	default:
-		return azp, nil
-	}
-}
-
-func getAudience(clientID string, scopes []string) audience {
-	var aud audience
-
-	for _, scope := range scopes {
-		if peerID, ok := parseCrossClientScope(scope); ok {
-			aud = append(aud, peerID)
-		}
-	}
-
-	if len(aud) == 0 {
-		// Client didn't ask for cross client audience. Set the current
-		// client as the audience.
-		aud = audience{clientID}
-		// Client asked for cross client audience:
-		// if the current client was not requested explicitly
-	} else if !aud.contains(clientID) {
-		// by default it becomes one of entries in Audience
-		aud = append(aud, clientID)
-	}
-
-	return aud
-}
-
-func genSubject(userID string, connID string) (string, error) {
-	sub := &internal.IDTokenSubject{
-		UserId: userID,
-		ConnId: connID,
-	}
-
-	return internal.Marshal(sub)
-}
-
 // validateIDTokenHint verifies the signature and issuer of an id_token_hint.
 // Expired tokens are accepted per OIDC Core 1.0 §3.1.2.1.
 // Returns the verified token so callers can extract Subject, Audience, etc.
@@ -360,7 +228,7 @@ func sessionMatchesHint(session *storage.AuthSession, hintSubject string) bool {
 	if session == nil {
 		return false
 	}
-	encoded, err := genSubject(session.UserID, session.ConnectorID)
+	encoded, err := tokens.GenSubject(session.UserID, session.ConnectorID)
 	if err != nil {
 		return false
 	}
@@ -454,11 +322,11 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	hasOpenIDScope := false
 	for _, scope := range scopes {
 		switch scope {
-		case scopeOpenID:
+		case tokens.ScopeOpenID:
 			hasOpenIDScope = true
-		case scopeOfflineAccess, scopeEmail, scopeProfile, scopeGroups, scopeFederatedID:
+		case tokens.ScopeOfflineAccess, tokens.ScopeEmail, tokens.ScopeProfile, tokens.ScopeGroups, tokens.ScopeFederatedID:
 		default:
-			peerID, ok := parseCrossClientScope(scope)
+			peerID, ok := tokens.ParseCrossClientScope(scope)
 			if !ok {
 				unrecognized = append(unrecognized, scope)
 				continue
@@ -577,13 +445,6 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		},
 		HMACKey: storage.NewHMACKey(crypto.SHA256),
 	}, idTokenHintSubject, nil
-}
-
-func parseCrossClientScope(scope string) (peerID string, ok bool) {
-	if ok = strings.HasPrefix(scope, scopeCrossClientPrefix); ok {
-		peerID = scope[len(scopeCrossClientPrefix):]
-	}
-	return
 }
 
 func (s *Server) validateCrossClientTrust(ctx context.Context, clientID, peerID string) (trusted bool, err error) {

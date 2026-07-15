@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -71,8 +72,8 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 	s.writeAccessToken(w, tokenResponse)
 }
 
-func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, authCode storage.AuthCode, client storage.Client) (*accessTokenResponse, error) {
-	auth := Authorization{
+func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, authCode storage.AuthCode, client storage.Client) (tokens.Response, error) {
+	auth := tokens.Authorization{
 		Client:        client,
 		Claims:        authCode.Claims,
 		Scopes:        authCode.Scopes,
@@ -82,24 +83,24 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 		ConnectorData: authCode.ConnectorData,
 	}
 
-	accessToken, _, err := s.issuer.signer.signAccessToken(ctx, auth)
+	accessToken, _, err := s.issuer.SignAccessToken(ctx, auth)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to create new access token", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-		return nil, err
+		return tokens.Response{}, err
 	}
 
-	idToken, expiry, err := s.issuer.signer.signIDToken(ctx, auth, accessToken, authCode.ID)
+	idToken, expiry, err := s.issuer.SignIDToken(ctx, auth, accessToken, authCode.ID)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to create ID token", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-		return nil, err
+		return tokens.Response{}, err
 	}
 
 	if err := s.storage.DeleteAuthCode(ctx, authCode.ID); err != nil {
 		s.logger.ErrorContext(ctx, "failed to delete auth code", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-		return nil, err
+		return tokens.Response{}, err
 	}
 
 	reqRefresh := func() bool {
@@ -113,7 +114,7 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 		// rather than returning an error. This matches the OAuth2 spec: the
 		// server is never required to issue a refresh token (RFC 6749 §1.5).
 		// https://datatracker.ietf.org/doc/html/rfc6749#section-1.5
-		conn, err := s.getConnector(ctx, authCode.ConnectorID)
+		conn, err := s.connectors.Get(ctx, authCode.ConnectorID)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "connector not found", "connector_id", authCode.ConnectorID, "err", err)
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -130,7 +131,7 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 		}
 
 		for _, scope := range authCode.Scopes {
-			if scope == scopeOfflineAccess {
+			if scope == tokens.ScopeOfflineAccess {
 				return true
 			}
 		}
@@ -139,11 +140,11 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 
 	var refreshToken string
 	if reqRefresh {
-		refreshToken, err = s.issuer.refresh.create(ctx, auth)
+		refreshToken, err = s.issuer.Refresh.Create(ctx, auth)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "failed to create refresh token", "err", err)
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-			return nil, err
+			return tokens.Response{}, err
 		}
 	}
 

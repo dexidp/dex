@@ -10,6 +10,7 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/tokens"
 )
 
 // Introspection contains an access token's session data as specified by
@@ -60,7 +61,7 @@ type Introspection struct {
 	// Service-specific string identifier or list of string
 	// identifiers representing the intended audience for this token, as
 	// defined in JWT
-	Audience audience `json:"aud"`
+	Audience tokens.Audience `json:"aud"`
 
 	// String representing the issuer of this token, as
 	// defined in JWT
@@ -90,7 +91,7 @@ type IntrospectionExtra struct {
 	Name              string `json:"name,omitempty"`
 	PreferredUsername string `json:"preferred_username,omitempty"`
 
-	FederatedIDClaims *federatedIDClaims `json:"federated_claims,omitempty"`
+	FederatedIDClaims *tokens.FederatedIDClaims `json:"federated_claims,omitempty"`
 }
 
 type TokenTypeEnum int
@@ -215,7 +216,7 @@ func (s *Server) introspectRefreshToken(ctx context.Context, token string) (*Int
 		return nil, newIntrospectInternalServerError()
 	}
 
-	subjectString, sErr := genSubject(refresh.Claims.UserID, refresh.ConnectorID)
+	subjectString, sErr := tokens.GenSubject(refresh.Claims.UserID, refresh.ConnectorID)
 	if sErr != nil {
 		s.logger.ErrorContext(ctx, "failed to marshal offline session ID", "err", err)
 		return nil, newIntrospectInternalServerError()
@@ -226,12 +227,12 @@ func (s *Server) introspectRefreshToken(ctx context.Context, token string) (*Int
 		ClientID:  refresh.ClientID,
 		IssuedAt:  refresh.CreatedAt.Unix(),
 		NotBefore: refresh.CreatedAt.Unix(),
-		Expiry:    refresh.CreatedAt.Add(s.refreshTokenPolicy.absoluteLifetime).Unix(),
+		Expiry:    refresh.CreatedAt.Add(s.refreshTokenPolicy.AbsoluteLifetime()).Unix(),
 		Subject:   subjectString,
 		Username:  refresh.Claims.PreferredUsername,
 		// Refresh-token introspection does not resolve scopes, so the audience is
 		// the token's own client only.
-		Audience: getAudience(refresh.ClientID, nil),
+		Audience: tokens.GetAudience(refresh.ClientID, nil),
 		Issuer:   s.issuerURL.String(),
 
 		Extra: IntrospectionExtra{
@@ -259,7 +260,7 @@ func (s *Server) introspectAccessToken(ctx context.Context, token string) (*Intr
 		return nil, newIntrospectInternalServerError()
 	}
 
-	clientID, err := getClientID(idToken.Audience, claims.AuthorizingParty)
+	clientID, err := tokens.GetClientID(idToken.Audience, claims.AuthorizingParty)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "error while fetching client_id from token:", "err", err.Error())
 		return nil, newIntrospectInternalServerError()
