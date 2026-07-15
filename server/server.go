@@ -249,6 +249,9 @@ type Server struct {
 
 	signer signer.Signer
 
+	// issuer turns an Authorization into a TokenSet (see token_issuer.go).
+	issuer *tokenIssuer
+
 	sessionConfig *SessionConfig
 
 	mfaProviders    map[string]MFAProvider
@@ -380,6 +383,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		mfaProviders:           c.MFAProviders,
 		defaultMFAChain:        c.DefaultMFAChain,
 	}
+	s.issuer = newTokenIssuer(s)
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
 	// defined in the ConfigMap and dynamic connectors retrieved from the storage.

@@ -149,10 +149,13 @@ func TestGetTokenFromRequestSuccess(t *testing.T) {
 	mockTestStorage(t, s.storage)
 
 	// Generate a valid RS256-signed access token
-	accessToken, _, err := s.newIDToken(ctx, "test", storage.Claims{
-		UserID:   "1",
-		Username: "jane",
-	}, []string{"openid"}, "nonce", "", "", "test", time.Time{})
+	accessToken, _, err := s.issuer.signer.signIDToken(ctx, Authorization{
+		Client:      storage.Client{ID: "test"},
+		Claims:      storage.Claims{UserID: "1", Username: "jane"},
+		Scopes:      []string{"openid"},
+		Nonce:       "nonce",
+		ConnectorID: "test",
+	}, "", "")
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -264,13 +267,19 @@ func TestHandleIntrospect(t *testing.T) {
 
 	mockTestStorage(t, s.storage)
 
-	activeAccessToken, expiry, err := s.newIDToken(ctx, "test", storage.Claims{
-		UserID:        "1",
-		Username:      "jane",
-		Email:         "jane.doe@example.com",
-		EmailVerified: true,
-		Groups:        []string{"a", "b"},
-	}, []string{"openid", "email", "profile", "groups"}, "foo", "", "", "test", time.Time{})
+	activeAccessToken, expiry, err := s.issuer.signer.signIDToken(ctx, Authorization{
+		Client: storage.Client{ID: "test"},
+		Claims: storage.Claims{
+			UserID:        "1",
+			Username:      "jane",
+			Email:         "jane.doe@example.com",
+			EmailVerified: true,
+			Groups:        []string{"a", "b"},
+		},
+		Scopes:      []string{"openid", "email", "profile", "groups"},
+		Nonce:       "foo",
+		ConnectorID: "test",
+	}, "", "")
 	require.NoError(t, err)
 
 	activeRefreshToken, err := internal.Marshal(&internal.RefreshToken{RefreshId: "test", Token: "bar"})

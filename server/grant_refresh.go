@@ -488,14 +488,23 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		Groups:            ident.Groups,
 	}
 
-	accessToken, _, err := s.newAccessToken(r.Context(), client.ID, claims, rCtx.scopes, rCtx.storageToken.Nonce, rCtx.storageToken.ConnectorID, authTime)
+	auth := Authorization{
+		Client:      client,
+		Claims:      claims,
+		Scopes:      rCtx.scopes,
+		ConnectorID: rCtx.storageToken.ConnectorID,
+		Nonce:       rCtx.storageToken.Nonce,
+		AuthTime:    authTime,
+	}
+
+	accessToken, _, err := s.issuer.signer.signAccessToken(r.Context(), auth)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to create new access token", "err", err)
 		s.refreshTokenErrHelper(w, newInternalServerError())
 		return
 	}
 
-	idToken, expiry, err := s.newIDToken(r.Context(), client.ID, claims, rCtx.scopes, rCtx.storageToken.Nonce, accessToken, "", rCtx.storageToken.ConnectorID, authTime)
+	idToken, expiry, err := s.issuer.signer.signIDToken(r.Context(), auth, accessToken, "")
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to create ID token", "err", err)
 		s.refreshTokenErrHelper(w, newInternalServerError())

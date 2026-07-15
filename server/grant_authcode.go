@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -73,14 +72,24 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 }
 
 func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, authCode storage.AuthCode, client storage.Client) (*accessTokenResponse, error) {
-	accessToken, _, err := s.newAccessToken(ctx, client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, authCode.ConnectorID, authCode.AuthTime)
+	auth := Authorization{
+		Client:        client,
+		Claims:        authCode.Claims,
+		Scopes:        authCode.Scopes,
+		ConnectorID:   authCode.ConnectorID,
+		Nonce:         authCode.Nonce,
+		AuthTime:      authCode.AuthTime,
+		ConnectorData: authCode.ConnectorData,
+	}
+
+	accessToken, _, err := s.issuer.signer.signAccessToken(ctx, auth)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to create new access token", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		return nil, err
 	}
 
-	idToken, expiry, err := s.newIDToken(ctx, client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, accessToken, authCode.ID, authCode.ConnectorID, authCode.AuthTime)
+	idToken, expiry, err := s.issuer.signer.signIDToken(ctx, auth, accessToken, authCode.ID)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to create ID token", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -127,107 +136,16 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 		}
 		return false
 	}()
+
 	var refreshToken string
 	if reqRefresh {
-		refresh := storage.RefreshToken{
-			ID:            storage.NewID(),
-			Token:         storage.NewID(),
-			ClientID:      authCode.ClientID,
-			ConnectorID:   authCode.ConnectorID,
-			Scopes:        authCode.Scopes,
-			Claims:        authCode.Claims,
-			Nonce:         authCode.Nonce,
-			ConnectorData: authCode.ConnectorData,
-			CreatedAt:     s.now(),
-			LastUsed:      s.now(),
-		}
-		token := &internal.RefreshToken{
-			RefreshId: refresh.ID,
-			Token:     refresh.Token,
-		}
-		if refreshToken, err = internal.Marshal(token); err != nil {
-			s.logger.ErrorContext(ctx, "failed to marshal refresh token", "err", err)
-			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-			return nil, err
-		}
-
-		if err := s.storage.CreateRefresh(ctx, refresh); err != nil {
+		refreshToken, err = s.issuer.refresh.create(ctx, auth)
+		if err != nil {
 			s.logger.ErrorContext(ctx, "failed to create refresh token", "err", err)
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
 			return nil, err
 		}
-
-		// deleteToken determines if we need to delete the newly created refresh token
-		// due to a failure in updating/creating the OfflineSession object for the
-		// corresponding user.
-		var deleteToken bool
-		defer func() {
-			if deleteToken {
-				// Delete newly created refresh token from storage.
-				if err := s.storage.DeleteRefresh(ctx, refresh.ID); err != nil {
-					s.logger.ErrorContext(ctx, "failed to delete refresh token", "err", err)
-					s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-					return
-				}
-			}
-		}()
-
-		tokenRef := storage.RefreshTokenRef{
-			ID:        refresh.ID,
-			ClientID:  refresh.ClientID,
-			CreatedAt: refresh.CreatedAt,
-			LastUsed:  refresh.LastUsed,
-		}
-
-		// Try to retrieve an existing OfflineSession object for the corresponding user.
-		if session, err := s.storage.GetOfflineSessions(ctx, refresh.Claims.UserID, refresh.ConnectorID); err != nil {
-			if err != storage.ErrNotFound {
-				s.logger.ErrorContext(ctx, "failed to get offline session", "err", err)
-				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-				deleteToken = true
-				return nil, err
-			}
-			offlineSessions := storage.OfflineSessions{
-				UserID:        refresh.Claims.UserID,
-				ConnID:        refresh.ConnectorID,
-				Refresh:       make(map[string]*storage.RefreshTokenRef),
-				ConnectorData: refresh.ConnectorData,
-			}
-			offlineSessions.Refresh[tokenRef.ClientID] = &tokenRef
-
-			// Create a new OfflineSession object for the user and add a reference object for
-			// the newly received refreshtoken.
-			if err := s.storage.CreateOfflineSessions(ctx, offlineSessions); err != nil {
-				s.logger.ErrorContext(ctx, "failed to create offline session", "err", err)
-				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-				deleteToken = true
-				return nil, err
-			}
-		} else {
-			if oldTokenRef, ok := session.Refresh[tokenRef.ClientID]; ok {
-				// Delete old refresh token from storage.
-				if err := s.storage.DeleteRefresh(ctx, oldTokenRef.ID); err != nil && err != storage.ErrNotFound {
-					s.logger.ErrorContext(ctx, "failed to delete refresh token", "err", err)
-					s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-					deleteToken = true
-					return nil, err
-				}
-			}
-
-			// Update existing OfflineSession obj with new RefreshTokenRef.
-			if err := s.storage.UpdateOfflineSessions(ctx, session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
-				old.Refresh[tokenRef.ClientID] = &tokenRef
-				if len(refresh.ConnectorData) > 0 {
-					old.ConnectorData = refresh.ConnectorData
-				}
-				return old, nil
-			}); err != nil {
-				s.logger.ErrorContext(ctx, "failed to update offline session", "err", err)
-				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
-				deleteToken = true
-				return nil, err
-			}
-		}
 	}
+
 	return s.toAccessTokenResponse(idToken, accessToken, refreshToken, expiry), nil
 }

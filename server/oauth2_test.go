@@ -1056,19 +1056,17 @@ func TestNewIDTokenUsesStoredAlgorithmUntilNextRotation(t *testing.T) {
 		idTokensValidFor: time.Hour,
 	}
 
+	s.issuer = newTokenIssuer(s)
+
 	accessToken := "test-access-token"
 	code := "test-auth-code"
-	idToken, _, err := s.newIDToken(
-		ctx,
-		"test-client",
-		storage.Claims{UserID: "1", Username: "jane"},
-		[]string{"openid"},
-		"nonce",
-		accessToken,
-		code,
-		"test",
-		time.Time{},
-	)
+	idToken, _, err := s.issuer.signer.signIDToken(ctx, Authorization{
+		Client:      storage.Client{ID: "test-client"},
+		Claims:      storage.Claims{UserID: "1", Username: "jane"},
+		Scopes:      []string{"openid"},
+		Nonce:       "nonce",
+		ConnectorID: "test",
+	}, accessToken, code)
 	require.NoError(t, err)
 
 	keys, err := sig.ValidationKeys(ctx)
@@ -1145,6 +1143,8 @@ func TestNewIDTokenContainsJTI(t *testing.T) {
 		idTokensValidFor: time.Hour,
 	}
 
+	s.issuer = newTokenIssuer(s)
+
 	keys, err := sig.ValidationKeys(ctx)
 	require.NoError(t, err)
 	require.NotEmpty(t, keys)
@@ -1163,11 +1163,20 @@ func TestNewIDTokenContainsJTI(t *testing.T) {
 		return claims.JTI
 	}
 
-	token1, _, err := s.newIDToken(ctx, "client", storage.Claims{UserID: "1", Username: "alice"}, []string{"openid"}, "n1", "", "", "mock", time.Time{})
-	require.NoError(t, err)
-
-	token2, _, err := s.newIDToken(ctx, "client", storage.Claims{UserID: "1", Username: "alice"}, []string{"openid"}, "n2", "", "", "mock", time.Time{})
-	require.NoError(t, err)
+	mint := func(nonce string) string {
+		t.Helper()
+		token, _, err := s.issuer.signer.signIDToken(ctx, Authorization{
+			Client:      storage.Client{ID: "client"},
+			Claims:      storage.Claims{UserID: "1", Username: "alice"},
+			Scopes:      []string{"openid"},
+			Nonce:       nonce,
+			ConnectorID: "mock",
+		}, "", "")
+		require.NoError(t, err)
+		return token
+	}
+	token1 := mint("n1")
+	token2 := mint("n2")
 
 	jti1 := extractJTI(t, token1)
 	jti2 := extractJTI(t, token2)

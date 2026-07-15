@@ -94,12 +94,18 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 		IssuedTokenType: requestedTokenType,
 		TokenType:       "bearer",
 	}
+	auth := Authorization{
+		Client:      client,
+		Claims:      claims,
+		Scopes:      scopes,
+		ConnectorID: connID,
+	}
 	var expiry time.Time
 	switch requestedTokenType {
 	case tokenTypeID:
-		resp.AccessToken, expiry, err = s.newIDToken(r.Context(), client.ID, claims, scopes, "", "", "", connID, time.Time{})
+		resp.AccessToken, expiry, err = s.issuer.signer.signIDToken(r.Context(), auth, "", "")
 	case tokenTypeAccess:
-		resp.AccessToken, expiry, err = s.newAccessToken(r.Context(), client.ID, claims, scopes, "", connID, time.Time{})
+		resp.AccessToken, expiry, err = s.issuer.signer.signAccessToken(r.Context(), auth)
 	default:
 		s.tokenErrHelper(w, errRequestNotSupported, "Invalid requested_token_type.", http.StatusBadRequest)
 		return

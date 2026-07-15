@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/dexidp/dex/storage"
 )
@@ -96,7 +95,15 @@ func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Req
 	// Creating connectors with an empty ID with the config and API is prohibited
 	connID := ""
 
-	accessToken, expiry, err := s.newAccessToken(ctx, client.ID, claims, scopes, nonce, connID, time.Time{})
+	auth := Authorization{
+		Client:      client,
+		Claims:      claims,
+		Scopes:      scopes,
+		ConnectorID: connID,
+		Nonce:       nonce,
+	}
+
+	accessToken, expiry, err := s.issuer.signer.signAccessToken(ctx, auth)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "client_credentials grant failed to create new access token", "err", err)
 		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -105,7 +112,7 @@ func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Req
 
 	var idToken string
 	if hasOpenIDScope {
-		idToken, expiry, err = s.newIDToken(ctx, client.ID, claims, scopes, nonce, accessToken, "", connID, time.Time{})
+		idToken, expiry, err = s.issuer.signer.signIDToken(ctx, auth, accessToken, "")
 		if err != nil {
 			s.logger.ErrorContext(ctx, "client_credentials grant failed to create new ID token", "err", err)
 			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
@@ -113,6 +120,9 @@ func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	resp := s.toAccessTokenResponse(idToken, accessToken, "", expiry)
-	s.writeAccessToken(w, resp)
+	if err := writeTokenResponse(w, TokenSet{AccessToken: accessToken, IDToken: idToken, Expiry: expiry}, s.now()); err != nil {
+		s.logger.ErrorContext(ctx, "failed to write token response", "err", err)
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
 }

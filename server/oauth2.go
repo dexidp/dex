@@ -17,11 +17,9 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-jose/go-jose/v4"
-	"github.com/google/uuid"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
@@ -296,10 +294,6 @@ type federatedIDClaims struct {
 	UserID      string `json:"user_id,omitempty"`
 }
 
-func (s *Server) newAccessToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, connID string, authTime time.Time) (accessToken string, expiry time.Time, err error) {
-	return s.newIDToken(ctx, clientID, claims, scopes, nonce, storage.NewID(), "", connID, authTime)
-}
-
 func getClientID(aud audience, azp string) (string, error) {
 	switch len(aud) {
 	case 0:
@@ -341,105 +335,6 @@ func genSubject(userID string, connID string) (string, error) {
 	}
 
 	return internal.Marshal(sub)
-}
-
-func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string, authTime time.Time) (idToken string, expiry time.Time, err error) {
-	issuedAt := s.now()
-	expiry = issuedAt.Add(s.idTokensValidFor)
-
-	subjectString, err := genSubject(claims.UserID, connID)
-	if err != nil {
-		s.logger.ErrorContext(ctx, "failed to marshal offline session ID", "err", err)
-		return "", expiry, fmt.Errorf("failed to marshal offline session ID: %v", err)
-	}
-
-	tok := idTokenClaims{
-		Issuer:   s.issuerURL.String(),
-		Subject:  subjectString,
-		Nonce:    nonce,
-		Expiry:   expiry.Unix(),
-		IssuedAt: issuedAt.Unix(),
-		JWTID:    uuid.New().String(),
-	}
-
-	// Include auth_time when sessions are enabled and the value is available.
-	if !authTime.IsZero() {
-		tok.AuthTime = authTime.Unix()
-	}
-
-	// Determine signing algorithm from signer
-	signingAlg, err := s.signer.Algorithm(ctx)
-	if err != nil {
-		s.logger.ErrorContext(ctx, "failed to get signing algorithm", "err", err)
-		return "", expiry, fmt.Errorf("failed to get signing algorithm: %v", err)
-	}
-
-	if accessToken != "" {
-		atHash, err := accessTokenHash(signingAlg, accessToken)
-		if err != nil {
-			s.logger.ErrorContext(ctx, "error computing at_hash", "err", err)
-			return "", expiry, fmt.Errorf("error computing at_hash: %v", err)
-		}
-		tok.AccessTokenHash = atHash
-	}
-
-	if code != "" {
-		cHash, err := accessTokenHash(signingAlg, code)
-		if err != nil {
-			s.logger.ErrorContext(ctx, "error computing c_hash", "err", err)
-			return "", expiry, fmt.Errorf("error computing c_hash: #{err}")
-		}
-		tok.CodeHash = cHash
-	}
-
-	for _, scope := range scopes {
-		switch {
-		case scope == scopeEmail:
-			tok.Email = claims.Email
-			tok.EmailVerified = &claims.EmailVerified
-		case scope == scopeGroups:
-			tok.Groups = claims.Groups
-		case scope == scopeProfile:
-			tok.Name = claims.Username
-			tok.PreferredUsername = claims.PreferredUsername
-		case scope == scopeFederatedID:
-			tok.FederatedIDClaims = &federatedIDClaims{
-				ConnectorID: connID,
-				UserID:      claims.UserID,
-			}
-		default:
-			peerID, ok := parseCrossClientScope(scope)
-			if !ok {
-				// Ignore unknown scopes. These are already validated during the
-				// initial auth request.
-				continue
-			}
-			isTrusted, err := s.validateCrossClientTrust(ctx, clientID, peerID)
-			if err != nil {
-				return "", expiry, err
-			}
-			if !isTrusted {
-				// TODO(ericchiang): propagate this error to the client.
-				return "", expiry, fmt.Errorf("peer (%s) does not trust client", peerID)
-			}
-		}
-	}
-
-	tok.Audience = getAudience(clientID, scopes)
-	if len(tok.Audience) > 1 {
-		// The current client becomes the authorizing party.
-		tok.AuthorizingParty = clientID
-	}
-
-	payload, err := json.Marshal(tok)
-	if err != nil {
-		return "", expiry, fmt.Errorf("could not serialize claims: %v", err)
-	}
-
-	if idToken, err = s.signer.Sign(ctx, payload); err != nil {
-		return "", expiry, fmt.Errorf("failed to sign payload: %v", err)
-	}
-	return idToken, expiry, nil
 }
 
 // validateIDTokenHint verifies the signature and issuer of an id_token_hint.
