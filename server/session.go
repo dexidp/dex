@@ -13,7 +13,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
+	jose "github.com/go-jose/go-jose/v4"
+
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/signer"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -538,4 +543,67 @@ func (s *Server) updateSessionTokenIssuedAt(r *http.Request, clientID string) {
 		}
 		return old, nil
 	})
+}
+
+// validateIDTokenHint verifies the signature and issuer of an id_token_hint.
+// Expired tokens are accepted per OIDC Core 1.0 §3.1.2.1.
+// Returns the verified token so callers can extract Subject, Audience, etc.
+func (s *Server) validateIDTokenHint(ctx context.Context, hint string) (*oidc.IDToken, error) {
+	verifier := oidc.NewVerifier(s.issuerURL.String(), &signerKeySet{s.signer}, &oidc.Config{
+		SkipExpiryCheck: true,
+		// SkipClientIDCheck is set because the hint may originate from any client that
+		// Dex issued a token to — the caller does not know the expected audience in advance.
+		// The signature verification via signerKeySet already guarantees the token was
+		// issued by this server, which is sufficient for a hint.
+		// Dex does the client id check later in the scope of the session validation.
+		SkipClientIDCheck: true,
+	})
+	return verifier.Verify(ctx, hint)
+}
+
+// sessionMatchesHint checks whether the session's user identity matches the
+// subject from an id_token_hint by encoding the session's (userID, connectorID)
+// via genSubject and doing a string comparison.
+func sessionMatchesHint(session *storage.AuthSession, hintSubject string) bool {
+	if session == nil {
+		return false
+	}
+	encoded, err := tokens.GenSubject(session.UserID, session.ConnectorID)
+	if err != nil {
+		return false
+	}
+	return encoded == hintSubject
+}
+
+// signerKeySet implements the oidc.KeySet interface backed by the Dex signer
+type signerKeySet struct {
+	signer signer.Signer
+}
+
+func (s *signerKeySet) VerifySignature(ctx context.Context, jwt string) (payload []byte, err error) {
+	jws, err := jose.ParseSigned(jwt, []jose.SignatureAlgorithm{jose.RS256, jose.RS384, jose.RS512, jose.ES256, jose.ES384, jose.ES512})
+	if err != nil {
+		return nil, err
+	}
+
+	keyID := ""
+	for _, sig := range jws.Signatures {
+		keyID = sig.Header.KeyID
+		break
+	}
+
+	keys, err := s.signer.ValidationKeys(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, key := range keys {
+		if keyID == "" || key.KeyID == keyID {
+			if payload, err := jws.Verify(key); err == nil {
+				return payload, nil
+			}
+		}
+	}
+
+	return nil, errors.New("failed to verify id token signature")
 }

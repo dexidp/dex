@@ -7,9 +7,11 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/dexidp/dex/server/tokens"
@@ -136,4 +138,20 @@ func (s *Server) tokenErrHelper(w http.ResponseWriter, typ string, description s
 // writeTokenResponse writes a tokens.TokenSet as an OAuth2 token response.
 func writeTokenResponse(w http.ResponseWriter, ts tokens.TokenSet, now time.Time) error {
 	return ts.Response(now).Write(w)
+}
+
+func tokenErr(w http.ResponseWriter, typ, description string, statusCode int) error {
+	data := struct {
+		Error       string `json:"error"`
+		Description string `json:"error_description,omitempty"`
+	}{typ, description}
+	body, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("failed to marshal token error response: %v", err)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+	w.WriteHeader(statusCode)
+	w.Write(body)
+	return nil
 }
