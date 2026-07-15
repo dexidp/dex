@@ -4,7 +4,6 @@ package server
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -146,21 +145,12 @@ func (s *Server) extractRefreshTokenFromRequest(r *http.Request) (*internal.Refr
 	return token, nil
 }
 
-type refreshContext struct {
-	storageToken *storage.RefreshToken
-	requestToken *internal.RefreshToken
-
-	connector     Connector
-	connectorData []byte
-
-	scopes []string
-}
-
-// getRefreshTokenFromStorage checks that refresh token is valid and exists in the storage and gets its info
-func (s *Server) getRefreshTokenFromStorage(ctx context.Context, clientID *string, token *internal.RefreshToken) (*refreshContext, *refreshError) {
-	refreshCtx := refreshContext{requestToken: token}
-
-	// Get RefreshToken
+// getRefreshTokenFromStorage validates that the refresh token exists, belongs to
+// the requesting client, has not been claimed twice, and has not expired. It
+// returns the stored token. Connector resolution and connector-data lookup are
+// the refresh grant's concern (see handleRefreshToken); introspection only needs
+// this validation.
+func (s *Server) getRefreshTokenFromStorage(ctx context.Context, clientID *string, token *internal.RefreshToken) (*storage.RefreshToken, *refreshError) {
 	refresh, err := s.storage.GetRefresh(ctx, token.RefreshId)
 	if err != nil {
 		if err != storage.ErrNotFound {
@@ -200,35 +190,27 @@ func (s *Server) getRefreshTokenFromStorage(ctx context.Context, clientID *strin
 		return nil, expiredErr
 	}
 
-	refreshCtx.storageToken = &refresh
+	return &refresh, nil
+}
 
-	// Get Connector
-	refreshCtx.connector, err = s.getConnector(ctx, refresh.ConnectorID)
-	if err != nil {
-		s.logger.ErrorContext(ctx, "connector not found", "connector_id", refresh.ConnectorID, "err", err)
-		return nil, newInternalServerError()
-	}
-	if !GrantTypeAllowed(refreshCtx.connector.GrantTypes, grantTypeRefreshToken) {
-		s.logger.ErrorContext(ctx, "connector does not allow refresh token grant", "connector_id", refresh.ConnectorID)
-		return nil, &refreshError{msg: errInvalidRequest, desc: "Connector does not support refresh tokens.", code: http.StatusBadRequest}
+// refreshConnectorData returns the connector data to hand to the upstream refresh:
+// the token's own data for legacy tokens that still carry it, otherwise the value
+// held on the user's offline session.
+func (s *Server) refreshConnectorData(ctx context.Context, refresh *storage.RefreshToken) ([]byte, *refreshError) {
+	if len(refresh.ConnectorData) > 0 {
+		return refresh.ConnectorData, nil
 	}
 
-	// Get Connector Data
 	session, err := s.storage.GetOfflineSessions(ctx, refresh.Claims.UserID, refresh.ConnectorID)
-	switch {
-	case err != nil:
+	if err != nil {
 		if err != storage.ErrNotFound {
 			s.logger.ErrorContext(ctx, "failed to get offline session", "err", err)
 			return nil, newInternalServerError()
 		}
-	case len(refresh.ConnectorData) > 0:
-		// Use the old connector data if it exists, should be deleted once used
-		refreshCtx.connectorData = refresh.ConnectorData
-	default:
-		refreshCtx.connectorData = session.ConnectorData
+		return nil, nil
 	}
 
-	return &refreshCtx, nil
+	return session.ConnectorData, nil
 }
 
 func (s *Server) getRefreshScopes(r *http.Request, refresh *storage.RefreshToken) ([]string, *refreshError) {
@@ -263,168 +245,31 @@ func (s *Server) getRefreshScopes(r *http.Request, refresh *storage.RefreshToken
 	return requestedScopes, nil
 }
 
-func (s *Server) refreshWithConnector(ctx context.Context, rCtx *refreshContext, ident connector.Identity) (connector.Identity, *refreshError) {
+// refreshWithConnector re-reads the identity from the upstream connector when it
+// supports refreshing. Callers pass the connector data and scopes resolved for
+// this refresh so the connector can validate and update the session.
+func (s *Server) refreshWithConnector(ctx context.Context, conn Connector, connectorData []byte, scopes []string, ident connector.Identity) (connector.Identity, *refreshError) {
 	// Can the connector refresh the identity? If so, attempt to refresh the data
 	// in the connector.
 	//
 	// TODO(ericchiang): We may want a strict mode where connectors that don't implement
 	// this interface can't perform refreshing.
-	if refreshConn, ok := rCtx.connector.Connector.(connector.RefreshConnector); ok {
-		// Set connector data to the one received from an offline session
-		ident.ConnectorData = rCtx.connectorData
-		s.logger.Debug("connector data before refresh", "connector_data", ident.ConnectorData)
-
-		newIdent, err := refreshConn.Refresh(ctx, parseScopes(rCtx.scopes), ident)
-		if err != nil {
-			s.logger.ErrorContext(ctx, "failed to refresh identity", "err", err)
-			return ident, newUpstreamRefreshError()
-		}
-
-		return newIdent, nil
-	}
-	return ident, nil
-}
-
-// updateOfflineSession updates offline session in the storage
-func (s *Server) updateOfflineSession(ctx context.Context, refresh *storage.RefreshToken, ident connector.Identity, lastUsed time.Time) *refreshError {
-	offlineSessionUpdater := func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
-		if old.Refresh[refresh.ClientID].ID != refresh.ID {
-			return old, errors.New("refresh token invalid")
-		}
-
-		old.Refresh[refresh.ClientID].LastUsed = lastUsed
-		if len(ident.ConnectorData) > 0 {
-			old.ConnectorData = ident.ConnectorData
-		}
-
-		s.logger.DebugContext(ctx, "saved connector data", "user_id", ident.UserID, "connector_data", ident.ConnectorData)
-
-		return old, nil
+	refreshConn, ok := conn.Connector.(connector.RefreshConnector)
+	if !ok {
+		return ident, nil
 	}
 
-	// Update LastUsed time stamp in refresh token reference object
-	// in offline session for the user.
-	err := s.storage.UpdateOfflineSessions(ctx, refresh.Claims.UserID, refresh.ConnectorID, offlineSessionUpdater)
+	// Set connector data to the one received from an offline session
+	ident.ConnectorData = connectorData
+	s.logger.Debug("connector data before refresh", "connector_data", ident.ConnectorData)
+
+	newIdent, err := refreshConn.Refresh(ctx, parseScopes(scopes), ident)
 	if err != nil {
-		s.logger.ErrorContext(ctx, "failed to update offline session", "err", err)
-		return newInternalServerError()
+		s.logger.ErrorContext(ctx, "failed to refresh identity", "err", err)
+		return ident, newUpstreamRefreshError()
 	}
 
-	return nil
-}
-
-// updateRefreshToken updates refresh token and offline session in the storage
-func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext, userIdent *storage.UserIdentity) (*internal.RefreshToken, connector.Identity, *refreshError) {
-	var rerr *refreshError
-
-	newToken := &internal.RefreshToken{
-		Token:     rCtx.requestToken.Token,
-		RefreshId: rCtx.requestToken.RefreshId,
-	}
-
-	lastUsed := s.now()
-
-	ident := connector.Identity{
-		UserID:            rCtx.storageToken.Claims.UserID,
-		Username:          rCtx.storageToken.Claims.Username,
-		PreferredUsername: rCtx.storageToken.Claims.PreferredUsername,
-		Email:             rCtx.storageToken.Claims.Email,
-		EmailVerified:     rCtx.storageToken.Claims.EmailVerified,
-		Groups:            rCtx.storageToken.Claims.Groups,
-	}
-
-	// When sessions are enabled, downstream token refresh is disconnected from the upstream
-	// identity provider. Instead of calling the connector's Refresh method (which would contact
-	// the upstream IdP and may fail if the upstream refresh token has expired), we use the claims
-	// stored in UserIdentity at the time of the last interactive login. This aligns with the
-	// behavior of other identity brokers (e.g., Keycloak, Auth0) that treat downstream sessions
-	// independently from the upstream provider session lifetime.
-	refreshTokenUpdater := func(old storage.RefreshToken) (storage.RefreshToken, error) {
-		rotationEnabled := s.refreshTokenPolicy.RotationEnabled()
-		reusingAllowed := s.refreshTokenPolicy.AllowedToReuse(old.LastUsed)
-
-		switch {
-		case !rotationEnabled && reusingAllowed:
-			// If rotation is disabled and the offline session was updated not so long ago - skip further actions.
-			old.ConnectorData = nil
-			return old, nil
-
-		case rotationEnabled && reusingAllowed:
-			if old.Token != rCtx.requestToken.Token && old.ObsoleteToken != rCtx.requestToken.Token {
-				return old, errors.New("refresh token claimed twice")
-			}
-
-			// Return previously generated token for all requests with an obsolete tokens
-			if old.ObsoleteToken == rCtx.requestToken.Token {
-				newToken.Token = old.Token
-			}
-
-			// Do not update last used time for offline session if token is allowed to be reused
-			lastUsed = old.LastUsed
-			old.ConnectorData = nil
-			return old, nil
-
-		case rotationEnabled && !reusingAllowed:
-			if old.Token != rCtx.requestToken.Token {
-				return old, errors.New("refresh token claimed twice")
-			}
-
-			// Issue new refresh token
-			old.ObsoleteToken = old.Token
-			newToken.Token = storage.NewID()
-		}
-
-		old.Token = newToken.Token
-		old.LastUsed = lastUsed
-
-		// ConnectorData has been moved to OfflineSession
-		old.ConnectorData = nil
-
-		// Call  only once if there is a request which is not in the reuse interval.
-		// This is required to avoid multiple calls to the external IdP for concurrent requests.
-		// Dex will call the connector's Refresh method only once if request is not in reuse interval.
-		// When sessions are enabled, use cached identity instead of refreshing upstream.
-		if userIdent != nil {
-			ident = connector.Identity{
-				UserID:            userIdent.Claims.UserID,
-				Username:          userIdent.Claims.Username,
-				PreferredUsername: userIdent.Claims.PreferredUsername,
-				Email:             userIdent.Claims.Email,
-				EmailVerified:     userIdent.Claims.EmailVerified,
-				Groups:            userIdent.Claims.Groups,
-			}
-		} else {
-			ident, rerr = s.refreshWithConnector(ctx, rCtx, ident)
-			if rerr != nil {
-				return old, rerr
-			}
-		}
-
-		// Update the claims of the refresh token.
-		//
-		// UserID intentionally ignored for now.
-		old.Claims.Username = ident.Username
-		old.Claims.PreferredUsername = ident.PreferredUsername
-		old.Claims.Email = ident.Email
-		old.Claims.EmailVerified = ident.EmailVerified
-		old.Claims.Groups = ident.Groups
-
-		return old, nil
-	}
-
-	// Update refresh token in the storage.
-	err := s.storage.UpdateRefreshToken(ctx, rCtx.storageToken.ID, refreshTokenUpdater)
-	if err != nil {
-		s.logger.ErrorContext(ctx, "failed to update refresh token", "err", err)
-		return nil, ident, newInternalServerError()
-	}
-
-	rerr = s.updateOfflineSession(ctx, rCtx.storageToken, ident, lastUsed)
-	if rerr != nil {
-		return nil, ident, rerr
-	}
-
-	return newToken, ident, nil
+	return newIdent, nil
 }
 
 // handleRefreshToken handles a refresh token request https://tools.ietf.org/html/rfc6749#section-6
@@ -436,7 +281,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		return
 	}
 
-	rCtx, rerr := s.getRefreshTokenFromStorage(r.Context(), &client.ID, token)
+	refresh, rerr := s.getRefreshTokenFromStorage(r.Context(), &client.ID, token)
 	if rerr != nil {
 		s.refreshTokenErrHelper(w, rerr)
 		return
@@ -444,13 +289,25 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 
 	// The connector may have been removed from the client's allowed list after
 	// this refresh token was issued; re-check on every refresh so a tightened
-	// policy takes effect. (The connector's own refresh-grant policy is already
-	// enforced by getRefreshTokenFromStorage, which introspection shares.)
-	if !s.checkConnectorAllowed(w, r, client, rCtx.storageToken.ConnectorID) {
+	// policy takes effect.
+	if !s.checkConnectorAllowed(w, r, client, refresh.ConnectorID) {
 		return
 	}
 
-	rCtx.scopes, rerr = s.getRefreshScopes(r, rCtx.storageToken)
+	// Resolve the connector and confirm it still permits the refresh grant.
+	conn, err := s.getConnector(r.Context(), refresh.ConnectorID)
+	if err != nil {
+		s.logger.ErrorContext(r.Context(), "connector not found", "connector_id", refresh.ConnectorID, "err", err)
+		s.refreshTokenErrHelper(w, newInternalServerError())
+		return
+	}
+	if !GrantTypeAllowed(conn.GrantTypes, grantTypeRefreshToken) {
+		s.logger.ErrorContext(r.Context(), "connector does not allow refresh token grant", "connector_id", refresh.ConnectorID)
+		s.refreshTokenErrHelper(w, &refreshError{msg: errInvalidRequest, desc: "Connector does not support refresh tokens.", code: http.StatusBadRequest})
+		return
+	}
+
+	scopes, rerr := s.getRefreshScopes(r, refresh)
 	if rerr != nil {
 		s.refreshTokenErrHelper(w, rerr)
 		return
@@ -459,7 +316,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 	var userIdent *storage.UserIdentity
 
 	if s.sessionConfig != nil {
-		ui, err := s.storage.GetUserIdentity(r.Context(), rCtx.storageToken.Claims.UserID, rCtx.storageToken.ConnectorID)
+		ui, err := s.storage.GetUserIdentity(r.Context(), refresh.Claims.UserID, refresh.ConnectorID)
 		if err != nil {
 			s.logger.ErrorContext(r.Context(), "failed to get user identity", "err", err)
 			s.refreshTokenErrHelper(w, newInternalServerError())
@@ -473,27 +330,47 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		authTime = userIdent.LastLogin
 	}
 
-	newToken, ident, rerr := s.updateRefreshToken(r.Context(), rCtx, userIdent)
-	if rerr != nil {
-		s.refreshTokenErrHelper(w, rerr)
+	// When sessions are enabled, downstream refresh is disconnected from the upstream
+	// identity provider: use the claims cached in UserIdentity at the last interactive
+	// login instead of contacting the connector (which may fail if the upstream token
+	// has expired). This matches other brokers (Keycloak, Auth0) that treat downstream
+	// sessions independently from the upstream provider session lifetime. Connector data
+	// is only needed on the connector-refresh path.
+	freshIdentity := func(ctx context.Context) (connector.Identity, error) {
+		if userIdent != nil {
+			return identityFromClaims(userIdent.Claims), nil
+		}
+		connectorData, rerr := s.refreshConnectorData(ctx, refresh)
+		if rerr != nil {
+			return connector.Identity{}, rerr
+		}
+		ident, rerr := s.refreshWithConnector(ctx, conn, connectorData, scopes, identityFromClaims(refresh.Claims))
+		if rerr != nil {
+			return ident, rerr
+		}
+		return ident, nil
+	}
+
+	rawNewToken, ident, err := s.issuer.refresh.rotate(r.Context(), refresh, token, s.refreshTokenPolicy, freshIdentity)
+	if err != nil {
+		s.logger.ErrorContext(r.Context(), "failed to rotate refresh token", "err", err)
+		s.refreshTokenErrHelper(w, newInternalServerError())
 		return
 	}
 
-	claims := storage.Claims{
-		UserID:            ident.UserID,
-		Username:          ident.Username,
-		PreferredUsername: ident.PreferredUsername,
-		Email:             ident.Email,
-		EmailVerified:     ident.EmailVerified,
-		Groups:            ident.Groups,
-	}
-
 	auth := Authorization{
-		Client:      client,
-		Claims:      claims,
-		Scopes:      rCtx.scopes,
-		ConnectorID: rCtx.storageToken.ConnectorID,
-		Nonce:       rCtx.storageToken.Nonce,
+		Client: client,
+		Claims: storage.Claims{
+			UserID:            ident.UserID,
+			Username:          ident.Username,
+			PreferredUsername: ident.PreferredUsername,
+			Email:             ident.Email,
+			EmailVerified:     ident.EmailVerified,
+			Groups:            ident.Groups,
+		},
+		Scopes:      scopes,
+		ConnectorID: refresh.ConnectorID,
+		Nonce:       refresh.Nonce,
 		AuthTime:    authTime,
 	}
 
@@ -511,13 +388,10 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		return
 	}
 
-	rawNewToken, err := internal.Marshal(newToken)
-	if err != nil {
-		s.logger.ErrorContext(r.Context(), "failed to marshal refresh token", "err", err)
+	tokens := TokenSet{AccessToken: accessToken, IDToken: idToken, RefreshToken: rawNewToken, Expiry: expiry}
+	if err := writeTokenResponse(w, tokens, s.now()); err != nil {
+		s.logger.ErrorContext(r.Context(), "failed to write token response", "err", err)
 		s.refreshTokenErrHelper(w, newInternalServerError())
 		return
 	}
-
-	resp := s.toAccessTokenResponse(idToken, accessToken, rawNewToken, expiry)
-	s.writeAccessToken(w, resp)
 }
