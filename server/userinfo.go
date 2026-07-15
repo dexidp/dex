@@ -22,7 +22,10 @@ func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
 	}
 	rawIDToken := auth[len(prefix):]
 
-	verifier := oidc.NewVerifier(s.issuerURL.String(), &signerKeySet{s.signer}, &oidc.Config{SkipClientIDCheck: true})
+	verifier := oidc.NewVerifier(s.issuerURL.String(), &signerKeySet{s.signer}, &oidc.Config{
+		SupportedSigningAlgs: supportedSigningAlgStrings(),
+		SkipClientIDCheck:    true,
+	})
 	idToken, err := verifier.Verify(ctx, rawIDToken)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to verify ID token", "err", err)

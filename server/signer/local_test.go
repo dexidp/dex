@@ -97,6 +97,11 @@ func TestLocalSignerAlgorithm(t *testing.T) {
 			cfg:  LocalConfig{KeysRotationPeriod: time.Hour.String(), Algorithm: jose.ES256},
 			want: jose.ES256,
 		},
+		{
+			name: "EdDSA before first rotation",
+			cfg:  LocalConfig{KeysRotationPeriod: time.Hour.String(), Algorithm: jose.EdDSA},
+			want: jose.EdDSA,
+		},
 	}
 
 	for _, tt := range tests {
@@ -125,6 +130,11 @@ func TestLocalSignerSignAndValidate(t *testing.T) {
 			name: "ES256",
 			cfg:  LocalConfig{KeysRotationPeriod: time.Hour.String(), Algorithm: jose.ES256},
 			want: jose.ES256,
+		},
+		{
+			name: "EdDSA",
+			cfg:  LocalConfig{KeysRotationPeriod: time.Hour.String(), Algorithm: jose.EdDSA},
+			want: jose.EdDSA,
 		},
 	}
 
