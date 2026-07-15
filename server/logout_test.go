@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/discovery"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
@@ -331,7 +332,7 @@ func TestDiscoveryWithSessions(t *testing.T) {
 	server.ServeHTTP(rr, httptest.NewRequest("GET", "/.well-known/openid-configuration", nil))
 	require.Equal(t, http.StatusOK, rr.Code)
 
-	var d discovery
+	var d discovery.Document
 	require.NoError(t, json.NewDecoder(rr.Result().Body).Decode(&d))
 	require.Equal(t, fmt.Sprintf("%s/logout", httpServer.URL), d.EndSession)
 }
@@ -344,7 +345,7 @@ func TestDiscoveryWithoutSessions(t *testing.T) {
 	server.ServeHTTP(rr, httptest.NewRequest("GET", "/.well-known/openid-configuration", nil))
 	require.Equal(t, http.StatusOK, rr.Code)
 
-	var d discovery
+	var d discovery.Document
 	require.NoError(t, json.NewDecoder(rr.Result().Body).Decode(&d))
 	require.Empty(t, d.EndSession)
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/go-jose/go-jose/v4"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/discovery"
 	"github.com/dexidp/dex/server/signer"
 )
 
@@ -25,10 +26,10 @@ func TestHandleDiscovery(t *testing.T) {
 		t.Errorf("expected 200 got %d", rr.Code)
 	}
 
-	var res discovery
+	var res discovery.Document
 	err := json.NewDecoder(rr.Result().Body).Decode(&res)
 	require.NoError(t, err)
-	require.Equal(t, discovery{
+	require.Equal(t, discovery.Document{
 		Issuer:         httpServer.URL,
 		Auth:           fmt.Sprintf("%s/auth", httpServer.URL),
 		Token:          fmt.Sprintf("%s/token", httpServer.URL),
@@ -100,7 +101,7 @@ func TestHandleDiscoveryWithES256LocalSigner(t *testing.T) {
 	server.ServeHTTP(rr, httptest.NewRequest("GET", "/.well-known/openid-configuration", nil))
 	require.Equal(t, http.StatusOK, rr.Code)
 
-	var res discovery
+	var res discovery.Document
 	err := json.NewDecoder(rr.Result().Body).Decode(&res)
 	require.NoError(t, err)
 	require.Equal(t, []string{string(jose.ES256)}, res.IDTokenAlgs)

@@ -46,6 +46,8 @@ import (
 	"github.com/dexidp/dex/connector/saml"
 	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server/connectors"
+	"github.com/dexidp/dex/server/discovery"
+	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/server/tokens"
@@ -241,14 +243,31 @@ type Server struct {
 
 	signer signer.Signer
 
-	// issuer turns an Authorization into a TokenSet (see token_issuer.go).
+	// issuer turns an Authorization into a TokenSet.
 	issuer *tokens.Issuer
+
+	// discovery serves the OIDC discovery document and JWKS.
+	discovery *discovery.Handler
 
 	sessionConfig *SessionConfig
 
 	mfaProviders    map[string]MFAProvider
 	defaultMFAChain []string
 }
+
+// routeMux adapts the server's route-registration closures to router.Mux so
+// domain handlers can mount their own routes.
+type routeMux struct {
+	handle       func(string, http.Handler)
+	handleFunc   func(string, http.HandlerFunc)
+	handleCORS   func(string, http.HandlerFunc)
+	handlePrefix func(string, http.Handler)
+}
+
+func (m routeMux) Handle(p string, h http.Handler)         { m.handle(p, h) }
+func (m routeMux) HandleFunc(p string, h http.HandlerFunc) { m.handleFunc(p, h) }
+func (m routeMux) HandleCORS(p string, h http.HandlerFunc) { m.handleCORS(p, h) }
+func (m routeMux) HandlePrefix(p string, h http.Handler)   { m.handlePrefix(p, h) }
 
 // NewServer constructs a server from the provided config.
 func NewServer(ctx context.Context, c Config) (*Server, error) {
@@ -376,6 +395,17 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	}
 	s.issuer = tokens.NewIssuer(s.storage, s.signer, s.issuerURL, s.idTokensValidFor, s.now, s.logger)
 	s.connectors = connectors.NewCache(s.storage, s.resolveConnector)
+	s.discovery = discovery.New(discovery.Config{
+		Issuer:          s.issuerURL.String(),
+		AbsURL:          s.absURL,
+		RenderError:     s.renderError,
+		Signer:          s.signer,
+		Logger:          s.logger,
+		ResponseTypes:   s.supportedResponseTypes,
+		GrantTypes:      s.supportedGrantTypes,
+		PKCEMethods:     s.pkce.CodeChallengeMethodsSupported,
+		SessionsEnabled: s.sessionConfig != nil,
+	})
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
 	// defined in the ConfigMap and dynamic connectors retrieved from the storage.
@@ -515,16 +545,17 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	}
 	r.NotFoundHandler = http.NotFoundHandler()
 
-	discoveryHandler, err := s.discoveryHandler(ctx)
-	if err != nil {
-		return nil, err
+	// Self-contained domains mount their own routes through the router.Mux
+	// abstraction, so this list is the only place they are wired in.
+	mux := routeMux{handle: handle, handleFunc: handleFunc, handleCORS: handleWithCORS, handlePrefix: handlePrefix}
+	for _, h := range []router.Handler{s.discovery} {
+		h.Mount(mux)
 	}
-	handleWithCORS("/.well-known/openid-configuration", discoveryHandler)
+
 	handleWithCORS("/", s.handleHome)
 
 	// TODO(ericchiang): rate limit certain paths based on IP.
 	handleWithCORS("/token", s.handleToken)
-	handleWithCORS("/keys", s.handlePublicKeys)
 	handleWithCORS("/userinfo", s.handleUserInfo)
 	handleWithCORS("/token/introspect", s.handleIntrospect)
 	handleFunc("/auth", s.handleAuthorization)
