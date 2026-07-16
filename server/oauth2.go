@@ -13,7 +13,6 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 
-	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/tokens"
@@ -91,29 +90,6 @@ func (err *redirectedAuthErr) Handler() http.Handler {
 		http.Redirect(w, r, u.String(), http.StatusSeeOther)
 	}
 	return http.HandlerFunc(hf)
-}
-
-// ConnectorGrantTypes is the set of grant types that can be restricted per connector.
-var ConnectorGrantTypes = map[string]bool{
-	oauth2.GrantTypeAuthorizationCode: true,
-	oauth2.GrantTypeRefreshToken:      true,
-	oauth2.GrantTypeImplicit:          true,
-	oauth2.GrantTypePassword:          true,
-	oauth2.GrantTypeDeviceCode:        true,
-	oauth2.GrantTypeTokenExchange:     true,
-}
-
-func parseScopes(scopes []string) connector.Scopes {
-	var s connector.Scopes
-	for _, scope := range scopes {
-		switch scope {
-		case tokens.ScopeOfflineAccess:
-			s.OfflineAccess = true
-		case tokens.ScopeGroups:
-			s.Groups = true
-		}
-	}
-	return s
 }
 
 // The hash algorithm for the at_hash is determined by the signing

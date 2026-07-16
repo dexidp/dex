@@ -13,7 +13,6 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"slices"
 	"sort"
 	"strings"
 	"sync/atomic"
@@ -61,12 +60,6 @@ import (
 // LocalConnector is the local passwordDB connector which is an internal
 // connector maintained by the server.
 const LocalConnector = "local"
-
-// GrantTypeAllowed checks if the given grant type is allowed for this connector.
-// If no grant types are configured, all are allowed.
-func GrantTypeAllowed(configuredTypes []string, grantType string) bool {
-	return len(configuredTypes) == 0 || slices.Contains(configuredTypes, grantType)
-}
 
 // Config holds the server's configuration options.
 //

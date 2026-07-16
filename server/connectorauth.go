@@ -24,10 +24,44 @@ package server
 
 import (
 	"net/http"
+	"slices"
 
+	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/oauth2"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
+
+// ConnectorGrantTypes is the set of grant types that can be restricted per connector.
+var ConnectorGrantTypes = map[string]bool{
+	oauth2.GrantTypeAuthorizationCode: true,
+	oauth2.GrantTypeRefreshToken:      true,
+	oauth2.GrantTypeImplicit:          true,
+	oauth2.GrantTypePassword:          true,
+	oauth2.GrantTypeDeviceCode:        true,
+	oauth2.GrantTypeTokenExchange:     true,
+}
+
+// GrantTypeAllowed checks if the given grant type is allowed for this connector.
+// If no grant types are configured, all are allowed.
+func GrantTypeAllowed(configuredTypes []string, grantType string) bool {
+	return len(configuredTypes) == 0 || slices.Contains(configuredTypes, grantType)
+}
+
+// parseScopes translates the requested OAuth2 scopes into the connector.Scopes a
+// connector needs when authenticating or refreshing a user.
+func parseScopes(scopes []string) connector.Scopes {
+	var s connector.Scopes
+	for _, scope := range scopes {
+		switch scope {
+		case tokens.ScopeOfflineAccess:
+			s.OfflineAccess = true
+		case tokens.ScopeGroups:
+			s.Groups = true
+		}
+	}
+	return s
+}
 
 // filterConnectors filters the list of connectors by the allowed connector IDs.
 // If allowedConnectors is empty, all connectors are returned (no filtering).
