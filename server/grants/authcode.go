@@ -56,24 +56,8 @@ func (g *authorizationCode) Authorize(ctx context.Context, req *Request, client 
 		return nil, &oauth2.Error{Type: oauth2.InvalidGrant, Description: "Invalid or expired code parameter.", Status: http.StatusBadRequest}
 	}
 
-	// RFC 7636 (PKCE)
-	codeChallengeFromStorage := authCode.PKCE.CodeChallenge
-	switch {
-	case req.CodeVerifier != "" && codeChallengeFromStorage != "":
-		calculatedCodeChallenge, err := oauth2.CalculateCodeChallenge(req.CodeVerifier, authCode.PKCE.CodeChallengeMethod)
-		if err != nil {
-			g.logger.ErrorContext(ctx, "failed to calculate code challenge", "err", err)
-			return nil, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
-		}
-		if codeChallengeFromStorage != calculatedCodeChallenge {
-			return nil, &oauth2.Error{Type: oauth2.InvalidGrant, Description: "Invalid code_verifier.", Status: http.StatusBadRequest}
-		}
-	case req.CodeVerifier != "":
-		// Received no code_challenge on /auth, but a code_verifier on /token.
-		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "No PKCE flow started. Cannot check code_verifier.", Status: http.StatusBadRequest}
-	case codeChallengeFromStorage != "":
-		// Received PKCE request on /auth, but no code_verifier on /token.
-		return nil, &oauth2.Error{Type: oauth2.InvalidGrant, Description: "Expecting parameter code_verifier in PKCE flow.", Status: http.StatusBadRequest}
+	if oerr := verifyPKCE(req.CodeVerifier, authCode.PKCE); oerr != nil {
+		return nil, oerr
 	}
 
 	if authCode.RedirectURI != req.RedirectURI {

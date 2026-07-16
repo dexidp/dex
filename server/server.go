@@ -605,7 +605,9 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
 	handleFunc("/auth/{connector}/login", s.handlePasswordLogin)
 	// TODO(nabokihms): "/device/token" endpoint is deprecated, consider using /token endpoint instead
-	handleFunc("/device/token", s.handleDeviceTokenDeprecated)
+	handleFunc("/device/token", func(w http.ResponseWriter, r *http.Request) {
+		s.handleDeviceTokenDeprecated(w, r, tokenEndpoint)
+	})
 	handleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
 		// Strip the X-Remote-* headers to prevent security issues on
 		// misconfigured authproxy connector setups.

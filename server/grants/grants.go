@@ -34,6 +34,9 @@ type Request struct {
 	// refresh_token
 	RefreshToken string
 
+	// device_code
+	DeviceCode string
+
 	// password
 	Username string
 	Password string
@@ -59,6 +62,7 @@ func parseRequest(r *http.Request) (*Request, *oauth2.Error) {
 		Scopes:             strings.Fields(r.PostFormValue("scope")),
 		Nonce:              r.PostFormValue("nonce"),
 		ConnectorID:        r.PostFormValue("connector_id"),
+		DeviceCode:         r.PostFormValue("device_code"),
 		Code:               r.PostFormValue("code"),
 		RedirectURI:        r.PostFormValue("redirect_uri"),
 		CodeVerifier:       r.PostFormValue("code_verifier"),
@@ -112,11 +116,19 @@ type Grant interface {
 	Authorize(ctx context.Context, req *Request, client storage.Client, conn connectors.Connector) (*Result, error)
 }
 
+// Responder writes the token endpoint's HTTP response body. tokens.Response is
+// the usual one; a grant that returns an already-serialized body (device_code
+// relays the token stored by the browser callback) returns its own.
+type Responder interface {
+	Write(w http.ResponseWriter) error
+}
+
 // Minter is implemented by a grant whose response is not the standard token set,
-// such as RFC 8693 token exchange. When a grant implements it, the endpoint calls
-// Mint instead of the standard issuer.Issue mint.
+// such as RFC 8693 token exchange or the device_code poll. When a grant
+// implements it, the endpoint calls Mint instead of the standard issuer.Issue
+// mint.
 type Minter interface {
-	Mint(ctx context.Context, req *Request, res *Result) (tokens.Response, error)
+	Mint(ctx context.Context, req *Request, res *Result) (Responder, error)
 }
 
 // Result is what a grant's Authorize produces for minting.
@@ -169,6 +181,7 @@ func NewEndpoint(issuer *tokens.Issuer, s storage.Storage, conns *connectors.Cac
 		&tokenExchange{issuer: issuer, logger: logger},
 		&authorizationCode{storage: s, connectors: conns, now: now, logger: logger},
 		&refresh{storage: s, issuer: issuer, policy: refreshPolicy, sessionsEnabled: sessionsEnabled, now: now, logger: logger},
+		&deviceCode{storage: s, now: now, logger: logger},
 	)
 	return e
 }
@@ -244,16 +257,17 @@ func (e *Endpoint) Dispatch(w http.ResponseWriter, r *http.Request, grantType st
 	return true
 }
 
-// mint produces the token response: the grant's own when it is a Minter (RFC 8693
-// token exchange), otherwise the single standard mint every grant shares.
-func (e *Endpoint) mint(ctx context.Context, grant Grant, req *Request, res *Result) (tokens.Response, error) {
+// mint produces the response to write: the grant's own when it is a Minter (RFC
+// 8693 token exchange, the device_code poll), otherwise the single standard mint
+// every grant shares.
+func (e *Endpoint) mint(ctx context.Context, grant Grant, req *Request, res *Result) (Responder, error) {
 	if m, ok := grant.(Minter); ok {
 		return m.Mint(ctx, req, res)
 	}
 	resp, err := e.issuer.IssueResponse(ctx, res.Authorization, res.Code, res.IssueRefresh)
 	if err != nil {
 		e.logger.ErrorContext(ctx, "failed to issue tokens", "grant_type", grant.GrantType(), "err", err)
-		return tokens.Response{}, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
+		return nil, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
 	}
 	return resp, nil
 }

@@ -93,7 +93,7 @@ func (g *tokenExchange) Authorize(ctx context.Context, req *Request, client stor
 
 // Mint issues the single requested token type, as RFC 8693 requires, rather than
 // the standard access+id+refresh set.
-func (g *tokenExchange) Mint(ctx context.Context, req *Request, res *Result) (tokens.Response, error) {
+func (g *tokenExchange) Mint(ctx context.Context, req *Request, res *Result) (Responder, error) {
 	reqType := requestedTokenType(req)
 
 	var (

@@ -136,7 +136,7 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 
 // Mint issues the token set with the already-rotated refresh token, so it does
 // not use the standard mint (which would create a second refresh token).
-func (g *refresh) Mint(ctx context.Context, req *Request, res *Result) (tokens.Response, error) {
+func (g *refresh) Mint(ctx context.Context, req *Request, res *Result) (Responder, error) {
 	accessToken, _, err := g.issuer.SignAccessToken(ctx, res.Authorization)
 	if err != nil {
 		g.logger.ErrorContext(ctx, "failed to create new access token", "err", err)

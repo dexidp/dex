@@ -39,18 +39,33 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request, endpoint *g
 		return
 	}
 
-	// Grants migrated to the grants.Endpoint are dispatched there. The device_code
-	// grant is still served by the server directly.
-	if endpoint.Dispatch(w, r, grantType) {
+	if !endpoint.Dispatch(w, r, grantType) {
+		s.tokenErrHelper(w, oauth2.UnsupportedGrantType, "", http.StatusBadRequest)
+	}
+}
+
+// handleDeviceTokenDeprecated serves the deprecated /device/token endpoint by
+// dispatching the device_code grant through the token endpoint.
+func (s *Server) handleDeviceTokenDeprecated(w http.ResponseWriter, r *http.Request, endpoint *grants.Endpoint) {
+	s.logger.Warn(`the /device/token endpoint was called. It will be removed, use /token instead.`, "deprecated", true)
+
+	if r.Method != http.MethodPost {
+		s.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist.")
 		return
 	}
 
-	switch grantType {
-	case oauth2.GrantTypeDeviceCode:
-		s.handleDeviceToken(w, r)
-	default:
-		s.tokenErrHelper(w, oauth2.UnsupportedGrantType, "", http.StatusBadRequest)
+	w.Header().Set("Content-Type", "application/json")
+	if err := r.ParseForm(); err != nil {
+		s.logger.Warn("could not parse Device Token Request body", "err", err)
+		s.tokenErrHelper(w, oauth2.InvalidRequest, "", http.StatusBadRequest)
+		return
 	}
+	if r.PostFormValue("grant_type") != oauth2.GrantTypeDeviceCode {
+		s.tokenErrHelper(w, oauth2.InvalidGrant, "", http.StatusBadRequest)
+		return
+	}
+
+	endpoint.Dispatch(w, r, oauth2.GrantTypeDeviceCode)
 }
 
 func (s *Server) tokenErrHelper(w http.ResponseWriter, typ string, description string, statusCode int) {
