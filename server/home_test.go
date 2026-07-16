@@ -10,6 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
@@ -41,11 +42,11 @@ func newTestServerWithSessions(t *testing.T, updateConfig func(c *Config)) (*htt
 		HealthChecker:      gosundheit.New(),
 		SkipApprovalScreen: true,
 		AllowedGrantTypes: []string{
-			grantTypeAuthorizationCode,
-			grantTypeClientCredentials,
-			grantTypeRefreshToken,
-			grantTypeTokenExchange,
-			grantTypeDeviceCode,
+			oauth2.GrantTypeAuthorizationCode,
+			oauth2.GrantTypeClientCredentials,
+			oauth2.GrantTypeRefreshToken,
+			oauth2.GrantTypeTokenExchange,
+			oauth2.GrantTypeDeviceCode,
 		},
 		Signer: sig,
 		SessionConfig: &SessionConfig{

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -67,7 +68,7 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 		err := r.ParseForm()
 		if err != nil {
 			s.logger.ErrorContext(r.Context(), "could not parse Device Request body", "err", err)
-			s.tokenErrHelper(w, errInvalidRequest, "", http.StatusNotFound)
+			s.tokenErrHelper(w, oauth2.InvalidRequest, "", http.StatusNotFound)
 			return
 		}
 
@@ -83,7 +84,7 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 		}
 		if codeChallengeMethod != codeChallengeMethodS256 && codeChallengeMethod != codeChallengeMethodPlain {
 			description := fmt.Sprintf("Unsupported PKCE challenge method (%q).", codeChallengeMethod)
-			s.tokenErrHelper(w, errInvalidRequest, description, http.StatusBadRequest)
+			s.tokenErrHelper(w, oauth2.InvalidRequest, description, http.StatusBadRequest)
 			return
 		}
 
@@ -116,14 +117,14 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 
 		if err := s.storage.CreateDeviceRequest(ctx, deviceReq); err != nil {
 			s.logger.ErrorContext(r.Context(), "failed to store device request", "err", err)
-			s.tokenErrHelper(w, errInvalidRequest, "", http.StatusInternalServerError)
+			s.tokenErrHelper(w, oauth2.InvalidRequest, "", http.StatusInternalServerError)
 			return
 		}
 
 		// Store the device token
 		deviceToken := storage.DeviceToken{
 			DeviceCode:          deviceCode,
-			Status:              deviceTokenPending,
+			Status:              oauth2.DeviceTokenPending,
 			Expiry:              expireTime,
 			LastRequestTime:     s.now(),
 			PollIntervalSeconds: 0,
@@ -135,14 +136,14 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 
 		if err := s.storage.CreateDeviceToken(ctx, deviceToken); err != nil {
 			s.logger.ErrorContext(r.Context(), "failed to store device token", "err", err)
-			s.tokenErrHelper(w, errInvalidRequest, "", http.StatusInternalServerError)
+			s.tokenErrHelper(w, oauth2.InvalidRequest, "", http.StatusInternalServerError)
 			return
 		}
 
 		u, err := url.Parse(s.issuerURL.String())
 		if err != nil {
 			s.logger.ErrorContext(r.Context(), "could not parse issuer URL", "err", err)
-			s.tokenErrHelper(w, errInvalidRequest, "", http.StatusInternalServerError)
+			s.tokenErrHelper(w, oauth2.InvalidRequest, "", http.StatusInternalServerError)
 			return
 		}
 		u.Path = path.Join(u.Path, "device")
@@ -177,7 +178,7 @@ func (s *Server) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 
 	default:
 		s.renderError(r, w, http.StatusBadRequest, "Invalid device code request type")
-		s.tokenErrHelper(w, errInvalidRequest, "", http.StatusBadRequest)
+		s.tokenErrHelper(w, oauth2.InvalidRequest, "", http.StatusBadRequest)
 	}
 }
 
@@ -225,7 +226,7 @@ func (s *Server) verifyUserCode(w http.ResponseWriter, r *http.Request) {
 		q.Set("client_secret", deviceRequest.ClientSecret)
 		q.Set("state", deviceRequest.UserCode)
 		q.Set("response_type", "code")
-		q.Set("redirect_uri", s.absPath(deviceCallbackURI))
+		q.Set("redirect_uri", s.absPath(oauth2.DeviceCallbackURI))
 		q.Set("scope", strings.Join(deviceRequest.Scopes, " "))
 		u.RawQuery = q.Encode()
 

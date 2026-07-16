@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
@@ -18,7 +19,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 	redirectURI := r.PostFormValue("redirect_uri")
 
 	if code == "" {
-		s.tokenErrHelper(w, errInvalidRequest, `Required param: code.`, http.StatusBadRequest)
+		s.tokenErrHelper(w, oauth2.InvalidRequest, `Required param: code.`, http.StatusBadRequest)
 		return
 	}
 
@@ -26,9 +27,9 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 	if err != nil || s.now().After(authCode.Expiry) || authCode.ClientID != client.ID {
 		if err != storage.ErrNotFound {
 			s.logger.ErrorContext(r.Context(), "failed to get auth code", "err", err)
-			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+			s.tokenErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
 		} else {
-			s.tokenErrHelper(w, errInvalidGrant, "Invalid or expired code parameter.", http.StatusBadRequest)
+			s.tokenErrHelper(w, oauth2.InvalidGrant, "Invalid or expired code parameter.", http.StatusBadRequest)
 		}
 		return
 	}
@@ -42,31 +43,31 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 		calculatedCodeChallenge, err := s.calculateCodeChallenge(providedCodeVerifier, authCode.PKCE.CodeChallengeMethod)
 		if err != nil {
 			s.logger.ErrorContext(r.Context(), "failed to calculate code challenge", "err", err)
-			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+			s.tokenErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
 			return
 		}
 		if codeChallengeFromStorage != calculatedCodeChallenge {
-			s.tokenErrHelper(w, errInvalidGrant, "Invalid code_verifier.", http.StatusBadRequest)
+			s.tokenErrHelper(w, oauth2.InvalidGrant, "Invalid code_verifier.", http.StatusBadRequest)
 			return
 		}
 	case providedCodeVerifier != "":
 		// Received no code_challenge on /auth, but a code_verifier on /token
-		s.tokenErrHelper(w, errInvalidRequest, "No PKCE flow started. Cannot check code_verifier.", http.StatusBadRequest)
+		s.tokenErrHelper(w, oauth2.InvalidRequest, "No PKCE flow started. Cannot check code_verifier.", http.StatusBadRequest)
 		return
 	case codeChallengeFromStorage != "":
 		// Received PKCE request on /auth, but no code_verifier on /token
-		s.tokenErrHelper(w, errInvalidGrant, "Expecting parameter code_verifier in PKCE flow.", http.StatusBadRequest)
+		s.tokenErrHelper(w, oauth2.InvalidGrant, "Expecting parameter code_verifier in PKCE flow.", http.StatusBadRequest)
 		return
 	}
 
 	if authCode.RedirectURI != redirectURI {
-		s.tokenErrHelper(w, errInvalidRequest, "redirect_uri did not match URI from initial request.", http.StatusBadRequest)
+		s.tokenErrHelper(w, oauth2.InvalidRequest, "redirect_uri did not match URI from initial request.", http.StatusBadRequest)
 		return
 	}
 
 	tokenResponse, err := s.exchangeAuthCode(ctx, w, authCode, client)
 	if err != nil {
-		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		s.tokenErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
 		return
 	}
 	s.writeAccessToken(w, tokenResponse)
@@ -86,20 +87,20 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 	accessToken, _, err := s.issuer.SignAccessToken(ctx, auth)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to create new access token", "err", err)
-		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		s.tokenErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
 		return tokens.Response{}, err
 	}
 
 	idToken, expiry, err := s.issuer.SignIDToken(ctx, auth, accessToken, authCode.ID)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to create ID token", "err", err)
-		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		s.tokenErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
 		return tokens.Response{}, err
 	}
 
 	if err := s.storage.DeleteAuthCode(ctx, authCode.ID); err != nil {
 		s.logger.ErrorContext(ctx, "failed to delete auth code", "err", err)
-		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		s.tokenErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
 		return tokens.Response{}, err
 	}
 
@@ -117,7 +118,7 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 		conn, err := s.connectors.Get(ctx, authCode.ConnectorID)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "connector not found", "connector_id", authCode.ConnectorID, "err", err)
-			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+			s.tokenErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
 			return false
 		}
 
@@ -126,7 +127,7 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 			return false
 		}
 
-		if !GrantTypeAllowed(conn.GrantTypes, grantTypeRefreshToken) {
+		if !GrantTypeAllowed(conn.GrantTypes, oauth2.GrantTypeRefreshToken) {
 			return false
 		}
 
@@ -143,7 +144,7 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 		refreshToken, err = s.issuer.Refresh.Create(ctx, auth)
 		if err != nil {
 			s.logger.ErrorContext(ctx, "failed to create refresh token", "err", err)
-			s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+			s.tokenErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
 			return tokens.Response{}, err
 		}
 	}

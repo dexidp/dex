@@ -21,7 +21,7 @@ func testHandler(t *testing.T, sessionsEnabled bool) *Handler {
 	sig, err := signer.NewMockSigner(key)
 	require.NoError(t, err)
 
-	return New(Config{
+	return &Handler{
 		Issuer:          "https://dex.example.com",
 		AbsURL:          func(p ...string) string { return "https://dex.example.com" + strings.Join(p, "") },
 		Signer:          sig,
@@ -30,7 +30,7 @@ func testHandler(t *testing.T, sessionsEnabled bool) *Handler {
 		GrantTypes:      []string{"authorization_code", "refresh_token"},
 		PKCEMethods:     []string{"S256", "plain"},
 		SessionsEnabled: sessionsEnabled,
-	})
+	}
 }
 
 func TestConstruct(t *testing.T) {

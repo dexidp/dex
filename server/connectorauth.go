@@ -24,9 +24,27 @@ package server
 
 import (
 	"net/http"
+	"slices"
 
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/storage"
 )
+
+// ConnectorGrantTypes is the set of grant types that can be restricted per connector.
+var ConnectorGrantTypes = map[string]bool{
+	oauth2.GrantTypeAuthorizationCode: true,
+	oauth2.GrantTypeRefreshToken:      true,
+	oauth2.GrantTypeImplicit:          true,
+	oauth2.GrantTypePassword:          true,
+	oauth2.GrantTypeDeviceCode:        true,
+	oauth2.GrantTypeTokenExchange:     true,
+}
+
+// GrantTypeAllowed checks if the given grant type is allowed for this connector.
+// If no grant types are configured, all are allowed.
+func GrantTypeAllowed(configuredTypes []string, grantType string) bool {
+	return len(configuredTypes) == 0 || slices.Contains(configuredTypes, grantType)
+}
 
 // filterConnectors filters the list of connectors by the allowed connector IDs.
 // If allowedConnectors is empty, all connectors are returned (no filtering).
@@ -77,6 +95,6 @@ func (s *Server) checkConnectorAllowed(w http.ResponseWriter, r *http.Request, c
 	}
 	s.logger.WarnContext(r.Context(), "connector not allowed for client",
 		"client_id", client.ID, "connector_id", connID)
-	s.tokenErrHelper(w, errInvalidGrant, "Connector not allowed for this client.", http.StatusBadRequest)
+	s.tokenErrHelper(w, oauth2.InvalidGrant, "Connector not allowed for this client.", http.StatusBadRequest)
 	return false
 }

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -49,14 +50,14 @@ func TestDeviceTokenResponse(t *testing.T) {
 			testDeviceRequest: baseDeviceRequest,
 			testDeviceToken: storage.DeviceToken{
 				DeviceCode:          "f00bar",
-				Status:              deviceTokenPending,
+				Status:              oauth2.DeviceTokenPending,
 				Token:               "",
 				Expiry:              now().Add(5 * time.Minute),
 				LastRequestTime:     time.Time{},
 				PollIntervalSeconds: 0,
 			},
 			testDeviceCode:         "f00bar",
-			expectedServerResponse: deviceTokenPending,
+			expectedServerResponse: oauth2.DeviceTokenPending,
 			expectedResponseCode:   http.StatusBadRequest,
 		},
 		{
@@ -64,15 +65,15 @@ func TestDeviceTokenResponse(t *testing.T) {
 			testDeviceRequest: baseDeviceRequest,
 			testDeviceToken: storage.DeviceToken{
 				DeviceCode:          "f00bar",
-				Status:              deviceTokenPending,
+				Status:              oauth2.DeviceTokenPending,
 				Token:               "",
 				Expiry:              now().Add(5 * time.Minute),
 				LastRequestTime:     time.Time{},
 				PollIntervalSeconds: 0,
 			},
 			testDeviceCode:         "f00bar",
-			testGrantType:          grantTypeAuthorizationCode,
-			expectedServerResponse: errInvalidGrant,
+			testGrantType:          oauth2.GrantTypeAuthorizationCode,
+			expectedServerResponse: oauth2.InvalidGrant,
 			expectedResponseCode:   http.StatusBadRequest,
 		},
 		{
@@ -80,14 +81,14 @@ func TestDeviceTokenResponse(t *testing.T) {
 			testDeviceRequest: baseDeviceRequest,
 			testDeviceToken: storage.DeviceToken{
 				DeviceCode:          "f00bar",
-				Status:              deviceTokenPending,
+				Status:              oauth2.DeviceTokenPending,
 				Token:               "",
 				Expiry:              now().Add(5 * time.Minute),
 				LastRequestTime:     now(),
 				PollIntervalSeconds: 10,
 			},
 			testDeviceCode:         "f00bar",
-			expectedServerResponse: deviceTokenSlowDown,
+			expectedServerResponse: oauth2.DeviceTokenSlowDown,
 			expectedResponseCode:   http.StatusBadRequest,
 		},
 		{
@@ -95,14 +96,14 @@ func TestDeviceTokenResponse(t *testing.T) {
 			testDeviceRequest: baseDeviceRequest,
 			testDeviceToken: storage.DeviceToken{
 				DeviceCode:          "f00bar",
-				Status:              deviceTokenPending,
+				Status:              oauth2.DeviceTokenPending,
 				Token:               "",
 				Expiry:              now().Add(-5 * time.Minute),
 				LastRequestTime:     time.Time{},
 				PollIntervalSeconds: 0,
 			},
 			testDeviceCode:         "f00bar",
-			expectedServerResponse: deviceTokenExpired,
+			expectedServerResponse: oauth2.DeviceTokenExpired,
 			expectedResponseCode:   http.StatusBadRequest,
 		},
 		{
@@ -110,14 +111,14 @@ func TestDeviceTokenResponse(t *testing.T) {
 			testDeviceRequest: baseDeviceRequest,
 			testDeviceToken: storage.DeviceToken{
 				DeviceCode:          "foo",
-				Status:              deviceTokenPending,
+				Status:              oauth2.DeviceTokenPending,
 				Token:               "",
 				Expiry:              now().Add(-5 * time.Minute),
 				LastRequestTime:     time.Time{},
 				PollIntervalSeconds: 0,
 			},
 			testDeviceCode:         "bar",
-			expectedServerResponse: errInvalidRequest,
+			expectedServerResponse: oauth2.InvalidRequest,
 			expectedResponseCode:   http.StatusBadRequest,
 		},
 		{
@@ -125,14 +126,14 @@ func TestDeviceTokenResponse(t *testing.T) {
 			testDeviceRequest: baseDeviceRequest,
 			testDeviceToken: storage.DeviceToken{
 				DeviceCode:          "bar",
-				Status:              deviceTokenPending,
+				Status:              oauth2.DeviceTokenPending,
 				Token:               "",
 				Expiry:              now().Add(-5 * time.Minute),
 				LastRequestTime:     time.Time{},
 				PollIntervalSeconds: 0,
 			},
 			testDeviceCode:         "",
-			expectedServerResponse: errInvalidRequest,
+			expectedServerResponse: oauth2.InvalidRequest,
 			expectedResponseCode:   http.StatusBadRequest,
 		},
 		{
@@ -140,7 +141,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 			testDeviceRequest: baseDeviceRequest,
 			testDeviceToken: storage.DeviceToken{
 				DeviceCode:          "foo",
-				Status:              deviceTokenComplete,
+				Status:              oauth2.DeviceTokenComplete,
 				Token:               "{\"access_token\": \"foobar\"}",
 				Expiry:              now().Add(5 * time.Minute),
 				LastRequestTime:     time.Time{},
@@ -154,7 +155,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 			testName: "Successful Exchange with PKCE",
 			testDeviceToken: storage.DeviceToken{
 				DeviceCode:          "foo",
-				Status:              deviceTokenComplete,
+				Status:              oauth2.DeviceTokenComplete,
 				Token:               "{\"access_token\": \"foobar\"}",
 				Expiry:              now().Add(5 * time.Minute),
 				LastRequestTime:     time.Time{},
@@ -174,7 +175,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 			testName: "Test Exchange started with PKCE but without verifier provided",
 			testDeviceToken: storage.DeviceToken{
 				DeviceCode:          "foo",
-				Status:              deviceTokenComplete,
+				Status:              oauth2.DeviceTokenComplete,
 				Token:               "{\"access_token\": \"foobar\"}",
 				Expiry:              now().Add(5 * time.Minute),
 				LastRequestTime:     time.Time{},
@@ -186,14 +187,14 @@ func TestDeviceTokenResponse(t *testing.T) {
 			},
 			testDeviceCode:         "foo",
 			testDeviceRequest:      baseDeviceRequest,
-			expectedServerResponse: errInvalidGrant,
+			expectedServerResponse: oauth2.InvalidGrant,
 			expectedResponseCode:   http.StatusBadRequest,
 		},
 		{
 			testName: "Test Exchange not started with PKCE but verifier provided",
 			testDeviceToken: storage.DeviceToken{
 				DeviceCode:          "foo",
-				Status:              deviceTokenComplete,
+				Status:              oauth2.DeviceTokenComplete,
 				Token:               "{\"access_token\": \"foobar\"}",
 				Expiry:              now().Add(5 * time.Minute),
 				LastRequestTime:     time.Time{},
@@ -202,14 +203,14 @@ func TestDeviceTokenResponse(t *testing.T) {
 			testDeviceCode:         "foo",
 			testCodeVerifier:       codeVerifier,
 			testDeviceRequest:      baseDeviceRequest,
-			expectedServerResponse: errInvalidRequest,
+			expectedServerResponse: oauth2.InvalidRequest,
 			expectedResponseCode:   http.StatusBadRequest,
 		},
 		{
 			testName: "Test with PKCE but incorrect verifier provided",
 			testDeviceToken: storage.DeviceToken{
 				DeviceCode:          "foo",
-				Status:              deviceTokenComplete,
+				Status:              oauth2.DeviceTokenComplete,
 				Token:               "{\"access_token\": \"foobar\"}",
 				Expiry:              now().Add(5 * time.Minute),
 				LastRequestTime:     time.Time{},
@@ -222,14 +223,14 @@ func TestDeviceTokenResponse(t *testing.T) {
 			testDeviceCode:         "foo",
 			testCodeVerifier:       "invalid",
 			testDeviceRequest:      baseDeviceRequest,
-			expectedServerResponse: errInvalidGrant,
+			expectedServerResponse: oauth2.InvalidGrant,
 			expectedResponseCode:   http.StatusBadRequest,
 		},
 		{
 			testName: "Test with PKCE but incorrect challenge provided",
 			testDeviceToken: storage.DeviceToken{
 				DeviceCode:          "foo",
-				Status:              deviceTokenComplete,
+				Status:              oauth2.DeviceTokenComplete,
 				Token:               "{\"access_token\": \"foobar\"}",
 				Expiry:              now().Add(5 * time.Minute),
 				LastRequestTime:     time.Time{},
@@ -242,7 +243,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 			testDeviceCode:         "foo",
 			testCodeVerifier:       codeVerifier,
 			testDeviceRequest:      baseDeviceRequest,
-			expectedServerResponse: errInvalidGrant,
+			expectedServerResponse: oauth2.InvalidGrant,
 			expectedResponseCode:   http.StatusBadRequest,
 		},
 	}
@@ -272,7 +273,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 			u.Path = path.Join(u.Path, "device/token")
 
 			data := url.Values{}
-			grantType := grantTypeDeviceCode
+			grantType := oauth2.GrantTypeDeviceCode
 			if tc.testGrantType != "" {
 				grantType = tc.testGrantType
 			}

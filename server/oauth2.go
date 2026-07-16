@@ -3,8 +3,6 @@ package server
 import (
 	"context"
 	"crypto"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -14,9 +12,8 @@ import (
 	"strings"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/go-jose/go-jose/v4"
 
-	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
@@ -95,108 +92,6 @@ func (err *redirectedAuthErr) Handler() http.Handler {
 	return http.HandlerFunc(hf)
 }
 
-func tokenErr(w http.ResponseWriter, typ, description string, statusCode int) error {
-	data := struct {
-		Error       string `json:"error"`
-		Description string `json:"error_description,omitempty"`
-	}{typ, description}
-	body, err := json.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("failed to marshal token error response: %v", err)
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
-	w.WriteHeader(statusCode)
-	w.Write(body)
-	return nil
-}
-
-const (
-	errInvalidRequest          = "invalid_request"
-	errUnauthorizedClient      = "unauthorized_client"
-	errAccessDenied            = "access_denied"
-	errUnsupportedResponseType = "unsupported_response_type"
-	errRequestNotSupported     = "request_not_supported"
-	errInvalidScope            = "invalid_scope"
-	errServerError             = "server_error"
-	errTemporarilyUnavailable  = "temporarily_unavailable"
-	errUnsupportedGrantType    = "unsupported_grant_type"
-	errInvalidGrant            = "invalid_grant"
-	errInvalidClient           = "invalid_client"
-	errInactiveToken           = "inactive_token"
-	errLoginRequired           = "login_required"
-	errInteractionRequired     = "interaction_required"
-	errConsentRequired         = "consent_required"
-)
-
-const (
-	deviceCallbackURI = "/device/callback"
-)
-
-const (
-	redirectURIOOB = "urn:ietf:wg:oauth:2.0:oob"
-)
-
-const (
-	grantTypeAuthorizationCode = "authorization_code"
-	grantTypeRefreshToken      = "refresh_token"
-	grantTypeImplicit          = "implicit"
-	grantTypePassword          = "password"
-	grantTypeDeviceCode        = "urn:ietf:params:oauth:grant-type:device_code"
-	grantTypeTokenExchange     = "urn:ietf:params:oauth:grant-type:token-exchange"
-	grantTypeClientCredentials = "client_credentials"
-)
-
-// ConnectorGrantTypes is the set of grant types that can be restricted per connector.
-var ConnectorGrantTypes = map[string]bool{
-	grantTypeAuthorizationCode: true,
-	grantTypeRefreshToken:      true,
-	grantTypeImplicit:          true,
-	grantTypePassword:          true,
-	grantTypeDeviceCode:        true,
-	grantTypeTokenExchange:     true,
-}
-
-const (
-	// https://www.rfc-editor.org/rfc/rfc8693.html#section-3
-	tokenTypeAccess  = "urn:ietf:params:oauth:token-type:access_token"
-	tokenTypeRefresh = "urn:ietf:params:oauth:token-type:refresh_token"
-	tokenTypeID      = "urn:ietf:params:oauth:token-type:id_token"
-	tokenTypeSAML1   = "urn:ietf:params:oauth:token-type:saml1"
-	tokenTypeSAML2   = "urn:ietf:params:oauth:token-type:saml2"
-	tokenTypeJWT     = "urn:ietf:params:oauth:token-type:jwt"
-)
-
-const (
-	responseTypeCode             = "code"                // "Regular" flow
-	responseTypeToken            = "token"               // Implicit flow for frontend apps.
-	responseTypeIDToken          = "id_token"            // ID Token in url fragment
-	responseTypeCodeToken        = "code token"          // "Regular" flow + Implicit flow
-	responseTypeCodeIDToken      = "code id_token"       // "Regular" flow + ID Token
-	responseTypeIDTokenToken     = "id_token token"      // ID Token + Implicit flow
-	responseTypeCodeIDTokenToken = "code id_token token" // "Regular" flow + ID Token + Implicit flow
-)
-
-const (
-	deviceTokenPending  = "authorization_pending"
-	deviceTokenComplete = "complete"
-	deviceTokenSlowDown = "slow_down"
-	deviceTokenExpired  = "expired_token"
-)
-
-func parseScopes(scopes []string) connector.Scopes {
-	var s connector.Scopes
-	for _, scope := range scopes {
-		switch scope {
-		case tokens.ScopeOfflineAccess:
-			s.OfflineAccess = true
-		case tokens.ScopeGroups:
-			s.Groups = true
-		}
-	}
-	return s
-}
-
 // The hash algorithm for the at_hash is determined by the signing
 // algorithm used for the id_token. From the spec:
 //
@@ -209,11 +104,11 @@ func parseScopes(scopes []string) connector.Scopes {
 // Expired tokens are accepted per OIDC Core 1.0 §3.1.2.1.
 // Returns the verified token so callers can extract Subject, Audience, etc.
 func (s *Server) validateIDTokenHint(ctx context.Context, hint string) (*oidc.IDToken, error) {
-	verifier := oidc.NewVerifier(s.issuerURL.String(), &signerKeySet{s.signer}, &oidc.Config{
+	verifier := oidc.NewVerifier(s.issuerURL.String(), &signer.KeySet{Signer: s.signer}, &oidc.Config{
 		SkipExpiryCheck: true,
 		// SkipClientIDCheck is set because the hint may originate from any client that
 		// Dex issued a token to — the caller does not know the expected audience in advance.
-		// The signature verification via signerKeySet already guarantees the token was
+		// The signature verification via signer.KeySet already guarantees the token was
 		// issued by this server, which is sufficient for a hint.
 		// Dex does the client id check later in the scope of the session validation.
 		SkipClientIDCheck: true,
@@ -276,8 +171,8 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		s.logger.ErrorContext(r.Context(), "unregistered redirect_uri", "redirect_uri", redirectURI, "client_id", clientID)
 		return nil, "", newDisplayedErr(http.StatusBadRequest, "Unregistered redirect_uri.")
 	}
-	if redirectURI == deviceCallbackURI && client.Public {
-		redirectURI = s.absPath(deviceCallbackURI)
+	if redirectURI == oauth2.DeviceCallbackURI && client.Public {
+		redirectURI = s.absPath(oauth2.DeviceCallbackURI)
 	}
 
 	// From here on out, we want to redirect back to the client with an error.
@@ -289,30 +184,30 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		connectors, err := s.storage.ListConnectors(ctx)
 		if err != nil {
 			s.logger.ErrorContext(r.Context(), "failed to list connectors", "err", err)
-			return nil, "", newRedirectedErr(errServerError, "Unable to retrieve connectors")
+			return nil, "", newRedirectedErr(oauth2.ServerError, "Unable to retrieve connectors")
 		}
 		if !validateConnectorID(connectors, connectorID) {
-			return nil, "", newRedirectedErr(errInvalidRequest, "Invalid ConnectorID")
+			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Invalid ConnectorID")
 		}
 		if !isConnectorAllowed(client.AllowedConnectors, connectorID) {
-			return nil, "", newRedirectedErr(errInvalidRequest, "Connector not allowed for this client")
+			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Connector not allowed for this client")
 		}
 	}
 
 	// dex doesn't support request parameter and must return request_not_supported error
 	// https://openid.net/specs/openid-connect-core-1_0.html#6.1
 	if q.Get("request") != "" {
-		return nil, "", newRedirectedErr(errRequestNotSupported, "Server does not support request parameter.")
+		return nil, "", newRedirectedErr(oauth2.RequestNotSupported, "Server does not support request parameter.")
 	}
 
 	if codeChallenge != "" && !slices.Contains(s.pkce.CodeChallengeMethodsSupported, codeChallengeMethod) {
-		return nil, "", newRedirectedErr(errInvalidRequest, "Unsupported PKCE challenge method (%q).", codeChallengeMethod)
+		return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Unsupported PKCE challenge method (%q).", codeChallengeMethod)
 	}
 
 	// Enforce PKCE if configured.
 	// https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-12#section-4.1.1
 	if s.pkce.Enforce && codeChallenge == "" {
-		return nil, "", newRedirectedErr(errInvalidRequest, "PKCE is required. The code_challenge parameter must be provided.")
+		return nil, "", newRedirectedErr(oauth2.InvalidRequest, "PKCE is required. The code_challenge parameter must be provided.")
 	}
 
 	var (
@@ -334,7 +229,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 
 			isTrusted, err := s.validateCrossClientTrust(r.Context(), clientID, peerID)
 			if err != nil {
-				return nil, "", newRedirectedErr(errServerError, "Internal server error.")
+				return nil, "", newRedirectedErr(oauth2.ServerError, "Internal server error.")
 			}
 			if !isTrusted {
 				invalidScopes = append(invalidScopes, scope)
@@ -342,13 +237,13 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		}
 	}
 	if !hasOpenIDScope {
-		return nil, "", newRedirectedErr(errInvalidScope, `Missing required scope(s) ["openid"].`)
+		return nil, "", newRedirectedErr(oauth2.InvalidScope, `Missing required scope(s) ["openid"].`)
 	}
 	if len(unrecognized) > 0 {
-		return nil, "", newRedirectedErr(errInvalidScope, "Unrecognized scope(s) %q", unrecognized)
+		return nil, "", newRedirectedErr(oauth2.InvalidScope, "Unrecognized scope(s) %q", unrecognized)
 	}
 	if len(invalidScopes) > 0 {
-		return nil, "", newRedirectedErr(errInvalidScope, "Client can't request scope(s) %q", invalidScopes)
+		return nil, "", newRedirectedErr(oauth2.InvalidScope, "Client can't request scope(s) %q", invalidScopes)
 	}
 
 	var rt struct {
@@ -359,30 +254,30 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 
 	for _, responseType := range responseTypes {
 		switch responseType {
-		case responseTypeCode:
+		case oauth2.ResponseTypeCode:
 			rt.code = true
-		case responseTypeIDToken:
+		case oauth2.ResponseTypeIDToken:
 			rt.idToken = true
-		case responseTypeToken:
+		case oauth2.ResponseTypeToken:
 			rt.token = true
 		default:
-			return nil, "", newRedirectedErr(errInvalidRequest, "Invalid response type %q", responseType)
+			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Invalid response type %q", responseType)
 		}
 
 		if !s.supportedResponseTypes[responseType] {
-			return nil, "", newRedirectedErr(errUnsupportedResponseType, "Unsupported response type %q", responseType)
+			return nil, "", newRedirectedErr(oauth2.UnsupportedResponseType, "Unsupported response type %q", responseType)
 		}
 	}
 
 	if len(responseTypes) == 0 {
-		return nil, "", newRedirectedErr(errInvalidRequest, "No response_type provided")
+		return nil, "", newRedirectedErr(oauth2.InvalidRequest, "No response_type provided")
 	}
 
 	if rt.token && !rt.code && !rt.idToken {
 		// "token" can't be provided by its own.
 		//
 		// https://openid.net/specs/openid-connect-core-1_0.html#Authentication
-		return nil, "", newRedirectedErr(errInvalidRequest, "Response type 'token' must be provided with type 'id_token' and/or 'code'")
+		return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Response type 'token' must be provided with type 'id_token' and/or 'code'")
 	}
 	if !rt.code {
 		// Either "id_token token" or "id_token" has been provided which implies the
@@ -390,18 +285,18 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		//
 		// https://openid.net/specs/openid-connect-core-1_0.html#ImplicitAuthRequest
 		if nonce == "" {
-			return nil, "", newRedirectedErr(errInvalidRequest, "Response type 'token' requires a 'nonce' value.")
+			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Response type 'token' requires a 'nonce' value.")
 		}
 	}
 	if rt.token {
-		if redirectURI == redirectURIOOB {
-			return nil, "", newRedirectedErr(errInvalidRequest, "Cannot use response type 'token' with redirect_uri '%s'.", redirectURIOOB)
+		if redirectURI == oauth2.RedirectURIOOB {
+			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Cannot use response type 'token' with redirect_uri '%s'.", oauth2.RedirectURIOOB)
 		}
 	}
 
 	prompt, err := ParsePrompt(q.Get("prompt"))
 	if err != nil {
-		return nil, "", newRedirectedErr(errInvalidRequest, "Invalid prompt parameter: %v", err)
+		return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Invalid prompt parameter: %v", err)
 	}
 
 	// Parse max_age: -1 means not specified.
@@ -409,7 +304,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	if maxAgeStr := q.Get("max_age"); maxAgeStr != "" {
 		v, err := strconv.Atoi(maxAgeStr)
 		if err != nil || v < 0 {
-			return nil, "", newRedirectedErr(errInvalidRequest, "Invalid max_age value %q", maxAgeStr)
+			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Invalid max_age value %q", maxAgeStr)
 		}
 		maxAge = v
 	}
@@ -422,7 +317,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	if hint := q.Get("id_token_hint"); hint != "" {
 		idToken, err := s.validateIDTokenHint(ctx, hint)
 		if err != nil {
-			return nil, "", newRedirectedErr(errInvalidRequest, "Invalid id_token_hint.")
+			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Invalid id_token_hint.")
 		}
 		idTokenHintSubject = idToken.Subject
 	}
@@ -481,7 +376,7 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 		return false
 	}
 
-	if redirectURI == redirectURIOOB || redirectURI == deviceCallbackURI {
+	if redirectURI == oauth2.RedirectURIOOB || redirectURI == oauth2.DeviceCallbackURI {
 		return true
 	}
 
@@ -517,37 +412,4 @@ func validateConnectorID(connectors []storage.Connector, connectorID string) boo
 		}
 	}
 	return false
-}
-
-// signerKeySet implements the oidc.KeySet interface backed by the Dex signer
-type signerKeySet struct {
-	signer signer.Signer
-}
-
-func (s *signerKeySet) VerifySignature(ctx context.Context, jwt string) (payload []byte, err error) {
-	jws, err := jose.ParseSigned(jwt, []jose.SignatureAlgorithm{jose.RS256, jose.RS384, jose.RS512, jose.ES256, jose.ES384, jose.ES512})
-	if err != nil {
-		return nil, err
-	}
-
-	keyID := ""
-	for _, sig := range jws.Signatures {
-		keyID = sig.Header.KeyID
-		break
-	}
-
-	keys, err := s.signer.ValidationKeys(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, key := range keys {
-		if keyID == "" || key.KeyID == keyID {
-			if payload, err := jws.Verify(key); err == nil {
-				return payload, nil
-			}
-		}
-	}
-
-	return nil, errors.New("failed to verify id token signature")
 }

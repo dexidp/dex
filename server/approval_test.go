@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -106,7 +107,7 @@ func TestSkipApprovalWithExistingConsent(t *testing.T) {
 				ClientID:            tc.clientID,
 				RedirectURI:         "cb",
 				Expiry:              expiry,
-				ResponseTypes:       []string{responseTypeCode},
+				ResponseTypes:       []string{oauth2.ResponseTypeCode},
 				Scopes:              tc.scopes,
 				ForceApprovalPrompt: tc.forcePrompt,
 			}
@@ -149,7 +150,7 @@ func TestConsentPersistedOnApproval(t *testing.T) {
 		ID:            "approval-consent-test",
 		ClientID:      clientID,
 		ConnectorID:   connectorID,
-		ResponseTypes: []string{responseTypeCode},
+		ResponseTypes: []string{oauth2.ResponseTypeCode},
 		RedirectURI:   "https://client.example/callback",
 		Expiry:        time.Now().Add(time.Minute),
 		LoggedIn:      true,
@@ -355,7 +356,7 @@ func TestHandleApprovalDoubleSubmitPOST(t *testing.T) {
 	authReq := storage.AuthRequest{
 		ID:            "approval-double-submit",
 		ClientID:      "test",
-		ResponseTypes: []string{responseTypeCode},
+		ResponseTypes: []string{oauth2.ResponseTypeCode},
 		RedirectURI:   "https://client.example/callback",
 		Expiry:        time.Now().Add(time.Minute),
 		LoggedIn:      true,

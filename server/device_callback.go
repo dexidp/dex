@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -61,14 +62,14 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			if err != storage.ErrNotFound {
 				s.logger.ErrorContext(r.Context(), "failed to get client", "err", err)
-				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+				s.tokenErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
 			} else {
-				s.tokenErrHelper(w, errInvalidClient, "Invalid client credentials.", http.StatusUnauthorized)
+				s.tokenErrHelper(w, oauth2.InvalidClient, "Invalid client credentials.", http.StatusUnauthorized)
 			}
 			return
 		}
 		if client.Secret != deviceReq.ClientSecret {
-			s.tokenErrHelper(w, errInvalidClient, "Invalid client credentials.", http.StatusUnauthorized)
+			s.tokenErrHelper(w, oauth2.InvalidClient, "Invalid client credentials.", http.StatusUnauthorized)
 			return
 		}
 
@@ -92,7 +93,7 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 		}
 
 		updater := func(old storage.DeviceToken) (storage.DeviceToken, error) {
-			if old.Status == deviceTokenComplete {
+			if old.Status == oauth2.DeviceTokenComplete {
 				return old, errors.New("device token already complete")
 			}
 			respStr, err := json.MarshalIndent(resp, "", "  ")
@@ -103,7 +104,7 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 			}
 
 			old.Token = string(respStr)
-			old.Status = deviceTokenComplete
+			old.Status = oauth2.DeviceTokenComplete
 			return old, nil
 		}
 

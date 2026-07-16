@@ -4,6 +4,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
@@ -73,15 +75,15 @@ func (r *refreshError) Error() string {
 }
 
 func newInternalServerError() *refreshError {
-	return &refreshError{msg: errInvalidRequest, desc: "", code: http.StatusInternalServerError}
+	return &refreshError{msg: oauth2.InvalidRequest, desc: "", code: http.StatusInternalServerError}
 }
 
 func newUpstreamRefreshError() *refreshError {
-	return &refreshError{msg: errInvalidGrant, desc: "Upstream identity provider refresh failed.", code: http.StatusBadGateway}
+	return &refreshError{msg: oauth2.InvalidGrant, desc: "Upstream identity provider refresh failed.", code: http.StatusBadGateway}
 }
 
 func newBadRequestError(desc string) *refreshError {
-	return &refreshError{msg: errInvalidRequest, desc: desc, code: http.StatusBadRequest}
+	return &refreshError{msg: oauth2.InvalidRequest, desc: desc, code: http.StatusBadRequest}
 }
 
 var (
@@ -133,7 +135,7 @@ func (s *Server) getRefreshTokenFromStorage(ctx context.Context, clientID *strin
 		s.logger.ErrorContext(ctx, "trying to claim token for different client", "client_id", clientID, "refresh_client_id", refresh.ClientID)
 		// According to https://datatracker.ietf.org/doc/html/rfc6749#section-5.2 Dex should respond with an
 		//  invalid grant error if token has already been claimed by another client.
-		return nil, &refreshError{msg: errInvalidGrant, desc: invalidErr.desc, code: http.StatusBadRequest}
+		return nil, &refreshError{msg: oauth2.InvalidGrant, desc: invalidErr.desc, code: http.StatusBadRequest}
 	}
 
 	if refresh.Token != token.Token {
@@ -159,6 +161,20 @@ func (s *Server) getRefreshTokenFromStorage(ctx context.Context, clientID *strin
 	}
 
 	return &refresh, nil
+}
+
+// lookupRefreshToken resolves a refresh token for the introspection handler. It
+// reports an inactive token (unknown, revoked or expired) as (nil, nil) so the
+// handler need not know the refresh grant's sentinel errors.
+func (s *Server) lookupRefreshToken(ctx context.Context, token *internal.RefreshToken) (*storage.RefreshToken, error) {
+	rt, err := s.getRefreshTokenFromStorage(ctx, nil, token)
+	if err != nil {
+		if errors.Is(err, invalidErr) || errors.Is(err, expiredErr) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return rt, nil
 }
 
 // refreshConnectorData returns the connector data to hand to the upstream refresh:
@@ -231,7 +247,7 @@ func (s *Server) refreshWithConnector(ctx context.Context, conn connectors.Conne
 	ident.ConnectorData = connectorData
 	s.logger.Debug("connector data before refresh", "connector_data", ident.ConnectorData)
 
-	newIdent, err := refreshConn.Refresh(ctx, parseScopes(scopes), ident)
+	newIdent, err := refreshConn.Refresh(ctx, tokens.ParseScopes(scopes), ident)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to refresh identity", "err", err)
 		return ident, newUpstreamRefreshError()
@@ -269,9 +285,9 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		s.refreshTokenErrHelper(w, newInternalServerError())
 		return
 	}
-	if !GrantTypeAllowed(conn.GrantTypes, grantTypeRefreshToken) {
+	if !GrantTypeAllowed(conn.GrantTypes, oauth2.GrantTypeRefreshToken) {
 		s.logger.ErrorContext(r.Context(), "connector does not allow refresh token grant", "connector_id", refresh.ConnectorID)
-		s.refreshTokenErrHelper(w, &refreshError{msg: errInvalidRequest, desc: "Connector does not support refresh tokens.", code: http.StatusBadRequest})
+		s.refreshTokenErrHelper(w, &refreshError{msg: oauth2.InvalidRequest, desc: "Connector does not support refresh tokens.", code: http.StatusBadRequest})
 		return
 	}
 
