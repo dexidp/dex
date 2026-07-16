@@ -32,6 +32,7 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/connector/mock"
+	"github.com/dexidp/dex/server/device"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/tokens"
@@ -1684,7 +1685,7 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 				}
 
 				// Parse the code response
-				var deviceCode deviceCodeResponse
+				var deviceCode device.DeviceCodeResponse
 				if err := json.Unmarshal(responseBody, &deviceCode); err != nil {
 					t.Errorf("Unexpected Device Code Response Format %v", string(responseBody))
 				}
