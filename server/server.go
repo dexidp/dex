@@ -534,12 +534,14 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	handleFunc("/auth", s.handleAuthorization)
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
 	handleFunc("/auth/{connector}/login", s.handlePasswordLogin)
-	handleFunc("/device", s.handleDeviceExchange)
-	handleFunc("/device/auth/verify_code", s.verifyUserCode)
-	handleFunc("/device/code", s.handleDeviceCode)
-	// TODO(nabokihms): "/device/token" endpoint is deprecated, consider using /token endpoint instead
-	handleFunc("/device/token", s.handleDeviceTokenDeprecated)
-	handleFunc(deviceCallbackURI, s.handleDeviceCallback)
+	if contains(s.supportedGrantTypes, grantTypeDeviceCode) {
+		handleFunc("/device", s.handleDeviceExchange)
+		handleFunc("/device/auth/verify_code", s.verifyUserCode)
+		handleFunc("/device/code", s.handleDeviceCode)
+		// TODO(nabokihms): "/device/token" endpoint is deprecated, consider using /token endpoint instead
+		handleFunc("/device/token", s.handleDeviceTokenDeprecated)
+		handleFunc(deviceCallbackURI, s.handleDeviceCallback)
+	}
 	handleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
 		// Strip the X-Remote-* headers to prevent security issues on
 		// misconfigured authproxy connector setups.
