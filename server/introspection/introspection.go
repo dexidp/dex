@@ -1,5 +1,3 @@
-// Package introspection serves the OAuth2 token introspection endpoint
-// (/token/introspect) as specified by [RFC 7662](https://tools.ietf.org/html/rfc7662).
 package introspection
 
 import (

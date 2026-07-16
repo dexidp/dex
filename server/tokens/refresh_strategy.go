@@ -1,5 +1,3 @@
-// Package tokens owns the token value objects plus refresh-token rotation and
-// persistence.
 package tokens
 
 import "time"
