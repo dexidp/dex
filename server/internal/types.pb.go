@@ -4,8 +4,6 @@
 // 	protoc        v5.29.3
 // source: server/internal/types.proto
 
-// Package internal holds protobuf types used by the server.
-
 package internal
 
 import (

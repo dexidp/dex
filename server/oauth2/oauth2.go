@@ -1,8 +1,3 @@
-// Package oauth2 holds the OAuth2/OIDC protocol vocabulary shared across the
-// server: the error codes returned in error responses, grant types, response
-// types, token-exchange token types, device-flow poll statuses, and the special
-// redirect URIs. Keeping them in one place lets the per-domain handler packages
-// reference the protocol without depending on the server package.
 package oauth2
 
 // Error codes returned in OAuth2/OIDC error responses (RFC 6749 §5.2, the OIDC
