@@ -38,6 +38,7 @@ import (
 	"github.com/dexidp/dex/api/v2"
 	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server"
+	"github.com/dexidp/dex/server/apiserver"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/tokens"
@@ -593,7 +594,7 @@ func runServe(options serveOptions) error {
 		}
 
 		grpcSrv := grpc.NewServer(grpcOptions...)
-		api.RegisterDexServer(grpcSrv, server.NewAPI(serverConfig.Storage, logger, version, serv))
+		api.RegisterDexServer(grpcSrv, apiserver.NewAPI(serverConfig.Storage, logger, version, serv.Connectors(), serv.ConstructDiscovery))
 
 		grpcMetrics.InitializeMetrics(grpcSrv)
 		if c.GRPC.Reflection {
