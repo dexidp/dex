@@ -1,11 +1,10 @@
-package server
+package connectors
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -55,7 +54,7 @@ func TestFilterConnectors(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := filterConnectors(connectors, tc.allowedConnectors)
+			result := Filter(connectors, tc.allowedConnectors)
 			gotIDs := make([]string, len(result))
 			for i, c := range result {
 				gotIDs[i] = c.ID
@@ -100,7 +99,7 @@ func TestIsConnectorAllowed(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := connectors.ConnectorAllowed(tc.allowedConnectors, tc.connectorID)
+			got := ConnectorAllowed(tc.allowedConnectors, tc.connectorID)
 			require.Equal(t, tc.want, got)
 		})
 	}

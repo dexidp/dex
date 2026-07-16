@@ -66,7 +66,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		s.renderError(r, w, authErr.Status, authErr.Error())
 		return
 	}
-	connectors = filterConnectors(connectors, client.AllowedConnectors)
+	connectors = conns.Filter(connectors, client.AllowedConnectors)
 
 	if len(connectors) == 0 {
 		s.renderError(r, w, http.StatusBadRequest, "No connectors available for this client.")
@@ -116,7 +116,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
-		prompt, err := ParsePrompt(authReq.Prompt)
+		prompt, err := oauth2.ParsePrompt(authReq.Prompt)
 		if err != nil {
 			// Server error because authReq was validated before saving it to database.
 			s.redirectWithError(w, r, authReq, oauth2.ServerError, "Invalid authentication request")
