@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
@@ -127,7 +128,7 @@ func (s *Server) exchangeAuthCode(ctx context.Context, w http.ResponseWriter, au
 			return false
 		}
 
-		if !GrantTypeAllowed(conn.GrantTypes, oauth2.GrantTypeRefreshToken) {
+		if !connectors.GrantTypeAllowed(conn.GrantTypes, oauth2.GrantTypeRefreshToken) {
 			return false
 		}
 

@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -99,7 +100,7 @@ func TestIsConnectorAllowed(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := isConnectorAllowed(tc.allowedConnectors, tc.connectorID)
+			got := connectors.ConnectorAllowed(tc.allowedConnectors, tc.connectorID)
 			require.Equal(t, tc.want, got)
 		})
 	}

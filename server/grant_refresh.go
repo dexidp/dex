@@ -285,7 +285,7 @@ func (s *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request, clie
 		s.refreshTokenErrHelper(w, newInternalServerError())
 		return
 	}
-	if !GrantTypeAllowed(conn.GrantTypes, oauth2.GrantTypeRefreshToken) {
+	if !connectors.GrantTypeAllowed(conn.GrantTypes, oauth2.GrantTypeRefreshToken) {
 		s.logger.ErrorContext(r.Context(), "connector does not allow refresh token grant", "connector_id", refresh.ConnectorID)
 		s.refreshTokenErrHelper(w, &refreshError{msg: oauth2.InvalidRequest, desc: "Connector does not support refresh tokens.", code: http.StatusBadRequest})
 		return

@@ -15,6 +15,7 @@ import (
 
 	"github.com/dexidp/dex/api/v2"
 	"github.com/dexidp/dex/pkg/featureflags"
+	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
@@ -475,7 +476,7 @@ func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq
 	}
 
 	for _, gt := range req.Connector.GrantTypes {
-		if !ConnectorGrantTypes[gt] {
+		if !connectors.ConnectorGrantTypes[gt] {
 			return nil, fmt.Errorf("unknown grant type %q", gt)
 		}
 	}
@@ -527,7 +528,7 @@ func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq
 
 	if req.NewGrantTypes != nil {
 		for _, gt := range req.NewGrantTypes.GrantTypes {
-			if !ConnectorGrantTypes[gt] {
+			if !connectors.ConnectorGrantTypes[gt] {
 				return nil, fmt.Errorf("unknown grant type %q", gt)
 			}
 		}

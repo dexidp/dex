@@ -8,7 +8,7 @@ package server
 // policies before issuing tokens:
 //   1. checkConnectorAllowed(client, connID) — the connector is in the client's
 //      AllowedConnectors.
-//   2. GrantTypeAllowed(conn.GrantTypes, grantType) — the connector permits this
+//   2. connectors.GrantTypeAllowed(conn.GrantTypes, grantType) — the connector permits this
 //      grant type.
 //
 // The password and token-exchange grants run #1 before resolving the connector
@@ -24,27 +24,11 @@ package server
 
 import (
 	"net/http"
-	"slices"
 
+	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/storage"
 )
-
-// ConnectorGrantTypes is the set of grant types that can be restricted per connector.
-var ConnectorGrantTypes = map[string]bool{
-	oauth2.GrantTypeAuthorizationCode: true,
-	oauth2.GrantTypeRefreshToken:      true,
-	oauth2.GrantTypeImplicit:          true,
-	oauth2.GrantTypePassword:          true,
-	oauth2.GrantTypeDeviceCode:        true,
-	oauth2.GrantTypeTokenExchange:     true,
-}
-
-// GrantTypeAllowed checks if the given grant type is allowed for this connector.
-// If no grant types are configured, all are allowed.
-func GrantTypeAllowed(configuredTypes []string, grantType string) bool {
-	return len(configuredTypes) == 0 || slices.Contains(configuredTypes, grantType)
-}
 
 // filterConnectors filters the list of connectors by the allowed connector IDs.
 // If allowedConnectors is empty, all connectors are returned (no filtering).
@@ -67,20 +51,6 @@ func filterConnectors(connectors []storage.Connector, allowedConnectors []string
 	return filtered
 }
 
-// isConnectorAllowed checks if a connector ID is in the client's allowed connectors list.
-// If allowedConnectors is empty, all connectors are allowed.
-func isConnectorAllowed(allowedConnectors []string, connectorID string) bool {
-	if len(allowedConnectors) == 0 {
-		return true
-	}
-	for _, id := range allowedConnectors {
-		if id == connectorID {
-			return true
-		}
-	}
-	return false
-}
-
 // checkConnectorAllowed writes an OAuth2 token error and returns false if connID is
 // not in the client's AllowedConnectors. Token grant handlers call it before
 // resolving the connector, so a disallowed connector is rejected without being
@@ -90,7 +60,7 @@ func isConnectorAllowed(allowedConnectors []string, connectorID string) bool {
 // Browser/auth-code paths enforce the same AllowedConnectors policy with their own
 // HTML/redirect error surface.
 func (s *Server) checkConnectorAllowed(w http.ResponseWriter, r *http.Request, client storage.Client, connID string) bool {
-	if isConnectorAllowed(client.AllowedConnectors, connID) {
+	if connectors.ConnectorAllowed(client.AllowedConnectors, connID) {
 		return true
 	}
 	s.logger.WarnContext(r.Context(), "connector not allowed for client",

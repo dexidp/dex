@@ -13,6 +13,7 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 
+	conns "github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/tokens"
@@ -189,7 +190,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		if !validateConnectorID(connectors, connectorID) {
 			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Invalid ConnectorID")
 		}
-		if !isConnectorAllowed(client.AllowedConnectors, connectorID) {
+		if !conns.ConnectorAllowed(client.AllowedConnectors, connectorID) {
 			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Connector not allowed for this client")
 		}
 	}

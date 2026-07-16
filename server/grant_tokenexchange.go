@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
@@ -54,7 +55,7 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 		s.tokenErrHelper(w, oauth2.InvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
 		return
 	}
-	if !GrantTypeAllowed(conn.GrantTypes, oauth2.GrantTypeTokenExchange) {
+	if !connectors.GrantTypeAllowed(conn.GrantTypes, oauth2.GrantTypeTokenExchange) {
 		s.logger.ErrorContext(r.Context(), "connector does not allow token exchange", "connector_id", connID)
 		s.tokenErrHelper(w, oauth2.InvalidRequest, "Requested connector does not support token exchange.", http.StatusBadRequest)
 		return

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
@@ -79,7 +80,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 		s.tokenErrHelper(w, oauth2.InvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
 		return
 	}
-	if !GrantTypeAllowed(conn.GrantTypes, oauth2.GrantTypePassword) {
+	if !connectors.GrantTypeAllowed(conn.GrantTypes, oauth2.GrantTypePassword) {
 		s.logger.ErrorContext(r.Context(), "connector does not allow password grant", "connector_id", connID)
 		s.tokenErrHelper(w, oauth2.InvalidRequest, "Requested connector does not support password grant.", http.StatusBadRequest)
 		return
@@ -118,7 +119,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 	// A refresh token is issued only when the connector supports it, the grant type
 	// is allowed, and offline_access was requested (RFC 6749 §1.5, never mandatory).
 	wantRefresh := false
-	if _, ok := conn.Connector.(connector.RefreshConnector); ok && GrantTypeAllowed(conn.GrantTypes, oauth2.GrantTypeRefreshToken) {
+	if _, ok := conn.Connector.(connector.RefreshConnector); ok && connectors.GrantTypeAllowed(conn.GrantTypes, oauth2.GrantTypeRefreshToken) {
 		wantRefresh = slices.Contains(scopes, tokens.ScopeOfflineAccess)
 	}
 

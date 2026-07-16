@@ -16,6 +16,7 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/featureflags"
+	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
@@ -52,7 +53,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		s.renderError(r, w, authErr.Status, authErr.Error())
 		return
 	}
-	if !isConnectorAllowed(client.AllowedConnectors, connID) {
+	if !connectors.ConnectorAllowed(client.AllowedConnectors, connID) {
 		s.logger.ErrorContext(r.Context(), "connector not allowed for client",
 			"connector_id", connID, "client_id", authReq.ClientID)
 		s.renderError(r, w, http.StatusForbidden, "Connector not allowed for this client.")
@@ -68,7 +69,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Check if the connector allows the requested grant type.
 	grantType := s.grantTypeFromAuthRequest(r)
-	if !GrantTypeAllowed(conn.GrantTypes, grantType) {
+	if !connectors.GrantTypeAllowed(conn.GrantTypes, grantType) {
 		s.logger.ErrorContext(r.Context(), "connector does not allow requested grant type",
 			"connector_id", connID, "grant_type", grantType)
 		s.renderError(r, w, http.StatusBadRequest, "Requested connector does not support this grant type.")

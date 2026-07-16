@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 
+	conns "github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/storage"
@@ -53,7 +54,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	grantType := s.grantTypeFromAuthRequest(r)
 	connectors := make([]storage.Connector, 0, len(allConnectors))
 	for _, c := range allConnectors {
-		if GrantTypeAllowed(c.GrantTypes, grantType) {
+		if conns.GrantTypeAllowed(c.GrantTypes, grantType) {
 			connectors = append(connectors, c)
 		}
 	}
