@@ -17,11 +17,6 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
-const (
-	codeChallengeMethodPlain = "plain"
-	codeChallengeMethodS256  = "S256"
-)
-
 func (s *Server) withClientFromStorage(w http.ResponseWriter, r *http.Request, handler func(http.ResponseWriter, *http.Request, storage.Client)) {
 	ctx := r.Context()
 	clientID, clientSecret, ok := r.BasicAuth()
@@ -86,7 +81,7 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 	}
 	switch grantType {
 	case oauth2.GrantTypeDeviceCode:
-		s.handleDeviceToken(w, r)
+		s.newDeviceHandler().HandleToken(w, r)
 	case oauth2.GrantTypeAuthorizationCode:
 		s.withClientFromStorage(w, r, s.handleAuthCode)
 	case oauth2.GrantTypeRefreshToken:
@@ -104,9 +99,9 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) calculateCodeChallenge(codeVerifier, codeChallengeMethod string) (string, error) {
 	switch codeChallengeMethod {
-	case codeChallengeMethodPlain:
+	case oauth2.PKCEMethodPlain:
 		return codeVerifier, nil
-	case codeChallengeMethodS256:
+	case oauth2.PKCEMethodS256:
 		shaSum := sha256.Sum256([]byte(codeVerifier))
 		return base64.RawURLEncoding.EncodeToString(shaSum[:]), nil
 	default:

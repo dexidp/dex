@@ -72,3 +72,9 @@ const (
 	// DeviceCallbackURI is the callback path used by the device authorization grant.
 	DeviceCallbackURI = "/device/callback"
 )
+
+// PKCE code challenge methods (RFC 7636 §4.2).
+const (
+	PKCEMethodPlain = "plain"
+	PKCEMethodS256  = "S256"
+)

@@ -12,31 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dexidp/dex/server/device"
 	"github.com/dexidp/dex/storage"
 )
-
-func TestDeviceVerificationURI(t *testing.T) {
-	t0 := time.Now()
-
-	now := func() time.Time { return t0 }
-	// Setup a dex server.
-	httpServer, s := newTestServer(t, func(c *Config) {
-		c.Issuer += "/non-root-path"
-		c.Now = now
-	})
-	defer httpServer.Close()
-
-	u, err := url.Parse(s.issuerURL.String())
-	if err != nil {
-		t.Fatalf("Could not parse issuer URL %v", err)
-	}
-	u.Path = path.Join(u.Path, "/device/auth/verify_code")
-
-	uri := s.getDeviceVerificationURI()
-	if uri != u.Path {
-		t.Errorf("Invalid verification URI.  Expected %v got %v", u.Path, uri)
-	}
-}
 
 func TestHandleDeviceCode(t *testing.T) {
 	t0 := time.Now()
@@ -135,7 +113,7 @@ func TestHandleDeviceCode(t *testing.T) {
 				t.Errorf("Could read token response %v", err)
 			}
 			if tc.expectedResponseCode == http.StatusOK {
-				var resp deviceCodeResponse
+				var resp device.DeviceCodeResponse
 				if err := json.Unmarshal(body, &resp); err != nil {
 					t.Errorf("Unexpected Device Code Response Format %v", string(body))
 				}

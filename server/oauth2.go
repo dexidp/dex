@@ -154,7 +154,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	codeChallengeMethod := q.Get("code_challenge_method")
 
 	if codeChallengeMethod == "" {
-		codeChallengeMethod = codeChallengeMethodPlain
+		codeChallengeMethod = oauth2.PKCEMethodPlain
 	}
 
 	client, err := s.storage.GetClient(ctx, clientID)
