@@ -39,8 +39,8 @@ func (g *clientCredentials) ScopePolicy() ScopePolicy {
 }
 
 // ConnectorID is empty: client_credentials involves no connector.
-func (g *clientCredentials) ConnectorID(req *Request) string {
-	return ""
+func (g *clientCredentials) ConnectorID(ctx context.Context, req *Request, client storage.Client) (string, *oauth2.Error) {
+	return "", nil
 }
 
 func (g *clientCredentials) Authorize(ctx context.Context, req *Request, client storage.Client, conn connectors.Connector) (*Result, error) {

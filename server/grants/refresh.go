@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/dexidp/dex/connector"
@@ -21,7 +22,6 @@ import (
 // than minting a new one, so it mints its own instead of the standard Issue.
 type refresh struct {
 	storage         storage.Storage
-	connectors      *connectors.Cache
 	issuer          *tokens.Issuer
 	policy          *tokens.RefreshStrategy
 	sessionsEnabled bool
@@ -43,38 +43,34 @@ func (g *refresh) ScopePolicy() ScopePolicy {
 	return ScopePolicy{}
 }
 
-// ConnectorID is empty: the connector is recorded on the stored refresh token, so
-// it is resolved and re-checked inside Authorize on every refresh.
-func (g *refresh) ConnectorID(req *Request) string {
-	return ""
-}
-
-func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Client, conn connectors.Connector) (*Result, error) {
+// ConnectorID validates the refresh token and reports the connector recorded on
+// it, so the endpoint resolves and re-checks that connector on every refresh: a
+// client's allowed connectors, or a connector's grant types, may have been
+// tightened after the token was issued. The validated token is stashed for
+// Authorize.
+func (g *refresh) ConnectorID(ctx context.Context, req *Request, client storage.Client) (string, *oauth2.Error) {
 	token, oerr := parseRefreshToken(req.RefreshToken)
 	if oerr != nil {
-		return nil, oerr
+		return "", oerr
 	}
 
 	refreshToken, err := tokens.LookupRefreshToken(ctx, g.storage, g.policy, g.logger, &client.ID, token)
 	if err != nil {
-		return nil, refreshLookupError(err)
+		return "", refreshLookupError(err)
 	}
 
-	// Resolve the connector and re-check authorization on every refresh: the
-	// connector may have been removed from the client's allowed list, or had the
-	// refresh grant revoked, after this token was issued.
-	if !connectors.ConnectorAllowed(client.AllowedConnectors, refreshToken.ConnectorID) {
-		g.logger.WarnContext(ctx, "connector not allowed for client", "client_id", client.ID, "connector_id", refreshToken.ConnectorID)
-		return nil, &oauth2.Error{Type: oauth2.InvalidGrant, Description: "Connector not allowed for this client.", Status: http.StatusBadRequest}
-	}
-	upstream, err := g.connectors.Get(ctx, refreshToken.ConnectorID)
-	if err != nil {
-		g.logger.ErrorContext(ctx, "connector not found", "connector_id", refreshToken.ConnectorID, "err", err)
-		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
-	}
-	if !connectors.GrantTypeAllowed(upstream.GrantTypes, oauth2.GrantTypeRefreshToken) {
-		g.logger.ErrorContext(ctx, "connector does not allow refresh token grant", "connector_id", refreshToken.ConnectorID)
-		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Connector does not support refresh tokens.", Status: http.StatusBadRequest}
+	req.resolvedRefresh = refreshToken
+	return refreshToken.ConnectorID, nil
+}
+
+// Authorize rotates the refresh token, re-reads the identity against the resolved
+// connector, and returns the token set to issue (with the rotated refresh token).
+func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Client, conn connectors.Connector) (*Result, error) {
+	refreshToken := req.resolvedRefresh
+	// Already validated in ConnectorID; re-parse only to hand Rotate the raw token.
+	token, oerr := parseRefreshToken(req.RefreshToken)
+	if oerr != nil {
+		return nil, oerr
 	}
 
 	scopes, oerr := g.refreshScopes(req, refreshToken)
@@ -109,7 +105,7 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 		if err != nil {
 			return connector.Identity{}, err
 		}
-		return g.refreshWithConnector(ctx, upstream, connectorData, scopes, tokens.IdentityFromClaims(refreshToken.Claims))
+		return g.refreshWithConnector(ctx, conn, connectorData, scopes, tokens.IdentityFromClaims(refreshToken.Claims))
 	}
 
 	rawNewToken, ident, err := g.issuer.Refresh.Rotate(ctx, refreshToken, token, g.policy, freshIdentity)
@@ -167,7 +163,7 @@ func (g *refresh) refreshScopes(req *Request, refreshToken *storage.RefreshToken
 
 	var unauthorized []string
 	for _, scope := range req.Scopes {
-		if !contains(refreshToken.Scopes, scope) {
+		if !slices.Contains(refreshToken.Scopes, scope) {
 			unauthorized = append(unauthorized, scope)
 		}
 	}
@@ -245,13 +241,4 @@ func refreshLookupError(err error) *oauth2.Error {
 	default:
 		return &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
 	}
-}
-
-func contains(arr []string, item string) bool {
-	for _, v := range arr {
-		if v == item {
-			return true
-		}
-	}
-	return false
 }

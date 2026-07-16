@@ -35,10 +35,10 @@ func (g *authorizationCode) ScopePolicy() ScopePolicy {
 }
 
 // ConnectorID is empty: the connector is recorded on the stored auth code and
-// was already authorized at /auth, so it is resolved inside Authorize rather than
-// through the endpoint's connector step.
-func (g *authorizationCode) ConnectorID(req *Request) string {
-	return ""
+// was already authorized at /auth. The grant resolves it (without re-running the
+// invariant) only to decide on a refresh token, inside ExchangeAuthCode.
+func (g *authorizationCode) ConnectorID(ctx context.Context, req *Request, client storage.Client) (string, *oauth2.Error) {
+	return "", nil
 }
 
 // handle an access token request https://tools.ietf.org/html/rfc6749#section-4.1.3

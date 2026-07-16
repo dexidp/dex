@@ -43,8 +43,8 @@ func (g *password) ScopePolicy() ScopePolicy {
 }
 
 // ConnectorID is the connector the password grant is configured to use.
-func (g *password) ConnectorID(req *Request) string {
-	return g.connectorID
+func (g *password) ConnectorID(ctx context.Context, req *Request, client storage.Client) (string, *oauth2.Error) {
+	return g.connectorID, nil
 }
 
 func (g *password) Authorize(ctx context.Context, req *Request, client storage.Client, conn connectors.Connector) (*Result, error) {

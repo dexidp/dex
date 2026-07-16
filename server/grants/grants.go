@@ -42,6 +42,10 @@ type Request struct {
 	SubjectToken       string
 	SubjectTokenType   string
 	RequestedTokenType string
+
+	// resolvedRefresh is the validated refresh token, looked up while resolving
+	// the connector and reused by the refresh grant's Authorize.
+	resolvedRefresh *storage.RefreshToken
 }
 
 // parseRequest reads the whole token request form once. Client credentials come
@@ -96,10 +100,11 @@ type Grant interface {
 	// this grant.
 	ScopePolicy() ScopePolicy
 	// ConnectorID is the connector this grant authenticates against, or "" when
-	// it uses none (client_credentials). The endpoint resolves it and enforces
-	// the connector-authorization invariant before Authorize, so a grant cannot
-	// forget the check.
-	ConnectorID(req *Request) string
+	// it uses none (client_credentials). The grant may read it from the request
+	// or look it up in storage. The endpoint then resolves it and enforces the
+	// connector-authorization invariant before Authorize, so a grant cannot
+	// forget the check. Returning an error rejects the request.
+	ConnectorID(ctx context.Context, req *Request, client storage.Client) (string, *oauth2.Error)
 	// Authorize turns the validated request into the authorization to issue
 	// tokens for, proving the resource owner's identity against conn (the zero
 	// Connector when ConnectorID is ""). Returning an *oauth2.Error makes the
@@ -163,7 +168,7 @@ func NewEndpoint(issuer *tokens.Issuer, s storage.Storage, conns *connectors.Cac
 		&password{logger: logger, connectorID: passwordConnector},
 		&tokenExchange{issuer: issuer, logger: logger},
 		&authorizationCode{storage: s, connectors: conns, now: now, logger: logger},
-		&refresh{storage: s, connectors: conns, issuer: issuer, policy: refreshPolicy, sessionsEnabled: sessionsEnabled, now: now, logger: logger},
+		&refresh{storage: s, issuer: issuer, policy: refreshPolicy, sessionsEnabled: sessionsEnabled, now: now, logger: logger},
 	)
 	return e
 }
@@ -207,7 +212,12 @@ func (e *Endpoint) Dispatch(w http.ResponseWriter, r *http.Request, grantType st
 
 	// 3. Resolve the grant's connector and enforce the connector-authorization
 	// invariant. A grant that uses no connector resolves to the zero Connector.
-	conn, oerr := e.resolveConnector(ctx, grant, req, client)
+	connID, oerr := grant.ConnectorID(ctx, req, client)
+	if oerr != nil {
+		e.writeError(ctx, w, oerr)
+		return true
+	}
+	conn, oerr := e.resolveConnector(ctx, connID, client, grant.GrantType())
 	if oerr != nil {
 		e.writeError(ctx, w, oerr)
 		return true
@@ -293,13 +303,12 @@ func (e *Endpoint) validateScopes(ctx context.Context, client storage.Client, re
 	return nil
 }
 
-// resolveConnector enforces the connector-authorization invariant for the grant
-// and returns the opened connector: the client must allow the connector, and the
-// connector must permit the grant type. A grant that uses no connector
-// (ConnectorID == "") resolves to the zero Connector. Running here, before
-// Authorize, means no grant can forget the check.
-func (e *Endpoint) resolveConnector(ctx context.Context, grant Grant, req *Request, client storage.Client) (connectors.Connector, *oauth2.Error) {
-	connID := grant.ConnectorID(req)
+// resolveConnector enforces the connector-authorization invariant and returns the
+// opened connector: the client must allow the connector, and the connector must
+// permit the grant type. connID == "" (a grant that uses no connector) resolves
+// to the zero Connector. Running here, before Authorize, means no grant can
+// forget the check.
+func (e *Endpoint) resolveConnector(ctx context.Context, connID string, client storage.Client, grantType string) (connectors.Connector, *oauth2.Error) {
 	if connID == "" {
 		return connectors.Connector{}, nil
 	}
@@ -313,8 +322,8 @@ func (e *Endpoint) resolveConnector(ctx context.Context, grant Grant, req *Reque
 		e.logger.ErrorContext(ctx, "failed to get connector", "connector_id", connID, "err", err)
 		return connectors.Connector{}, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Requested connector does not exist.", Status: http.StatusBadRequest}
 	}
-	if !connectors.GrantTypeAllowed(conn.GrantTypes, grant.GrantType()) {
-		e.logger.ErrorContext(ctx, "connector does not allow grant", "connector_id", connID, "grant_type", grant.GrantType())
+	if !connectors.GrantTypeAllowed(conn.GrantTypes, grantType) {
+		e.logger.ErrorContext(ctx, "connector does not allow grant", "connector_id", connID, "grant_type", grantType)
 		return connectors.Connector{}, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Requested connector does not support this grant type.", Status: http.StatusBadRequest}
 	}
 	return conn, nil

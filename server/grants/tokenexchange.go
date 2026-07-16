@@ -38,8 +38,8 @@ func (g *tokenExchange) ScopePolicy() ScopePolicy {
 }
 
 // ConnectorID reads the required connector_id parameter (an RFC 8693 extension).
-func (g *tokenExchange) ConnectorID(req *Request) string {
-	return req.ConnectorID
+func (g *tokenExchange) ConnectorID(ctx context.Context, req *Request, client storage.Client) (string, *oauth2.Error) {
+	return req.ConnectorID, nil
 }
 
 func (g *tokenExchange) Authorize(ctx context.Context, req *Request, client storage.Client, conn connectors.Connector) (*Result, error) {
