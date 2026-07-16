@@ -65,31 +65,33 @@ func (g *authorizationCode) Authorize(ctx context.Context, req *Request, client 
 		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "redirect_uri did not match URI from initial request.", Status: http.StatusBadRequest}
 	}
 
-	auth, withRefresh, err := ExchangeAuthCode(ctx, g.connectors, g.logger, authCode, client)
+	auth, withRefresh, err := ExchangeAuthCode(ctx, g.storage, g.connectors, g.logger, authCode, client)
 	if err != nil {
 		return nil, err
 	}
-
-	resp, err := issue(ctx, g.logger, g.issuer, auth, authCode.ID, withRefresh)
-	if err != nil {
-		return nil, err
-	}
-
-	// Consume the code only after the tokens are minted, so a signing failure
-	// leaves it redeemable.
-	if err := g.storage.DeleteAuthCode(ctx, authCode.ID); err != nil {
-		g.logger.ErrorContext(ctx, "failed to delete auth code", "err", err)
-		return nil, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
-	}
-	return resp, nil
+	return issue(ctx, g.logger, g.issuer, auth, authCode.ID, withRefresh)
 }
 
-// ExchangeAuthCode turns a validated authorization code into the authorization to
-// issue tokens for and whether a refresh token is warranted. The caller mints the
-// tokens (binding authCode.ID into c_hash) and then consumes the code. It is
-// shared by the authorization_code grant and the device flow, which both redeem
-// an auth code for tokens.
-func ExchangeAuthCode(ctx context.Context, conns *connectors.Cache, logger *slog.Logger, authCode storage.AuthCode, client storage.Client) (tokens.Authorization, bool, error) {
+// ExchangeAuthCode consumes a validated authorization code and returns the
+// authorization to issue tokens for and whether a refresh token is warranted. The
+// caller then mints the tokens, binding authCode.ID into c_hash. It is shared by
+// the authorization_code grant and the device flow, which both redeem an auth
+// code for tokens.
+//
+// DeleteAuthCode is the atomic single-use gate: it serializes concurrent
+// redemptions of the same code, so a second request finds the code already gone
+// and is rejected — a code yields tokens at most once. Consuming it before
+// minting means a signing failure afterwards leaves the code spent, which is the
+// right trade: replay safety over a retry on a rare signer outage.
+func ExchangeAuthCode(ctx context.Context, s storage.Storage, conns *connectors.Cache, logger *slog.Logger, authCode storage.AuthCode, client storage.Client) (tokens.Authorization, bool, error) {
+	if err := s.DeleteAuthCode(ctx, authCode.ID); err != nil {
+		if err == storage.ErrNotFound {
+			return tokens.Authorization{}, false, &oauth2.Error{Type: oauth2.InvalidGrant, Description: "Invalid or expired code parameter.", Status: http.StatusBadRequest}
+		}
+		logger.ErrorContext(ctx, "failed to delete auth code", "err", err)
+		return tokens.Authorization{}, false, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
+	}
+
 	auth := tokens.Authorization{
 		Client:        client,
 		Claims:        authCode.Claims,
