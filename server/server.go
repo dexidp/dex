@@ -47,6 +47,8 @@ import (
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/device"
 	"github.com/dexidp/dex/server/discovery"
+	"github.com/dexidp/dex/server/home"
+	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/introspection"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/router"
@@ -434,6 +436,17 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		Logger:           s.logger,
 		ExchangeAuthCode: s.exchangeAuthCode,
 	}
+	homeHandler := &home.Handler{
+		IssuerURL:       s.issuerURL,
+		Storage:         s.storage,
+		Templates:       s.templates,
+		Logger:          s.logger,
+		SessionsEnabled: s.sessionConfig != nil,
+	}
+	if s.sessionConfig != nil {
+		homeHandler.CookieName = s.sessionConfig.CookieName
+		homeHandler.CookieEncryptionKey = s.sessionConfig.CookieEncryptionKey
+	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
 	// defined in the ConfigMap and dynamic connectors retrieved from the storage.
@@ -576,11 +589,9 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	// Self-contained domains mount their own routes through the router.Mux
 	// abstraction, so this list is the only place they are wired in.
 	mux := routeMux{handle: handle, handleFunc: handleFunc, handleCORS: handleWithCORS, handlePrefix: handlePrefix}
-	for _, h := range []router.Handler{discoveryHandler, userInfoHandler, introspectHandler, deviceHandler} {
+	for _, h := range []router.Handler{discoveryHandler, userInfoHandler, introspectHandler, deviceHandler, homeHandler} {
 		h.Mount(mux)
 	}
-
-	handleWithCORS("/", s.handleHome)
 
 	// TODO(ericchiang): rate limit certain paths based on IP.
 	handleWithCORS("/token", s.handleToken)
@@ -866,7 +877,7 @@ func (s *Server) CloseConnector(id string) {
 func (s *Server) buildApprovalURL(authReq storage.AuthRequest) string {
 	v := url.Values{}
 	v.Set("req", authReq.ID)
-	v.Set("hmac", computeHMAC(authReq.HMACKey, authReq.ID, ""))
+	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, ""))
 	return s.absPath("/approval") + "?" + v.Encode()
 }
 

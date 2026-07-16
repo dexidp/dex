@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/storage"
 )
@@ -220,7 +221,7 @@ func TestHandleAuthorizationSessionSkipsConnectorSelection(t *testing.T) {
 		require.NoError(t, s.storage.CreateAuthSession(ctx, session))
 		return &http.Cookie{
 			Name:  "dex_session",
-			Value: sessionCookieValue("user1", connectorID, nonce, nil),
+			Value: internal.SessionCookieValue("user1", connectorID, nonce, nil),
 		}
 	}
 

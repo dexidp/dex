@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dexidp/dex/pkg/featureflags"
+	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
@@ -54,7 +55,7 @@ func (s *Server) handleApproval(w http.ResponseWriter, r *http.Request) {
 		// No MFA required but flag not set — allow through (backward compat).
 	}
 
-	if !verifyHMAC(authReq.HMACKey, macEncoded, authReq.ID, "") {
+	if !internal.VerifyHMAC(authReq.HMACKey, macEncoded, authReq.ID, "") {
 		s.renderError(r, w, http.StatusUnauthorized, "Unauthorized request")
 		return
 	}

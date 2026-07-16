@@ -15,6 +15,7 @@ import (
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 
+	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -139,7 +140,7 @@ func (s *Server) validateMFARequest(w http.ResponseWriter, r *http.Request) (*mf
 
 	authenticatorID := r.FormValue("authenticator")
 
-	if !verifyHMAC(authReq.HMACKey, macEncoded, authReq.ID, authenticatorID) {
+	if !internal.VerifyHMAC(authReq.HMACKey, macEncoded, authReq.ID, authenticatorID) {
 		s.renderError(r, w, http.StatusUnauthorized, "Unauthorized request.")
 		return nil, false
 	}
@@ -448,7 +449,7 @@ func (s *Server) completeMFAStep(ctx context.Context, authReq storage.AuthReques
 func (s *Server) buildMFARedirectURL(authReq storage.AuthRequest, authenticatorID string) string {
 	v := url.Values{}
 	v.Set("req", authReq.ID)
-	v.Set("hmac", computeHMAC(authReq.HMACKey, authReq.ID, authenticatorID))
+	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, authenticatorID))
 	v.Set("authenticator", authenticatorID)
 	return s.absPath(s.mfaPagePath(authenticatorID)) + "?" + v.Encode()
 }

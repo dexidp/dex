@@ -104,7 +104,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	// This allows logout without a hint when the user has an active session.
 	if userID == "" && connectorID == "" {
 		if cookie, err := r.Cookie(s.sessionConfig.CookieName); err == nil && cookie.Value != "" {
-			if uid, cid, nonce, err := parseSessionCookie(cookie.Value, s.sessionConfig.CookieEncryptionKey); err == nil {
+			if uid, cid, nonce, err := internal.ParseSessionCookie(cookie.Value, s.sessionConfig.CookieEncryptionKey); err == nil {
 				// Verify the session exists and nonce matches before trusting the cookie.
 				if session, err := s.storage.GetAuthSession(ctx, uid, cid); err == nil && subtle.ConstantTimeCompare([]byte(session.Nonce), []byte(nonce)) == 1 {
 					userID = uid
@@ -175,7 +175,7 @@ func (s *Server) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, connectorID, nonce, err := parseSessionCookie(cookie.Value, s.sessionConfig.CookieEncryptionKey)
+	userID, connectorID, nonce, err := internal.ParseSessionCookie(cookie.Value, s.sessionConfig.CookieEncryptionKey)
 	if err != nil {
 		s.renderError(r, w, http.StatusBadRequest, "Invalid session cookie.")
 		return

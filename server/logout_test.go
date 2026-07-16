@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/server/discovery"
+	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
@@ -81,7 +82,7 @@ func TestHandleLogoutNoHintPOSTPerformsLogout(t *testing.T) {
 	req := httptest.NewRequest("POST", "/logout", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  "dex_session",
-		Value: sessionCookieValue(userID, connectorID, nonce, server.sessionConfig.CookieEncryptionKey),
+		Value: internal.SessionCookieValue(userID, connectorID, nonce, server.sessionConfig.CookieEncryptionKey),
 	})
 	server.ServeHTTP(rr, req)
 
@@ -371,7 +372,7 @@ func TestHandleLogoutFromCookie(t *testing.T) {
 	req := httptest.NewRequest("POST", "/logout", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  "dex_session",
-		Value: sessionCookieValue(userID, connectorID, nonce, server.sessionConfig.CookieEncryptionKey),
+		Value: internal.SessionCookieValue(userID, connectorID, nonce, server.sessionConfig.CookieEncryptionKey),
 	})
 	server.ServeHTTP(rr, req)
 
@@ -401,7 +402,7 @@ func TestLogoutCallbackWithExpiredSession(t *testing.T) {
 	req := httptest.NewRequest("GET", "/logout/callback", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  "dex_session",
-		Value: sessionCookieValue("user-1", "mock", "nonce", server.sessionConfig.CookieEncryptionKey),
+		Value: internal.SessionCookieValue("user-1", "mock", "nonce", server.sessionConfig.CookieEncryptionKey),
 	})
 	server.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusBadRequest, rr.Code)
