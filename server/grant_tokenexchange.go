@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
@@ -18,7 +19,7 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 
 	if err := r.ParseForm(); err != nil {
 		s.logger.ErrorContext(r.Context(), "could not parse request body", "err", err)
-		s.tokenErrHelper(w, errInvalidRequest, "", http.StatusBadRequest)
+		s.tokenErrHelper(w, oauth2.InvalidRequest, "", http.StatusBadRequest)
 		return
 	}
 	q := r.Form
@@ -26,21 +27,21 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 	scopes := strings.Fields(q.Get("scope"))            // OPTIONAL, map to issued token scope
 	requestedTokenType := q.Get("requested_token_type") // OPTIONAL, default to access token
 	if requestedTokenType == "" {
-		requestedTokenType = tokenTypeAccess
+		requestedTokenType = oauth2.TokenTypeAccess
 	}
 	subjectToken := q.Get("subject_token")          // REQUIRED
 	subjectTokenType := q.Get("subject_token_type") // REQUIRED
 	connID := q.Get("connector_id")                 // REQUIRED, not in RFC
 
 	switch subjectTokenType {
-	case tokenTypeID, tokenTypeAccess: // ok, continue
+	case oauth2.TokenTypeID, oauth2.TokenTypeAccess: // ok, continue
 	default:
-		s.tokenErrHelper(w, errRequestNotSupported, "Invalid subject_token_type.", http.StatusBadRequest)
+		s.tokenErrHelper(w, oauth2.RequestNotSupported, "Invalid subject_token_type.", http.StatusBadRequest)
 		return
 	}
 
 	if subjectToken == "" {
-		s.tokenErrHelper(w, errInvalidRequest, "Missing subject_token", http.StatusBadRequest)
+		s.tokenErrHelper(w, oauth2.InvalidRequest, "Missing subject_token", http.StatusBadRequest)
 		return
 	}
 
@@ -50,24 +51,24 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 	conn, err := s.connectors.Get(ctx, connID)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to get connector", "err", err)
-		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
+		s.tokenErrHelper(w, oauth2.InvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
 		return
 	}
-	if !GrantTypeAllowed(conn.GrantTypes, grantTypeTokenExchange) {
+	if !GrantTypeAllowed(conn.GrantTypes, oauth2.GrantTypeTokenExchange) {
 		s.logger.ErrorContext(r.Context(), "connector does not allow token exchange", "connector_id", connID)
-		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not support token exchange.", http.StatusBadRequest)
+		s.tokenErrHelper(w, oauth2.InvalidRequest, "Requested connector does not support token exchange.", http.StatusBadRequest)
 		return
 	}
 	teConn, ok := conn.Connector.(connector.TokenIdentityConnector)
 	if !ok {
 		s.logger.ErrorContext(r.Context(), "connector doesn't implement token exchange", "connector_id", connID)
-		s.tokenErrHelper(w, errInvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
+		s.tokenErrHelper(w, oauth2.InvalidRequest, "Requested connector does not exist.", http.StatusBadRequest)
 		return
 	}
 	identity, err := teConn.TokenIdentity(ctx, subjectTokenType, subjectToken)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to verify subject token", "err", err)
-		s.tokenErrHelper(w, errAccessDenied, "", http.StatusUnauthorized)
+		s.tokenErrHelper(w, oauth2.AccessDenied, "", http.StatusUnauthorized)
 		return
 	}
 
@@ -103,17 +104,17 @@ func (s *Server) handleTokenExchange(w http.ResponseWriter, r *http.Request, cli
 	}
 	var expiry time.Time
 	switch requestedTokenType {
-	case tokenTypeID:
+	case oauth2.TokenTypeID:
 		resp.AccessToken, expiry, err = s.issuer.SignIDToken(r.Context(), auth, "", "")
-	case tokenTypeAccess:
+	case oauth2.TokenTypeAccess:
 		resp.AccessToken, expiry, err = s.issuer.SignAccessToken(r.Context(), auth)
 	default:
-		s.tokenErrHelper(w, errRequestNotSupported, "Invalid requested_token_type.", http.StatusBadRequest)
+		s.tokenErrHelper(w, oauth2.RequestNotSupported, "Invalid requested_token_type.", http.StatusBadRequest)
 		return
 	}
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "token exchange failed to create new token", "requested_token_type", requestedTokenType, "err", err)
-		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		s.tokenErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
 		return
 	}
 	resp.ExpiresIn = int(time.Until(expiry).Seconds())

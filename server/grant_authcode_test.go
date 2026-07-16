@@ -9,8 +9,9 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/oauth2"
+	xoauth2 "golang.org/x/oauth2"
 
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -18,18 +19,18 @@ import (
 func TestHandleAuthCode(t *testing.T) {
 	tests := []struct {
 		name       string
-		handleCode func(*testing.T, context.Context, *oauth2.Config, string)
+		handleCode func(*testing.T, context.Context, *xoauth2.Config, string)
 	}{
 		{
 			name: "Code Reuse should return invalid_grant",
-			handleCode: func(t *testing.T, ctx context.Context, oauth2Config *oauth2.Config, code string) {
+			handleCode: func(t *testing.T, ctx context.Context, oauth2Config *xoauth2.Config, code string) {
 				_, err := oauth2Config.Exchange(ctx, code)
 				require.NoError(t, err)
 
 				_, err = oauth2Config.Exchange(ctx, code)
 				require.Error(t, err)
 
-				oauth2Err, ok := err.(*oauth2.RetrieveError)
+				oauth2Err, ok := err.(*xoauth2.RetrieveError)
 				require.True(t, ok)
 
 				var errResponse struct{ Error string }
@@ -38,23 +39,23 @@ func TestHandleAuthCode(t *testing.T) {
 
 				// invalid_grant must be returned for invalid values
 				// https://tools.ietf.org/html/rfc6749#section-5.2
-				require.Equal(t, errInvalidGrant, errResponse.Error)
+				require.Equal(t, oauth2.InvalidGrant, errResponse.Error)
 			},
 		},
 		{
 			name: "No Code should return invalid_request",
-			handleCode: func(t *testing.T, ctx context.Context, oauth2Config *oauth2.Config, _ string) {
+			handleCode: func(t *testing.T, ctx context.Context, oauth2Config *xoauth2.Config, _ string) {
 				_, err := oauth2Config.Exchange(ctx, "")
 				require.Error(t, err)
 
-				oauth2Err, ok := err.(*oauth2.RetrieveError)
+				oauth2Err, ok := err.(*xoauth2.RetrieveError)
 				require.True(t, ok)
 
 				var errResponse struct{ Error string }
 				err = json.Unmarshal(oauth2Err.Body, &errResponse)
 				require.NoError(t, err)
 
-				require.Equal(t, errInvalidRequest, errResponse.Error)
+				require.Equal(t, oauth2.InvalidRequest, errResponse.Error)
 			},
 		},
 	}
@@ -95,7 +96,7 @@ func TestHandleAuthCode(t *testing.T) {
 			err = s.storage.CreateClient(ctx, client)
 			require.NoError(t, err)
 
-			oauth2Client.config = &oauth2.Config{
+			oauth2Client.config = &xoauth2.Config{
 				ClientID:     client.ID,
 				ClientSecret: client.Secret,
 				Endpoint:     p.Endpoint(),

@@ -16,6 +16,7 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/featureflags"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
@@ -96,7 +97,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	prompt, err := ParsePrompt(authReq.Prompt)
 	if err != nil {
 		// Server error because authReq was validated before saving it to database.
-		s.redirectWithError(w, r, authReq, errServerError, "Invalid authentication request")
+		s.redirectWithError(w, r, authReq, oauth2.ServerError, "Invalid authentication request")
 		return
 	}
 	// handle prompt only if sessions are enabled
@@ -113,7 +114,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			}
 			if session == nil && prompt.None() {
 				// Cannot authenticate silently with prompt=none.
-				s.redirectWithError(w, r, authReq, errLoginRequired, "id_token_hint does not match authenticated user")
+				s.redirectWithError(w, r, authReq, oauth2.LoginRequired, "id_token_hint does not match authenticated user")
 				return
 			}
 		}
@@ -122,12 +123,12 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		if prompt.None() {
 			redirectURL, ok := s.trySessionLoginWithSession(ctx, r, w, authReq, session)
 			if !ok {
-				s.redirectWithError(w, r, authReq, errLoginRequired, "User not authenticated")
+				s.redirectWithError(w, r, authReq, oauth2.LoginRequired, "User not authenticated")
 				return
 			}
 			if redirectURL != "" {
 				// Session found but user interaction is needed (consent or MFA) — no UI allowed.
-				s.redirectWithError(w, r, authReq, errInteractionRequired, "User interaction required")
+				s.redirectWithError(w, r, authReq, oauth2.InteractionRequired, "User interaction required")
 				return
 			}
 			return

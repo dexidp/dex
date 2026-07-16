@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -32,7 +33,7 @@ func TestDeviceCallback(t *testing.T) {
 	baseAuthCode := storage.AuthCode{
 		ID:            "somecode",
 		ClientID:      "testclient",
-		RedirectURI:   deviceCallbackURI,
+		RedirectURI:   oauth2.DeviceCallbackURI,
 		Nonce:         "",
 		Scopes:        []string{"openid", "profile", "email"},
 		ConnectorID:   "mock",
@@ -50,7 +51,7 @@ func TestDeviceCallback(t *testing.T) {
 	}
 	baseDeviceToken := storage.DeviceToken{
 		DeviceCode:          "devicecode",
-		Status:              deviceTokenPending,
+		Status:              oauth2.DeviceTokenPending,
 		Token:               "",
 		Expiry:              now().Add(5 * time.Minute),
 		LastRequestTime:     time.Time{},
@@ -101,7 +102,7 @@ func TestDeviceCallback(t *testing.T) {
 			testAuthCode: storage.AuthCode{
 				ID:            "somecode",
 				ClientID:      "testclient",
-				RedirectURI:   deviceCallbackURI,
+				RedirectURI:   oauth2.DeviceCallbackURI,
 				Nonce:         "",
 				Scopes:        []string{"openid", "profile", "email"},
 				ConnectorID:   "pic",
@@ -117,7 +118,7 @@ func TestDeviceCallback(t *testing.T) {
 			testAuthCode: storage.AuthCode{
 				ID:            "somecode",
 				ClientID:      "testclient",
-				RedirectURI:   deviceCallbackURI,
+				RedirectURI:   oauth2.DeviceCallbackURI,
 				Nonce:         "",
 				Scopes:        []string{"openid", "profile", "email"},
 				ConnectorID:   "pic",
@@ -184,7 +185,7 @@ func TestDeviceCallback(t *testing.T) {
 			testDeviceRequest: baseDeviceRequest,
 			testDeviceToken: storage.DeviceToken{
 				DeviceCode:          "devicecode",
-				Status:              deviceTokenPending,
+				Status:              oauth2.DeviceTokenPending,
 				Token:               "",
 				Expiry:              now().Add(-5 * time.Minute),
 				LastRequestTime:     time.Time{},
@@ -199,7 +200,7 @@ func TestDeviceCallback(t *testing.T) {
 			testDeviceRequest: baseDeviceRequest,
 			testDeviceToken: storage.DeviceToken{
 				DeviceCode:          "devicecode",
-				Status:              deviceTokenComplete,
+				Status:              oauth2.DeviceTokenComplete,
 				Token:               "",
 				Expiry:              now().Add(5 * time.Minute),
 				LastRequestTime:     time.Time{},
@@ -253,7 +254,7 @@ func TestDeviceCallback(t *testing.T) {
 			client := storage.Client{
 				ID:           "testclient",
 				Secret:       "",
-				RedirectURIs: []string{deviceCallbackURI},
+				RedirectURIs: []string{oauth2.DeviceCallbackURI},
 			}
 			if err := s.storage.CreateClient(ctx, client); err != nil {
 				t.Fatalf("failed to create client: %v", err)

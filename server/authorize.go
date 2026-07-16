@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/storage"
 )
@@ -17,16 +18,16 @@ import (
 // grantTypeFromAuthRequest determines the grant type from the authorization request parameters.
 func (s *Server) grantTypeFromAuthRequest(r *http.Request) string {
 	redirectURI := r.Form.Get("redirect_uri")
-	if redirectURI == deviceCallbackURI || strings.HasSuffix(redirectURI, deviceCallbackURI) {
-		return grantTypeDeviceCode
+	if redirectURI == oauth2.DeviceCallbackURI || strings.HasSuffix(redirectURI, oauth2.DeviceCallbackURI) {
+		return oauth2.GrantTypeDeviceCode
 	}
 	responseType := r.Form.Get("response_type")
 	for _, rt := range strings.Fields(responseType) {
 		if rt == "token" || rt == "id_token" {
-			return grantTypeImplicit
+			return oauth2.GrantTypeImplicit
 		}
 	}
-	return grantTypeAuthorizationCode
+	return oauth2.GrantTypeAuthorizationCode
 }
 
 // handleAuthorization handles the OAuth2 auth endpoint.
@@ -117,7 +118,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		prompt, err := ParsePrompt(authReq.Prompt)
 		if err != nil {
 			// Server error because authReq was validated before saving it to database.
-			s.redirectWithError(w, r, authReq, errServerError, "Invalid authentication request")
+			s.redirectWithError(w, r, authReq, oauth2.ServerError, "Invalid authentication request")
 			return
 		}
 
@@ -137,7 +138,7 @@ func (s *Server) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		}
 		if prompt.None() {
 			// Cannot authenticate silently with prompt=none.
-			s.redirectWithError(w, r, authReq, errLoginRequired, "id_token_hint does not match authenticated user")
+			s.redirectWithError(w, r, authReq, oauth2.LoginRequired, "id_token_hint does not match authenticated user")
 			return
 		}
 	}

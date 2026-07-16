@@ -25,6 +25,7 @@ package server
 import (
 	"net/http"
 
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -77,6 +78,6 @@ func (s *Server) checkConnectorAllowed(w http.ResponseWriter, r *http.Request, c
 	}
 	s.logger.WarnContext(r.Context(), "connector not allowed for client",
 		"client_id", client.ID, "connector_id", connID)
-	s.tokenErrHelper(w, errInvalidGrant, "Connector not allowed for this client.", http.StatusBadRequest)
+	s.tokenErrHelper(w, oauth2.InvalidGrant, "Connector not allowed for this client.", http.StatusBadRequest)
 	return false
 }

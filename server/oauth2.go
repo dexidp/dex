@@ -93,76 +93,15 @@ func (err *redirectedAuthErr) Handler() http.Handler {
 	return http.HandlerFunc(hf)
 }
 
-// The OAuth2/OIDC protocol vocabulary lives in the oauth2 package; these
-// in-package aliases keep the many call sites terse.
-const (
-	errInvalidRequest          = oauth2.InvalidRequest
-	errUnauthorizedClient      = oauth2.UnauthorizedClient
-	errAccessDenied            = oauth2.AccessDenied
-	errUnsupportedResponseType = oauth2.UnsupportedResponseType
-	errRequestNotSupported     = oauth2.RequestNotSupported
-	errInvalidScope            = oauth2.InvalidScope
-	errServerError             = oauth2.ServerError
-	errTemporarilyUnavailable  = oauth2.TemporarilyUnavailable
-	errUnsupportedGrantType    = oauth2.UnsupportedGrantType
-	errInvalidGrant            = oauth2.InvalidGrant
-	errInvalidClient           = oauth2.InvalidClient
-	errInactiveToken           = oauth2.InactiveToken
-	errLoginRequired           = oauth2.LoginRequired
-	errInteractionRequired     = oauth2.InteractionRequired
-	errConsentRequired         = oauth2.ConsentRequired
-)
-
-const (
-	deviceCallbackURI = oauth2.DeviceCallbackURI
-	redirectURIOOB    = oauth2.RedirectURIOOB
-)
-
-const (
-	grantTypeAuthorizationCode = oauth2.GrantTypeAuthorizationCode
-	grantTypeRefreshToken      = oauth2.GrantTypeRefreshToken
-	grantTypeImplicit          = oauth2.GrantTypeImplicit
-	grantTypePassword          = oauth2.GrantTypePassword
-	grantTypeDeviceCode        = oauth2.GrantTypeDeviceCode
-	grantTypeTokenExchange     = oauth2.GrantTypeTokenExchange
-	grantTypeClientCredentials = oauth2.GrantTypeClientCredentials
-)
-
 // ConnectorGrantTypes is the set of grant types that can be restricted per connector.
 var ConnectorGrantTypes = map[string]bool{
-	grantTypeAuthorizationCode: true,
-	grantTypeRefreshToken:      true,
-	grantTypeImplicit:          true,
-	grantTypePassword:          true,
-	grantTypeDeviceCode:        true,
-	grantTypeTokenExchange:     true,
+	oauth2.GrantTypeAuthorizationCode: true,
+	oauth2.GrantTypeRefreshToken:      true,
+	oauth2.GrantTypeImplicit:          true,
+	oauth2.GrantTypePassword:          true,
+	oauth2.GrantTypeDeviceCode:        true,
+	oauth2.GrantTypeTokenExchange:     true,
 }
-
-const (
-	tokenTypeAccess  = oauth2.TokenTypeAccess
-	tokenTypeRefresh = oauth2.TokenTypeRefresh
-	tokenTypeID      = oauth2.TokenTypeID
-	tokenTypeSAML1   = oauth2.TokenTypeSAML1
-	tokenTypeSAML2   = oauth2.TokenTypeSAML2
-	tokenTypeJWT     = oauth2.TokenTypeJWT
-)
-
-const (
-	responseTypeCode             = oauth2.ResponseTypeCode
-	responseTypeToken            = oauth2.ResponseTypeToken
-	responseTypeIDToken          = oauth2.ResponseTypeIDToken
-	responseTypeCodeToken        = oauth2.ResponseTypeCodeToken
-	responseTypeCodeIDToken      = oauth2.ResponseTypeCodeIDToken
-	responseTypeIDTokenToken     = oauth2.ResponseTypeIDTokenToken
-	responseTypeCodeIDTokenToken = oauth2.ResponseTypeCodeIDTokenToken
-)
-
-const (
-	deviceTokenPending  = oauth2.DeviceTokenPending
-	deviceTokenComplete = oauth2.DeviceTokenComplete
-	deviceTokenSlowDown = oauth2.DeviceTokenSlowDown
-	deviceTokenExpired  = oauth2.DeviceTokenExpired
-)
 
 func parseScopes(scopes []string) connector.Scopes {
 	var s connector.Scopes
@@ -256,8 +195,8 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		s.logger.ErrorContext(r.Context(), "unregistered redirect_uri", "redirect_uri", redirectURI, "client_id", clientID)
 		return nil, "", newDisplayedErr(http.StatusBadRequest, "Unregistered redirect_uri.")
 	}
-	if redirectURI == deviceCallbackURI && client.Public {
-		redirectURI = s.absPath(deviceCallbackURI)
+	if redirectURI == oauth2.DeviceCallbackURI && client.Public {
+		redirectURI = s.absPath(oauth2.DeviceCallbackURI)
 	}
 
 	// From here on out, we want to redirect back to the client with an error.
@@ -269,30 +208,30 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		connectors, err := s.storage.ListConnectors(ctx)
 		if err != nil {
 			s.logger.ErrorContext(r.Context(), "failed to list connectors", "err", err)
-			return nil, "", newRedirectedErr(errServerError, "Unable to retrieve connectors")
+			return nil, "", newRedirectedErr(oauth2.ServerError, "Unable to retrieve connectors")
 		}
 		if !validateConnectorID(connectors, connectorID) {
-			return nil, "", newRedirectedErr(errInvalidRequest, "Invalid ConnectorID")
+			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Invalid ConnectorID")
 		}
 		if !isConnectorAllowed(client.AllowedConnectors, connectorID) {
-			return nil, "", newRedirectedErr(errInvalidRequest, "Connector not allowed for this client")
+			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Connector not allowed for this client")
 		}
 	}
 
 	// dex doesn't support request parameter and must return request_not_supported error
 	// https://openid.net/specs/openid-connect-core-1_0.html#6.1
 	if q.Get("request") != "" {
-		return nil, "", newRedirectedErr(errRequestNotSupported, "Server does not support request parameter.")
+		return nil, "", newRedirectedErr(oauth2.RequestNotSupported, "Server does not support request parameter.")
 	}
 
 	if codeChallenge != "" && !slices.Contains(s.pkce.CodeChallengeMethodsSupported, codeChallengeMethod) {
-		return nil, "", newRedirectedErr(errInvalidRequest, "Unsupported PKCE challenge method (%q).", codeChallengeMethod)
+		return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Unsupported PKCE challenge method (%q).", codeChallengeMethod)
 	}
 
 	// Enforce PKCE if configured.
 	// https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-12#section-4.1.1
 	if s.pkce.Enforce && codeChallenge == "" {
-		return nil, "", newRedirectedErr(errInvalidRequest, "PKCE is required. The code_challenge parameter must be provided.")
+		return nil, "", newRedirectedErr(oauth2.InvalidRequest, "PKCE is required. The code_challenge parameter must be provided.")
 	}
 
 	var (
@@ -314,7 +253,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 
 			isTrusted, err := s.validateCrossClientTrust(r.Context(), clientID, peerID)
 			if err != nil {
-				return nil, "", newRedirectedErr(errServerError, "Internal server error.")
+				return nil, "", newRedirectedErr(oauth2.ServerError, "Internal server error.")
 			}
 			if !isTrusted {
 				invalidScopes = append(invalidScopes, scope)
@@ -322,13 +261,13 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		}
 	}
 	if !hasOpenIDScope {
-		return nil, "", newRedirectedErr(errInvalidScope, `Missing required scope(s) ["openid"].`)
+		return nil, "", newRedirectedErr(oauth2.InvalidScope, `Missing required scope(s) ["openid"].`)
 	}
 	if len(unrecognized) > 0 {
-		return nil, "", newRedirectedErr(errInvalidScope, "Unrecognized scope(s) %q", unrecognized)
+		return nil, "", newRedirectedErr(oauth2.InvalidScope, "Unrecognized scope(s) %q", unrecognized)
 	}
 	if len(invalidScopes) > 0 {
-		return nil, "", newRedirectedErr(errInvalidScope, "Client can't request scope(s) %q", invalidScopes)
+		return nil, "", newRedirectedErr(oauth2.InvalidScope, "Client can't request scope(s) %q", invalidScopes)
 	}
 
 	var rt struct {
@@ -339,30 +278,30 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 
 	for _, responseType := range responseTypes {
 		switch responseType {
-		case responseTypeCode:
+		case oauth2.ResponseTypeCode:
 			rt.code = true
-		case responseTypeIDToken:
+		case oauth2.ResponseTypeIDToken:
 			rt.idToken = true
-		case responseTypeToken:
+		case oauth2.ResponseTypeToken:
 			rt.token = true
 		default:
-			return nil, "", newRedirectedErr(errInvalidRequest, "Invalid response type %q", responseType)
+			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Invalid response type %q", responseType)
 		}
 
 		if !s.supportedResponseTypes[responseType] {
-			return nil, "", newRedirectedErr(errUnsupportedResponseType, "Unsupported response type %q", responseType)
+			return nil, "", newRedirectedErr(oauth2.UnsupportedResponseType, "Unsupported response type %q", responseType)
 		}
 	}
 
 	if len(responseTypes) == 0 {
-		return nil, "", newRedirectedErr(errInvalidRequest, "No response_type provided")
+		return nil, "", newRedirectedErr(oauth2.InvalidRequest, "No response_type provided")
 	}
 
 	if rt.token && !rt.code && !rt.idToken {
 		// "token" can't be provided by its own.
 		//
 		// https://openid.net/specs/openid-connect-core-1_0.html#Authentication
-		return nil, "", newRedirectedErr(errInvalidRequest, "Response type 'token' must be provided with type 'id_token' and/or 'code'")
+		return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Response type 'token' must be provided with type 'id_token' and/or 'code'")
 	}
 	if !rt.code {
 		// Either "id_token token" or "id_token" has been provided which implies the
@@ -370,18 +309,18 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		//
 		// https://openid.net/specs/openid-connect-core-1_0.html#ImplicitAuthRequest
 		if nonce == "" {
-			return nil, "", newRedirectedErr(errInvalidRequest, "Response type 'token' requires a 'nonce' value.")
+			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Response type 'token' requires a 'nonce' value.")
 		}
 	}
 	if rt.token {
-		if redirectURI == redirectURIOOB {
-			return nil, "", newRedirectedErr(errInvalidRequest, "Cannot use response type 'token' with redirect_uri '%s'.", redirectURIOOB)
+		if redirectURI == oauth2.RedirectURIOOB {
+			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Cannot use response type 'token' with redirect_uri '%s'.", oauth2.RedirectURIOOB)
 		}
 	}
 
 	prompt, err := ParsePrompt(q.Get("prompt"))
 	if err != nil {
-		return nil, "", newRedirectedErr(errInvalidRequest, "Invalid prompt parameter: %v", err)
+		return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Invalid prompt parameter: %v", err)
 	}
 
 	// Parse max_age: -1 means not specified.
@@ -389,7 +328,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	if maxAgeStr := q.Get("max_age"); maxAgeStr != "" {
 		v, err := strconv.Atoi(maxAgeStr)
 		if err != nil || v < 0 {
-			return nil, "", newRedirectedErr(errInvalidRequest, "Invalid max_age value %q", maxAgeStr)
+			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Invalid max_age value %q", maxAgeStr)
 		}
 		maxAge = v
 	}
@@ -402,7 +341,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	if hint := q.Get("id_token_hint"); hint != "" {
 		idToken, err := s.validateIDTokenHint(ctx, hint)
 		if err != nil {
-			return nil, "", newRedirectedErr(errInvalidRequest, "Invalid id_token_hint.")
+			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Invalid id_token_hint.")
 		}
 		idTokenHintSubject = idToken.Subject
 	}
@@ -461,7 +400,7 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 		return false
 	}
 
-	if redirectURI == redirectURIOOB || redirectURI == deviceCallbackURI {
+	if redirectURI == oauth2.RedirectURIOOB || redirectURI == oauth2.DeviceCallbackURI {
 		return true
 	}
 
