@@ -40,6 +40,7 @@ import (
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/signer"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -406,7 +407,7 @@ func runServe(options serveOptions) error {
 		logger.Info("config device requests", "valid_for", deviceRequests)
 		serverConfig.DeviceRequestsValidFor = deviceRequests
 	}
-	refreshTokenPolicy, err := server.NewRefreshTokenPolicy(
+	refreshTokenPolicy, err := tokens.NewRefreshTokenPolicy(
 		logger,
 		c.Expiry.RefreshTokens.DisableRotation,
 		c.Expiry.RefreshTokens.ValidIfNotUsedFor,

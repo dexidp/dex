@@ -78,5 +78,5 @@ func (g *clientCredentials) Authorize(ctx context.Context, req *Request, client 
 		ConnectorID: "",
 		Nonce:       req.Nonce,
 	}
-	return issue(ctx, g.logger, g.issuer, auth, "", false)
+	return issueTokens(ctx, g.logger, g.issuer, auth, "", false)
 }

@@ -39,7 +39,6 @@ func TestDeviceTokenResponse(t *testing.T) {
 		testName               string
 		testDeviceRequest      storage.DeviceRequest
 		testDeviceToken        storage.DeviceToken
-		testGrantType          string
 		testDeviceCode         string
 		testCodeVerifier       string
 		expectedServerResponse string
@@ -58,22 +57,6 @@ func TestDeviceTokenResponse(t *testing.T) {
 			},
 			testDeviceCode:         "f00bar",
 			expectedServerResponse: oauth2.DeviceTokenPending,
-			expectedResponseCode:   http.StatusBadRequest,
-		},
-		{
-			testName:          "Invalid Grant Type",
-			testDeviceRequest: baseDeviceRequest,
-			testDeviceToken: storage.DeviceToken{
-				DeviceCode:          "f00bar",
-				Status:              oauth2.DeviceTokenPending,
-				Token:               "",
-				Expiry:              now().Add(5 * time.Minute),
-				LastRequestTime:     time.Time{},
-				PollIntervalSeconds: 0,
-			},
-			testDeviceCode:         "f00bar",
-			testGrantType:          oauth2.GrantTypeAuthorizationCode,
-			expectedServerResponse: oauth2.InvalidGrant,
 			expectedResponseCode:   http.StatusBadRequest,
 		},
 		{
@@ -270,14 +253,10 @@ func TestDeviceTokenResponse(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Could not parse issuer URL %v", err)
 			}
-			u.Path = path.Join(u.Path, "device/token")
+			u.Path = path.Join(u.Path, "token")
 
 			data := url.Values{}
-			grantType := oauth2.GrantTypeDeviceCode
-			if tc.testGrantType != "" {
-				grantType = tc.testGrantType
-			}
-			data.Set("grant_type", grantType)
+			data.Set("grant_type", oauth2.GrantTypeDeviceCode)
 			data.Set("device_code", tc.testDeviceCode)
 			if tc.testCodeVerifier != "" {
 				data.Set("code_verifier", tc.testCodeVerifier)

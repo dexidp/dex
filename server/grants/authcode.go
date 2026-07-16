@@ -69,7 +69,7 @@ func (g *authorizationCode) Authorize(ctx context.Context, req *Request, client 
 	if err != nil {
 		return nil, err
 	}
-	return issue(ctx, g.logger, g.issuer, auth, authCode.ID, withRefresh)
+	return issueTokens(ctx, g.logger, g.issuer, auth, authCode.ID, withRefresh)
 }
 
 // ExchangeAuthCode consumes a validated authorization code and returns the

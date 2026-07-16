@@ -1614,12 +1614,6 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 			tokenEndpoint: "/token",
 			oauth2Tests:   tests,
 		},
-		// TODO(nabokihms): delete temporary tests after removing the deprecated token endpoint support
-		{
-			name:          "Deprecated token endpoint for devices",
-			tokenEndpoint: "/device/token",
-			oauth2Tests:   tests,
-		},
 	}
 
 	for _, testCase := range testCases {

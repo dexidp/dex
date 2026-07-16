@@ -73,5 +73,5 @@ func (g *password) Authorize(ctx context.Context, req *Request, client storage.C
 		Nonce:         req.Nonce,
 		ConnectorData: identity.ConnectorData,
 	}
-	return issue(ctx, g.logger, g.issuer, auth, "", shouldIssueRefreshToken(conn, req.Scopes))
+	return issueTokens(ctx, g.logger, g.issuer, auth, "", shouldIssueRefreshToken(conn, req.Scopes))
 }

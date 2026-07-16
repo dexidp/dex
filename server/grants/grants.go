@@ -15,6 +15,7 @@ import (
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
+	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
@@ -123,8 +124,8 @@ type Grant interface {
 	// inside Authorize only to decide on a refresh token).
 	ConnectorID(ctx context.Context, req *Request, client storage.Client) (string, *oauth2.Error)
 	// Authorize proves the identity against conn (the zero Connector when
-	// ConnectorID is "") and produces the response to write. Standard grants
-	// build it with the shared issue helper; a grant with a non-standard response
+	// ConnectorID is "") and produces the response to write. Standard grants build
+	// it with the shared issueTokens helper; a grant with a non-standard response
 	// builds its own. Returning an *oauth2.Error makes the endpoint write it.
 	Authorize(ctx context.Context, req *Request, client storage.Client, conn connectors.Connector) (Responder, error)
 }
@@ -144,10 +145,23 @@ type ScopePolicy struct {
 	ErrorType string
 }
 
+// Config are the dependencies the token endpoint and its grants need.
+type Config struct {
+	Issuer              *tokens.Issuer
+	Storage             storage.Storage
+	Connectors          *connectors.Cache
+	Now                 func() time.Time
+	Logger              *slog.Logger
+	PasswordConnector   string
+	RefreshPolicy       *tokens.RefreshStrategy
+	SessionsEnabled     bool
+	SupportedGrantTypes []string
+}
+
 // Endpoint is the /token endpoint. It owns the phases shared by every grant —
 // dispatch by grant_type, client authentication, scope validation, connector
 // resolution and writing the response or error — while each grant carries only
-// its own narrow dependencies.
+// its own narrow dependencies. It mounts its own routes (router.Handler).
 type Endpoint struct {
 	storage    storage.Storage
 	connectors *connectors.Cache
@@ -156,31 +170,61 @@ type Endpoint struct {
 	grants map[string]Grant
 }
 
-// NewEndpoint wires the token endpoint and its grants from the shared
-// dependencies. Each grant is constructed with only what it needs.
-func NewEndpoint(issuer *tokens.Issuer, s storage.Storage, conns *connectors.Cache, now func() time.Time, logger *slog.Logger, passwordConnector string, refreshPolicy *tokens.RefreshStrategy, sessionsEnabled bool) *Endpoint {
-	e := &Endpoint{storage: s, connectors: conns, logger: logger, grants: map[string]Grant{}}
-	e.register(
-		&clientCredentials{issuer: issuer, logger: logger},
-		&password{issuer: issuer, logger: logger, connectorID: passwordConnector},
-		&tokenExchange{issuer: issuer, logger: logger},
-		&authorizationCode{issuer: issuer, storage: s, connectors: conns, now: now, logger: logger},
-		&refresh{storage: s, issuer: issuer, policy: refreshPolicy, sessionsEnabled: sessionsEnabled, now: now, logger: logger},
-		&deviceCode{storage: s, now: now, logger: logger},
+// NewEndpoint wires the token endpoint and its grants. Only grants whose type is
+// in SupportedGrantTypes are registered, so a grant type disabled by config is
+// simply not served.
+func NewEndpoint(c Config) *Endpoint {
+	e := &Endpoint{storage: c.Storage, connectors: c.Connectors, logger: c.Logger, grants: map[string]Grant{}}
+	e.register(c.SupportedGrantTypes,
+		&clientCredentials{issuer: c.Issuer, logger: c.Logger},
+		&password{issuer: c.Issuer, logger: c.Logger, connectorID: c.PasswordConnector},
+		&tokenExchange{issuer: c.Issuer, logger: c.Logger},
+		&authorizationCode{issuer: c.Issuer, storage: c.Storage, connectors: c.Connectors, now: c.Now, logger: c.Logger},
+		&refresh{storage: c.Storage, issuer: c.Issuer, policy: c.RefreshPolicy, sessionsEnabled: c.SessionsEnabled, now: c.Now, logger: c.Logger},
+		&deviceCode{storage: c.Storage, now: c.Now, logger: c.Logger},
 	)
 	return e
 }
 
-func (e *Endpoint) register(gs ...Grant) {
+func (e *Endpoint) register(supported []string, gs ...Grant) {
 	for _, g := range gs {
-		e.grants[g.GrantType()] = g
+		if slices.Contains(supported, g.GrantType()) {
+			e.grants[g.GrantType()] = g
+		}
 	}
 }
 
-// Dispatch runs the token-endpoint pipeline for the grant registered for
+// Mount registers the token route.
+func (e *Endpoint) Mount(m router.Mux) {
+	m.HandleCORS("/token", e.handleToken)
+}
+
+// handleToken serves /token: it validates the request shape and dispatches to the
+// grant for its grant_type.
+func (e *Endpoint) handleToken(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	w.Header().Set("Content-Type", "application/json")
+	if r.Method != http.MethodPost {
+		e.writeError(ctx, w, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "method not allowed", Status: http.StatusBadRequest})
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		e.logger.ErrorContext(ctx, "could not parse request body", "err", err)
+		e.writeError(ctx, w, &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusBadRequest})
+		return
+	}
+
+	grantType := r.PostFormValue("grant_type")
+	if !e.dispatch(w, r, grantType) {
+		e.logger.ErrorContext(ctx, "unsupported grant type", "grant_type", grantType)
+		e.writeError(ctx, w, &oauth2.Error{Type: oauth2.UnsupportedGrantType, Status: http.StatusBadRequest})
+	}
+}
+
+// dispatch runs the token-endpoint pipeline for the grant registered for
 // grantType. It reports whether a grant handled the request, so the caller can
 // fall back (e.g. the implicit grant, which is not a token-endpoint grant).
-func (e *Endpoint) Dispatch(w http.ResponseWriter, r *http.Request, grantType string) bool {
+func (e *Endpoint) dispatch(w http.ResponseWriter, r *http.Request, grantType string) bool {
 	grant, ok := e.grants[grantType]
 	if !ok {
 		return false
@@ -349,7 +393,7 @@ func (e *Endpoint) writeError(ctx context.Context, w http.ResponseWriter, err er
 // issue mints the standard token response — the single mint every standard grant
 // shares — logging and mapping a signing failure to a server error. code is the
 // authorization code bound into the ID token's c_hash, empty when there is none.
-func issue(ctx context.Context, logger *slog.Logger, issuer *tokens.Issuer, auth tokens.Authorization, code string, withRefresh bool) (Responder, error) {
+func issueTokens(ctx context.Context, logger *slog.Logger, issuer *tokens.Issuer, auth tokens.Authorization, code string, withRefresh bool) (Responder, error) {
 	resp, err := issuer.IssueResponse(ctx, auth, code, withRefresh)
 	if err != nil {
 		logger.ErrorContext(ctx, "failed to issue tokens", "err", err)

@@ -288,3 +288,10 @@ func scopesCoveredByConsent(approved, requested []string) bool {
 
 	return true
 }
+
+// tokenErrHelper writes a JSON OAuth2 error response.
+func (s *Server) tokenErrHelper(w http.ResponseWriter, typ string, description string, statusCode int) {
+	if err := oauth2.WriteError(w, typ, description, statusCode); err != nil {
+		s.logger.Error("token error response", "err", err)
+	}
+}

@@ -47,6 +47,7 @@ import (
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/device"
 	"github.com/dexidp/dex/server/discovery"
+	"github.com/dexidp/dex/server/grants"
 	"github.com/dexidp/dex/server/home"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/introspection"
@@ -448,9 +449,17 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		homeHandler.CookieEncryptionKey = s.sessionConfig.CookieEncryptionKey
 	}
 
-	// The token endpoint dispatches to the grants registered inside NewEndpoint.
-	// Grants not yet migrated are still served by handleToken's switch.
-	tokenEndpoint := s.newTokenEndpoint()
+	tokenEndpoint := grants.NewEndpoint(grants.Config{
+		Issuer:              s.issuer,
+		Storage:             s.storage,
+		Connectors:          s.connectors,
+		Now:                 s.now,
+		Logger:              s.logger,
+		PasswordConnector:   s.passwordConnector,
+		RefreshPolicy:       s.refreshTokenPolicy,
+		SessionsEnabled:     s.sessionConfig != nil,
+		SupportedGrantTypes: s.supportedGrantTypes,
+	})
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
 	// defined in the ConfigMap and dynamic connectors retrieved from the storage.
@@ -593,21 +602,14 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	// Self-contained domains mount their own routes through the router.Mux
 	// abstraction, so this list is the only place they are wired in.
 	mux := routeMux{handle: handle, handleFunc: handleFunc, handleCORS: handleWithCORS, handlePrefix: handlePrefix}
-	for _, h := range []router.Handler{discoveryHandler, userInfoHandler, introspectHandler, deviceHandler, homeHandler} {
+	for _, h := range []router.Handler{tokenEndpoint, discoveryHandler, userInfoHandler, introspectHandler, deviceHandler, homeHandler} {
 		h.Mount(mux)
 	}
 
 	// TODO(ericchiang): rate limit certain paths based on IP.
-	handleWithCORS("/token", func(w http.ResponseWriter, r *http.Request) {
-		s.handleToken(w, r, tokenEndpoint)
-	})
 	handleFunc("/auth", s.handleAuthorization)
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
 	handleFunc("/auth/{connector}/login", s.handlePasswordLogin)
-	// TODO(nabokihms): "/device/token" endpoint is deprecated, consider using /token endpoint instead
-	handleFunc("/device/token", func(w http.ResponseWriter, r *http.Request) {
-		s.handleDeviceTokenDeprecated(w, r, tokenEndpoint)
-	})
 	handleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
 		// Strip the X-Remote-* headers to prevent security issues on
 		// misconfigured authproxy connector setups.
