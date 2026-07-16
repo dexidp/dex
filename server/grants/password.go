@@ -1,6 +1,7 @@
 package grants
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 
@@ -26,7 +27,7 @@ func (g *password) RequiresClientAuth() bool {
 	return true
 }
 
-func (g *password) Scopes() ScopePolicy {
+func (g *password) ScopePolicy() ScopePolicy {
 	return ScopePolicy{
 		Standard: map[string]bool{
 			tokens.ScopeOpenID:        true,
@@ -42,21 +43,17 @@ func (g *password) Scopes() ScopePolicy {
 }
 
 // ConnectorID is the connector the password grant is configured to use.
-func (g *password) ConnectorID(r *http.Request) string {
+func (g *password) ConnectorID(req *Request) string {
 	return g.connectorID
 }
 
-func (g *password) Authorize(r *http.Request, client storage.Client, scopes []string, conn connectors.Connector) (*Result, error) {
-	ctx := r.Context()
-
+func (g *password) Authorize(ctx context.Context, req *Request, client storage.Client, conn connectors.Connector) (*Result, error) {
 	passwordConnector, ok := conn.Connector.(connector.PasswordConnector)
 	if !ok {
 		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Requested password connector does not correct type.", Status: http.StatusBadRequest}
 	}
 
-	username := r.PostFormValue("username")
-	pw := r.PostFormValue("password")
-	identity, ok, err := passwordConnector.Login(ctx, tokens.ParseScopes(scopes), username, pw)
+	identity, ok, err := passwordConnector.Login(ctx, tokens.ParseScopes(req.Scopes), req.Username, req.Password)
 	if err != nil {
 		g.logger.ErrorContext(ctx, "failed to login user", "err", err)
 		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Could not login user", Status: http.StatusBadRequest}
@@ -76,11 +73,11 @@ func (g *password) Authorize(r *http.Request, client storage.Client, scopes []st
 				EmailVerified:     identity.EmailVerified,
 				Groups:            identity.Groups,
 			},
-			Scopes:        scopes,
+			Scopes:        req.Scopes,
 			ConnectorID:   g.connectorID,
-			Nonce:         r.PostFormValue("nonce"),
+			Nonce:         req.Nonce,
 			ConnectorData: identity.ConnectorData,
 		},
-		IssueRefresh: shouldIssueRefreshToken(conn, scopes),
+		IssueRefresh: shouldIssueRefreshToken(conn, req.Scopes),
 	}, nil
 }

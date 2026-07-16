@@ -97,7 +97,7 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 
 		switch {
 		case providedCodeVerifier != "" && codeChallengeFromStorage != "":
-			calculatedCodeChallenge, err := s.calculateCodeChallenge(providedCodeVerifier, deviceToken.PKCE.CodeChallengeMethod)
+			calculatedCodeChallenge, err := oauth2.CalculateCodeChallenge(providedCodeVerifier, deviceToken.PKCE.CodeChallengeMethod)
 			if err != nil {
 				s.logger.ErrorContext(r.Context(), "failed to calculate code challenge", "err", err)
 				s.tokenErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)

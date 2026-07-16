@@ -4,10 +4,7 @@ package server
 // token-response and error helpers. Each grant lives in its own grant_*.go.
 
 import (
-	"crypto/sha256"
 	"crypto/subtle"
-	"encoding/base64"
-	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -64,7 +61,7 @@ func (s *Server) withClientFromStorage(w http.ResponseWriter, r *http.Request, h
 // server's dependencies. It is the single construction point shared by the router
 // wiring and the grant tests.
 func (s *Server) newTokenEndpoint() *grants.Endpoint {
-	return grants.NewEndpoint(s.issuer, s.storage, s.connectors, s.logger, s.passwordConnector)
+	return grants.NewEndpoint(s.issuer, s.storage, s.connectors, s.now, s.logger, s.passwordConnector)
 }
 
 func (s *Server) handleToken(w http.ResponseWriter, r *http.Request, endpoint *grants.Endpoint) {
@@ -97,37 +94,10 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request, endpoint *g
 	switch grantType {
 	case oauth2.GrantTypeDeviceCode:
 		s.handleDeviceToken(w, r)
-	case oauth2.GrantTypeAuthorizationCode:
-		s.withClientFromStorage(w, r, s.handleAuthCode)
 	case oauth2.GrantTypeRefreshToken:
 		s.withClientFromStorage(w, r, s.handleRefreshToken)
 	default:
 		s.tokenErrHelper(w, oauth2.UnsupportedGrantType, "", http.StatusBadRequest)
-	}
-}
-
-func (s *Server) calculateCodeChallenge(codeVerifier, codeChallengeMethod string) (string, error) {
-	switch codeChallengeMethod {
-	case oauth2.PKCEMethodPlain:
-		return codeVerifier, nil
-	case oauth2.PKCEMethodS256:
-		shaSum := sha256.Sum256([]byte(codeVerifier))
-		return base64.RawURLEncoding.EncodeToString(shaSum[:]), nil
-	default:
-		return "", fmt.Errorf("unknown challenge method (%v)", codeChallengeMethod)
-	}
-}
-
-func (s *Server) toAccessTokenResponse(idToken, accessToken, refreshToken string, expiry time.Time) tokens.Response {
-	ts := tokens.TokenSet{AccessToken: accessToken, IDToken: idToken, RefreshToken: refreshToken, Expiry: expiry}
-	return ts.Response(s.now())
-}
-
-func (s *Server) writeAccessToken(w http.ResponseWriter, resp tokens.Response) {
-	if err := resp.Write(w); err != nil {
-		// TODO(nabokihms): error with context
-		s.logger.Error("failed to write access token response", "err", err)
-		s.tokenErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
 	}
 }
 

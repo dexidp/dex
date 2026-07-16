@@ -1,6 +1,7 @@
 package grants
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/dexidp/dex/server/connectors"
@@ -21,7 +22,7 @@ func (g *clientCredentials) RequiresClientAuth() bool {
 	return true
 }
 
-func (g *clientCredentials) Scopes() ScopePolicy {
+func (g *clientCredentials) ScopePolicy() ScopePolicy {
 	return ScopePolicy{
 		Standard: map[string]bool{
 			tokens.ScopeOpenID:  true,
@@ -38,11 +39,11 @@ func (g *clientCredentials) Scopes() ScopePolicy {
 }
 
 // ConnectorID is empty: client_credentials involves no connector.
-func (g *clientCredentials) ConnectorID(r *http.Request) string {
+func (g *clientCredentials) ConnectorID(req *Request) string {
 	return ""
 }
 
-func (g *clientCredentials) Authorize(r *http.Request, client storage.Client, scopes []string, conn connectors.Connector) (*Result, error) {
+func (g *clientCredentials) Authorize(ctx context.Context, req *Request, client storage.Client, conn connectors.Connector) (*Result, error) {
 	// client_credentials requires a confidential client.
 	if client.Public {
 		return nil, &oauth2.Error{Type: oauth2.UnauthorizedClient, Description: "Public clients cannot use client_credentials grant.", Status: http.StatusBadRequest}
@@ -50,7 +51,7 @@ func (g *clientCredentials) Authorize(r *http.Request, client storage.Client, sc
 
 	// Build claims from the client itself — no user involved.
 	claims := storage.Claims{UserID: client.ID}
-	for _, scope := range scopes {
+	for _, scope := range req.Scopes {
 		switch scope {
 		case tokens.ScopeProfile:
 			claims.Username = client.Name
@@ -66,11 +67,11 @@ func (g *clientCredentials) Authorize(r *http.Request, client storage.Client, sc
 		Authorization: tokens.Authorization{
 			Client: client,
 			Claims: claims,
-			Scopes: scopes,
+			Scopes: req.Scopes,
 			// Empty connector ID is unique for client credentials grant. Creating
 			// connectors with an empty ID via the config and API is prohibited.
 			ConnectorID: "",
-			Nonce:       r.Form.Get("nonce"),
+			Nonce:       req.Nonce,
 		},
 	}, nil
 }

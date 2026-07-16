@@ -434,7 +434,8 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		Now:              s.now,
 		RequestsValidFor: s.deviceRequestsValidFor,
 		Logger:           s.logger,
-		ExchangeAuthCode: s.exchangeAuthCode,
+		Issuer:           s.issuer,
+		Connectors:       s.connectors,
 	}
 	homeHandler := &home.Handler{
 		IssuerURL:       s.issuerURL,

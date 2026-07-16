@@ -1,6 +1,7 @@
 package grants
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"time"
@@ -32,37 +33,31 @@ func (g *tokenExchange) RequiresClientAuth() bool {
 
 // Scopes are passed through: for token exchange the requested scope maps to the
 // issued token's scope and is not validated against a fixed set.
-func (g *tokenExchange) Scopes() ScopePolicy {
+func (g *tokenExchange) ScopePolicy() ScopePolicy {
 	return ScopePolicy{}
 }
 
 // ConnectorID reads the required connector_id parameter (an RFC 8693 extension).
-func (g *tokenExchange) ConnectorID(r *http.Request) string {
-	return r.PostFormValue("connector_id")
+func (g *tokenExchange) ConnectorID(req *Request) string {
+	return req.ConnectorID
 }
 
-func (g *tokenExchange) Authorize(r *http.Request, client storage.Client, scopes []string, conn connectors.Connector) (*Result, error) {
-	ctx := r.Context()
-
-	subjectToken := r.PostFormValue("subject_token")          // REQUIRED
-	subjectTokenType := r.PostFormValue("subject_token_type") // REQUIRED
-	connID := r.PostFormValue("connector_id")
-
-	switch subjectTokenType {
+func (g *tokenExchange) Authorize(ctx context.Context, req *Request, client storage.Client, conn connectors.Connector) (*Result, error) {
+	switch req.SubjectTokenType {
 	case oauth2.TokenTypeID, oauth2.TokenTypeAccess: // ok, continue
 	default:
 		return nil, &oauth2.Error{Type: oauth2.RequestNotSupported, Description: "Invalid subject_token_type.", Status: http.StatusBadRequest}
 	}
-	if subjectToken == "" {
+	if req.SubjectToken == "" {
 		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Missing subject_token", Status: http.StatusBadRequest}
 	}
 
 	teConn, ok := conn.Connector.(connector.TokenIdentityConnector)
 	if !ok {
-		g.logger.ErrorContext(ctx, "connector doesn't implement token exchange", "connector_id", connID)
+		g.logger.ErrorContext(ctx, "connector doesn't implement token exchange", "connector_id", req.ConnectorID)
 		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Requested connector does not exist.", Status: http.StatusBadRequest}
 	}
-	identity, err := teConn.TokenIdentity(ctx, subjectTokenType, subjectToken)
+	identity, err := teConn.TokenIdentity(ctx, req.SubjectTokenType, req.SubjectToken)
 	if err != nil {
 		g.logger.ErrorContext(ctx, "failed to verify subject token", "err", err)
 		return nil, &oauth2.Error{Type: oauth2.AccessDenied, Status: http.StatusUnauthorized}
@@ -73,11 +68,11 @@ func (g *tokenExchange) Authorize(r *http.Request, client storage.Client, scopes
 		email += " (unverified)"
 	}
 	g.logger.InfoContext(ctx, "token exchange successful",
-		"connector_id", connID, "client_id", client.ID,
+		"connector_id", req.ConnectorID, "client_id", client.ID,
 		"user_id", identity.UserID,
 		"username", identity.Username, "preferred_username", identity.PreferredUsername,
 		"email", email, "groups", identity.Groups,
-		"subject_token_type", subjectTokenType, "requested_token_type", requestedTokenType(r))
+		"subject_token_type", req.SubjectTokenType, "requested_token_type", requestedTokenType(req))
 
 	return &Result{
 		Authorization: tokens.Authorization{
@@ -90,17 +85,16 @@ func (g *tokenExchange) Authorize(r *http.Request, client storage.Client, scopes
 				EmailVerified:     identity.EmailVerified,
 				Groups:            identity.Groups,
 			},
-			Scopes:      scopes,
-			ConnectorID: connID,
+			Scopes:      req.Scopes,
+			ConnectorID: req.ConnectorID,
 		},
 	}, nil
 }
 
 // Mint issues the single requested token type, as RFC 8693 requires, rather than
 // the standard access+id+refresh set.
-func (g *tokenExchange) Mint(r *http.Request, res *Result) (tokens.Response, error) {
-	ctx := r.Context()
-	reqType := requestedTokenType(r)
+func (g *tokenExchange) Mint(ctx context.Context, req *Request, res *Result) (tokens.Response, error) {
+	reqType := requestedTokenType(req)
 
 	var (
 		token  string
@@ -130,9 +124,9 @@ func (g *tokenExchange) Mint(r *http.Request, res *Result) (tokens.Response, err
 
 // requestedTokenType is the requested_token_type param, defaulting to an access
 // token (RFC 8693 §2.1).
-func requestedTokenType(r *http.Request) string {
-	if t := r.PostFormValue("requested_token_type"); t != "" {
-		return t
+func requestedTokenType(req *Request) string {
+	if req.RequestedTokenType != "" {
+		return req.RequestedTokenType
 	}
 	return oauth2.TokenTypeAccess
 }
