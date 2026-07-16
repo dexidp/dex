@@ -1,16 +1,28 @@
-package server
+// Package introspection serves the OAuth2 token introspection endpoint
+// (/token/introspect) as specified by [RFC 7662](https://tools.ietf.org/html/rfc7662).
+package introspection
 
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/router"
+	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/tokens"
+	"github.com/dexidp/dex/storage"
+)
+
+// OAuth2 error codes emitted by the endpoint.
+const (
+	errInvalidRequest = "invalid_request"
+	errServerError    = "server_error"
+	errInactiveToken  = "inactive_token"
 )
 
 // Introspection contains an access token's session data as specified by
@@ -145,7 +157,37 @@ func newIntrospectBadRequestError(desc string) *introspectionError {
 	return &introspectionError{typ: errInvalidRequest, desc: desc, code: http.StatusBadRequest}
 }
 
-func (s *Server) guessTokenType(ctx context.Context, token string) (TokenTypeEnum, error) {
+// Config holds the introspection handler's dependencies. LookupRefresh resolves
+// a refresh token from storage, returning (nil, nil) when the token is inactive
+// (unknown, revoked or expired). WriteError writes an OAuth2 token error
+// response. Both are supplied by the server so the handler does not depend on
+// the whole Server.
+type Config struct {
+	Issuer        string
+	Signer        signer.Signer
+	Storage       storage.Storage
+	Logger        *slog.Logger
+	RefreshPolicy *tokens.RefreshStrategy
+	LookupRefresh func(ctx context.Context, token *internal.RefreshToken) (*storage.RefreshToken, error)
+	WriteError    func(w http.ResponseWriter, typ, desc string, code int)
+}
+
+// Handler serves the /token/introspect endpoint.
+type Handler struct {
+	Config
+}
+
+// New returns an introspection handler.
+func New(c Config) *Handler {
+	return &Handler{Config: c}
+}
+
+// Mount registers the introspection route.
+func (h *Handler) Mount(m router.Mux) {
+	m.HandleCORS("/token/introspect", h.handle)
+}
+
+func (h *Handler) guessTokenType(ctx context.Context, token string) (TokenTypeEnum, error) {
 	// We skip every checks, we only want to know if it's a valid JWT
 	verifierConfig := oidc.Config{
 		SkipClientIDCheck: true,
@@ -156,7 +198,7 @@ func (s *Server) guessTokenType(ctx context.Context, token string) (TokenTypeEnu
 		InsecureSkipSignatureCheck: true,
 	}
 
-	verifier := oidc.NewVerifier(s.issuerURL.String(), nil, &verifierConfig)
+	verifier := oidc.NewVerifier(h.Issuer, nil, &verifierConfig)
 	if _, err := verifier.Verify(ctx, token); err != nil {
 		// If it's not an access token, let's assume it's a refresh token;
 		return RefreshToken, nil
@@ -166,7 +208,7 @@ func (s *Server) guessTokenType(ctx context.Context, token string) (TokenTypeEnu
 	return AccessToken, nil
 }
 
-func (s *Server) getTokenFromRequest(r *http.Request) (string, TokenTypeEnum, error) {
+func (h *Handler) getTokenFromRequest(r *http.Request) (string, TokenTypeEnum, error) {
 	if r.Method != "POST" {
 		return "", 0, newIntrospectBadRequestError(fmt.Sprintf("HTTP method is \"%s\", expected \"POST\".", r.Method))
 	} else if err := r.ParseForm(); err != nil {
@@ -178,23 +220,23 @@ func (s *Server) getTokenFromRequest(r *http.Request) (string, TokenTypeEnum, er
 	}
 
 	token := r.PostForm.Get("token")
-	tokenType, err := s.guessTokenType(r.Context(), token)
+	tokenType, err := h.guessTokenType(r.Context(), token)
 	if err != nil {
-		s.logger.ErrorContext(r.Context(), "failed to guess token type", "err", err)
+		h.Logger.ErrorContext(r.Context(), "failed to guess token type", "err", err)
 		return "", 0, newIntrospectInternalServerError()
 	}
 
 	requestTokenType := r.PostForm.Get("token_type_hint")
 	if requestTokenType != "" {
 		if tokenType.String() != requestTokenType {
-			s.logger.Warn("token type hint doesn't match token type", "request_token_type", requestTokenType, "token_type", tokenType)
+			h.Logger.Warn("token type hint doesn't match token type", "request_token_type", requestTokenType, "token_type", tokenType)
 		}
 	}
 
 	return token, tokenType, nil
 }
 
-func (s *Server) introspectRefreshToken(ctx context.Context, token string) (*Introspection, error) {
+func (h *Handler) introspectRefreshToken(ctx context.Context, token string) (*Introspection, error) {
 	rToken := new(internal.RefreshToken)
 	if err := internal.Unmarshal(token, rToken); err != nil {
 		// For backward compatibility, assume the refresh_token is a raw refresh token ID
@@ -206,19 +248,18 @@ func (s *Server) introspectRefreshToken(ctx context.Context, token string) (*Int
 		rToken = &internal.RefreshToken{RefreshId: token, Token: ""}
 	}
 
-	refresh, err := s.getRefreshTokenFromStorage(ctx, nil, rToken)
+	refresh, err := h.LookupRefresh(ctx, rToken)
 	if err != nil {
-		if errors.Is(err, invalidErr) || errors.Is(err, expiredErr) {
-			return nil, newIntrospectInactiveTokenError()
-		}
-
-		s.logger.ErrorContext(ctx, "failed to get refresh token", "err", err)
+		h.Logger.ErrorContext(ctx, "failed to get refresh token", "err", err)
 		return nil, newIntrospectInternalServerError()
+	}
+	if refresh == nil {
+		return nil, newIntrospectInactiveTokenError()
 	}
 
 	subjectString, sErr := tokens.GenSubject(refresh.Claims.UserID, refresh.ConnectorID)
 	if sErr != nil {
-		s.logger.ErrorContext(ctx, "failed to marshal offline session ID", "err", err)
+		h.Logger.ErrorContext(ctx, "failed to marshal offline session ID", "err", sErr)
 		return nil, newIntrospectInternalServerError()
 	}
 
@@ -227,13 +268,13 @@ func (s *Server) introspectRefreshToken(ctx context.Context, token string) (*Int
 		ClientID:  refresh.ClientID,
 		IssuedAt:  refresh.CreatedAt.Unix(),
 		NotBefore: refresh.CreatedAt.Unix(),
-		Expiry:    refresh.CreatedAt.Add(s.refreshTokenPolicy.AbsoluteLifetime()).Unix(),
+		Expiry:    refresh.CreatedAt.Add(h.RefreshPolicy.AbsoluteLifetime()).Unix(),
 		Subject:   subjectString,
 		Username:  refresh.Claims.PreferredUsername,
 		// Refresh-token introspection does not resolve scopes, so the audience is
 		// the token's own client only.
 		Audience: tokens.GetAudience(refresh.ClientID, nil),
-		Issuer:   s.issuerURL.String(),
+		Issuer:   h.Issuer,
 
 		Extra: IntrospectionExtra{
 			Email:             refresh.Claims.Email,
@@ -247,8 +288,8 @@ func (s *Server) introspectRefreshToken(ctx context.Context, token string) (*Int
 	}, nil
 }
 
-func (s *Server) introspectAccessToken(ctx context.Context, token string) (*Introspection, error) {
-	verifier := oidc.NewVerifier(s.issuerURL.String(), &signerKeySet{s.signer}, &oidc.Config{SkipClientIDCheck: true})
+func (h *Handler) introspectAccessToken(ctx context.Context, token string) (*Introspection, error) {
+	verifier := oidc.NewVerifier(h.Issuer, &signer.KeySet{Signer: h.Signer}, &oidc.Config{SkipClientIDCheck: true})
 	idToken, err := verifier.Verify(ctx, token)
 	if err != nil {
 		return nil, newIntrospectInactiveTokenError()
@@ -256,19 +297,19 @@ func (s *Server) introspectAccessToken(ctx context.Context, token string) (*Intr
 
 	var claims IntrospectionExtra
 	if err := idToken.Claims(&claims); err != nil {
-		s.logger.ErrorContext(ctx, "error while fetching token claims", "err", err.Error())
+		h.Logger.ErrorContext(ctx, "error while fetching token claims", "err", err.Error())
 		return nil, newIntrospectInternalServerError()
 	}
 
 	clientID, err := tokens.GetClientID(idToken.Audience, claims.AuthorizingParty)
 	if err != nil {
-		s.logger.ErrorContext(ctx, "error while fetching client_id from token:", "err", err.Error())
+		h.Logger.ErrorContext(ctx, "error while fetching client_id from token:", "err", err.Error())
 		return nil, newIntrospectInternalServerError()
 	}
 
-	client, err := s.storage.GetClient(ctx, clientID)
+	client, err := h.Storage.GetClient(ctx, clientID)
 	if err != nil {
-		s.logger.ErrorContext(ctx, "error while fetching client from storage", "err", err.Error())
+		h.Logger.ErrorContext(ctx, "error while fetching client from storage", "err", err.Error())
 		return nil, newIntrospectInternalServerError()
 	}
 
@@ -281,7 +322,7 @@ func (s *Server) introspectAccessToken(ctx context.Context, token string) (*Intr
 		Subject:   idToken.Subject,
 		Username:  claims.PreferredUsername,
 		Audience:  idToken.Audience,
-		Issuer:    s.issuerURL.String(),
+		Issuer:    h.Issuer,
 
 		Extra:     claims,
 		TokenType: "Bearer",
@@ -289,20 +330,20 @@ func (s *Server) introspectAccessToken(ctx context.Context, token string) (*Intr
 	}, nil
 }
 
-func (s *Server) handleIntrospect(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var introspect *Introspection
-	token, tokenType, err := s.getTokenFromRequest(r)
+	token, tokenType, err := h.getTokenFromRequest(r)
 	if err == nil {
 		switch tokenType {
 		case AccessToken:
-			introspect, err = s.introspectAccessToken(ctx, token)
+			introspect, err = h.introspectAccessToken(ctx, token)
 		case RefreshToken:
-			introspect, err = s.introspectRefreshToken(ctx, token)
+			introspect, err = h.introspectRefreshToken(ctx, token)
 		default:
 			// Token type is neither handled token types.
-			s.logger.ErrorContext(r.Context(), "unknown token type", "token_type", tokenType)
+			h.Logger.ErrorContext(ctx, "unknown token type", "token_type", tokenType)
 			introspectInactiveErr(w)
 			return
 		}
@@ -310,10 +351,10 @@ func (s *Server) handleIntrospect(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		if intErr, ok := err.(*introspectionError); ok {
-			s.introspectErrHelper(w, intErr.typ, intErr.desc, intErr.code)
+			h.introspectErrHelper(w, intErr.typ, intErr.desc, intErr.code)
 		} else {
-			s.logger.ErrorContext(r.Context(), "an unknown error occurred", "err", err.Error())
-			s.introspectErrHelper(w, errServerError, "An unknown error occurred", http.StatusInternalServerError)
+			h.Logger.ErrorContext(ctx, "an unknown error occurred", "err", err.Error())
+			h.introspectErrHelper(w, errServerError, "An unknown error occurred", http.StatusInternalServerError)
 		}
 
 		return
@@ -321,8 +362,8 @@ func (s *Server) handleIntrospect(w http.ResponseWriter, r *http.Request) {
 
 	rawJSON, jsonErr := json.Marshal(introspect)
 	if jsonErr != nil {
-		s.logger.ErrorContext(r.Context(), "failed to marshal introspection response", "err", jsonErr)
-		s.introspectErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		h.Logger.ErrorContext(ctx, "failed to marshal introspection response", "err", jsonErr)
+		h.introspectErrHelper(w, errServerError, "", http.StatusInternalServerError)
 		return
 	}
 
@@ -330,16 +371,13 @@ func (s *Server) handleIntrospect(w http.ResponseWriter, r *http.Request) {
 	w.Write(rawJSON)
 }
 
-func (s *Server) introspectErrHelper(w http.ResponseWriter, typ string, description string, statusCode int) {
+func (h *Handler) introspectErrHelper(w http.ResponseWriter, typ, description string, statusCode int) {
 	if typ == errInactiveToken {
 		introspectInactiveErr(w)
 		return
 	}
 
-	if err := tokenErr(w, typ, description, statusCode); err != nil {
-		// TODO(nabokihms): error with context
-		s.logger.Error("introspect error response", "err", err)
-	}
+	h.WriteError(w, typ, description, statusCode)
 }
 
 func introspectInactiveErr(w http.ResponseWriter) {

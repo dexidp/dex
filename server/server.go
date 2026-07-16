@@ -47,10 +47,13 @@ import (
 	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/discovery"
+	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/introspection"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/server/tokens"
+	"github.com/dexidp/dex/server/userinfo"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/web"
 )
@@ -249,6 +252,12 @@ type Server struct {
 	// discovery serves the OIDC discovery document and JWKS.
 	discovery *discovery.Handler
 
+	// userinfo serves the OIDC /userinfo endpoint.
+	userinfo *userinfo.Handler
+
+	// introspection serves the OAuth2 token introspection endpoint.
+	introspection *introspection.Handler
+
 	sessionConfig *SessionConfig
 
 	mfaProviders    map[string]MFAProvider
@@ -406,6 +415,33 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		PKCEMethods:     s.pkce.CodeChallengeMethodsSupported,
 		SessionsEnabled: s.sessionConfig != nil,
 	})
+	s.userinfo = userinfo.New(userinfo.Config{
+		Issuer:     s.issuerURL.String(),
+		Signer:     s.signer,
+		Logger:     s.logger,
+		WriteError: s.tokenErrHelper,
+	})
+	s.introspection = introspection.New(introspection.Config{
+		Issuer:        s.issuerURL.String(),
+		Signer:        s.signer,
+		Storage:       s.storage,
+		Logger:        s.logger,
+		RefreshPolicy: s.refreshTokenPolicy,
+		LookupRefresh: func(ctx context.Context, token *internal.RefreshToken) (*storage.RefreshToken, error) {
+			// getRefreshTokenFromStorage reports an inactive token (unknown,
+			// revoked or expired) via invalidErr/expiredErr; the introspection
+			// handler treats a (nil, nil) result as inactive.
+			rt, err := s.getRefreshTokenFromStorage(ctx, nil, token)
+			if err != nil {
+				if errors.Is(err, invalidErr) || errors.Is(err, expiredErr) {
+					return nil, nil
+				}
+				return nil, err
+			}
+			return rt, nil
+		},
+		WriteError: s.tokenErrHelper,
+	})
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
 	// defined in the ConfigMap and dynamic connectors retrieved from the storage.
@@ -548,7 +584,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	// Self-contained domains mount their own routes through the router.Mux
 	// abstraction, so this list is the only place they are wired in.
 	mux := routeMux{handle: handle, handleFunc: handleFunc, handleCORS: handleWithCORS, handlePrefix: handlePrefix}
-	for _, h := range []router.Handler{s.discovery} {
+	for _, h := range []router.Handler{s.discovery, s.userinfo, s.introspection} {
 		h.Mount(mux)
 	}
 
@@ -556,8 +592,6 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 
 	// TODO(ericchiang): rate limit certain paths based on IP.
 	handleWithCORS("/token", s.handleToken)
-	handleWithCORS("/userinfo", s.handleUserInfo)
-	handleWithCORS("/token/introspect", s.handleIntrospect)
 	handleFunc("/auth", s.handleAuthorization)
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
 	handleFunc("/auth/{connector}/login", s.handlePasswordLogin)

@@ -723,8 +723,8 @@ func TestSignerKeySet(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			keySet := &signerKeySet{
-				signer: sig,
+			keySet := &signer.KeySet{
+				Signer: sig,
 			}
 
 			_, err = keySet.VerifySignature(t.Context(), jwt)
@@ -754,7 +754,7 @@ func TestSignerKeySetWithES256LocalSigner(t *testing.T) {
 	jwt, err := sig.Sign(ctx, []byte("payload"))
 	require.NoError(t, err)
 
-	keySet := &signerKeySet{signer: sig}
+	keySet := &signer.KeySet{Signer: sig}
 	payload, err := keySet.VerifySignature(ctx, jwt)
 	require.NoError(t, err)
 	require.Equal(t, []byte("payload"), payload)

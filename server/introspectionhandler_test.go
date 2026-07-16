@@ -8,13 +8,13 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/introspection"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
@@ -108,9 +108,9 @@ func mockTestStorage(t *testing.T, s storage.Storage) {
 	require.NoError(t, err)
 }
 
-func getIntrospectionValue(issuerURL url.URL, issuedAt time.Time, expiry time.Time, tokenUse string) *Introspection {
+func getIntrospectionValue(issuerURL url.URL, issuedAt time.Time, expiry time.Time, tokenUse string) *introspection.Introspection {
 	trueValue := true
-	return &Introspection{
+	return &introspection.Introspection{
 		Active:    true,
 		ClientID:  "test",
 		Subject:   "CgExEgR0ZXN0",
@@ -123,7 +123,7 @@ func getIntrospectionValue(issuerURL url.URL, issuedAt time.Time, expiry time.Ti
 		Issuer:    issuerURL.String(),
 		TokenType: "Bearer",
 		TokenUse:  tokenUse,
-		Extra: IntrospectionExtra{
+		Extra: introspection.IntrospectionExtra{
 			Email:         "jane.doe@example.com",
 			EmailVerified: &trueValue,
 			Groups: []string{
@@ -133,114 +133,6 @@ func getIntrospectionValue(issuerURL url.URL, issuedAt time.Time, expiry time.Ti
 			Name: "jane",
 		},
 	}
-}
-
-func TestGetTokenFromRequestSuccess(t *testing.T) {
-	t0 := time.Now()
-	ctx := t.Context()
-
-	now := func() time.Time { return t0 }
-	// Setup a dex server.
-	httpServer, s := newTestServer(t, func(c *Config) {
-		c.Issuer += "/non-root-path"
-		c.Now = now
-	})
-	defer httpServer.Close()
-
-	mockTestStorage(t, s.storage)
-
-	// Generate a valid RS256-signed access token
-	accessToken, _, err := s.issuer.SignIDToken(ctx, tokens.Authorization{
-		Client:      storage.Client{ID: "test"},
-		Claims:      storage.Claims{UserID: "1", Username: "jane"},
-		Scopes:      []string{"openid"},
-		Nonce:       "nonce",
-		ConnectorID: "test",
-	}, "", "")
-	require.NoError(t, err)
-
-	tests := []struct {
-		testName          string
-		expectedToken     string
-		expectedTokenType TokenTypeEnum
-	}{
-		// Access Token
-		{
-			testName:          "Access Token",
-			expectedToken:     accessToken,
-			expectedTokenType: AccessToken,
-		},
-		// Refresh Token
-		{
-			testName:          "Refresh token",
-			expectedToken:     "CgR0ZXN0EgNiYXI",
-			expectedTokenType: RefreshToken,
-		},
-		// Unknown token
-		{
-			testName:          "Unknown token",
-			expectedToken:     "AaAaAaA",
-			expectedTokenType: RefreshToken,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.testName, func(t *testing.T) {
-			data := url.Values{}
-			data.Set("token", tc.expectedToken)
-			req := httptest.NewRequest(http.MethodPost, "https://test.tech/token/introspect", bytes.NewBufferString(data.Encode()))
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-			token, tokenType, err := s.getTokenFromRequest(req)
-			if err != nil {
-				t.Fatalf("Error returned: %s", err.Error())
-			}
-
-			if token != tc.expectedToken {
-				t.Fatalf("Wrong token returned.  Expected %v got %v", tc.expectedToken, token)
-			}
-
-			if tokenType != tc.expectedTokenType {
-				t.Fatalf("Wrong token type returned.  Expected %v got %v", tc.expectedTokenType, tokenType)
-			}
-		})
-	}
-}
-
-func TestGetTokenFromRequestFailure(t *testing.T) {
-	t0 := time.Now()
-
-	now := func() time.Time { return t0 }
-
-	// Setup a dex server.
-	httpServer, s := newTestServer(t, func(c *Config) {
-		c.Issuer += "/non-root-path"
-		c.Now = now
-	})
-	defer httpServer.Close()
-
-	_, _, err := s.getTokenFromRequest(httptest.NewRequest(http.MethodGet, "https://test.tech/token/introspect", nil))
-	require.ErrorIs(t, err, &introspectionError{
-		typ:  errInvalidRequest,
-		desc: "HTTP method is \"GET\", expected \"POST\".",
-		code: http.StatusBadRequest,
-	})
-
-	_, _, err = s.getTokenFromRequest(httptest.NewRequest(http.MethodPost, "https://test.tech/token/introspect", nil))
-	require.ErrorIs(t, err, &introspectionError{
-		typ:  errInvalidRequest,
-		desc: "The POST body can not be empty.",
-		code: http.StatusBadRequest,
-	})
-
-	req := httptest.NewRequest(http.MethodPost, "https://test.tech/token/introspect", strings.NewReader("token_type_hint=access_token"))
-	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	_, _, err = s.getTokenFromRequest(req)
-	require.ErrorIs(t, err, &introspectionError{
-		typ:  errInvalidRequest,
-		desc: "The POST body doesn't contain 'token' parameter.",
-		code: http.StatusBadRequest,
-	})
 }
 
 func TestHandleIntrospect(t *testing.T) {
@@ -362,61 +254,6 @@ func TestHandleIntrospect(t *testing.T) {
 			if string(result) != tc.response {
 				t.Errorf("%s: Unexpected Response.  Expected %q got %q", tc.testName, tc.response, result)
 			}
-		})
-	}
-}
-
-func TestIntrospectErrHelper(t *testing.T) {
-	t0 := time.Now()
-
-	now := func() time.Time { return t0 }
-
-	// Setup a dex server.
-	httpServer, s := newTestServer(t, func(c *Config) {
-		c.Issuer += "/non-root-path"
-		c.Now = now
-	})
-	defer httpServer.Close()
-
-	tests := []struct {
-		testName      string
-		err           *introspectionError
-		resStatusCode int
-		resBody       string
-	}{
-		{
-			testName:      "Inactive Token",
-			err:           newIntrospectInactiveTokenError(),
-			resStatusCode: http.StatusOK,
-			resBody:       "{\"active\":false}\n",
-		},
-		{
-			testName:      "Bad Request",
-			err:           newIntrospectBadRequestError("This is a bad request"),
-			resStatusCode: http.StatusBadRequest,
-			resBody:       `{"error":"invalid_request","error_description":"This is a bad request"}`,
-		},
-		{
-			testName:      "Internal Server Error",
-			err:           newIntrospectInternalServerError(),
-			resStatusCode: http.StatusInternalServerError,
-			resBody:       `{"error":"server_error"}`,
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.testName, func(t *testing.T) {
-			w1 := httptest.NewRecorder()
-
-			s.introspectErrHelper(w1, tc.err.typ, tc.err.desc, tc.err.code)
-
-			res := w1.Result()
-			require.Equal(t, tc.resStatusCode, res.StatusCode)
-			require.Equal(t, "application/json", res.Header.Get("Content-Type"))
-
-			data, err := io.ReadAll(res.Body)
-			defer res.Body.Close()
-			require.NoError(t, err)
-			require.Equal(t, tc.resBody, string(data))
 		})
 	}
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -14,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/go-jose/go-jose/v4"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/signer"
@@ -209,11 +207,11 @@ func parseScopes(scopes []string) connector.Scopes {
 // Expired tokens are accepted per OIDC Core 1.0 §3.1.2.1.
 // Returns the verified token so callers can extract Subject, Audience, etc.
 func (s *Server) validateIDTokenHint(ctx context.Context, hint string) (*oidc.IDToken, error) {
-	verifier := oidc.NewVerifier(s.issuerURL.String(), &signerKeySet{s.signer}, &oidc.Config{
+	verifier := oidc.NewVerifier(s.issuerURL.String(), &signer.KeySet{Signer: s.signer}, &oidc.Config{
 		SkipExpiryCheck: true,
 		// SkipClientIDCheck is set because the hint may originate from any client that
 		// Dex issued a token to — the caller does not know the expected audience in advance.
-		// The signature verification via signerKeySet already guarantees the token was
+		// The signature verification via signer.KeySet already guarantees the token was
 		// issued by this server, which is sufficient for a hint.
 		// Dex does the client id check later in the scope of the session validation.
 		SkipClientIDCheck: true,
@@ -517,37 +515,4 @@ func validateConnectorID(connectors []storage.Connector, connectorID string) boo
 		}
 	}
 	return false
-}
-
-// signerKeySet implements the oidc.KeySet interface backed by the Dex signer
-type signerKeySet struct {
-	signer signer.Signer
-}
-
-func (s *signerKeySet) VerifySignature(ctx context.Context, jwt string) (payload []byte, err error) {
-	jws, err := jose.ParseSigned(jwt, []jose.SignatureAlgorithm{jose.RS256, jose.RS384, jose.RS512, jose.ES256, jose.ES384, jose.ES512})
-	if err != nil {
-		return nil, err
-	}
-
-	keyID := ""
-	for _, sig := range jws.Signatures {
-		keyID = sig.Header.KeyID
-		break
-	}
-
-	keys, err := s.signer.ValidationKeys(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, key := range keys {
-		if keyID == "" || key.KeyID == keyID {
-			if payload, err := jws.Verify(key); err == nil {
-				return payload, nil
-			}
-		}
-	}
-
-	return nil, errors.New("failed to verify id token signature")
 }
