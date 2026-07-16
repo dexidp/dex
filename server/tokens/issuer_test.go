@@ -49,7 +49,7 @@ func TestIssuerIssue(t *testing.T) {
 	auth := testAuthorization()
 
 	// With refresh requested: access + id + refresh, and the refresh token is persisted.
-	ts, err := iss.Issue(ctx, auth, true)
+	ts, err := iss.Issue(ctx, auth, "", true)
 	require.NoError(t, err)
 	require.NotEmpty(t, ts.AccessToken)
 	require.NotEmpty(t, ts.IDToken)
@@ -68,7 +68,7 @@ func TestIssuerIssue(t *testing.T) {
 	require.Contains(t, sess.Refresh, "client-1")
 
 	// Without refresh: access + id only.
-	ts2, err := iss.Issue(ctx, auth, false)
+	ts2, err := iss.Issue(ctx, auth, "", false)
 	require.NoError(t, err)
 	require.NotEmpty(t, ts2.AccessToken)
 	require.NotEmpty(t, ts2.IDToken)

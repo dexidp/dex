@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dexidp/dex/server/connectors"
+	"github.com/dexidp/dex/server/grants"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/templates"
@@ -45,13 +47,11 @@ type Handler struct {
 	RequestsValidFor time.Duration
 	Logger           *slog.Logger
 
-	// ExchangeAuthCode exchanges the authorization code for tokens after the
-	// user authenticates. It is the authorization-code grant's logic, injected
-	// so the device handler does not reimplement token issuance.
-	//
-	// TODO: this injected Server method is a temporary seam; the auth-code
-	// exchange should become a shared component both grants depend on directly.
-	ExchangeAuthCode func(ctx context.Context, w http.ResponseWriter, authCode storage.AuthCode, client storage.Client) (tokens.Response, error)
+	// Issuer mints the tokens, and Connectors resolves the connector, for the
+	// auth-code exchange the device flow shares with the authorization_code grant
+	// via grants.ExchangeAuthCode.
+	Issuer     *tokens.Issuer
+	Connectors *connectors.Cache
 }
 
 // Mount registers the device authorization routes.
@@ -365,9 +365,16 @@ func (h *Handler) completeDeviceAuthorization(w http.ResponseWriter, r *http.Req
 		return "", &deviceFlowError{status: http.StatusUnauthorized, code: oauth2.InvalidClient, message: "Invalid client credentials."}
 	}
 
-	resp, err := h.ExchangeAuthCode(ctx, w, authCode, client)
+	// ExchangeAuthCode consumes the code (its atomic single-use gate) and returns
+	// what to issue; the tokens are minted here.
+	auth, withRefresh, err := grants.ExchangeAuthCode(ctx, h.Storage, h.Connectors, h.Logger, authCode, client)
 	if err != nil {
-		h.Logger.ErrorContext(ctx, "could not exchange auth code for clien", "client_id", deviceReq.ClientID, "err", err)
+		h.Logger.ErrorContext(ctx, "could not exchange auth code for client", "client_id", deviceReq.ClientID, "err", err)
+		return "", &deviceFlowError{status: http.StatusInternalServerError, message: "Failed to exchange auth code."}
+	}
+	resp, err := h.Issuer.IssueResponse(ctx, auth, authCode.ID, withRefresh)
+	if err != nil {
+		h.Logger.ErrorContext(ctx, "could not issue tokens for device flow", "client_id", deviceReq.ClientID, "err", err)
 		return "", &deviceFlowError{status: http.StatusInternalServerError, message: "Failed to exchange auth code."}
 	}
 

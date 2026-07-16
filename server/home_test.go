@@ -61,6 +61,10 @@ func newTestServerWithSessions(t *testing.T, updateConfig func(c *Config)) (*htt
 	}
 	s.URL = config.Issuer
 
+	if config.RefreshTokenPolicy == nil {
+		config.RefreshTokenPolicy = tokens.NewRefreshStrategy(true, 0, 0, 0, config.Now)
+	}
+
 	connector := storage.Connector{
 		ID:              "mock",
 		Type:            "mockCallback",
@@ -71,10 +75,6 @@ func newTestServerWithSessions(t *testing.T, updateConfig func(c *Config)) (*htt
 
 	server, err = newServer(ctx, config)
 	require.NoError(t, err)
-
-	if server.refreshTokenPolicy == nil {
-		server.refreshTokenPolicy = tokens.NewRefreshStrategy(true, 0, 0, 0, config.Now)
-	}
 
 	return s, server
 }

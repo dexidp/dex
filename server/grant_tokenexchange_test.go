@@ -107,7 +107,7 @@ func TestHandleTokenExchange(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
 			req.Header.Set("content-type", "application/x-www-form-urlencoded")
 
-			s.handleToken(rr, req)
+			s.ServeHTTP(rr, req)
 
 			require.Equal(t, tc.expectedCode, rr.Code, rr.Body.String())
 			require.Equal(t, "application/json", rr.Result().Header.Get("content-type"))
@@ -147,7 +147,7 @@ func TestHandleTokenExchangeLogsSuccess(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
 	req.Header.Set("content-type", "application/x-www-form-urlencoded")
 
-	s.handleToken(rr, req)
+	s.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 
 	var found map[string]any
@@ -204,7 +204,7 @@ func TestHandleTokenExchangeConnectorGrantTypeRestriction(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
 	req.Header.Set("content-type", "application/x-www-form-urlencoded")
 
-	s.handleToken(rr, req)
+	s.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
 }
@@ -263,7 +263,7 @@ func TestHandleTokenExchangeAllowedConnectors(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
 			req.Header.Set("content-type", "application/x-www-form-urlencoded")
 
-			s.handleToken(rr, req)
+			s.ServeHTTP(rr, req)
 
 			require.Equal(t, tc.expectedCode, rr.Code, rr.Body.String())
 			if tc.expectedCode == http.StatusBadRequest {

@@ -1,6 +1,7 @@
 package tokens
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/dexidp/dex/connector"
@@ -17,6 +18,12 @@ const (
 
 	scopeCrossClientPrefix = "audience:server:client_id:"
 )
+
+// HasOpenID reports whether the openid scope was requested, i.e. whether an
+// ID token should be issued.
+func HasOpenID(scopes []string) bool {
+	return slices.Contains(scopes, ScopeOpenID)
+}
 
 // ParseCrossClientScope extracts the peer client ID from a cross-client audience
 // scope, reporting whether the scope was one.

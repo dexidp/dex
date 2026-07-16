@@ -120,6 +120,12 @@ func newTestServer(t *testing.T, updateConfig func(c *Config)) (*httptest.Server
 	}
 	s.URL = config.Issuer
 
+	// Default rotation policy, set before the server is built so the token
+	// endpoint captures it.
+	if config.RefreshTokenPolicy == nil {
+		config.RefreshTokenPolicy = tokens.NewRefreshStrategy(true, 0, 0, 0, config.Now)
+	}
+
 	connector := storage.Connector{
 		ID:              "mock",
 		Type:            "mockCallback",
@@ -132,11 +138,6 @@ func newTestServer(t *testing.T, updateConfig func(c *Config)) (*httptest.Server
 
 	if server, err = newServer(ctx, config); err != nil {
 		t.Fatal(err)
-	}
-
-	// Default rotation policy
-	if server.refreshTokenPolicy == nil {
-		server.refreshTokenPolicy = tokens.NewRefreshStrategy(true, 0, 0, 0, config.Now)
 	}
 
 	return s, server
@@ -170,6 +171,10 @@ func newTestServerMultipleConnectors(t *testing.T, updateConfig func(c *Config))
 		updateConfig(&config)
 	}
 	s.URL = config.Issuer
+
+	if config.RefreshTokenPolicy == nil {
+		config.RefreshTokenPolicy = tokens.NewRefreshStrategy(true, 0, 0, 0, config.Now)
+	}
 
 	connector := storage.Connector{
 		ID:              "mock",
@@ -1607,12 +1612,6 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 		{
 			name:          "Actual token endpoint for devices",
 			tokenEndpoint: "/token",
-			oauth2Tests:   tests,
-		},
-		// TODO(nabokihms): delete temporary tests after removing the deprecated token endpoint support
-		{
-			name:          "Deprecated token endpoint for devices",
-			tokenEndpoint: "/device/token",
 			oauth2Tests:   tests,
 		},
 	}

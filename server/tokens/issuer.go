@@ -42,22 +42,27 @@ func NewIssuer(storage storage.Storage, sig signer.Signer, issuerURL url.URL, id
 	}
 }
 
-// Issue mints an access and ID token for the authorization, and a refresh token
-// when withRefresh is true. Whether a refresh token is wanted (connector support,
-// grant-type policy, offline_access scope) is a grant decision, so the caller
-// passes it in.
-func (i *Issuer) Issue(ctx context.Context, auth Authorization, withRefresh bool) (TokenSet, error) {
-	accessToken, _, err := i.SignAccessToken(ctx, auth)
+// Issue mints the standard token set for the authorization: an access token,
+// an ID token when the openid scope was requested, and a refresh token when
+// withRefresh is true. code is the authorization code bound into the ID token's
+// c_hash, empty for grants without one. Whether a refresh token is wanted
+// (connector support, grant-type policy, offline_access scope) is a grant
+// decision, so the caller passes it in. This is the single mint every standard
+// OAuth2 grant uses.
+func (i *Issuer) Issue(ctx context.Context, auth Authorization, code string, withRefresh bool) (TokenSet, error) {
+	accessToken, expiry, err := i.SignAccessToken(ctx, auth)
 	if err != nil {
 		return TokenSet{}, fmt.Errorf("create access token: %w", err)
 	}
 
-	idToken, expiry, err := i.SignIDToken(ctx, auth, accessToken, "")
-	if err != nil {
-		return TokenSet{}, fmt.Errorf("create id token: %w", err)
-	}
+	ts := TokenSet{AccessToken: accessToken, Expiry: expiry}
 
-	ts := TokenSet{AccessToken: accessToken, IDToken: idToken, Expiry: expiry}
+	if HasOpenID(auth.Scopes) {
+		ts.IDToken, ts.Expiry, err = i.SignIDToken(ctx, auth, accessToken, code)
+		if err != nil {
+			return TokenSet{}, fmt.Errorf("create id token: %w", err)
+		}
+	}
 
 	if withRefresh {
 		ts.RefreshToken, err = i.Refresh.Create(ctx, auth)
@@ -66,6 +71,16 @@ func (i *Issuer) Issue(ctx context.Context, auth Authorization, withRefresh bool
 		}
 	}
 	return ts, nil
+}
+
+// IssueResponse mints the standard token set with Issue and renders it as an
+// OAuth2 token response, so a grant handler need not carry a clock of its own.
+func (i *Issuer) IssueResponse(ctx context.Context, auth Authorization, code string, withRefresh bool) (Response, error) {
+	ts, err := i.Issue(ctx, auth, code, withRefresh)
+	if err != nil {
+		return Response{}, err
+	}
+	return ts.Response(i.now()), nil
 }
 
 // SignAccessToken mints an opaque-looking JWT access token. Dex's access token is

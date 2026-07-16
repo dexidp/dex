@@ -248,10 +248,9 @@ func TestRefreshTokenAuthTime(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			httpServer, s := newTestServer(t, func(c *Config) {
 				c.Now = func() time.Time { return t0 }
+				c.SessionConfig = tc.sessionConfig
 			})
 			defer httpServer.Close()
-
-			s.sessionConfig = tc.sessionConfig
 
 			mockRefreshTokenTestStorage(t, s.storage, false)
 
@@ -381,15 +380,14 @@ func TestRefreshDisconnectsUpstreamWhenSessionsEnabled(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			httpServer, s := newTestServer(t, func(c *Config) {
 				c.Now = func() time.Time { return t0 }
+				if tc.sessionsEnabled {
+					c.SessionConfig = &SessionConfig{
+						CookieName:       "dex_session",
+						AbsoluteLifetime: 24 * time.Hour,
+					}
+				}
 			})
 			defer httpServer.Close()
-
-			if tc.sessionsEnabled {
-				s.sessionConfig = &SessionConfig{
-					CookieName:       "dex_session",
-					AbsoluteLifetime: 24 * time.Hour,
-				}
-			}
 
 			mockRefreshTokenTestStorage(t, s.storage, false)
 
