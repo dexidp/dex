@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dexidp/dex/pkg/featureflags"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
@@ -151,7 +152,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 
 	for _, responseType := range authReq.ResponseTypes {
 		switch responseType {
-		case responseTypeCode:
+		case oauth2.ResponseTypeCode:
 			code = storage.AuthCode{
 				ID:            storage.NewID(),
 				ClientID:      authReq.ClientID,
@@ -173,13 +174,13 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 
 			// Implicit and hybrid flows that try to use the OOB redirect URI are
 			// rejected earlier. If we got here we're using the code flow.
-			if authReq.RedirectURI == redirectURIOOB {
+			if authReq.RedirectURI == oauth2.RedirectURIOOB {
 				if err := s.templates.OOB(r, w, code.ID); err != nil {
 					s.logger.ErrorContext(r.Context(), "server template error", "err", err)
 				}
 				return
 			}
-		case responseTypeToken:
+		case oauth2.ResponseTypeToken:
 			implicitOrHybrid = true
 			var err error
 
@@ -193,10 +194,10 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 			})
 			if err != nil {
 				s.logger.ErrorContext(r.Context(), "failed to create new access token", "err", err)
-				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+				s.tokenErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
 				return
 			}
-		case responseTypeIDToken:
+		case oauth2.ResponseTypeIDToken:
 			implicitOrHybrid = true
 			var err error
 
@@ -210,7 +211,7 @@ func (s *Server) sendCodeResponse(w http.ResponseWriter, r *http.Request, authRe
 			}, accessToken, code.ID)
 			if err != nil {
 				s.logger.ErrorContext(r.Context(), "failed to create ID token", "err", err)
-				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+				s.tokenErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
 				return
 			}
 		}

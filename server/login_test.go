@@ -16,6 +16,7 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/connectors"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
@@ -106,7 +107,7 @@ func TestFinalizeLoginCreatesUserIdentity(t *testing.T) {
 		ConnectorID:   connID,
 		RedirectURI:   "cb",
 		Expiry:        expiry,
-		ResponseTypes: []string{responseTypeCode},
+		ResponseTypes: []string{oauth2.ResponseTypeCode},
 	}
 	require.NoError(t, s.storage.CreateAuthRequest(ctx, authReq))
 
@@ -170,7 +171,7 @@ func TestFinalizeLoginUpdatesUserIdentity(t *testing.T) {
 		ConnectorID:   connID,
 		RedirectURI:   "cb",
 		Expiry:        expiry,
-		ResponseTypes: []string{responseTypeCode},
+		ResponseTypes: []string{oauth2.ResponseTypeCode},
 	}
 	require.NoError(t, s.storage.CreateAuthRequest(ctx, authReq))
 
@@ -219,7 +220,7 @@ func TestFinalizeLoginSkipsUserIdentityWhenDisabled(t *testing.T) {
 		ConnectorID:   connID,
 		RedirectURI:   "cb",
 		Expiry:        expiry,
-		ResponseTypes: []string{responseTypeCode},
+		ResponseTypes: []string{oauth2.ResponseTypeCode},
 	}
 	require.NoError(t, s.storage.CreateAuthRequest(ctx, authReq))
 
@@ -239,7 +240,7 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 	connID := "mockPw"
 	authReqID := "test"
 	expiry := time.Now().Add(100 * time.Second)
-	resTypes := []string{responseTypeCode}
+	resTypes := []string{oauth2.ResponseTypeCode}
 
 	tests := []struct {
 		name                  string
@@ -392,7 +393,7 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 	connID := "mock"
 	authReqID := "test"
 	expiry := time.Now().Add(100 * time.Second)
-	resTypes := []string{responseTypeCode}
+	resTypes := []string{oauth2.ResponseTypeCode}
 
 	tests := []struct {
 		name                  string
@@ -531,7 +532,7 @@ func TestHandlePasswordLogin_SPNEGOShortCircuit(t *testing.T) {
 	connID := "mockPassword"
 	authReqID := "spnego"
 	expiry := time.Now().Add(100 * time.Second)
-	resTypes := []string{responseTypeCode}
+	resTypes := []string{oauth2.ResponseTypeCode}
 
 	httpServer, s := newTestServer(t, func(c *Config) {
 		c.SkipApprovalScreen = true
@@ -601,7 +602,7 @@ func TestHandlePasswordLogin_SPNEGOError(t *testing.T) {
 	connID := "mockPassword"
 	authReqID := "spnego-err"
 	expiry := time.Now().Add(100 * time.Second)
-	resTypes := []string{responseTypeCode}
+	resTypes := []string{oauth2.ResponseTypeCode}
 
 	httpServer, s := newTestServer(t, func(c *Config) {
 		c.SkipApprovalScreen = true
@@ -681,7 +682,7 @@ func TestHandleConnectorLoginGrantTypeRejection(t *testing.T) {
 
 	// Restrict mock connector to device_code only
 	err := s.storage.UpdateConnector(ctx, "mock", func(c storage.Connector) (storage.Connector, error) {
-		c.GrantTypes = []string{grantTypeDeviceCode}
+		c.GrantTypes = []string{oauth2.GrantTypeDeviceCode}
 		return c, nil
 	})
 	require.NoError(t, err)

@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
@@ -134,7 +135,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"response_type": "code id_token",
 				"scope":         "openid email profile",
 			},
-			expectedError: &redirectedAuthErr{Type: errUnsupportedResponseType},
+			expectedError: &redirectedAuthErr{Type: oauth2.UnsupportedResponseType},
 		},
 		{
 			name: "only token response type",
@@ -151,7 +152,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"response_type": "token",
 				"scope":         "openid email profile",
 			},
-			expectedError: &redirectedAuthErr{Type: errInvalidRequest},
+			expectedError: &redirectedAuthErr{Type: oauth2.InvalidRequest},
 		},
 		{
 			name: "choose connector_id",
@@ -203,7 +204,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"response_type": "code id_token",
 				"scope":         "openid email profile",
 			},
-			expectedError: &redirectedAuthErr{Type: errInvalidRequest},
+			expectedError: &redirectedAuthErr{Type: oauth2.InvalidRequest},
 		},
 		{
 			name: "PKCE code_challenge_method plain",
@@ -275,7 +276,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"code_challenge_method": "invalid_method",
 				"scope":                 "openid email profile",
 			},
-			expectedError: &redirectedAuthErr{Type: errInvalidRequest},
+			expectedError: &redirectedAuthErr{Type: oauth2.InvalidRequest},
 		},
 		{
 			name: "No response type",
@@ -293,7 +294,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"code_challenge_method": "plain",
 				"scope":                 "openid email profile",
 			},
-			expectedError: &redirectedAuthErr{Type: errInvalidRequest},
+			expectedError: &redirectedAuthErr{Type: oauth2.InvalidRequest},
 		},
 		{
 			name: "PKCE enforced, no code_challenge provided",
@@ -314,7 +315,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"response_type": "code",
 				"scope":         "openid email profile",
 			},
-			expectedError: &redirectedAuthErr{Type: errInvalidRequest},
+			expectedError: &redirectedAuthErr{Type: oauth2.InvalidRequest},
 		},
 		{
 			name: "PKCE enforced, code_challenge provided",
@@ -358,7 +359,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"code_challenge_method": "plain",
 				"scope":                 "openid email profile",
 			},
-			expectedError: &redirectedAuthErr{Type: errInvalidRequest},
+			expectedError: &redirectedAuthErr{Type: oauth2.InvalidRequest},
 		},
 		{
 			name: "PKCE only S256 allowed, S256 accepted",
@@ -723,8 +724,8 @@ func TestSignerKeySet(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			keySet := &signerKeySet{
-				signer: sig,
+			keySet := &signer.KeySet{
+				Signer: sig,
 			}
 
 			_, err = keySet.VerifySignature(t.Context(), jwt)
@@ -754,7 +755,7 @@ func TestSignerKeySetWithES256LocalSigner(t *testing.T) {
 	jwt, err := sig.Sign(ctx, []byte("payload"))
 	require.NoError(t, err)
 
-	keySet := &signerKeySet{signer: sig}
+	keySet := &signer.KeySet{Signer: sig}
 	payload, err := keySet.VerifySignature(ctx, jwt)
 	require.NoError(t, err)
 	require.Equal(t, []byte("payload"), payload)
@@ -774,7 +775,7 @@ func TestRedirectedAuthErrHandler(t *testing.T) {
 			name:        "valid redirect uri with error parameters",
 			redirectURI: "https://example.com/callback",
 			state:       "state123",
-			errType:     errInvalidRequest,
+			errType:     oauth2.InvalidRequest,
 			description: "Invalid request parameter",
 			wantStatus:  http.StatusSeeOther,
 			wantErr:     false,
@@ -783,7 +784,7 @@ func TestRedirectedAuthErrHandler(t *testing.T) {
 			name:        "valid redirect uri with query params",
 			redirectURI: "https://example.com/callback?existing=param&another=value",
 			state:       "state456",
-			errType:     errAccessDenied,
+			errType:     oauth2.AccessDenied,
 			description: "User denied access",
 			wantStatus:  http.StatusSeeOther,
 			wantErr:     false,
@@ -792,7 +793,7 @@ func TestRedirectedAuthErrHandler(t *testing.T) {
 			name:        "valid redirect uri without description",
 			redirectURI: "https://example.com/callback",
 			state:       "state789",
-			errType:     errServerError,
+			errType:     oauth2.ServerError,
 			description: "",
 			wantStatus:  http.StatusSeeOther,
 			wantErr:     false,
@@ -801,7 +802,7 @@ func TestRedirectedAuthErrHandler(t *testing.T) {
 			name:        "invalid redirect uri",
 			redirectURI: "not a valid url ://",
 			state:       "state",
-			errType:     errInvalidRequest,
+			errType:     oauth2.InvalidRequest,
 			description: "Test error",
 			wantStatus:  http.StatusBadRequest,
 			wantErr:     true,
@@ -1206,7 +1207,7 @@ func TestParseAuthorizationRequest_IDTokenHint(t *testing.T) {
 		require.Error(t, err)
 		redirectErr, ok := err.(*redirectedAuthErr)
 		require.True(t, ok)
-		assert.Equal(t, errInvalidRequest, redirectErr.Type)
+		assert.Equal(t, oauth2.InvalidRequest, redirectErr.Type)
 	})
 
 	t.Run("no id_token_hint leaves subject empty", func(t *testing.T) {

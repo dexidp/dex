@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -21,13 +22,13 @@ func (s *Server) handleDeviceTokenDeprecated(w http.ResponseWriter, r *http.Requ
 		err := r.ParseForm()
 		if err != nil {
 			s.logger.Warn("could not parse Device Token Request body", "err", err)
-			s.tokenErrHelper(w, errInvalidRequest, "", http.StatusBadRequest)
+			s.tokenErrHelper(w, oauth2.InvalidRequest, "", http.StatusBadRequest)
 			return
 		}
 
 		grantType := r.PostFormValue("grant_type")
-		if grantType != grantTypeDeviceCode {
-			s.tokenErrHelper(w, errInvalidGrant, "", http.StatusBadRequest)
+		if grantType != oauth2.GrantTypeDeviceCode {
+			s.tokenErrHelper(w, oauth2.InvalidGrant, "", http.StatusBadRequest)
 			return
 		}
 
@@ -41,7 +42,7 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	deviceCode := r.Form.Get("device_code")
 	if deviceCode == "" {
-		s.tokenErrHelper(w, errInvalidRequest, "No device code received", http.StatusBadRequest)
+		s.tokenErrHelper(w, oauth2.InvalidRequest, "No device code received", http.StatusBadRequest)
 		return
 	}
 
@@ -53,10 +54,10 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 		if err != storage.ErrNotFound {
 			s.logger.ErrorContext(r.Context(), "failed to get device code", "err", err)
 		}
-		s.tokenErrHelper(w, errInvalidRequest, "Invalid Device code.", http.StatusBadRequest)
+		s.tokenErrHelper(w, oauth2.InvalidRequest, "Invalid Device code.", http.StatusBadRequest)
 		return
 	} else if now.After(deviceToken.Expiry) {
-		s.tokenErrHelper(w, deviceTokenExpired, "", http.StatusBadRequest)
+		s.tokenErrHelper(w, oauth2.DeviceTokenExpired, "", http.StatusBadRequest)
 		return
 	}
 
@@ -73,7 +74,7 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch deviceToken.Status {
-	case deviceTokenPending:
+	case oauth2.DeviceTokenPending:
 		updater := func(old storage.DeviceToken) (storage.DeviceToken, error) {
 			old.PollIntervalSeconds = pollInterval
 			old.LastRequestTime = now
@@ -86,11 +87,11 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if slowDown {
-			s.tokenErrHelper(w, deviceTokenSlowDown, "", http.StatusBadRequest)
+			s.tokenErrHelper(w, oauth2.DeviceTokenSlowDown, "", http.StatusBadRequest)
 		} else {
-			s.tokenErrHelper(w, deviceTokenPending, "", http.StatusBadRequest)
+			s.tokenErrHelper(w, oauth2.DeviceTokenPending, "", http.StatusBadRequest)
 		}
-	case deviceTokenComplete:
+	case oauth2.DeviceTokenComplete:
 		codeChallengeFromStorage := deviceToken.PKCE.CodeChallenge
 		providedCodeVerifier := r.Form.Get("code_verifier")
 
@@ -99,20 +100,20 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 			calculatedCodeChallenge, err := s.calculateCodeChallenge(providedCodeVerifier, deviceToken.PKCE.CodeChallengeMethod)
 			if err != nil {
 				s.logger.ErrorContext(r.Context(), "failed to calculate code challenge", "err", err)
-				s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+				s.tokenErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
 				return
 			}
 			if codeChallengeFromStorage != calculatedCodeChallenge {
-				s.tokenErrHelper(w, errInvalidGrant, "Invalid code_verifier.", http.StatusBadRequest)
+				s.tokenErrHelper(w, oauth2.InvalidGrant, "Invalid code_verifier.", http.StatusBadRequest)
 				return
 			}
 		case providedCodeVerifier != "":
 			// Received no code_challenge on /auth, but a code_verifier on /token
-			s.tokenErrHelper(w, errInvalidRequest, "No PKCE flow started. Cannot check code_verifier.", http.StatusBadRequest)
+			s.tokenErrHelper(w, oauth2.InvalidRequest, "No PKCE flow started. Cannot check code_verifier.", http.StatusBadRequest)
 			return
 		case codeChallengeFromStorage != "":
 			// Received PKCE request on /auth, but no code_verifier on /token
-			s.tokenErrHelper(w, errInvalidGrant, "Expecting parameter code_verifier in PKCE flow.", http.StatusBadRequest)
+			s.tokenErrHelper(w, oauth2.InvalidGrant, "Expecting parameter code_verifier in PKCE flow.", http.StatusBadRequest)
 			return
 		}
 		w.Write([]byte(deviceToken.Token))

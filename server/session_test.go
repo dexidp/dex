@@ -1551,7 +1551,7 @@ func TestPromptNone(t *testing.T) {
 		require.NotNil(t, session)
 
 		// In handleConnectorLogin, a non-empty redirectURL with prompt=none
-		// triggers errInteractionRequired ("Consent required").
+		// triggers oauth2.InteractionRequired ("Consent required").
 		redirectURL, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		require.True(t, ok, "session login should succeed (user is authenticated)")
 		assert.Contains(t, redirectURL, "/approval", "should return approval URL when consent is missing")
@@ -1563,7 +1563,7 @@ func TestPromptNone(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/", nil) // No cookie.
 		w := httptest.NewRecorder()
 
-		// In handleConnectorLogin, this triggers errLoginRequired.
+		// In handleConnectorLogin, this triggers oauth2.LoginRequired.
 		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
 		assert.False(t, ok, "should fail without session")
 	})
@@ -1617,7 +1617,7 @@ func TestPromptNone(t *testing.T) {
 
 	t.Run("MFA required returns redirect not silent", func(t *testing.T) {
 		// This is the prompt=none + MFA case: finishSessionLogin returns MFA redirect URL.
-		// In handleConnectorLogin, this is a successful (ok=true) redirect, not errLoginRequired.
+		// In handleConnectorLogin, this is a successful (ok=true) redirect, not oauth2.LoginRequired.
 		s := newTestSessionServer(t)
 		s.skipApproval = true
 		s.mfaProviders = map[string]MFAProvider{

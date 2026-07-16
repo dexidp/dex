@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
@@ -30,43 +31,43 @@ func TestHandleTokenExchange(t *testing.T) {
 		{
 			"id-for-acccess",
 			"openid",
-			tokenTypeAccess,
-			tokenTypeID,
+			oauth2.TokenTypeAccess,
+			oauth2.TokenTypeID,
 			"foobar",
 			http.StatusOK,
-			tokenTypeAccess,
+			oauth2.TokenTypeAccess,
 		},
 		{
 			"id-for-id",
 			"openid",
-			tokenTypeID,
-			tokenTypeID,
+			oauth2.TokenTypeID,
+			oauth2.TokenTypeID,
 			"foobar",
 			http.StatusOK,
-			tokenTypeID,
+			oauth2.TokenTypeID,
 		},
 		{
 			"id-for-default",
 			"openid",
 			"",
-			tokenTypeID,
+			oauth2.TokenTypeID,
 			"foobar",
 			http.StatusOK,
-			tokenTypeAccess,
+			oauth2.TokenTypeAccess,
 		},
 		{
 			"access-for-access",
 			"openid",
-			tokenTypeAccess,
-			tokenTypeAccess,
+			oauth2.TokenTypeAccess,
+			oauth2.TokenTypeAccess,
 			"foobar",
 			http.StatusOK,
-			tokenTypeAccess,
+			oauth2.TokenTypeAccess,
 		},
 		{
 			"missing-subject_token_type",
 			"openid",
-			tokenTypeAccess,
+			oauth2.TokenTypeAccess,
 			"",
 			"foobar",
 			http.StatusBadRequest,
@@ -75,8 +76,8 @@ func TestHandleTokenExchange(t *testing.T) {
 		{
 			"missing-subject_token",
 			"openid",
-			tokenTypeAccess,
-			tokenTypeAccess,
+			oauth2.TokenTypeAccess,
+			oauth2.TokenTypeAccess,
 			"",
 			http.StatusBadRequest,
 			"",
@@ -93,7 +94,7 @@ func TestHandleTokenExchange(t *testing.T) {
 			})
 			defer httpServer.Close()
 			vals := make(url.Values)
-			vals.Set("grant_type", grantTypeTokenExchange)
+			vals.Set("grant_type", oauth2.GrantTypeTokenExchange)
 			setNonEmpty(vals, "connector_id", "mock")
 			setNonEmpty(vals, "scope", tc.scope)
 			setNonEmpty(vals, "requested_token_type", tc.requestedTokenType)
@@ -133,11 +134,11 @@ func TestHandleTokenExchangeLogsSuccess(t *testing.T) {
 	defer httpServer.Close()
 
 	vals := make(url.Values)
-	vals.Set("grant_type", grantTypeTokenExchange)
+	vals.Set("grant_type", oauth2.GrantTypeTokenExchange)
 	vals.Set("connector_id", "mock")
 	vals.Set("scope", "openid")
-	vals.Set("requested_token_type", tokenTypeAccess)
-	vals.Set("subject_token_type", tokenTypeID)
+	vals.Set("requested_token_type", oauth2.TokenTypeAccess)
+	vals.Set("subject_token_type", oauth2.TokenTypeID)
 	vals.Set("subject_token", "foobar")
 	vals.Set("client_id", "client_1")
 	vals.Set("client_secret", "secret_1")
@@ -166,8 +167,8 @@ func TestHandleTokenExchangeLogsSuccess(t *testing.T) {
 	require.Equal(t, "Kilgore Trout", found["username"])
 	require.Equal(t, "kilgore@kilgore.trout", found["email"])
 	require.Equal(t, []any{"authors"}, found["groups"])
-	require.Equal(t, tokenTypeID, found["subject_token_type"])
-	require.Equal(t, tokenTypeAccess, found["requested_token_type"])
+	require.Equal(t, oauth2.TokenTypeID, found["subject_token_type"])
+	require.Equal(t, oauth2.TokenTypeAccess, found["requested_token_type"])
 }
 
 func TestHandleTokenExchangeConnectorGrantTypeRestriction(t *testing.T) {
@@ -182,7 +183,7 @@ func TestHandleTokenExchangeConnectorGrantTypeRestriction(t *testing.T) {
 
 	// Restrict mock connector to authorization_code only
 	err := s.storage.UpdateConnector(ctx, "mock", func(c storage.Connector) (storage.Connector, error) {
-		c.GrantTypes = []string{grantTypeAuthorizationCode}
+		c.GrantTypes = []string{oauth2.GrantTypeAuthorizationCode}
 		return c, nil
 	})
 	require.NoError(t, err)
@@ -190,11 +191,11 @@ func TestHandleTokenExchangeConnectorGrantTypeRestriction(t *testing.T) {
 	s.connectors.Close("mock")
 
 	vals := make(url.Values)
-	vals.Set("grant_type", grantTypeTokenExchange)
+	vals.Set("grant_type", oauth2.GrantTypeTokenExchange)
 	vals.Set("connector_id", "mock")
 	vals.Set("scope", "openid")
-	vals.Set("requested_token_type", tokenTypeAccess)
-	vals.Set("subject_token_type", tokenTypeID)
+	vals.Set("requested_token_type", oauth2.TokenTypeAccess)
+	vals.Set("subject_token_type", oauth2.TokenTypeID)
 	vals.Set("subject_token", "foobar")
 	vals.Set("client_id", "client_1")
 	vals.Set("client_secret", "secret_1")
@@ -249,11 +250,11 @@ func TestHandleTokenExchangeAllowedConnectors(t *testing.T) {
 			defer httpServer.Close()
 
 			vals := make(url.Values)
-			vals.Set("grant_type", grantTypeTokenExchange)
+			vals.Set("grant_type", oauth2.GrantTypeTokenExchange)
 			vals.Set("connector_id", "mock")
 			vals.Set("scope", "openid")
-			vals.Set("requested_token_type", tokenTypeAccess)
-			vals.Set("subject_token_type", tokenTypeID)
+			vals.Set("requested_token_type", oauth2.TokenTypeAccess)
+			vals.Set("subject_token_type", oauth2.TokenTypeID)
 			vals.Set("subject_token", "foobar")
 			vals.Set("client_id", "client_1")
 			vals.Set("client_secret", "secret_1")

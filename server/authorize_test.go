@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -28,7 +29,7 @@ func TestHandleAuthorizationConnectorGrantTypeFiltering(t *testing.T) {
 		{
 			name: "one connector filtered, redirect to remaining",
 			connectorGrantTypes: map[string][]string{
-				"mock":  {grantTypeDeviceCode},
+				"mock":  {oauth2.GrantTypeDeviceCode},
 				"mock2": nil,
 			},
 			responseType:         "code",
@@ -38,8 +39,8 @@ func TestHandleAuthorizationConnectorGrantTypeFiltering(t *testing.T) {
 		{
 			name: "all connectors filtered",
 			connectorGrantTypes: map[string][]string{
-				"mock":  {grantTypeDeviceCode},
-				"mock2": {grantTypeDeviceCode},
+				"mock":  {oauth2.GrantTypeDeviceCode},
+				"mock2": {oauth2.GrantTypeDeviceCode},
 			},
 			responseType:     "code",
 			wantCode:         http.StatusBadRequest,
@@ -57,7 +58,7 @@ func TestHandleAuthorizationConnectorGrantTypeFiltering(t *testing.T) {
 		{
 			name: "implicit flow filters auth_code-only connector",
 			connectorGrantTypes: map[string][]string{
-				"mock":  {grantTypeAuthorizationCode},
+				"mock":  {oauth2.GrantTypeAuthorizationCode},
 				"mock2": nil,
 			},
 			responseType:         "token",
