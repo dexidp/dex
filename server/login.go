@@ -145,7 +145,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	scopes := parseScopes(authReq.Scopes)
+	scopes := tokens.ParseScopes(authReq.Scopes)
 
 	// Work out where the "Select another login method" link should go.
 	// Include prompt=select_account so that handleAuthorization skips
@@ -286,7 +286,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		// Before rendering the password form, allow connectors that support SPNEGO to try Kerberos auth.
 		if sp, ok := pwConn.(connector.SPNEGOAware); ok {
-			scopes := parseScopes(authReq.Scopes)
+			scopes := tokens.ParseScopes(authReq.Scopes)
 			if ident, handled, err := sp.TrySPNEGO(ctx, scopes, w, r); bool(handled) {
 				if err != nil {
 					// SPNEGO handled the request but reported an error (e.g., LDAP lookup failed
@@ -329,7 +329,7 @@ func (s *Server) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		username := r.FormValue("login")
 		password := r.FormValue("password")
-		scopes := parseScopes(authReq.Scopes)
+		scopes := tokens.ParseScopes(authReq.Scopes)
 
 		identity, ok, err := pwConn.Login(r.Context(), scopes, username, password)
 		if err != nil {
@@ -433,14 +433,14 @@ func (s *Server) handleConnectorCallback(w http.ResponseWriter, r *http.Request)
 			s.renderError(r, w, http.StatusBadRequest, "Invalid request")
 			return
 		}
-		identity, err = conn.HandleCallback(parseScopes(authReq.Scopes), authReq.ConnectorData, r)
+		identity, err = conn.HandleCallback(tokens.ParseScopes(authReq.Scopes), authReq.ConnectorData, r)
 	case connector.SAMLConnector:
 		if r.Method != http.MethodPost {
 			s.logger.ErrorContext(r.Context(), "OAuth2 request mapped to SAML connector")
 			s.renderError(r, w, http.StatusBadRequest, "Invalid request")
 			return
 		}
-		identity, err = conn.HandlePOST(parseScopes(authReq.Scopes), r.PostFormValue("SAMLResponse"), authReq.ID)
+		identity, err = conn.HandlePOST(tokens.ParseScopes(authReq.Scopes), r.PostFormValue("SAMLResponse"), authReq.ID)
 	default:
 		s.renderError(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
 		return

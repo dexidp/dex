@@ -94,7 +94,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 	// Login
 	username := q.Get("username")
 	password := q.Get("password")
-	identity, ok, err := passwordConnector.Login(ctx, parseScopes(scopes), username, password)
+	identity, ok, err := passwordConnector.Login(ctx, tokens.ParseScopes(scopes), username, password)
 	if err != nil {
 		s.logger.ErrorContext(r.Context(), "failed to login user", "err", err)
 		s.tokenErrHelper(w, oauth2.InvalidRequest, "Could not login user", http.StatusBadRequest)

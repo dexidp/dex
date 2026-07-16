@@ -1,6 +1,10 @@
 package tokens
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/dexidp/dex/connector"
+)
 
 // OIDC scope values. They all live here so scope handling stays in one place.
 const (
@@ -21,4 +25,19 @@ func ParseCrossClientScope(scope string) (string, bool) {
 		return "", false
 	}
 	return scope[len(scopeCrossClientPrefix):], true
+}
+
+// ParseScopes translates the requested OIDC scopes into the connector.Scopes a
+// connector needs when authenticating or refreshing a user.
+func ParseScopes(scopes []string) connector.Scopes {
+	var s connector.Scopes
+	for _, scope := range scopes {
+		switch scope {
+		case ScopeOfflineAccess:
+			s.OfflineAccess = true
+		case ScopeGroups:
+			s.Groups = true
+		}
+	}
+	return s
 }

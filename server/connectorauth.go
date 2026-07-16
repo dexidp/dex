@@ -26,9 +26,7 @@ import (
 	"net/http"
 	"slices"
 
-	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/oauth2"
-	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -46,21 +44,6 @@ var ConnectorGrantTypes = map[string]bool{
 // If no grant types are configured, all are allowed.
 func GrantTypeAllowed(configuredTypes []string, grantType string) bool {
 	return len(configuredTypes) == 0 || slices.Contains(configuredTypes, grantType)
-}
-
-// parseScopes translates the requested OAuth2 scopes into the connector.Scopes a
-// connector needs when authenticating or refreshing a user.
-func parseScopes(scopes []string) connector.Scopes {
-	var s connector.Scopes
-	for _, scope := range scopes {
-		switch scope {
-		case tokens.ScopeOfflineAccess:
-			s.OfflineAccess = true
-		case tokens.ScopeGroups:
-			s.Groups = true
-		}
-	}
-	return s
 }
 
 // filterConnectors filters the list of connectors by the allowed connector IDs.

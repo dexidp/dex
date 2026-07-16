@@ -247,7 +247,7 @@ func (s *Server) refreshWithConnector(ctx context.Context, conn connectors.Conne
 	ident.ConnectorData = connectorData
 	s.logger.Debug("connector data before refresh", "connector_data", ident.ConnectorData)
 
-	newIdent, err := refreshConn.Refresh(ctx, parseScopes(scopes), ident)
+	newIdent, err := refreshConn.Refresh(ctx, tokens.ParseScopes(scopes), ident)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to refresh identity", "err", err)
 		return ident, newUpstreamRefreshError()
