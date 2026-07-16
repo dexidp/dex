@@ -10,6 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/tokens"
@@ -141,7 +142,7 @@ func TestHomeLoggedIn(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  "dex_session",
-		Value: sessionCookieValue(userID, connectorID, nonce, nil),
+		Value: internal.SessionCookieValue(userID, connectorID, nonce, nil),
 	})
 
 	rr := httptest.NewRecorder()

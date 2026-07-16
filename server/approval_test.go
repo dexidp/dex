@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/storage"
 )
@@ -160,7 +161,7 @@ func TestConsentPersistedOnApproval(t *testing.T) {
 	}
 	require.NoError(t, s.storage.CreateAuthRequest(ctx, authReq))
 
-	mac := computeHMAC(authReq.HMACKey, authReq.ID, "")
+	mac := internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "")
 
 	form := url.Values{
 		"approval": {"approve"},
@@ -365,7 +366,7 @@ func TestHandleApprovalDoubleSubmitPOST(t *testing.T) {
 	}
 	require.NoError(t, server.storage.CreateAuthRequest(ctx, authReq))
 
-	mac := computeHMAC(authReq.HMACKey, authReq.ID, "")
+	mac := internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "")
 
 	form := url.Values{
 		"approval": {"approve"},
