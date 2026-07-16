@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
@@ -127,7 +128,7 @@ func (s *Server) writeAccessToken(w http.ResponseWriter, resp tokens.Response) {
 }
 
 func (s *Server) tokenErrHelper(w http.ResponseWriter, typ string, description string, statusCode int) {
-	if err := tokenErr(w, typ, description, statusCode); err != nil {
+	if err := oauth2.WriteError(w, typ, description, statusCode); err != nil {
 		// TODO(nabokihms): error with context
 		s.logger.Error("token error response", "err", err)
 	}

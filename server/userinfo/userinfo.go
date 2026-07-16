@@ -9,24 +9,16 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/signer"
 )
 
-// OAuth2 error codes emitted by the endpoint.
-const (
-	errAccessDenied = "access_denied"
-	errServerError  = "server_error"
-)
-
-// Config holds the userinfo handler's dependencies. WriteError writes an OAuth2
-// token error response; it is supplied by the server so the handler does not
-// depend on the whole Server.
+// Config holds the userinfo handler's dependencies.
 type Config struct {
-	Issuer     string
-	Signer     signer.Signer
-	Logger     *slog.Logger
-	WriteError func(w http.ResponseWriter, typ, desc string, code int)
+	Issuer string
+	Signer signer.Signer
+	Logger *slog.Logger
 }
 
 // Handler serves the /userinfo endpoint.
@@ -51,7 +43,7 @@ func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 	auth := r.Header.Get("authorization")
 	if len(auth) < len(prefix) || !strings.EqualFold(prefix, auth[:len(prefix)]) {
 		w.Header().Set("WWW-Authenticate", "Bearer")
-		h.WriteError(w, errAccessDenied, "Invalid bearer token.", http.StatusUnauthorized)
+		h.writeError(w, oauth2.AccessDenied, "Invalid bearer token.", http.StatusUnauthorized)
 		return
 	}
 	rawIDToken := auth[len(prefix):]
@@ -60,17 +52,23 @@ func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 	idToken, err := verifier.Verify(ctx, rawIDToken)
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "failed to verify ID token", "err", err)
-		h.WriteError(w, errAccessDenied, "Invalid bearer token.", http.StatusForbidden)
+		h.writeError(w, oauth2.AccessDenied, "Invalid bearer token.", http.StatusForbidden)
 		return
 	}
 
 	var claims json.RawMessage
 	if err := idToken.Claims(&claims); err != nil {
 		h.Logger.ErrorContext(ctx, "failed to decode ID token claims", "err", err)
-		h.WriteError(w, errServerError, "", http.StatusInternalServerError)
+		h.writeError(w, oauth2.ServerError, "", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(claims)
+}
+
+func (h *Handler) writeError(w http.ResponseWriter, typ, description string, statusCode int) {
+	if err := oauth2.WriteError(w, typ, description, statusCode); err != nil {
+		h.Logger.Error("userinfo error response", "err", err)
+	}
 }

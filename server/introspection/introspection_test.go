@@ -4,19 +4,18 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
-	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
@@ -25,26 +24,11 @@ import (
 
 const testIssuer = "https://test.tech/non-root-path"
 
-// writeTokenErr mirrors the server's OAuth2 token error writer, so the handler's
-// error rendering can be asserted in isolation.
-func writeTokenErr(w http.ResponseWriter, typ, description string, statusCode int) {
-	data := struct {
-		Error       string `json:"error"`
-		Description string `json:"error_description,omitempty"`
-	}{typ, description}
-	body, _ := json.Marshal(data)
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
-	w.WriteHeader(statusCode)
-	w.Write(body)
-}
-
 func testHandler(t *testing.T) *Handler {
 	t.Helper()
 	return New(Config{
-		Issuer:     testIssuer,
-		Logger:     slog.New(slog.DiscardHandler),
-		WriteError: writeTokenErr,
+		Issuer: testIssuer,
+		Logger: slog.New(slog.DiscardHandler),
 	})
 }
 
@@ -120,14 +104,14 @@ func TestGetTokenFromRequestFailure(t *testing.T) {
 
 	_, _, err := h.getTokenFromRequest(httptest.NewRequest(http.MethodGet, "https://test.tech/token/introspect", nil))
 	require.ErrorIs(t, err, &introspectionError{
-		typ:  errInvalidRequest,
+		typ:  oauth2.InvalidRequest,
 		desc: "HTTP method is \"GET\", expected \"POST\".",
 		code: http.StatusBadRequest,
 	})
 
 	_, _, err = h.getTokenFromRequest(httptest.NewRequest(http.MethodPost, "https://test.tech/token/introspect", nil))
 	require.ErrorIs(t, err, &introspectionError{
-		typ:  errInvalidRequest,
+		typ:  oauth2.InvalidRequest,
 		desc: "The POST body can not be empty.",
 		code: http.StatusBadRequest,
 	})
@@ -136,7 +120,7 @@ func TestGetTokenFromRequestFailure(t *testing.T) {
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	_, _, err = h.getTokenFromRequest(req)
 	require.ErrorIs(t, err, &introspectionError{
-		typ:  errInvalidRequest,
+		typ:  oauth2.InvalidRequest,
 		desc: "The POST body doesn't contain 'token' parameter.",
 		code: http.StatusBadRequest,
 	})

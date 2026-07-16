@@ -416,10 +416,9 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		SessionsEnabled: s.sessionConfig != nil,
 	})
 	s.userinfo = userinfo.New(userinfo.Config{
-		Issuer:     s.issuerURL.String(),
-		Signer:     s.signer,
-		Logger:     s.logger,
-		WriteError: s.tokenErrHelper,
+		Issuer: s.issuerURL.String(),
+		Signer: s.signer,
+		Logger: s.logger,
 	})
 	s.introspection = introspection.New(introspection.Config{
 		Issuer:        s.issuerURL.String(),
@@ -440,7 +439,6 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			}
 			return rt, nil
 		},
-		WriteError: s.tokenErrHelper,
 	})
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors

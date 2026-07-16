@@ -12,17 +12,11 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
-)
-
-// OAuth2 error codes emitted by the endpoint.
-const (
-	errInvalidRequest = "invalid_request"
-	errServerError    = "server_error"
-	errInactiveToken  = "inactive_token"
 )
 
 // Introspection contains an access token's session data as specified by
@@ -146,22 +140,21 @@ func (e *introspectionError) Is(tgt error) bool {
 }
 
 func newIntrospectInactiveTokenError() *introspectionError {
-	return &introspectionError{typ: errInactiveToken, desc: "", code: http.StatusUnauthorized}
+	return &introspectionError{typ: oauth2.InactiveToken, desc: "", code: http.StatusUnauthorized}
 }
 
 func newIntrospectInternalServerError() *introspectionError {
-	return &introspectionError{typ: errServerError, desc: "", code: http.StatusInternalServerError}
+	return &introspectionError{typ: oauth2.ServerError, desc: "", code: http.StatusInternalServerError}
 }
 
 func newIntrospectBadRequestError(desc string) *introspectionError {
-	return &introspectionError{typ: errInvalidRequest, desc: desc, code: http.StatusBadRequest}
+	return &introspectionError{typ: oauth2.InvalidRequest, desc: desc, code: http.StatusBadRequest}
 }
 
 // Config holds the introspection handler's dependencies. LookupRefresh resolves
 // a refresh token from storage, returning (nil, nil) when the token is inactive
-// (unknown, revoked or expired). WriteError writes an OAuth2 token error
-// response. Both are supplied by the server so the handler does not depend on
-// the whole Server.
+// (unknown, revoked or expired); it is supplied by the server so the handler
+// does not depend on the whole Server.
 type Config struct {
 	Issuer        string
 	Signer        signer.Signer
@@ -169,7 +162,6 @@ type Config struct {
 	Logger        *slog.Logger
 	RefreshPolicy *tokens.RefreshStrategy
 	LookupRefresh func(ctx context.Context, token *internal.RefreshToken) (*storage.RefreshToken, error)
-	WriteError    func(w http.ResponseWriter, typ, desc string, code int)
 }
 
 // Handler serves the /token/introspect endpoint.
@@ -354,7 +346,7 @@ func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 			h.introspectErrHelper(w, intErr.typ, intErr.desc, intErr.code)
 		} else {
 			h.Logger.ErrorContext(ctx, "an unknown error occurred", "err", err.Error())
-			h.introspectErrHelper(w, errServerError, "An unknown error occurred", http.StatusInternalServerError)
+			h.introspectErrHelper(w, oauth2.ServerError, "An unknown error occurred", http.StatusInternalServerError)
 		}
 
 		return
@@ -363,7 +355,7 @@ func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 	rawJSON, jsonErr := json.Marshal(introspect)
 	if jsonErr != nil {
 		h.Logger.ErrorContext(ctx, "failed to marshal introspection response", "err", jsonErr)
-		h.introspectErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		h.introspectErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
 		return
 	}
 
@@ -372,12 +364,14 @@ func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) introspectErrHelper(w http.ResponseWriter, typ, description string, statusCode int) {
-	if typ == errInactiveToken {
+	if typ == oauth2.InactiveToken {
 		introspectInactiveErr(w)
 		return
 	}
 
-	h.WriteError(w, typ, description, statusCode)
+	if err := oauth2.WriteError(w, typ, description, statusCode); err != nil {
+		h.Logger.Error("introspect error response", "err", err)
+	}
 }
 
 func introspectInactiveErr(w http.ResponseWriter) {

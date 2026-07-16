@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"crypto"
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -15,6 +14,7 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
@@ -93,56 +93,39 @@ func (err *redirectedAuthErr) Handler() http.Handler {
 	return http.HandlerFunc(hf)
 }
 
-func tokenErr(w http.ResponseWriter, typ, description string, statusCode int) error {
-	data := struct {
-		Error       string `json:"error"`
-		Description string `json:"error_description,omitempty"`
-	}{typ, description}
-	body, err := json.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("failed to marshal token error response: %v", err)
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
-	w.WriteHeader(statusCode)
-	w.Write(body)
-	return nil
-}
-
+// The OAuth2/OIDC protocol vocabulary lives in the oauth2 package; these
+// in-package aliases keep the many call sites terse.
 const (
-	errInvalidRequest          = "invalid_request"
-	errUnauthorizedClient      = "unauthorized_client"
-	errAccessDenied            = "access_denied"
-	errUnsupportedResponseType = "unsupported_response_type"
-	errRequestNotSupported     = "request_not_supported"
-	errInvalidScope            = "invalid_scope"
-	errServerError             = "server_error"
-	errTemporarilyUnavailable  = "temporarily_unavailable"
-	errUnsupportedGrantType    = "unsupported_grant_type"
-	errInvalidGrant            = "invalid_grant"
-	errInvalidClient           = "invalid_client"
-	errInactiveToken           = "inactive_token"
-	errLoginRequired           = "login_required"
-	errInteractionRequired     = "interaction_required"
-	errConsentRequired         = "consent_required"
+	errInvalidRequest          = oauth2.InvalidRequest
+	errUnauthorizedClient      = oauth2.UnauthorizedClient
+	errAccessDenied            = oauth2.AccessDenied
+	errUnsupportedResponseType = oauth2.UnsupportedResponseType
+	errRequestNotSupported     = oauth2.RequestNotSupported
+	errInvalidScope            = oauth2.InvalidScope
+	errServerError             = oauth2.ServerError
+	errTemporarilyUnavailable  = oauth2.TemporarilyUnavailable
+	errUnsupportedGrantType    = oauth2.UnsupportedGrantType
+	errInvalidGrant            = oauth2.InvalidGrant
+	errInvalidClient           = oauth2.InvalidClient
+	errInactiveToken           = oauth2.InactiveToken
+	errLoginRequired           = oauth2.LoginRequired
+	errInteractionRequired     = oauth2.InteractionRequired
+	errConsentRequired         = oauth2.ConsentRequired
 )
 
 const (
-	deviceCallbackURI = "/device/callback"
+	deviceCallbackURI = oauth2.DeviceCallbackURI
+	redirectURIOOB    = oauth2.RedirectURIOOB
 )
 
 const (
-	redirectURIOOB = "urn:ietf:wg:oauth:2.0:oob"
-)
-
-const (
-	grantTypeAuthorizationCode = "authorization_code"
-	grantTypeRefreshToken      = "refresh_token"
-	grantTypeImplicit          = "implicit"
-	grantTypePassword          = "password"
-	grantTypeDeviceCode        = "urn:ietf:params:oauth:grant-type:device_code"
-	grantTypeTokenExchange     = "urn:ietf:params:oauth:grant-type:token-exchange"
-	grantTypeClientCredentials = "client_credentials"
+	grantTypeAuthorizationCode = oauth2.GrantTypeAuthorizationCode
+	grantTypeRefreshToken      = oauth2.GrantTypeRefreshToken
+	grantTypeImplicit          = oauth2.GrantTypeImplicit
+	grantTypePassword          = oauth2.GrantTypePassword
+	grantTypeDeviceCode        = oauth2.GrantTypeDeviceCode
+	grantTypeTokenExchange     = oauth2.GrantTypeTokenExchange
+	grantTypeClientCredentials = oauth2.GrantTypeClientCredentials
 )
 
 // ConnectorGrantTypes is the set of grant types that can be restricted per connector.
@@ -156,30 +139,29 @@ var ConnectorGrantTypes = map[string]bool{
 }
 
 const (
-	// https://www.rfc-editor.org/rfc/rfc8693.html#section-3
-	tokenTypeAccess  = "urn:ietf:params:oauth:token-type:access_token"
-	tokenTypeRefresh = "urn:ietf:params:oauth:token-type:refresh_token"
-	tokenTypeID      = "urn:ietf:params:oauth:token-type:id_token"
-	tokenTypeSAML1   = "urn:ietf:params:oauth:token-type:saml1"
-	tokenTypeSAML2   = "urn:ietf:params:oauth:token-type:saml2"
-	tokenTypeJWT     = "urn:ietf:params:oauth:token-type:jwt"
+	tokenTypeAccess  = oauth2.TokenTypeAccess
+	tokenTypeRefresh = oauth2.TokenTypeRefresh
+	tokenTypeID      = oauth2.TokenTypeID
+	tokenTypeSAML1   = oauth2.TokenTypeSAML1
+	tokenTypeSAML2   = oauth2.TokenTypeSAML2
+	tokenTypeJWT     = oauth2.TokenTypeJWT
 )
 
 const (
-	responseTypeCode             = "code"                // "Regular" flow
-	responseTypeToken            = "token"               // Implicit flow for frontend apps.
-	responseTypeIDToken          = "id_token"            // ID Token in url fragment
-	responseTypeCodeToken        = "code token"          // "Regular" flow + Implicit flow
-	responseTypeCodeIDToken      = "code id_token"       // "Regular" flow + ID Token
-	responseTypeIDTokenToken     = "id_token token"      // ID Token + Implicit flow
-	responseTypeCodeIDTokenToken = "code id_token token" // "Regular" flow + ID Token + Implicit flow
+	responseTypeCode             = oauth2.ResponseTypeCode
+	responseTypeToken            = oauth2.ResponseTypeToken
+	responseTypeIDToken          = oauth2.ResponseTypeIDToken
+	responseTypeCodeToken        = oauth2.ResponseTypeCodeToken
+	responseTypeCodeIDToken      = oauth2.ResponseTypeCodeIDToken
+	responseTypeIDTokenToken     = oauth2.ResponseTypeIDTokenToken
+	responseTypeCodeIDTokenToken = oauth2.ResponseTypeCodeIDTokenToken
 )
 
 const (
-	deviceTokenPending  = "authorization_pending"
-	deviceTokenComplete = "complete"
-	deviceTokenSlowDown = "slow_down"
-	deviceTokenExpired  = "expired_token"
+	deviceTokenPending  = oauth2.DeviceTokenPending
+	deviceTokenComplete = oauth2.DeviceTokenComplete
+	deviceTokenSlowDown = oauth2.DeviceTokenSlowDown
+	deviceTokenExpired  = oauth2.DeviceTokenExpired
 )
 
 func parseScopes(scopes []string) connector.Scopes {
