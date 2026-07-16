@@ -45,7 +45,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 				continue
 			}
 
-			isTrusted, err := s.validateCrossClientTrust(ctx, client.ID, peerID)
+			isTrusted, err := tokens.CrossClientTrusted(ctx, s.storage, client.ID, peerID)
 			if err != nil {
 				s.logger.ErrorContext(r.Context(), "error validating cross client trust", "client_id", client.ID, "peer_id", peerID, "err", err)
 				s.tokenErrHelper(w, oauth2.InvalidClient, "Error validating cross client trust.", http.StatusBadRequest)

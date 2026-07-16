@@ -47,6 +47,7 @@ import (
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/device"
 	"github.com/dexidp/dex/server/discovery"
+	"github.com/dexidp/dex/server/grants"
 	"github.com/dexidp/dex/server/home"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/introspection"
@@ -448,6 +449,13 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		homeHandler.CookieEncryptionKey = s.sessionConfig.CookieEncryptionKey
 	}
 
+	// The token endpoint dispatches to the grants registered here. Grants not
+	// yet migrated are still served by handleToken's switch.
+	tokenEndpoint := &grants.Endpoint{Storage: s.storage, Logger: s.logger, Now: s.now}
+	tokenEndpoint.Register(
+		grants.NewClientCredentials(s.issuer, s.storage, s.now, s.logger),
+	)
+
 	// Retrieves connector objects in backend storage. This list includes the static connectors
 	// defined in the ConfigMap and dynamic connectors retrieved from the storage.
 	storageConnectors, err := c.Storage.ListConnectors(ctx)
@@ -594,7 +602,9 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	}
 
 	// TODO(ericchiang): rate limit certain paths based on IP.
-	handleWithCORS("/token", s.handleToken)
+	handleWithCORS("/token", func(w http.ResponseWriter, r *http.Request) {
+		s.handleToken(w, r, tokenEndpoint)
+	})
 	handleFunc("/auth", s.handleAuthorization)
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
 	handleFunc("/auth/{connector}/login", s.handlePasswordLogin)

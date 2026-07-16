@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/dexidp/dex/server/grants"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
@@ -59,7 +60,7 @@ func (s *Server) withClientFromStorage(w http.ResponseWriter, r *http.Request, h
 	handler(w, r, client)
 }
 
-func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleToken(w http.ResponseWriter, r *http.Request, endpoint *grants.Endpoint) {
 	w.Header().Set("Content-Type", "application/json")
 	if r.Method != http.MethodPost {
 		s.tokenErrHelper(w, oauth2.InvalidRequest, "method not allowed", http.StatusBadRequest)
@@ -79,6 +80,13 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		s.tokenErrHelper(w, oauth2.UnsupportedGrantType, "", http.StatusBadRequest)
 		return
 	}
+
+	// Grants migrated to the grants.Endpoint are dispatched there; the switch
+	// below still serves the grants that have not been migrated yet.
+	if endpoint.Dispatch(w, r, grantType) {
+		return
+	}
+
 	switch grantType {
 	case oauth2.GrantTypeDeviceCode:
 		s.handleDeviceToken(w, r)
@@ -90,8 +98,6 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		s.withClientFromStorage(w, r, s.handlePasswordGrant)
 	case oauth2.GrantTypeTokenExchange:
 		s.withClientFromStorage(w, r, s.handleTokenExchange)
-	case oauth2.GrantTypeClientCredentials:
-		s.withClientFromStorage(w, r, s.handleClientCredentialsGrant)
 	default:
 		s.tokenErrHelper(w, oauth2.UnsupportedGrantType, "", http.StatusBadRequest)
 	}

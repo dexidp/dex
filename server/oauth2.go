@@ -227,7 +227,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 				continue
 			}
 
-			isTrusted, err := s.validateCrossClientTrust(r.Context(), clientID, peerID)
+			isTrusted, err := tokens.CrossClientTrusted(r.Context(), s.storage, clientID, peerID)
 			if err != nil {
 				return nil, "", newRedirectedErr(oauth2.ServerError, "Internal server error.")
 			}
@@ -340,26 +340,6 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		},
 		HMACKey: storage.NewHMACKey(crypto.SHA256),
 	}, idTokenHintSubject, nil
-}
-
-func (s *Server) validateCrossClientTrust(ctx context.Context, clientID, peerID string) (trusted bool, err error) {
-	if peerID == clientID {
-		return true, nil
-	}
-	peer, err := s.storage.GetClient(ctx, peerID)
-	if err != nil {
-		if err != storage.ErrNotFound {
-			s.logger.ErrorContext(ctx, "failed to get client", "err", err)
-			return false, err
-		}
-		return false, nil
-	}
-	for _, id := range peer.TrustedPeers {
-		if id == clientID {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 func validateRedirectURI(client storage.Client, redirectURI string) bool {
