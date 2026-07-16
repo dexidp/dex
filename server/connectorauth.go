@@ -1,26 +1,25 @@
 package server
 
-// This file is the single home for connector authorization: deciding whether a
-// given client may use a given connector, and whether a connector permits a given
-// grant type.
+// This file handles connector authorization for the token grants that still live
+// in the server package: deciding whether a given client may use a given
+// connector, and whether a connector permits a given grant type.
 //
 // INVARIANT: every token grant that resolves a connector MUST enforce both
 // policies before issuing tokens:
-//   1. checkConnectorAllowed(client, connID) — the connector is in the client's
-//      AllowedConnectors.
-//   2. connectors.GrantTypeAllowed(conn.GrantTypes, grantType) — the connector permits this
-//      grant type.
+//   1. connectors.ConnectorAllowed(client.AllowedConnectors, connID) — the connector
+//      is in the client's AllowedConnectors.
+//   2. connectors.GrantTypeAllowed(conn.GrantTypes, grantType) — the connector permits
+//      this grant type.
 //
-// The password and token-exchange grants run #1 before resolving the connector
-// (so a disallowed connector is never instantiated) and #2 right after. The
-// refresh grant resolves the connector and runs #2 inside getRefreshTokenFromStorage
-// (shared with token introspection), then runs #1 in handleRefreshToken — a
-// different order, but both still gate token issuance.
+// Grants that have moved to the grants package enforce the invariant through
+// grants.Endpoint.resolveConnector, which runs both checks in one call. The
+// refresh grant, still here, resolves the connector and runs #2 inside
+// getRefreshTokenFromStorage (shared with token introspection), then runs #1 via
+// checkConnectorAllowed in handleRefreshToken — a different order, but both still
+// gate token issuance.
 //
-// Both checks live here / are referenced from here so a new grant handler can find
-// them in one place and not silently forget one — the omission that let the
-// password and refresh grants skip check #1. Browser/auth-code paths enforce the
-// same policies with their own HTML/redirect error surface (login.go, authorize.go).
+// Browser/auth-code paths enforce the same policies with their own HTML/redirect
+// error surface (login.go, authorize.go).
 
 import (
 	"net/http"

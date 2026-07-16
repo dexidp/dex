@@ -18,6 +18,17 @@ const (
 	scopeCrossClientPrefix = "audience:server:client_id:"
 )
 
+// HasOpenID reports whether the openid scope was requested, i.e. whether an
+// ID token should be issued.
+func HasOpenID(scopes []string) bool {
+	for _, scope := range scopes {
+		if scope == ScopeOpenID {
+			return true
+		}
+	}
+	return false
+}
+
 // ParseCrossClientScope extracts the peer client ID from a cross-client audience
 // scope, reporting whether the scope was one.
 func ParseCrossClientScope(scope string) (string, bool) {

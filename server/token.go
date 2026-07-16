@@ -60,6 +60,13 @@ func (s *Server) withClientFromStorage(w http.ResponseWriter, r *http.Request, h
 	handler(w, r, client)
 }
 
+// newTokenEndpoint builds the token endpoint with its grants registered from the
+// server's dependencies. It is the single construction point shared by the router
+// wiring and the grant tests.
+func (s *Server) newTokenEndpoint() *grants.Endpoint {
+	return grants.NewEndpoint(s.issuer, s.storage, s.connectors, s.logger, s.passwordConnector)
+}
+
 func (s *Server) handleToken(w http.ResponseWriter, r *http.Request, endpoint *grants.Endpoint) {
 	w.Header().Set("Content-Type", "application/json")
 	if r.Method != http.MethodPost {
@@ -94,10 +101,6 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request, endpoint *g
 		s.withClientFromStorage(w, r, s.handleAuthCode)
 	case oauth2.GrantTypeRefreshToken:
 		s.withClientFromStorage(w, r, s.handleRefreshToken)
-	case oauth2.GrantTypePassword:
-		s.withClientFromStorage(w, r, s.handlePasswordGrant)
-	case oauth2.GrantTypeTokenExchange:
-		s.withClientFromStorage(w, r, s.handleTokenExchange)
 	default:
 		s.tokenErrHelper(w, oauth2.UnsupportedGrantType, "", http.StatusBadRequest)
 	}

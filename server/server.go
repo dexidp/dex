@@ -47,7 +47,6 @@ import (
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/device"
 	"github.com/dexidp/dex/server/discovery"
-	"github.com/dexidp/dex/server/grants"
 	"github.com/dexidp/dex/server/home"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/introspection"
@@ -449,12 +448,9 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		homeHandler.CookieEncryptionKey = s.sessionConfig.CookieEncryptionKey
 	}
 
-	// The token endpoint dispatches to the grants registered here. Grants not
-	// yet migrated are still served by handleToken's switch.
-	tokenEndpoint := &grants.Endpoint{Storage: s.storage, Logger: s.logger, Now: s.now}
-	tokenEndpoint.Register(
-		grants.NewClientCredentials(s.issuer, s.storage, s.now, s.logger),
-	)
+	// The token endpoint dispatches to the grants registered inside NewEndpoint.
+	// Grants not yet migrated are still served by handleToken's switch.
+	tokenEndpoint := s.newTokenEndpoint()
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
 	// defined in the ConfigMap and dynamic connectors retrieved from the storage.

@@ -7,6 +7,27 @@ import (
 	"strconv"
 )
 
+// Error is an OAuth2 error response a token grant can return instead of writing
+// it: the token endpoint turns it into the JSON error body. It lets a grant
+// handler report failures as values rather than writing to the ResponseWriter.
+type Error struct {
+	Type        string
+	Description string
+	Status      int
+}
+
+func (e *Error) Error() string {
+	if e.Description == "" {
+		return e.Type
+	}
+	return e.Type + ": " + e.Description
+}
+
+// Errorf builds an *Error with a formatted description.
+func Errorf(typ string, status int, format string, args ...any) *Error {
+	return &Error{Type: typ, Description: fmt.Sprintf(format, args...), Status: status}
+}
+
 // WriteError writes an OAuth2 error response: a JSON body with the error code
 // and an optional description, at the given HTTP status.
 func WriteError(w http.ResponseWriter, typ, description string, statusCode int) error {
