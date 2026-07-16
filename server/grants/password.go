@@ -27,19 +27,21 @@ func (g *password) RequiresClientAuth() bool {
 	return true
 }
 
+var passwordScopePolicy = ScopePolicy{
+	Standard: map[string]bool{
+		tokens.ScopeOpenID:        true,
+		tokens.ScopeOfflineAccess: true,
+		tokens.ScopeEmail:         true,
+		tokens.ScopeProfile:       true,
+		tokens.ScopeGroups:        true,
+		tokens.ScopeFederatedID:   true,
+	},
+	RequireOpenID: true,
+	ErrorType:     oauth2.InvalidRequest,
+}
+
 func (g *password) ScopePolicy() ScopePolicy {
-	return ScopePolicy{
-		Standard: map[string]bool{
-			tokens.ScopeOpenID:        true,
-			tokens.ScopeOfflineAccess: true,
-			tokens.ScopeEmail:         true,
-			tokens.ScopeProfile:       true,
-			tokens.ScopeGroups:        true,
-			tokens.ScopeFederatedID:   true,
-		},
-		RequireOpenID: true,
-		ErrorType:     oauth2.InvalidRequest,
-	}
+	return passwordScopePolicy
 }
 
 // ConnectorID is the connector the password grant is configured to use.

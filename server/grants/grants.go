@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -103,11 +104,14 @@ type Grant interface {
 	// ScopePolicy reports how the endpoint validates the requested scopes for
 	// this grant.
 	ScopePolicy() ScopePolicy
-	// ConnectorID is the connector this grant authenticates against, or "" when
-	// it uses none (client_credentials). The grant may read it from the request
-	// or look it up in storage. The endpoint then resolves it and enforces the
-	// connector-authorization invariant before Authorize, so a grant cannot
-	// forget the check. Returning an error rejects the request.
+	// ConnectorID is the connector this grant authenticates against; the endpoint
+	// resolves it and enforces the connector-authorization invariant (client
+	// allows it, connector allows the grant type) before Authorize. The grant may
+	// read it from the request or look it up in storage; returning an error
+	// rejects the request. Returning "" skips the step — for a grant that uses no
+	// connector (client_credentials, device_code), or one already authorized
+	// elsewhere (authorization_code was gated at /auth and resolves its connector
+	// inside Authorize only to decide on a refresh token).
 	ConnectorID(ctx context.Context, req *Request, client storage.Client) (string, *oauth2.Error)
 	// Authorize turns the validated request into the authorization to issue
 	// tokens for, proving the resource owner's identity against conn (the zero
@@ -373,9 +377,10 @@ func (e *Endpoint) authenticateClient(ctx context.Context, w http.ResponseWriter
 // writeError writes err as an OAuth2 error response. An *oauth2.Error carries its
 // own type/description/status; anything else is reported as a server error.
 func (e *Endpoint) writeError(ctx context.Context, w http.ResponseWriter, err error) {
-	oerr := &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
-	if !errors.As(err, &oerr) {
+	var oerr *oauth2.Error
+	if !errors.As(err, &oerr) || oerr == nil {
 		e.logger.ErrorContext(ctx, "token request failed", "err", err)
+		oerr = &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
 	}
 	if werr := oauth2.WriteError(w, oerr.Type, oerr.Description, oerr.Status); werr != nil {
 		e.logger.ErrorContext(ctx, "failed to write token error response", "err", werr)
@@ -392,10 +397,5 @@ func shouldIssueRefreshToken(conn connectors.Connector, scopes []string) bool {
 	if !connectors.GrantTypeAllowed(conn.GrantTypes, oauth2.GrantTypeRefreshToken) {
 		return false
 	}
-	for _, scope := range scopes {
-		if scope == tokens.ScopeOfflineAccess {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(scopes, tokens.ScopeOfflineAccess)
 }

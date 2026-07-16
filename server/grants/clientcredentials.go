@@ -22,20 +22,22 @@ func (g *clientCredentials) RequiresClientAuth() bool {
 	return true
 }
 
+var clientCredentialsScopePolicy = ScopePolicy{
+	Standard: map[string]bool{
+		tokens.ScopeOpenID:  true,
+		tokens.ScopeEmail:   true,
+		tokens.ScopeProfile: true,
+		tokens.ScopeGroups:  true,
+	},
+	Rejected: map[string]string{
+		tokens.ScopeOfflineAccess: "client_credentials grant does not support offline_access scope.",
+		tokens.ScopeFederatedID:   "client_credentials grant does not support federated:id scope.",
+	},
+	ErrorType: oauth2.InvalidScope,
+}
+
 func (g *clientCredentials) ScopePolicy() ScopePolicy {
-	return ScopePolicy{
-		Standard: map[string]bool{
-			tokens.ScopeOpenID:  true,
-			tokens.ScopeEmail:   true,
-			tokens.ScopeProfile: true,
-			tokens.ScopeGroups:  true,
-		},
-		Rejected: map[string]string{
-			tokens.ScopeOfflineAccess: "client_credentials grant does not support offline_access scope.",
-			tokens.ScopeFederatedID:   "client_credentials grant does not support federated:id scope.",
-		},
-		ErrorType: oauth2.InvalidScope,
-	}
+	return clientCredentialsScopePolicy
 }
 
 // ConnectorID is empty: client_credentials involves no connector.

@@ -2,6 +2,7 @@ package tokens
 
 import (
 	"context"
+	"slices"
 
 	"github.com/dexidp/dex/storage"
 )
@@ -20,10 +21,5 @@ func CrossClientTrusted(ctx context.Context, s storage.Storage, clientID, peerID
 		}
 		return false, err
 	}
-	for _, id := range peer.TrustedPeers {
-		if id == clientID {
-			return true, nil
-		}
-	}
-	return false, nil
+	return slices.Contains(peer.TrustedPeers, clientID), nil
 }
