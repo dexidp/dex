@@ -2,6 +2,7 @@ package grants
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 
 	"github.com/dexidp/dex/server/connectors"
@@ -12,7 +13,10 @@ import (
 
 // clientCredentials serves the client_credentials grant: a confidential client
 // obtains tokens for itself, with no user involved.
-type clientCredentials struct{}
+type clientCredentials struct {
+	issuer *tokens.Issuer
+	logger *slog.Logger
+}
 
 func (g *clientCredentials) GrantType() string {
 	return oauth2.GrantTypeClientCredentials
@@ -45,7 +49,7 @@ func (g *clientCredentials) ConnectorID(ctx context.Context, req *Request, clien
 	return "", nil
 }
 
-func (g *clientCredentials) Authorize(ctx context.Context, req *Request, client storage.Client, conn connectors.Connector) (*Result, error) {
+func (g *clientCredentials) Authorize(ctx context.Context, req *Request, client storage.Client, conn connectors.Connector) (Responder, error) {
 	// client_credentials requires a confidential client.
 	if client.Public {
 		return nil, &oauth2.Error{Type: oauth2.UnauthorizedClient, Description: "Public clients cannot use client_credentials grant.", Status: http.StatusBadRequest}
@@ -65,15 +69,14 @@ func (g *clientCredentials) Authorize(ctx context.Context, req *Request, client 
 		}
 	}
 
-	return &Result{
-		Authorization: tokens.Authorization{
-			Client: client,
-			Claims: claims,
-			Scopes: req.Scopes,
-			// Empty connector ID is unique for client credentials grant. Creating
-			// connectors with an empty ID via the config and API is prohibited.
-			ConnectorID: "",
-			Nonce:       req.Nonce,
-		},
-	}, nil
+	auth := tokens.Authorization{
+		Client: client,
+		Claims: claims,
+		Scopes: req.Scopes,
+		// Empty connector ID is unique for client credentials grant. Creating
+		// connectors with an empty ID via the config and API is prohibited.
+		ConnectorID: "",
+		Nonce:       req.Nonce,
+	}
+	return issue(ctx, g.logger, g.issuer, auth, "", false)
 }

@@ -15,6 +15,7 @@ import (
 // authorizationCode serves the authorization_code grant: the client redeems a
 // code minted at the /auth endpoint for tokens.
 type authorizationCode struct {
+	issuer     *tokens.Issuer
 	storage    storage.Storage
 	connectors *connectors.Cache
 	now        func() time.Time
@@ -42,7 +43,7 @@ func (g *authorizationCode) ConnectorID(ctx context.Context, req *Request, clien
 }
 
 // handle an access token request https://tools.ietf.org/html/rfc6749#section-4.1.3
-func (g *authorizationCode) Authorize(ctx context.Context, req *Request, client storage.Client, conn connectors.Connector) (*Result, error) {
+func (g *authorizationCode) Authorize(ctx context.Context, req *Request, client storage.Client, conn connectors.Connector) (Responder, error) {
 	if req.Code == "" {
 		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Required param: code.", Status: http.StatusBadRequest}
 	}
@@ -64,15 +65,31 @@ func (g *authorizationCode) Authorize(ctx context.Context, req *Request, client 
 		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "redirect_uri did not match URI from initial request.", Status: http.StatusBadRequest}
 	}
 
-	return ExchangeAuthCode(ctx, g.storage, g.connectors, g.logger, authCode, client)
+	auth, withRefresh, err := ExchangeAuthCode(ctx, g.connectors, g.logger, authCode, client)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := issue(ctx, g.logger, g.issuer, auth, authCode.ID, withRefresh)
+	if err != nil {
+		return nil, err
+	}
+
+	// Consume the code only after the tokens are minted, so a signing failure
+	// leaves it redeemable.
+	if err := g.storage.DeleteAuthCode(ctx, authCode.ID); err != nil {
+		g.logger.ErrorContext(ctx, "failed to delete auth code", "err", err)
+		return nil, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
+	}
+	return resp, nil
 }
 
-// ExchangeAuthCode consumes a validated authorization code and returns what to
-// issue: it deletes the code and decides whether a refresh token is warranted.
-// The standard mint turns the Result into tokens, binding the code into c_hash.
-// It is shared by the authorization_code grant and the device flow, which both
-// redeem an auth code for tokens.
-func ExchangeAuthCode(ctx context.Context, s storage.Storage, conns *connectors.Cache, logger *slog.Logger, authCode storage.AuthCode, client storage.Client) (*Result, error) {
+// ExchangeAuthCode turns a validated authorization code into the authorization to
+// issue tokens for and whether a refresh token is warranted. The caller mints the
+// tokens (binding authCode.ID into c_hash) and then consumes the code. It is
+// shared by the authorization_code grant and the device flow, which both redeem
+// an auth code for tokens.
+func ExchangeAuthCode(ctx context.Context, conns *connectors.Cache, logger *slog.Logger, authCode storage.AuthCode, client storage.Client) (tokens.Authorization, bool, error) {
 	auth := tokens.Authorization{
 		Client:        client,
 		Claims:        authCode.Claims,
@@ -83,23 +100,13 @@ func ExchangeAuthCode(ctx context.Context, s storage.Storage, conns *connectors.
 		ConnectorData: authCode.ConnectorData,
 	}
 
-	// Consume the code before issuing so it cannot be replayed.
-	if err := s.DeleteAuthCode(ctx, authCode.ID); err != nil {
-		logger.ErrorContext(ctx, "failed to delete auth code", "err", err)
-		return nil, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
-	}
-
 	// A refresh token is only issued when the connector supports it, the grant
 	// type is allowed and offline_access was requested (RFC 6749 §1.5).
 	conn, err := conns.Get(ctx, authCode.ConnectorID)
 	if err != nil {
 		logger.ErrorContext(ctx, "connector not found", "connector_id", authCode.ConnectorID, "err", err)
-		return nil, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
+		return tokens.Authorization{}, false, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
 	}
 
-	return &Result{
-		Authorization: auth,
-		IssueRefresh:  shouldIssueRefreshToken(conn, authCode.Scopes),
-		Code:          authCode.ID,
-	}, nil
+	return auth, shouldIssueRefreshToken(conn, authCode.Scopes), nil
 }

@@ -119,6 +119,20 @@ func IdentityFromClaims(claims storage.Claims) connector.Identity {
 	}
 }
 
+// ClaimsFromIdentity maps a freshly authenticated connector identity to ID token
+// claims. It is the inverse of IdentityFromClaims and the single place grants
+// turn an identity into claims.
+func ClaimsFromIdentity(identity connector.Identity) storage.Claims {
+	return storage.Claims{
+		UserID:            identity.UserID,
+		Username:          identity.Username,
+		PreferredUsername: identity.PreferredUsername,
+		Email:             identity.Email,
+		EmailVerified:     identity.EmailVerified,
+		Groups:            identity.Groups,
+	}
+}
+
 // Rotate advances the stored refresh token according to the rotation strategy and
 // syncs the offline session. It returns the marshaled token to hand back to the
 // client and the identity its claims were refreshed to.

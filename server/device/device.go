@@ -365,14 +365,19 @@ func (h *Handler) completeDeviceAuthorization(w http.ResponseWriter, r *http.Req
 		return "", &deviceFlowError{status: http.StatusUnauthorized, code: oauth2.InvalidClient, message: "Invalid client credentials."}
 	}
 
-	res, err := grants.ExchangeAuthCode(ctx, h.Storage, h.Connectors, h.Logger, authCode, client)
+	auth, withRefresh, err := grants.ExchangeAuthCode(ctx, h.Connectors, h.Logger, authCode, client)
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "could not exchange auth code for client", "client_id", deviceReq.ClientID, "err", err)
 		return "", &deviceFlowError{status: http.StatusInternalServerError, message: "Failed to exchange auth code."}
 	}
-	resp, err := h.Issuer.IssueResponse(ctx, res.Authorization, res.Code, res.IssueRefresh)
+	resp, err := h.Issuer.IssueResponse(ctx, auth, authCode.ID, withRefresh)
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "could not issue tokens for device flow", "client_id", deviceReq.ClientID, "err", err)
+		return "", &deviceFlowError{status: http.StatusInternalServerError, message: "Failed to exchange auth code."}
+	}
+	// Consume the code only after the tokens are minted.
+	if err := h.Storage.DeleteAuthCode(ctx, authCode.ID); err != nil {
+		h.Logger.ErrorContext(ctx, "failed to delete auth code", "err", err)
 		return "", &deviceFlowError{status: http.StatusInternalServerError, message: "Failed to exchange auth code."}
 	}
 

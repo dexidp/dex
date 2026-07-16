@@ -39,7 +39,7 @@ func (g *deviceCode) ConnectorID(ctx context.Context, req *Request, client stora
 	return "", nil
 }
 
-func (g *deviceCode) Authorize(ctx context.Context, req *Request, client storage.Client, conn connectors.Connector) (*Result, error) {
+func (g *deviceCode) Authorize(ctx context.Context, req *Request, client storage.Client, conn connectors.Connector) (Responder, error) {
 	if req.DeviceCode == "" {
 		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "No device code received", Status: http.StatusBadRequest}
 	}
@@ -86,23 +86,12 @@ func (g *deviceCode) Authorize(ctx context.Context, req *Request, client storage
 		if oerr := verifyPKCE(req.CodeVerifier, deviceToken.PKCE); oerr != nil {
 			return nil, oerr
 		}
-		// The token was minted and stored by the browser callback; Mint returns it.
-		return &Result{}, nil
+		// The token was minted and stored by the browser callback; relay it verbatim.
+		return storedResponse(deviceToken.Token), nil
 
 	default:
 		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Invalid Device code.", Status: http.StatusBadRequest}
 	}
-}
-
-// Mint returns the token response the browser callback stored against the device
-// code, verbatim.
-func (g *deviceCode) Mint(ctx context.Context, req *Request, res *Result) (Responder, error) {
-	deviceToken, err := g.storage.GetDeviceToken(ctx, req.DeviceCode)
-	if err != nil {
-		g.logger.ErrorContext(ctx, "failed to get device code", "err", err)
-		return nil, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
-	}
-	return storedResponse(deviceToken.Token), nil
 }
 
 // storedResponse writes an already-serialized token response verbatim.

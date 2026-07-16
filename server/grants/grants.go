@@ -13,6 +13,7 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/connectors"
+	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
@@ -47,9 +48,10 @@ type Request struct {
 	SubjectTokenType   string
 	RequestedTokenType string
 
-	// resolvedRefresh is the validated refresh token, looked up while resolving
-	// the connector and reused by the refresh grant's Authorize.
-	resolvedRefresh *storage.RefreshToken
+	// refresh holds the refresh token the refresh grant looks up while resolving
+	// the connector, so it is fetched and decoded once and reused in Authorize.
+	refresh   *storage.RefreshToken
+	refreshID *internal.RefreshToken
 }
 
 // parseRequest reads the whole token request form once. Client credentials come
@@ -91,10 +93,17 @@ func parseRequest(r *http.Request) (*Request, *oauth2.Error) {
 	return req, nil
 }
 
+// Responder writes the token endpoint's HTTP response body. tokens.Response is
+// the usual one; a grant that returns an already-serialized body (device_code
+// relays the token stored by the browser callback) returns its own.
+type Responder interface {
+	Write(w http.ResponseWriter) error
+}
+
 // Grant serves one OAuth2 grant type at the token endpoint. It is a set of hooks
 // the Endpoint calls in order — the shared phases (client auth, scope validation,
-// connector resolution, minting, response writing) live on the Endpoint, so a
-// grant only fills in the parts unique to it and cannot forget a shared step.
+// connector resolution, response writing) live on the Endpoint, so a grant only
+// fills in the parts unique to it and cannot forget a shared step.
 type Grant interface {
 	// GrantType is the grant_type value this grant serves.
 	GrantType() string
@@ -113,38 +122,11 @@ type Grant interface {
 	// elsewhere (authorization_code was gated at /auth and resolves its connector
 	// inside Authorize only to decide on a refresh token).
 	ConnectorID(ctx context.Context, req *Request, client storage.Client) (string, *oauth2.Error)
-	// Authorize turns the validated request into the authorization to issue
-	// tokens for, proving the resource owner's identity against conn (the zero
-	// Connector when ConnectorID is ""). Returning an *oauth2.Error makes the
-	// endpoint write that error.
-	Authorize(ctx context.Context, req *Request, client storage.Client, conn connectors.Connector) (*Result, error)
-}
-
-// Responder writes the token endpoint's HTTP response body. tokens.Response is
-// the usual one; a grant that returns an already-serialized body (device_code
-// relays the token stored by the browser callback) returns its own.
-type Responder interface {
-	Write(w http.ResponseWriter) error
-}
-
-// Minter is implemented by a grant whose response is not the standard token set,
-// such as RFC 8693 token exchange or the device_code poll. When a grant
-// implements it, the endpoint calls Mint instead of the standard issuer.Issue
-// mint.
-type Minter interface {
-	Mint(ctx context.Context, req *Request, res *Result) (Responder, error)
-}
-
-// Result is what a grant's Authorize produces for minting.
-type Result struct {
-	Authorization tokens.Authorization
-	IssueRefresh  bool
-	// Code is the authorization code bound into the ID token's c_hash. Only the
-	// authorization_code grant sets it; other grants leave it empty.
-	Code string
-	// RefreshToken is a pre-rotated refresh token to return as-is. The refresh
-	// grant (a Minter) sets it; the standard mint does not use it.
-	RefreshToken string
+	// Authorize proves the identity against conn (the zero Connector when
+	// ConnectorID is "") and produces the response to write. Standard grants
+	// build it with the shared issue helper; a grant with a non-standard response
+	// builds its own. Returning an *oauth2.Error makes the endpoint write it.
+	Authorize(ctx context.Context, req *Request, client storage.Client, conn connectors.Connector) (Responder, error)
 }
 
 // ScopePolicy configures the shared scope-validation phase for a grant. It is
@@ -164,10 +146,9 @@ type ScopePolicy struct {
 
 // Endpoint is the /token endpoint. It owns the phases shared by every grant —
 // dispatch by grant_type, client authentication, scope validation, connector
-// resolution, minting and writing the response or error — while each grant
-// carries only its own narrow dependencies.
+// resolution and writing the response or error — while each grant carries only
+// its own narrow dependencies.
 type Endpoint struct {
-	issuer     *tokens.Issuer
 	storage    storage.Storage
 	connectors *connectors.Cache
 	logger     *slog.Logger
@@ -178,12 +159,12 @@ type Endpoint struct {
 // NewEndpoint wires the token endpoint and its grants from the shared
 // dependencies. Each grant is constructed with only what it needs.
 func NewEndpoint(issuer *tokens.Issuer, s storage.Storage, conns *connectors.Cache, now func() time.Time, logger *slog.Logger, passwordConnector string, refreshPolicy *tokens.RefreshStrategy, sessionsEnabled bool) *Endpoint {
-	e := &Endpoint{issuer: issuer, storage: s, connectors: conns, logger: logger, grants: map[string]Grant{}}
+	e := &Endpoint{storage: s, connectors: conns, logger: logger, grants: map[string]Grant{}}
 	e.register(
-		&clientCredentials{},
-		&password{logger: logger, connectorID: passwordConnector},
+		&clientCredentials{issuer: issuer, logger: logger},
+		&password{issuer: issuer, logger: logger, connectorID: passwordConnector},
 		&tokenExchange{issuer: issuer, logger: logger},
-		&authorizationCode{storage: s, connectors: conns, now: now, logger: logger},
+		&authorizationCode{issuer: issuer, storage: s, connectors: conns, now: now, logger: logger},
 		&refresh{storage: s, issuer: issuer, policy: refreshPolicy, sessionsEnabled: sessionsEnabled, now: now, logger: logger},
 		&deviceCode{storage: s, now: now, logger: logger},
 	)
@@ -198,7 +179,7 @@ func (e *Endpoint) register(gs ...Grant) {
 
 // Dispatch runs the token-endpoint pipeline for the grant registered for
 // grantType. It reports whether a grant handled the request, so the caller can
-// fall back to grants that have not been migrated yet.
+// fall back (e.g. the implicit grant, which is not a token-endpoint grant).
 func (e *Endpoint) Dispatch(w http.ResponseWriter, r *http.Request, grantType string) bool {
 	grant, ok := e.grants[grantType]
 	if !ok {
@@ -240,40 +221,18 @@ func (e *Endpoint) Dispatch(w http.ResponseWriter, r *http.Request, grantType st
 		return true
 	}
 
-	// 4. Let the grant prove the identity against the resolved connector.
-	res, err := grant.Authorize(ctx, req, client, conn)
+	// 4. Let the grant prove the identity and produce the response.
+	resp, err := grant.Authorize(ctx, req, client, conn)
 	if err != nil {
 		e.writeError(ctx, w, err)
 		return true
 	}
 
-	// 5. Mint the response — the standard token set, or the grant's own.
-	resp, err := e.mint(ctx, grant, req, res)
-	if err != nil {
-		e.writeError(ctx, w, err)
-		return true
-	}
-
-	// 6. Write the response.
+	// 5. Write the response.
 	if err := resp.Write(w); err != nil {
 		e.logger.ErrorContext(ctx, "failed to write token response", "err", err)
 	}
 	return true
-}
-
-// mint produces the response to write: the grant's own when it is a Minter (RFC
-// 8693 token exchange, the device_code poll), otherwise the single standard mint
-// every grant shares.
-func (e *Endpoint) mint(ctx context.Context, grant Grant, req *Request, res *Result) (Responder, error) {
-	if m, ok := grant.(Minter); ok {
-		return m.Mint(ctx, req, res)
-	}
-	resp, err := e.issuer.IssueResponse(ctx, res.Authorization, res.Code, res.IssueRefresh)
-	if err != nil {
-		e.logger.ErrorContext(ctx, "failed to issue tokens", "grant_type", grant.GrantType(), "err", err)
-		return nil, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
-	}
-	return resp, nil
 }
 
 // validateScopes validates the requested scopes per the grant's policy: it
@@ -385,6 +344,18 @@ func (e *Endpoint) writeError(ctx context.Context, w http.ResponseWriter, err er
 	if werr := oauth2.WriteError(w, oerr.Type, oerr.Description, oerr.Status); werr != nil {
 		e.logger.ErrorContext(ctx, "failed to write token error response", "err", werr)
 	}
+}
+
+// issue mints the standard token response — the single mint every standard grant
+// shares — logging and mapping a signing failure to a server error. code is the
+// authorization code bound into the ID token's c_hash, empty when there is none.
+func issue(ctx context.Context, logger *slog.Logger, issuer *tokens.Issuer, auth tokens.Authorization, code string, withRefresh bool) (Responder, error) {
+	resp, err := issuer.IssueResponse(ctx, auth, code, withRefresh)
+	if err != nil {
+		logger.ErrorContext(ctx, "failed to issue tokens", "err", err)
+		return nil, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
+	}
+	return resp, nil
 }
 
 // shouldIssueRefreshToken reports whether a refresh token should be issued: the

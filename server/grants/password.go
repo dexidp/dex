@@ -15,6 +15,7 @@ import (
 // password serves the Resource Owner Password Credentials grant: the client
 // exchanges a username and password for tokens via a password-capable connector.
 type password struct {
+	issuer      *tokens.Issuer
 	logger      *slog.Logger
 	connectorID string
 }
@@ -49,7 +50,7 @@ func (g *password) ConnectorID(ctx context.Context, req *Request, client storage
 	return g.connectorID, nil
 }
 
-func (g *password) Authorize(ctx context.Context, req *Request, client storage.Client, conn connectors.Connector) (*Result, error) {
+func (g *password) Authorize(ctx context.Context, req *Request, client storage.Client, conn connectors.Connector) (Responder, error) {
 	passwordConnector, ok := conn.Connector.(connector.PasswordConnector)
 	if !ok {
 		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Requested password connector does not correct type.", Status: http.StatusBadRequest}
@@ -64,22 +65,13 @@ func (g *password) Authorize(ctx context.Context, req *Request, client storage.C
 		return nil, &oauth2.Error{Type: oauth2.AccessDenied, Description: "Invalid username or password", Status: http.StatusUnauthorized}
 	}
 
-	return &Result{
-		Authorization: tokens.Authorization{
-			Client: client,
-			Claims: storage.Claims{
-				UserID:            identity.UserID,
-				Username:          identity.Username,
-				PreferredUsername: identity.PreferredUsername,
-				Email:             identity.Email,
-				EmailVerified:     identity.EmailVerified,
-				Groups:            identity.Groups,
-			},
-			Scopes:        req.Scopes,
-			ConnectorID:   g.connectorID,
-			Nonce:         req.Nonce,
-			ConnectorData: identity.ConnectorData,
-		},
-		IssueRefresh: shouldIssueRefreshToken(conn, req.Scopes),
-	}, nil
+	auth := tokens.Authorization{
+		Client:        client,
+		Claims:        tokens.ClaimsFromIdentity(identity),
+		Scopes:        req.Scopes,
+		ConnectorID:   g.connectorID,
+		Nonce:         req.Nonce,
+		ConnectorData: identity.ConnectorData,
+	}
+	return issue(ctx, g.logger, g.issuer, auth, "", shouldIssueRefreshToken(conn, req.Scopes))
 }

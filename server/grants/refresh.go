@@ -46,8 +46,8 @@ func (g *refresh) ScopePolicy() ScopePolicy {
 // ConnectorID validates the refresh token and reports the connector recorded on
 // it, so the endpoint resolves and re-checks that connector on every refresh: a
 // client's allowed connectors, or a connector's grant types, may have been
-// tightened after the token was issued. The validated token is stashed for
-// Authorize.
+// tightened after the token was issued. The looked-up and decoded token is
+// stashed on the request so Authorize reuses it without a second lookup or parse.
 func (g *refresh) ConnectorID(ctx context.Context, req *Request, client storage.Client) (string, *oauth2.Error) {
 	token, oerr := parseRefreshToken(req.RefreshToken)
 	if oerr != nil {
@@ -59,19 +59,16 @@ func (g *refresh) ConnectorID(ctx context.Context, req *Request, client storage.
 		return "", refreshLookupError(err)
 	}
 
-	req.resolvedRefresh = refreshToken
+	req.refresh, req.refreshID = refreshToken, token
 	return refreshToken.ConnectorID, nil
 }
 
 // Authorize rotates the refresh token, re-reads the identity against the resolved
-// connector, and returns the token set to issue (with the rotated refresh token).
-func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Client, conn connectors.Connector) (*Result, error) {
-	refreshToken := req.resolvedRefresh
-	// Already validated in ConnectorID; re-parse only to hand Rotate the raw token.
-	token, oerr := parseRefreshToken(req.RefreshToken)
-	if oerr != nil {
-		return nil, oerr
-	}
+// connector, and returns the token set — reusing the rotated refresh token, so it
+// mints its own response rather than the standard set (which would mint a second
+// refresh token).
+func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Client, conn connectors.Connector) (Responder, error) {
+	refreshToken := req.refresh
 
 	scopes, oerr := g.refreshScopes(req, refreshToken)
 	if oerr != nil {
@@ -108,48 +105,33 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 		return g.refreshWithConnector(ctx, conn, connectorData, scopes, tokens.IdentityFromClaims(refreshToken.Claims))
 	}
 
-	rawNewToken, ident, err := g.issuer.Refresh.Rotate(ctx, refreshToken, token, g.policy, freshIdentity)
+	rawNewToken, ident, err := g.issuer.Refresh.Rotate(ctx, refreshToken, req.refreshID, g.policy, freshIdentity)
 	if err != nil {
 		g.logger.ErrorContext(ctx, "failed to rotate refresh token", "err", err)
 		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
 	}
 
-	return &Result{
-		Authorization: tokens.Authorization{
-			Client: client,
-			Claims: storage.Claims{
-				UserID:            ident.UserID,
-				Username:          ident.Username,
-				PreferredUsername: ident.PreferredUsername,
-				Email:             ident.Email,
-				EmailVerified:     ident.EmailVerified,
-				Groups:            ident.Groups,
-			},
-			Scopes:      scopes,
-			ConnectorID: refreshToken.ConnectorID,
-			Nonce:       refreshToken.Nonce,
-			AuthTime:    authTime,
-		},
-		RefreshToken: rawNewToken,
-	}, nil
-}
+	auth := tokens.Authorization{
+		Client:      client,
+		Claims:      tokens.ClaimsFromIdentity(ident),
+		Scopes:      scopes,
+		ConnectorID: refreshToken.ConnectorID,
+		Nonce:       refreshToken.Nonce,
+		AuthTime:    authTime,
+	}
 
-// Mint issues the token set with the already-rotated refresh token, so it does
-// not use the standard mint (which would create a second refresh token).
-func (g *refresh) Mint(ctx context.Context, req *Request, res *Result) (Responder, error) {
-	accessToken, _, err := g.issuer.SignAccessToken(ctx, res.Authorization)
+	accessToken, _, err := g.issuer.SignAccessToken(ctx, auth)
 	if err != nil {
 		g.logger.ErrorContext(ctx, "failed to create new access token", "err", err)
-		return tokens.Response{}, &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
+		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
 	}
-
-	idToken, expiry, err := g.issuer.SignIDToken(ctx, res.Authorization, accessToken, "")
+	idToken, expiry, err := g.issuer.SignIDToken(ctx, auth, accessToken, "")
 	if err != nil {
 		g.logger.ErrorContext(ctx, "failed to create ID token", "err", err)
-		return tokens.Response{}, &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
+		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
 	}
 
-	ts := tokens.TokenSet{AccessToken: accessToken, IDToken: idToken, RefreshToken: res.RefreshToken, Expiry: expiry}
+	ts := tokens.TokenSet{AccessToken: accessToken, IDToken: idToken, RefreshToken: rawNewToken, Expiry: expiry}
 	return ts.Response(g.now()), nil
 }
 
