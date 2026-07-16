@@ -19,10 +19,10 @@ import (
 	"github.com/dexidp/dex/server/signer"
 )
 
-// Config holds the discovery handler's dependencies. AbsURL builds an absolute
+// Handler serves the discovery document and the JWKS. AbsURL builds an absolute
 // URL under the issuer; RenderError renders an HTML error page. Both are
 // supplied by the server so the handler does not depend on the whole Server.
-type Config struct {
+type Handler struct {
 	Issuer          string
 	AbsURL          func(...string) string
 	RenderError     func(*http.Request, http.ResponseWriter, int, string)
@@ -32,20 +32,10 @@ type Config struct {
 	GrantTypes      []string
 	PKCEMethods     []string
 	SessionsEnabled bool
-}
-
-// Handler serves the discovery document and the JWKS.
-type Handler struct {
-	Config
 
 	docOnce sync.Once
 	docData []byte
 	docErr  error
-}
-
-// New returns a discovery handler.
-func New(c Config) *Handler {
-	return &Handler{Config: c}
 }
 
 // Mount registers the discovery routes.

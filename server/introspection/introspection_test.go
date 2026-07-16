@@ -26,10 +26,10 @@ const testIssuer = "https://test.tech/non-root-path"
 
 func testHandler(t *testing.T) *Handler {
 	t.Helper()
-	return New(Config{
+	return &Handler{
 		Issuer: testIssuer,
 		Logger: slog.New(slog.DiscardHandler),
-	})
+	}
 }
 
 // testAccessToken signs a valid RS256 access token for token-type guessing.

@@ -14,21 +14,11 @@ import (
 	"github.com/dexidp/dex/server/signer"
 )
 
-// Config holds the userinfo handler's dependencies.
-type Config struct {
+// Handler serves the OIDC /userinfo endpoint.
+type Handler struct {
 	Issuer string
 	Signer signer.Signer
 	Logger *slog.Logger
-}
-
-// Handler serves the /userinfo endpoint.
-type Handler struct {
-	Config
-}
-
-// New returns a userinfo handler.
-func New(c Config) *Handler {
-	return &Handler{Config: c}
 }
 
 // Mount registers the userinfo route.

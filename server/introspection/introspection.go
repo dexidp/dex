@@ -151,27 +151,17 @@ func newIntrospectBadRequestError(desc string) *introspectionError {
 	return &introspectionError{typ: oauth2.InvalidRequest, desc: desc, code: http.StatusBadRequest}
 }
 
-// Config holds the introspection handler's dependencies. LookupRefresh resolves
+// Handler serves the OAuth2 token introspection endpoint. LookupRefresh resolves
 // a refresh token from storage, returning (nil, nil) when the token is inactive
 // (unknown, revoked or expired); it is supplied by the server so the handler
 // does not depend on the whole Server.
-type Config struct {
+type Handler struct {
 	Issuer        string
 	Signer        signer.Signer
 	Storage       storage.Storage
 	Logger        *slog.Logger
 	RefreshPolicy *tokens.RefreshStrategy
 	LookupRefresh func(ctx context.Context, token *internal.RefreshToken) (*storage.RefreshToken, error)
-}
-
-// Handler serves the /token/introspect endpoint.
-type Handler struct {
-	Config
-}
-
-// New returns an introspection handler.
-func New(c Config) *Handler {
-	return &Handler{Config: c}
 }
 
 // Mount registers the introspection route.

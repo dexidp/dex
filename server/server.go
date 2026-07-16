@@ -262,10 +262,10 @@ func (m routeMux) HandleFunc(p string, h http.HandlerFunc) { m.handleFunc(p, h) 
 func (m routeMux) HandleCORS(p string, h http.HandlerFunc) { m.handleCORS(p, h) }
 func (m routeMux) HandlePrefix(p string, h http.Handler)   { m.handlePrefix(p, h) }
 
-// discoveryConfig assembles the discovery handler's configuration from the
-// server's settings. It is shared by the mounted handler and constructDiscovery.
-func (s *Server) discoveryConfig() discovery.Config {
-	return discovery.Config{
+// newDiscoveryHandler builds a discovery handler from the server's settings. It
+// is shared by the mounted handler and constructDiscovery.
+func (s *Server) newDiscoveryHandler() *discovery.Handler {
+	return &discovery.Handler{
 		Issuer:          s.issuerURL.String(),
 		AbsURL:          s.absURL,
 		RenderError:     s.renderError,
@@ -281,7 +281,7 @@ func (s *Server) discoveryConfig() discovery.Config {
 // constructDiscovery builds the OIDC discovery document, letting the gRPC API
 // obtain it without reaching into a handler.
 func (s *Server) constructDiscovery(ctx context.Context) discovery.Document {
-	return discovery.New(s.discoveryConfig()).Construct(ctx)
+	return s.newDiscoveryHandler().Construct(ctx)
 }
 
 // NewServer constructs a server from the provided config.
@@ -410,20 +410,20 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	}
 	s.issuer = tokens.NewIssuer(s.storage, s.signer, s.issuerURL, s.idTokensValidFor, s.now, s.logger)
 	s.connectors = connectors.NewCache(s.storage, s.resolveConnector)
-	discoveryHandler := discovery.New(s.discoveryConfig())
-	userInfoHandler := userinfo.New(userinfo.Config{
+	discoveryHandler := s.newDiscoveryHandler()
+	userInfoHandler := &userinfo.Handler{
 		Issuer: s.issuerURL.String(),
 		Signer: s.signer,
 		Logger: s.logger,
-	})
-	introspectHandler := introspection.New(introspection.Config{
+	}
+	introspectHandler := &introspection.Handler{
 		Issuer:        s.issuerURL.String(),
 		Signer:        s.signer,
 		Storage:       s.storage,
 		Logger:        s.logger,
 		RefreshPolicy: s.refreshTokenPolicy,
 		LookupRefresh: s.lookupRefreshToken,
-	})
+	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
 	// defined in the ConfigMap and dynamic connectors retrieved from the storage.
