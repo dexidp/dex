@@ -425,7 +425,6 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		Storage:       s.storage,
 		Logger:        s.logger,
 		RefreshPolicy: s.refreshTokenPolicy,
-		LookupRefresh: s.lookupRefreshToken,
 	}
 	deviceHandler := &device.Handler{
 		IssuerURL:        s.issuerURL,

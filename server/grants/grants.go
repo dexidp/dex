@@ -114,13 +114,16 @@ type Minter interface {
 	Mint(ctx context.Context, req *Request, res *Result) (tokens.Response, error)
 }
 
-// Result is what a grant's Authorize produces for the standard mint.
+// Result is what a grant's Authorize produces for minting.
 type Result struct {
 	Authorization tokens.Authorization
 	IssueRefresh  bool
 	// Code is the authorization code bound into the ID token's c_hash. Only the
 	// authorization_code grant sets it; other grants leave it empty.
 	Code string
+	// RefreshToken is a pre-rotated refresh token to return as-is. The refresh
+	// grant (a Minter) sets it; the standard mint does not use it.
+	RefreshToken string
 }
 
 // ScopePolicy configures the shared scope-validation phase for a grant. It is
@@ -153,13 +156,14 @@ type Endpoint struct {
 
 // NewEndpoint wires the token endpoint and its grants from the shared
 // dependencies. Each grant is constructed with only what it needs.
-func NewEndpoint(issuer *tokens.Issuer, s storage.Storage, conns *connectors.Cache, now func() time.Time, logger *slog.Logger, passwordConnector string) *Endpoint {
+func NewEndpoint(issuer *tokens.Issuer, s storage.Storage, conns *connectors.Cache, now func() time.Time, logger *slog.Logger, passwordConnector string, refreshPolicy *tokens.RefreshStrategy, sessionsEnabled bool) *Endpoint {
 	e := &Endpoint{issuer: issuer, storage: s, connectors: conns, logger: logger, grants: map[string]Grant{}}
 	e.register(
 		&clientCredentials{},
 		&password{logger: logger, connectorID: passwordConnector},
 		&tokenExchange{issuer: issuer, logger: logger},
 		&authorizationCode{storage: s, connectors: conns, now: now, logger: logger},
+		&refresh{storage: s, connectors: conns, issuer: issuer, policy: refreshPolicy, sessionsEnabled: sessionsEnabled, now: now, logger: logger},
 	)
 	return e
 }

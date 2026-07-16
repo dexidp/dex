@@ -3,6 +3,7 @@ package introspection
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -149,17 +150,14 @@ func newIntrospectBadRequestError(desc string) *introspectionError {
 	return &introspectionError{typ: oauth2.InvalidRequest, desc: desc, code: http.StatusBadRequest}
 }
 
-// Handler serves the OAuth2 token introspection endpoint. LookupRefresh resolves
-// a refresh token from storage, returning (nil, nil) when the token is inactive
-// (unknown, revoked or expired); it is supplied by the server so the handler
-// does not depend on the whole Server.
+// Handler serves the OAuth2 token introspection endpoint. It validates refresh
+// tokens with tokens.LookupRefreshToken, the same lookup the refresh grant uses.
 type Handler struct {
 	Issuer        string
 	Signer        signer.Signer
 	Storage       storage.Storage
 	Logger        *slog.Logger
 	RefreshPolicy *tokens.RefreshStrategy
-	LookupRefresh func(ctx context.Context, token *internal.RefreshToken) (*storage.RefreshToken, error)
 }
 
 // Mount registers the introspection route.
@@ -228,13 +226,17 @@ func (h *Handler) introspectRefreshToken(ctx context.Context, token string) (*In
 		rToken = &internal.RefreshToken{RefreshId: token, Token: ""}
 	}
 
-	refresh, err := h.LookupRefresh(ctx, rToken)
+	refresh, err := tokens.LookupRefreshToken(ctx, h.Storage, h.RefreshPolicy, h.Logger, nil, rToken)
 	if err != nil {
+		// A rejected token (unknown, revoked or expired) is reported as inactive;
+		// only an infrastructure failure is a server error.
+		if errors.Is(err, tokens.ErrRefreshTokenInvalid) ||
+			errors.Is(err, tokens.ErrRefreshTokenExpired) ||
+			errors.Is(err, tokens.ErrRefreshTokenClaimedByOtherClient) {
+			return nil, newIntrospectInactiveTokenError()
+		}
 		h.Logger.ErrorContext(ctx, "failed to get refresh token", "err", err)
 		return nil, newIntrospectInternalServerError()
-	}
-	if refresh == nil {
-		return nil, newIntrospectInactiveTokenError()
 	}
 
 	subjectString, sErr := tokens.GenSubject(refresh.Claims.UserID, refresh.ConnectorID)
