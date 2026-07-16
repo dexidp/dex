@@ -45,6 +45,7 @@ import (
 	"github.com/dexidp/dex/connector/saml"
 	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server/connectors"
+	"github.com/dexidp/dex/server/device"
 	"github.com/dexidp/dex/server/discovery"
 	"github.com/dexidp/dex/server/introspection"
 	"github.com/dexidp/dex/server/oauth2"
@@ -307,11 +308,11 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	}
 
 	supportedChallengeMethods := map[string]bool{
-		codeChallengeMethodS256:  true,
-		codeChallengeMethodPlain: true,
+		oauth2.PKCEMethodS256:  true,
+		oauth2.PKCEMethodPlain: true,
 	}
 	if len(c.PKCE.CodeChallengeMethodsSupported) == 0 {
-		c.PKCE.CodeChallengeMethodsSupported = []string{codeChallengeMethodS256, codeChallengeMethodPlain}
+		c.PKCE.CodeChallengeMethodsSupported = []string{oauth2.PKCEMethodS256, oauth2.PKCEMethodPlain}
 	}
 	for _, m := range c.PKCE.CodeChallengeMethodsSupported {
 		if !supportedChallengeMethods[m] {
@@ -423,6 +424,15 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		Logger:        s.logger,
 		RefreshPolicy: s.refreshTokenPolicy,
 		LookupRefresh: s.lookupRefreshToken,
+	}
+	deviceHandler := &device.Handler{
+		IssuerURL:        s.issuerURL,
+		Storage:          s.storage,
+		Templates:        s.templates,
+		Now:              s.now,
+		RequestsValidFor: s.deviceRequestsValidFor,
+		Logger:           s.logger,
+		ExchangeAuthCode: s.exchangeAuthCode,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
@@ -566,7 +576,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	// Self-contained domains mount their own routes through the router.Mux
 	// abstraction, so this list is the only place they are wired in.
 	mux := routeMux{handle: handle, handleFunc: handleFunc, handleCORS: handleWithCORS, handlePrefix: handlePrefix}
-	for _, h := range []router.Handler{discoveryHandler, userInfoHandler, introspectHandler} {
+	for _, h := range []router.Handler{discoveryHandler, userInfoHandler, introspectHandler, deviceHandler} {
 		h.Mount(mux)
 	}
 
@@ -577,12 +587,8 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	handleFunc("/auth", s.handleAuthorization)
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
 	handleFunc("/auth/{connector}/login", s.handlePasswordLogin)
-	handleFunc("/device", s.handleDeviceExchange)
-	handleFunc("/device/auth/verify_code", s.verifyUserCode)
-	handleFunc("/device/code", s.handleDeviceCode)
 	// TODO(nabokihms): "/device/token" endpoint is deprecated, consider using /token endpoint instead
 	handleFunc("/device/token", s.handleDeviceTokenDeprecated)
-	handleFunc(oauth2.DeviceCallbackURI, s.handleDeviceCallback)
 	handleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
 		// Strip the X-Remote-* headers to prevent security issues on
 		// misconfigured authproxy connector setups.
