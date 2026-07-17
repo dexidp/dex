@@ -116,7 +116,7 @@ func TestSkipApprovalWithExistingConsent(t *testing.T) {
 
 			rr := httptest.NewRecorder()
 			reqPath := fmt.Sprintf("/callback/%s?state=%s", connID, authReqID)
-			s.handleConnectorCallback(rr, httptest.NewRequest("GET", reqPath, nil))
+			s.ServeHTTP(rr, httptest.NewRequest("GET", reqPath, nil))
 
 			require.Equal(t, 303, rr.Code)
 			cb, err := url.Parse(rr.Result().Header.Get("Location"))
@@ -181,65 +181,6 @@ func TestConsentPersistedOnApproval(t *testing.T) {
 	require.Equal(t, []string{"openid", "email", "profile"}, ui.Consents[clientID], "approved scopes should be persisted")
 }
 
-func TestScopesCoveredByConsent(t *testing.T) {
-	tests := []struct {
-		name      string
-		approved  []string
-		requested []string
-		want      bool
-	}{
-		{
-			name:      "All scopes covered",
-			approved:  []string{"email", "profile"},
-			requested: []string{"openid", "email", "profile"},
-			want:      true,
-		},
-		{
-			name:      "Missing scope",
-			approved:  []string{"email"},
-			requested: []string{"openid", "email", "groups"},
-			want:      false,
-		},
-		{
-			name:      "Only openid scope skipped",
-			approved:  []string{},
-			requested: []string{"openid"},
-			want:      true,
-		},
-		{
-			name:      "offline_access requires consent",
-			approved:  []string{},
-			requested: []string{"openid", "offline_access"},
-			want:      false,
-		},
-		{
-			name:      "offline_access covered by consent",
-			approved:  []string{"offline_access"},
-			requested: []string{"openid", "offline_access"},
-			want:      true,
-		},
-		{
-			name:      "Nil approved",
-			approved:  nil,
-			requested: []string{"email"},
-			want:      false,
-		},
-		{
-			name:      "Empty requested",
-			approved:  []string{"email"},
-			requested: []string{},
-			want:      true,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := scopesCoveredByConsent(tc.approved, tc.requested)
-			require.Equal(t, tc.want, got)
-		})
-	}
-}
-
 // TestConsentSurvivesSessionDeletion verifies that UserIdentity.Consents
 // persists independently from AuthSession lifecycle (logout should not
 // clear consent decisions).
@@ -279,20 +220,6 @@ func TestConsentSurvivesSessionDeletion(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []string{"openid", "email", "profile"}, ui.Consents[clientID],
 		"consent should survive session deletion")
-}
-
-// TestConsentIsolatedBetweenClients verifies that consent given for
-// client-A does not satisfy scope check for client-B.
-func TestConsentIsolatedBetweenClients(t *testing.T) {
-	approvedForA := map[string][]string{"client-a": {"openid", "email"}}
-
-	// client-b should not have consent.
-	require.False(t, scopesCoveredByConsent(approvedForA["client-b"], []string{"openid", "email"}),
-		"consent for client-a should not cover client-b")
-
-	// client-a should have consent.
-	require.True(t, scopesCoveredByConsent(approvedForA["client-a"], []string{"openid", "email"}),
-		"consent for client-a should cover client-a's requested scopes")
 }
 
 type getAuthRequestErrorStorage struct {

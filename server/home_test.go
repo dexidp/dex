@@ -10,6 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/authflow/session"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
@@ -50,7 +51,7 @@ func newTestServerWithSessions(t *testing.T, updateConfig func(c *Config)) (*htt
 			oauth2.GrantTypeDeviceCode,
 		},
 		Signer: sig,
-		SessionConfig: &SessionConfig{
+		SessionConfig: &session.Config{
 			CookieName:        "dex_session",
 			AbsoluteLifetime:  24 * time.Hour,
 			ValidIfNotUsedFor: 1 * time.Hour,

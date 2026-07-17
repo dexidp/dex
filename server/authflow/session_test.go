@@ -1,4 +1,4 @@
-package server
+package authflow
 
 import (
 	"crypto"
@@ -12,6 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/authflow/mfa"
+	"github.com/dexidp/dex/server/authflow/session"
+	"github.com/dexidp/dex/server/authflow/web"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
@@ -20,25 +23,28 @@ import (
 	"github.com/dexidp/dex/storage/memory"
 )
 
-func newTestSessionServer(t *testing.T) *Server {
+func newTestSessionServer(t *testing.T) *Handler {
 	t.Helper()
 
 	now := time.Date(2026, 3, 16, 12, 0, 0, 0, time.UTC)
 	issuerURL, err := url.Parse("https://example.com/dex")
 	require.NoError(t, err)
 
-	s := &Server{
-		storage: memory.New(nil),
-		logger:  slog.Default(),
-		now:     func() time.Time { return now },
-		sessionConfig: &SessionConfig{
-			CookieName:        "dex_session",
-			AbsoluteLifetime:  24 * time.Hour,
-			ValidIfNotUsedFor: 1 * time.Hour,
-		},
-		issuerURL: *issuerURL,
+	sessionCfg := &session.Config{
+		CookieName:        "dex_session",
+		AbsoluteLifetime:  24 * time.Hour,
+		ValidIfNotUsedFor: 1 * time.Hour,
 	}
-	s.connectors = connectors.NewCache(s.storage, s.resolveConnector)
+	s := &Handler{
+		storage:   memory.New(nil),
+		now:       func() time.Time { return now },
+		issuerURL: *issuerURL,
+		logger:    slog.Default(),
+		UI:        web.New(nil, *issuerURL, slog.Default()),
+	}
+	s.connectors = connectors.NewCache(s.storage, testResolveConnector)
+	s.sessions = session.New(s.storage, sessionCfg, s.now, slog.Default(), *issuerURL)
+	s.mfa = mfa.New(s.UI, s.storage, nil, slog.Default(), nil, nil, s.now, s.connectors)
 	return s
 }
 
@@ -46,7 +52,7 @@ func TestSetSessionCookie(t *testing.T) {
 	s := newTestSessionServer(t)
 	w := httptest.NewRecorder()
 
-	s.setSessionCookie(w, "user1", "conn1", "nonce123", false)
+	s.sessions.SetCookie(w, "user1", "conn1", "nonce123", false)
 
 	cookies := w.Result().Cookies()
 	require.Len(t, cookies, 1)
@@ -63,10 +69,10 @@ func TestSetSessionCookie(t *testing.T) {
 func TestSetSessionCookie_HTTP(t *testing.T) {
 	s := newTestSessionServer(t)
 	u, _ := url.Parse("http://localhost:5556/dex")
-	s.issuerURL = *u
+	resetSessions(s, &session.Config{CookieName: "dex_session"}, *u)
 	w := httptest.NewRecorder()
 
-	s.setSessionCookie(w, "user1", "conn1", "nonce123", false)
+	s.sessions.SetCookie(w, "user1", "conn1", "nonce123", false)
 
 	cookies := w.Result().Cookies()
 	require.Len(t, cookies, 1)
@@ -77,7 +83,7 @@ func TestClearSessionCookie(t *testing.T) {
 	s := newTestSessionServer(t)
 	w := httptest.NewRecorder()
 
-	s.clearSessionCookie(w)
+	s.sessions.ClearCookie(w)
 
 	cookies := w.Result().Cookies()
 	require.Len(t, cookies, 1)
@@ -151,15 +157,15 @@ func TestGetValidAuthSession(t *testing.T) {
 
 	t.Run("no session config", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.sessionConfig = nil
+		resetSessions(s, nil, url.URL{})
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		assert.Nil(t, s.getValidAuthSession(ctx, httptest.NewRecorder(), r, authReq))
+		assert.Nil(t, s.sessions.ValidAuthSession(ctx, httptest.NewRecorder(), r, authReq))
 	})
 
 	t.Run("no cookie", func(t *testing.T) {
 		s := newTestSessionServer(t)
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		assert.Nil(t, s.getValidAuthSession(ctx, httptest.NewRecorder(), r, authReq))
+		assert.Nil(t, s.sessions.ValidAuthSession(ctx, httptest.NewRecorder(), r, authReq))
 	})
 
 	t.Run("invalid cookie format", func(t *testing.T) {
@@ -167,7 +173,7 @@ func TestGetValidAuthSession(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		r.AddCookie(&http.Cookie{Name: "dex_session", Value: "invalid-format"})
 		w := httptest.NewRecorder()
-		assert.Nil(t, s.getValidAuthSession(ctx, w, r, authReq))
+		assert.Nil(t, s.sessions.ValidAuthSession(ctx, w, r, authReq))
 		// Cookie should be cleared.
 		assert.Equal(t, -1, w.Result().Cookies()[0].MaxAge)
 	})
@@ -177,7 +183,7 @@ func TestGetValidAuthSession(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		r.AddCookie(&http.Cookie{Name: "dex_session", Value: internal.SessionCookieValue("nouser", "noconn", "nonce", nil)})
 		w := httptest.NewRecorder()
-		assert.Nil(t, s.getValidAuthSession(ctx, w, r, authReq))
+		assert.Nil(t, s.sessions.ValidAuthSession(ctx, w, r, authReq))
 		// Cookie should be cleared.
 		assert.Equal(t, -1, w.Result().Cookies()[0].MaxAge)
 	})
@@ -204,7 +210,7 @@ func TestGetValidAuthSession(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		r.AddCookie(&http.Cookie{Name: "dex_session", Value: internal.SessionCookieValue("user1", "conn1", nonce, nil)})
 
-		result := s.getValidAuthSession(ctx, httptest.NewRecorder(), r, authReq)
+		result := s.sessions.ValidAuthSession(ctx, httptest.NewRecorder(), r, authReq)
 		require.NotNil(t, result)
 		assert.Equal(t, "user1", result.UserID)
 		assert.Equal(t, "conn1", result.ConnectorID)
@@ -233,7 +239,7 @@ func TestGetValidAuthSession(t *testing.T) {
 		r.AddCookie(&http.Cookie{Name: "dex_session", Value: internal.SessionCookieValue("user1", "ldap", nonce, nil)})
 
 		githubReq := &storage.AuthRequest{ConnectorID: "github"}
-		assert.Nil(t, s.getValidAuthSession(ctx, httptest.NewRecorder(), r, githubReq))
+		assert.Nil(t, s.sessions.ValidAuthSession(ctx, httptest.NewRecorder(), r, githubReq))
 	})
 
 	t.Run("nonce mismatch", func(t *testing.T) {
@@ -259,7 +265,7 @@ func TestGetValidAuthSession(t *testing.T) {
 
 		conn2Req := &storage.AuthRequest{ConnectorID: "conn2"}
 		w := httptest.NewRecorder()
-		assert.Nil(t, s.getValidAuthSession(ctx, w, r, conn2Req))
+		assert.Nil(t, s.sessions.ValidAuthSession(ctx, w, r, conn2Req))
 		assert.Equal(t, -1, w.Result().Cookies()[0].MaxAge)
 	})
 
@@ -287,7 +293,7 @@ func TestGetValidAuthSession(t *testing.T) {
 
 		conn3Req := &storage.AuthRequest{ConnectorID: "conn3"}
 		w := httptest.NewRecorder()
-		assert.Nil(t, s.getValidAuthSession(ctx, w, r, conn3Req))
+		assert.Nil(t, s.sessions.ValidAuthSession(ctx, w, r, conn3Req))
 		assert.Equal(t, -1, w.Result().Cookies()[0].MaxAge)
 
 		// Session should be deleted.
@@ -319,7 +325,7 @@ func TestGetValidAuthSession(t *testing.T) {
 
 		conn4Req := &storage.AuthRequest{ConnectorID: "conn4"}
 		w := httptest.NewRecorder()
-		assert.Nil(t, s.getValidAuthSession(ctx, w, r, conn4Req))
+		assert.Nil(t, s.sessions.ValidAuthSession(ctx, w, r, conn4Req))
 		assert.Equal(t, -1, w.Result().Cookies()[0].MaxAge)
 
 		// Session should be deleted.
@@ -343,7 +349,7 @@ func TestCreateOrUpdateAuthSession(t *testing.T) {
 			ConnectorID: "mock",
 		}
 
-		err := s.createOrUpdateAuthSession(ctx, r, w, authReq, false)
+		err := s.sessions.CreateOrUpdateAuthSession(ctx, r, w, authReq, false)
 		require.NoError(t, err)
 
 		// Cookie should be set.
@@ -400,7 +406,7 @@ func TestCreateOrUpdateAuthSession(t *testing.T) {
 			ConnectorID: "mock",
 		}
 
-		err := s.createOrUpdateAuthSession(ctx, r, w, authReq, false)
+		err := s.sessions.CreateOrUpdateAuthSession(ctx, r, w, authReq, false)
 		require.NoError(t, err)
 
 		// Cookie should be set with existing nonce.
@@ -420,18 +426,18 @@ func TestCreateOrUpdateAuthSession(t *testing.T) {
 
 	t.Run("nil session config", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.sessionConfig = nil
+		resetSessions(s, nil, url.URL{})
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 
-		err := s.createOrUpdateAuthSession(ctx, r, w, storage.AuthRequest{}, false)
+		err := s.sessions.CreateOrUpdateAuthSession(ctx, r, w, storage.AuthRequest{}, false)
 		assert.NoError(t, err)
 		assert.Empty(t, w.Result().Cookies())
 	})
 }
 
 // setupSessionLoginFixture creates the necessary storage objects for trySessionLogin tests.
-func setupSessionLoginFixture(t *testing.T, s *Server) storage.AuthRequest {
+func setupSessionLoginFixture(t *testing.T, s *Handler) storage.AuthRequest {
 	t.Helper()
 	ctx := t.Context()
 	now := s.now()
@@ -634,7 +640,7 @@ func TestTrySessionLogin(t *testing.T) {
 
 // setupSessionWithIdentity creates an AuthSession, UserIdentity, and AuthRequest in storage
 // for use in trySessionLogin tests. Returns the authReq.
-func setupSessionWithIdentity(t *testing.T, s *Server, now time.Time, lastLogin time.Time) storage.AuthRequest {
+func setupSessionWithIdentity(t *testing.T, s *Handler, now time.Time, lastLogin time.Time) storage.AuthRequest {
 	t.Helper()
 	ctx := t.Context()
 	nonce := "test-nonce"
@@ -796,7 +802,7 @@ func TestTrySessionLoginWithSession_IDTokenHint(t *testing.T) {
 		s.skipApproval = true
 		authReq := setupSessionLoginFixture(t, s)
 
-		session := s.getValidAuthSession(ctx, httptest.NewRecorder(), sessionCookieRequest("user-1", "mock", "test-nonce"), &authReq)
+		session := s.sessions.ValidAuthSession(ctx, httptest.NewRecorder(), sessionCookieRequest("user-1", "mock", "test-nonce"), &authReq)
 		require.NotNil(t, session)
 
 		// Verify hint matches.
@@ -814,7 +820,7 @@ func TestTrySessionLoginWithSession_IDTokenHint(t *testing.T) {
 		s.skipApproval = true
 		authReq := setupSessionLoginFixture(t, s)
 
-		session := s.getValidAuthSession(ctx, httptest.NewRecorder(), sessionCookieRequest("user-1", "mock", "test-nonce"), &authReq)
+		session := s.sessions.ValidAuthSession(ctx, httptest.NewRecorder(), sessionCookieRequest("user-1", "mock", "test-nonce"), &authReq)
 		require.NotNil(t, session)
 
 		// Verify hint does NOT match.
@@ -847,7 +853,7 @@ func TestTrySessionLoginWithSession_IDTokenHint(t *testing.T) {
 		s.skipApproval = true
 		authReq := setupSessionLoginFixture(t, s)
 
-		session := s.getValidAuthSession(ctx, httptest.NewRecorder(), sessionCookieRequest("user-1", "mock", "test-nonce"), &authReq)
+		session := s.sessions.ValidAuthSession(ctx, httptest.NewRecorder(), sessionCookieRequest("user-1", "mock", "test-nonce"), &authReq)
 		require.NotNil(t, session)
 
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
@@ -938,13 +944,13 @@ func TestClientSharesSessionWith(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newTestSessionServer(t)
-			s.sessionConfig.SSOSharedWithDefault = tt.defaultPolicy
+			resetSessions(s, &session.Config{CookieName: "dex_session", AbsoluteLifetime: 24 * time.Hour, ValidIfNotUsedFor: time.Hour, SSOSharedWithDefault: tt.defaultPolicy}, s.issuerURL)
 
 			client := storage.Client{
 				ID:            "source-client",
 				SSOSharedWith: tt.ssoSharedWith,
 			}
-			got := s.clientSharesSessionWith(client, tt.targetClientID)
+			got := s.sessions.ClientSharesWith(client, tt.targetClientID)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -976,7 +982,7 @@ func TestFindSSOSession(t *testing.T) {
 			},
 		}
 
-		assert.NotNil(t, s.findSSOSession(ctx, session, "client-b"))
+		assert.NotNil(t, s.sessions.FindSSO(ctx, session, "client-b"))
 	})
 
 	t.Run("no SSO when client does not share", func(t *testing.T) {
@@ -1002,7 +1008,7 @@ func TestFindSSOSession(t *testing.T) {
 			},
 		}
 
-		assert.Nil(t, s.findSSOSession(ctx, session, "client-b"))
+		assert.Nil(t, s.sessions.FindSSO(ctx, session, "client-b"))
 	})
 
 	t.Run("skips inactive client states", func(t *testing.T) {
@@ -1028,7 +1034,7 @@ func TestFindSSOSession(t *testing.T) {
 			},
 		}
 
-		assert.Nil(t, s.findSSOSession(ctx, session, "client-b"))
+		assert.Nil(t, s.sessions.FindSSO(ctx, session, "client-b"))
 	})
 
 	t.Run("skips expired client states", func(t *testing.T) {
@@ -1054,12 +1060,12 @@ func TestFindSSOSession(t *testing.T) {
 			},
 		}
 
-		assert.Nil(t, s.findSSOSession(ctx, session, "client-b"))
+		assert.Nil(t, s.sessions.FindSSO(ctx, session, "client-b"))
 	})
 
 	t.Run("wildcard SSO with default all", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.sessionConfig.SSOSharedWithDefault = "all"
+		resetSessions(s, &session.Config{CookieName: "dex_session", AbsoluteLifetime: 24 * time.Hour, ValidIfNotUsedFor: time.Hour, SSOSharedWithDefault: "all"}, s.issuerURL)
 		now := s.now()
 
 		// Client with nil SSOSharedWith — uses default "all"
@@ -1082,7 +1088,7 @@ func TestFindSSOSession(t *testing.T) {
 			},
 		}
 
-		assert.NotNil(t, s.findSSOSession(ctx, session, "client-b"))
+		assert.NotNil(t, s.sessions.FindSSO(ctx, session, "client-b"))
 	})
 }
 
@@ -1151,7 +1157,7 @@ func TestTrySessionLogin_SSO(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		session := s.getValidAuthSession(ctx, w, r, &authReq)
+		session := s.sessions.ValidAuthSession(ctx, w, r, &authReq)
 		require.NotNil(t, session)
 
 		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
@@ -1225,7 +1231,7 @@ func TestTrySessionLogin_SSO(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		session := s.getValidAuthSession(ctx, w, r, &authReq)
+		session := s.sessions.ValidAuthSession(ctx, w, r, &authReq)
 		require.NotNil(t, session)
 
 		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
@@ -1298,7 +1304,7 @@ func TestTrySessionLogin_SSO(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		session := s.getValidAuthSession(ctx, w, r, &authReq)
+		session := s.sessions.ValidAuthSession(ctx, w, r, &authReq)
 		require.NotNil(t, session)
 
 		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
@@ -1307,7 +1313,7 @@ func TestTrySessionLogin_SSO(t *testing.T) {
 		updated, err := s.storage.GetAuthSession(ctx, "user-1", "mock")
 		require.NoError(t, err)
 		require.Contains(t, updated.ClientStates, "client-b")
-		assert.Equal(t, now.Add(s.sessionConfig.AbsoluteLifetime), updated.ClientStates["client-b"].ExpiresAt,
+		assert.Equal(t, s.sessions.AbsoluteExpiry(now), updated.ClientStates["client-b"].ExpiresAt,
 			"derived state expiry should use configured AbsoluteLifetime when source expires later")
 	})
 
@@ -1354,7 +1360,7 @@ func TestTrySessionLogin_SSO(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		session := s.getValidAuthSession(ctx, w, r, &authReq)
+		session := s.sessions.ValidAuthSession(ctx, w, r, &authReq)
 		require.NotNil(t, session)
 
 		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
@@ -1365,11 +1371,11 @@ func TestTrySessionLogin_SSO(t *testing.T) {
 func TestFinishSessionLogin_MFA(t *testing.T) {
 	ctx := t.Context()
 
-	setupMFAFixture := func(t *testing.T, mfaProviders map[string]MFAProvider, clientMFAChain []string) (*Server, storage.AuthRequest) {
+	setupMFAFixture := func(t *testing.T, mfaProviders map[string]mfa.Provider, clientMFAChain []string) (*Handler, storage.AuthRequest) {
 		t.Helper()
 		s := newTestSessionServer(t)
 		s.skipApproval = true
-		s.mfaProviders = mfaProviders
+		s.mfa = mfa.New(s.UI, s.storage, nil, slog.Default(), mfaProviders, nil, s.now, s.connectors)
 
 		// Create connector in storage and register it in the connectors map.
 		require.NoError(t, s.storage.CreateConnector(ctx, storage.Connector{
@@ -1393,8 +1399,8 @@ func TestFinishSessionLogin_MFA(t *testing.T) {
 	}
 
 	t.Run("MFA required redirects to MFA page", func(t *testing.T) {
-		s, authReq := setupMFAFixture(t, map[string]MFAProvider{
-			"totp": NewTOTPProvider("test-issuer", nil), // nil connectorTypes = enabled for all
+		s, authReq := setupMFAFixture(t, map[string]mfa.Provider{
+			"totp": mfa.NewTOTPProvider("test-issuer", nil), // nil connectorTypes = enabled for all
 		}, []string{"totp"})
 
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
@@ -1416,8 +1422,8 @@ func TestFinishSessionLogin_MFA(t *testing.T) {
 
 	t.Run("MFA provider not enabled for connector type skips MFA", func(t *testing.T) {
 		// TOTP provider only enabled for "oidc" connectors, but our connector is "ldap".
-		s, authReq := setupMFAFixture(t, map[string]MFAProvider{
-			"totp": NewTOTPProvider("test-issuer", []string{"oidc"}),
+		s, authReq := setupMFAFixture(t, map[string]mfa.Provider{
+			"totp": mfa.NewTOTPProvider("test-issuer", []string{"oidc"}),
 		}, []string{"totp"})
 		require.NoError(t, s.storage.UpdateAuthRequest(ctx, authReq.ID, func(a storage.AuthRequest) (storage.AuthRequest, error) {
 			a.ForceApprovalPrompt = true
@@ -1462,7 +1468,7 @@ func TestNonceVerificationRejectsForgedCookie(t *testing.T) {
 			r := sessionCookieRequest("user-1", "mock", tc.nonce)
 			w := httptest.NewRecorder()
 
-			session := s.getValidSession(ctx, w, r)
+			session := s.sessions.ValidSession(ctx, w, r)
 			assert.Nil(t, session, "session with forged nonce %q should be rejected", tc.nonce)
 
 			// Cookie should be cleared on nonce mismatch.
@@ -1478,7 +1484,7 @@ func TestNonceVerificationRejectsForgedCookie(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "real-nonce")
 		w := httptest.NewRecorder()
 
-		session := s.getValidSession(ctx, w, r)
+		session := s.sessions.ValidSession(ctx, w, r)
 		require.NotNil(t, session)
 		assert.Equal(t, "user-1", session.UserID)
 	})
@@ -1500,7 +1506,7 @@ func TestPromptNone(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		session := s.getValidAuthSession(ctx, w, r, &authReq)
+		session := s.sessions.ValidAuthSession(ctx, w, r, &authReq)
 		require.NotNil(t, session)
 
 		redirectURL, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
@@ -1549,7 +1555,7 @@ func TestPromptNone(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		session := s.getValidAuthSession(ctx, w, r, &authReq)
+		session := s.sessions.ValidAuthSession(ctx, w, r, &authReq)
 		require.NotNil(t, session)
 
 		// In handleConnectorLogin, a non-empty redirectURL with prompt=none
@@ -1604,7 +1610,7 @@ func TestPromptNone(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		session := s.getValidAuthSession(ctx, w, r, &authReq)
+		session := s.sessions.ValidAuthSession(ctx, w, r, &authReq)
 		require.NotNil(t, session)
 
 		redirectURL, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
@@ -1622,9 +1628,9 @@ func TestPromptNone(t *testing.T) {
 		// In handleConnectorLogin, this is a successful (ok=true) redirect, not oauth2.LoginRequired.
 		s := newTestSessionServer(t)
 		s.skipApproval = true
-		s.mfaProviders = map[string]MFAProvider{
-			"totp": NewTOTPProvider("test-issuer", nil),
-		}
+		s.mfa = mfa.New(s.UI, s.storage, nil, slog.Default(), map[string]mfa.Provider{
+			"totp": mfa.NewTOTPProvider("test-issuer", nil),
+		}, nil, s.now, s.connectors)
 
 		require.NoError(t, s.storage.CreateConnector(ctx, storage.Connector{
 			ID: "mock", Type: "ldap", Name: "Mock", ResourceVersion: "1",
@@ -1683,7 +1689,7 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 	ctx := t.Context()
 
 	// setupSSOFixture creates a two-client SSO scenario where client-a shares with client-b.
-	setupSSOFixture := func(t *testing.T, s *Server, consentsForB []string) storage.AuthRequest {
+	setupSSOFixture := func(t *testing.T, s *Handler, consentsForB []string) storage.AuthRequest {
 		t.Helper()
 		now := s.now()
 
@@ -1728,7 +1734,7 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		session := s.getValidAuthSession(ctx, w, r, &authReq)
+		session := s.sessions.ValidAuthSession(ctx, w, r, &authReq)
 		require.NotNil(t, session)
 
 		redirectURL, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
@@ -1744,7 +1750,7 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		session := s.getValidAuthSession(ctx, w, r, &authReq)
+		session := s.sessions.ValidAuthSession(ctx, w, r, &authReq)
 		require.NotNil(t, session)
 
 		redirectURL, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
@@ -1755,9 +1761,9 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 	t.Run("SSO with MFA required on target client redirects to MFA", func(t *testing.T) {
 		s := newTestSessionServer(t)
 		s.skipApproval = true
-		s.mfaProviders = map[string]MFAProvider{
-			"totp": NewTOTPProvider("test-issuer", nil),
-		}
+		s.mfa = mfa.New(s.UI, s.storage, nil, slog.Default(), map[string]mfa.Provider{
+			"totp": mfa.NewTOTPProvider("test-issuer", nil),
+		}, nil, s.now, s.connectors)
 
 		require.NoError(t, s.storage.CreateConnector(ctx, storage.Connector{
 			ID: "mock", Type: "ldap", Name: "Mock", ResourceVersion: "1",
@@ -1774,7 +1780,7 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		session := s.getValidAuthSession(ctx, w, r, &authReq)
+		session := s.sessions.ValidAuthSession(ctx, w, r, &authReq)
 		require.NotNil(t, session)
 
 		redirectURL, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
@@ -1785,9 +1791,9 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 	t.Run("SSO source without MFA target with MFA enforces MFA", func(t *testing.T) {
 		s := newTestSessionServer(t)
 		s.skipApproval = true
-		s.mfaProviders = map[string]MFAProvider{
-			"totp": NewTOTPProvider("test-issuer", nil),
-		}
+		s.mfa = mfa.New(s.UI, s.storage, nil, slog.Default(), map[string]mfa.Provider{
+			"totp": mfa.NewTOTPProvider("test-issuer", nil),
+		}, nil, s.now, s.connectors)
 
 		require.NoError(t, s.storage.CreateConnector(ctx, storage.Connector{
 			ID: "mock", Type: "ldap", Name: "Mock", ResourceVersion: "1",
@@ -1830,7 +1836,7 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		session := s.getValidAuthSession(ctx, w, r, &authReq)
+		session := s.sessions.ValidAuthSession(ctx, w, r, &authReq)
 		require.NotNil(t, session)
 
 		redirectURL, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
@@ -1860,13 +1866,13 @@ func TestUpdateSessionTokenIssuedAt(t *testing.T) {
 		}))
 
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
-		s.updateSessionTokenIssuedAt(r, "client-1")
+		s.sessions.UpdateTokenIssuedAt(r, "client-1")
 
 		session, err := s.storage.GetAuthSession(ctx, "user-1", "mock")
 		require.NoError(t, err)
 
 		assert.Equal(t, now, session.LastActivity, "session LastActivity should be updated")
-		assert.Equal(t, now.Add(s.sessionConfig.ValidIfNotUsedFor), session.IdleExpiry, "IdleExpiry should be extended")
+		assert.Equal(t, s.sessions.IdleExpiry(now), session.IdleExpiry, "IdleExpiry should be extended")
 		assert.Equal(t, now, session.ClientStates["client-1"].LastTokenIssuedAt, "client-1 LastTokenIssuedAt should be set")
 		assert.Equal(t, now, session.ClientStates["client-1"].LastActivity, "client-1 LastActivity should be updated")
 		// client-2 should be untouched.
@@ -1876,11 +1882,11 @@ func TestUpdateSessionTokenIssuedAt(t *testing.T) {
 
 	t.Run("noop when sessions disabled", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.sessionConfig = nil
+		resetSessions(s, nil, url.URL{})
 
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		// Should not panic.
-		s.updateSessionTokenIssuedAt(r, "any-client")
+		s.sessions.UpdateTokenIssuedAt(r, "any-client")
 	})
 }
 
@@ -1910,12 +1916,12 @@ func TestIdleExpiryExtension(t *testing.T) {
 			Claims: storage.Claims{UserID: "user-1"},
 		}
 
-		err := s.createOrUpdateAuthSession(ctx, r, w, authReq, false)
+		err := s.sessions.CreateOrUpdateAuthSession(ctx, r, w, authReq, false)
 		require.NoError(t, err)
 
 		session, err := s.storage.GetAuthSession(ctx, "user-1", "mock")
 		require.NoError(t, err)
-		assert.Equal(t, now.Add(s.sessionConfig.ValidIfNotUsedFor), session.IdleExpiry,
+		assert.Equal(t, s.sessions.IdleExpiry(now), session.IdleExpiry,
 			"IdleExpiry should be reset to now + ValidIfNotUsedFor")
 	})
 
@@ -1950,7 +1956,7 @@ func TestIdleExpiryExtension(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		session := s.getValidAuthSession(ctx, w, r, &authReq)
+		session := s.sessions.ValidAuthSession(ctx, w, r, &authReq)
 		require.NotNil(t, session)
 
 		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
@@ -1958,7 +1964,7 @@ func TestIdleExpiryExtension(t *testing.T) {
 
 		updated, err := s.storage.GetAuthSession(ctx, "user-1", "mock")
 		require.NoError(t, err)
-		assert.Equal(t, now.Add(s.sessionConfig.ValidIfNotUsedFor), updated.IdleExpiry,
+		assert.Equal(t, s.sessions.IdleExpiry(now), updated.IdleExpiry,
 			"IdleExpiry should be extended after session login")
 	})
 }
@@ -1968,7 +1974,7 @@ func TestIdleExpiryExtension(t *testing.T) {
 func TestSSO_Unidirectional(t *testing.T) {
 	ctx := t.Context()
 
-	setup := func(t *testing.T, s *Server, loginClient, targetClient string) (storage.AuthRequest, *storage.AuthSession) {
+	setup := func(t *testing.T, s *Handler, loginClient, targetClient string) (storage.AuthRequest, *storage.AuthSession) {
 		t.Helper()
 		now := s.now()
 
@@ -1996,7 +2002,7 @@ func TestSSO_Unidirectional(t *testing.T) {
 
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
-		session := s.getValidAuthSession(ctx, w, r, &authReq)
+		session := s.sessions.ValidAuthSession(ctx, w, r, &authReq)
 		return authReq, session
 	}
 
@@ -2086,7 +2092,7 @@ func TestSSO_TransitiveTrustChain(t *testing.T) {
 		require.NoError(t, s.storage.CreateAuthRequest(ctx, req))
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
-		session := s.getValidAuthSession(ctx, w, r, &req)
+		session := s.sessions.ValidAuthSession(ctx, w, r, &req)
 		require.NotNil(t, session)
 		_, ok := s.trySessionLoginWithSession(ctx, r, w, &req, session)
 		return ok
@@ -2104,7 +2110,7 @@ func TestSSO_TransitiveTrustChain(t *testing.T) {
 
 	// Hop 2: C has no eligible SSO source — A does not share with C and B's state
 	// is SSO-derived. Pin the exact invariant, then the login outcome.
-	assert.Nil(t, s.findSSOSession(ctx, &sess, "client-c"), "no eligible SSO source for C")
+	assert.Nil(t, s.sessions.FindSSO(ctx, &sess, "client-c"), "no eligible SSO source for C")
 	assert.False(t, tryLogin("client-c"), "transitive A→B→C SSO must be denied")
 }
 
@@ -2112,21 +2118,27 @@ func TestSSO_TransitiveTrustChain(t *testing.T) {
 // returns the correct value based on session configuration.
 func TestRememberMeDefault(t *testing.T) {
 	t.Run("sessions disabled returns nil", func(t *testing.T) {
-		s := &Server{sessionConfig: nil}
-		assert.Nil(t, s.rememberMeDefault())
+		s := session.New(nil, nil, nil, nil, url.URL{})
+		assert.Nil(t, s.RememberMeDefault())
 	})
 
 	t.Run("default false", func(t *testing.T) {
-		s := &Server{sessionConfig: &SessionConfig{RememberMeCheckedByDefault: false}}
-		v := s.rememberMeDefault()
+		s := session.New(nil, &session.Config{RememberMeCheckedByDefault: false}, nil, nil, url.URL{})
+		v := s.RememberMeDefault()
 		require.NotNil(t, v)
 		assert.False(t, *v)
 	})
 
 	t.Run("default true", func(t *testing.T) {
-		s := &Server{sessionConfig: &SessionConfig{RememberMeCheckedByDefault: true}}
-		v := s.rememberMeDefault()
+		s := session.New(nil, &session.Config{RememberMeCheckedByDefault: true}, nil, nil, url.URL{})
+		v := s.RememberMeDefault()
 		require.NotNil(t, v)
 		assert.True(t, *v)
 	})
+}
+
+// resetSessions rebuilds the Handler's session manager with the given config and
+// issuer, for tests that exercise Manager behavior under a different config.
+func resetSessions(s *Handler, cfg *session.Config, issuer url.URL) {
+	s.sessions = session.New(s.storage, cfg, s.now, slog.Default(), issuer)
 }

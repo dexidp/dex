@@ -14,12 +14,10 @@ import (
 	"os"
 	"path"
 	"sort"
-	"strings"
 	"sync/atomic"
 	"time"
 
 	gosundheit "github.com/AppsFlyer/go-sundheit"
-	"github.com/google/uuid"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
@@ -44,13 +42,16 @@ import (
 	"github.com/dexidp/dex/connector/openshift"
 	"github.com/dexidp/dex/connector/saml"
 	"github.com/dexidp/dex/pkg/featureflags"
+	"github.com/dexidp/dex/server/authflow"
+	"github.com/dexidp/dex/server/authflow/mfa"
+	"github.com/dexidp/dex/server/authflow/session"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/device"
 	"github.com/dexidp/dex/server/discovery"
 	"github.com/dexidp/dex/server/grants"
 	"github.com/dexidp/dex/server/home"
-	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/introspection"
+	"github.com/dexidp/dex/server/log"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/passwords"
 	"github.com/dexidp/dex/server/router"
@@ -114,7 +115,7 @@ type Config struct {
 	PasswordConnector string
 
 	// PKCE configuration
-	PKCE PKCEConfig
+	PKCE authflow.PKCEConfig
 
 	GCFrequency time.Duration // Defaults to 5 minutes
 
@@ -137,25 +138,13 @@ type Config struct {
 	ContinueOnConnectorFailure bool
 
 	// SessionConfig holds session settings. Nil when sessions are disabled.
-	SessionConfig *SessionConfig
+	SessionConfig *session.Config
 
 	// MFAProviders maps authenticator IDs to their provider implementations.
-	MFAProviders map[string]MFAProvider
+	MFAProviders map[string]mfa.Provider
 
 	// DefaultMFAChain is applied to clients that don't specify their own mfaChain.
 	DefaultMFAChain []string
-}
-
-// SessionConfig holds resolved session configuration.
-type SessionConfig struct {
-	CookieName                 string
-	CookieEncryptionKey        []byte
-	AbsoluteLifetime           time.Duration
-	ValidIfNotUsedFor          time.Duration
-	RememberMeCheckedByDefault bool
-	// SSOSharedWithDefault is the default SSO sharing policy for clients without explicit SSOSharedWith.
-	// "all" = share with all clients, "none" or "" = share with no one (default).
-	SSOSharedWithDefault string
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
@@ -187,14 +176,6 @@ type WebConfig struct {
 
 	// Map of extra values passed into the templates
 	Extra map[string]string
-}
-
-// PKCEConfig holds PKCE (Proof Key for Code Exchange) settings.
-type PKCEConfig struct {
-	// If true, PKCE is required for all authorization code flows.
-	Enforce bool
-	// Supported code challenge methods. Defaults to ["S256", "plain"].
-	CodeChallengeMethodsSupported []string
 }
 
 func value(val, defaultValue time.Duration) time.Duration {
@@ -230,7 +211,7 @@ type Server struct {
 
 	supportedGrantTypes []string
 
-	pkce PKCEConfig
+	pkce authflow.PKCEConfig
 
 	now func() time.Time
 
@@ -247,9 +228,9 @@ type Server struct {
 	// issuer turns an Authorization into a TokenSet.
 	issuer *tokens.Issuer
 
-	sessionConfig *SessionConfig
+	sessionConfig *session.Config
 
-	mfaProviders    map[string]MFAProvider
+	mfaProviders    map[string]mfa.Provider
 	defaultMFAChain []string
 }
 
@@ -466,6 +447,25 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		SupportedGrantTypes: s.supportedGrantTypes,
 	})
 
+	authFlow := authflow.NewHandler(authflow.Config{
+		IssuerURL:              s.issuerURL,
+		Connectors:             s.connectors,
+		Storage:                s.storage,
+		Templates:              s.templates,
+		Signer:                 s.signer,
+		Issuer:                 s.issuer,
+		Now:                    s.now,
+		Logger:                 s.logger,
+		SkipApproval:           s.skipApproval,
+		AlwaysShowLogin:        s.alwaysShowLogin,
+		SupportedResponseTypes: s.supportedResponseTypes,
+		PKCE:                   s.pkce,
+		AuthRequestsValidFor:   s.authRequestsValidFor,
+		SessionConfig:          s.sessionConfig,
+		MFAProviders:           s.mfaProviders,
+		DefaultMFAChain:        s.defaultMFAChain,
+	})
+
 	// Retrieves connector objects in backend storage. This list includes the static connectors
 	// defined in the ConfigMap and dynamic connectors retrieved from the storage.
 	storageConnectors, err := c.Storage.ListConnectors(ctx)
@@ -566,12 +566,12 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 
 			// Context values are used for logging purposes with the log/slog logger.
 			rCtx := r.Context()
-			rCtx = WithRequestID(rCtx)
+			rCtx = log.WithRequestID(rCtx)
 
 			if c.RealIPHeader != "" {
 				realIP, err := parseRealIP(r)
 				if err == nil {
-					rCtx = WithRemoteIP(rCtx, realIP)
+					rCtx = log.WithRemoteIP(rCtx, realIP)
 				}
 			}
 
@@ -607,42 +607,11 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	// Self-contained domains mount their own routes through the router.Mux
 	// abstraction, so this list is the only place they are wired in.
 	mux := routeMux{handle: handle, handleFunc: handleFunc, handleCORS: handleWithCORS, handlePrefix: handlePrefix}
-	for _, h := range []router.Handler{tokenEndpoint, discoveryHandler, userInfoHandler, introspectHandler, deviceHandler, homeHandler} {
+	for _, h := range []router.Handler{tokenEndpoint, discoveryHandler, userInfoHandler, introspectHandler, deviceHandler, homeHandler, authFlow} {
 		h.Mount(mux)
 	}
 
 	// TODO(ericchiang): rate limit certain paths based on IP.
-	handleFunc("/auth", s.handleAuthorization)
-	handleFunc("/auth/{connector}", s.handleConnectorLogin)
-	handleFunc("/auth/{connector}/login", s.handlePasswordLogin)
-	handleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
-		// Strip the X-Remote-* headers to prevent security issues on
-		// misconfigured authproxy connector setups.
-		for key := range r.Header {
-			if strings.HasPrefix(strings.ToLower(key), "x-remote-") {
-				r.Header.Del(key)
-			}
-		}
-		s.handleConnectorCallback(w, r)
-	})
-	// For easier connector-specific web server configuration, e.g. for the
-	// "authproxy" connector.
-	handleFunc("/callback/{connector}", s.handleConnectorCallback)
-	handleFunc("/approval", s.handleApproval)
-	// OIDC RP-Initiated logout endpoints, DEX_SESSIONS_ENABLED=true feature flag is required.
-	if c.SessionConfig != nil {
-		handleFunc("/logout", s.handleLogout)
-		handleFunc("/logout/callback", s.handleLogoutCallback)
-	}
-	// MFA verification endpoints, DEX_SESSIONS_ENABLED=true feature flag is required.
-	if c.SessionConfig != nil {
-		handleFunc("/mfa/totp", s.handleTOTP)
-		handleFunc("/mfa/webauthn", s.handleWebAuthn)
-		handleFunc("/mfa/webauthn/register/begin", s.handleWebAuthnRegisterBegin)
-		handleFunc("/mfa/webauthn/register/finish", s.handleWebAuthnRegisterFinish)
-		handleFunc("/mfa/webauthn/login/begin", s.handleWebAuthnLoginBegin)
-		handleFunc("/mfa/webauthn/login/finish", s.handleWebAuthnLoginFinish)
-	}
 	handle("/healthz", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !c.HealthChecker.IsHealthy() {
 			s.renderError(r, w, http.StatusInternalServerError, "Health check failed.")
@@ -888,25 +857,10 @@ func (s *Server) CloseConnector(id string) {
 	s.connectors.Close(id)
 }
 
-// buildApprovalURL builds an HMAC-protected approval URL.
-func (s *Server) buildApprovalURL(authReq storage.AuthRequest) string {
-	v := url.Values{}
-	v.Set("req", authReq.ID)
-	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, ""))
-	return s.absPath("/approval") + "?" + v.Encode()
-}
-
-type logRequestKey string
-
-const (
-	RequestKeyRequestID logRequestKey = "request_id"
-	RequestKeyRemoteIP  logRequestKey = "client_remote_addr"
-)
-
-func WithRequestID(ctx context.Context) context.Context {
-	return context.WithValue(ctx, RequestKeyRequestID, uuid.NewString())
-}
-
-func WithRemoteIP(ctx context.Context, ip string) context.Context {
-	return context.WithValue(ctx, RequestKeyRemoteIP, ip)
+// renderError renders a user-facing error page for the non-flow endpoints the
+// server still serves directly (e.g. /healthz).
+func (s *Server) renderError(r *http.Request, w http.ResponseWriter, status int, description string) {
+	if err := s.templates.Err(r, w, status, description); err != nil {
+		s.logger.ErrorContext(r.Context(), "server template error", "err", err)
+	}
 }

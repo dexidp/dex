@@ -1,4 +1,4 @@
-package server
+package mfa
 
 import (
 	"bytes"
@@ -143,9 +143,9 @@ func buildWebAuthnUser(identity storage.UserIdentity, authenticatorID string) *w
 	}
 }
 
-// handleWebAuthnRegisterBegin starts the WebAuthn registration ceremony.
-func (s *Server) handleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Request) {
-	mfa, provider, ok := s.validateWebAuthnAPIRequest(w, r)
+// HandleWebAuthnRegisterBegin starts the WebAuthn registration ceremony.
+func (m *Manager) HandleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Request) {
+	mfa, provider, ok := m.validateWebAuthnAPIRequest(w, r)
 	if !ok {
 		return
 	}
@@ -156,13 +156,13 @@ func (s *Server) handleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Requ
 
 	creation, session, err := provider.wan.BeginRegistration(user)
 	if err != nil {
-		s.logger.ErrorContext(ctx, "failed to begin webauthn registration", "err", err)
+		m.logger.ErrorContext(ctx, "failed to begin webauthn registration", "err", err)
 		writeJSONError(w, http.StatusInternalServerError, "Internal server error.")
 		return
 	}
 
-	if err := s.storeWebAuthnSession(ctx, mfa.authReq.ID, session); err != nil {
-		s.logger.ErrorContext(ctx, "failed to store session data", "err", err)
+	if err := m.storeWebAuthnSession(ctx, mfa.authReq.ID, session); err != nil {
+		m.logger.ErrorContext(ctx, "failed to store session data", "err", err)
 		writeJSONError(w, http.StatusInternalServerError, "Internal server error.")
 		return
 	}
@@ -170,17 +170,17 @@ func (s *Server) handleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, creation)
 }
 
-// handleWebAuthnRegisterFinish completes the WebAuthn registration ceremony.
-func (s *Server) handleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Request) {
-	mfa, provider, ok := s.validateWebAuthnAPIRequest(w, r)
+// HandleWebAuthnRegisterFinish completes the WebAuthn registration ceremony.
+func (m *Manager) HandleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Request) {
+	mfa, provider, ok := m.validateWebAuthnAPIRequest(w, r)
 	if !ok {
 		return
 	}
 
 	ctx := r.Context()
-	session, err := s.loadWebAuthnSession(mfa.authReq)
+	session, err := m.loadWebAuthnSession(mfa.authReq)
 	if err != nil {
-		s.logger.ErrorContext(ctx, "failed to load session data", "err", err)
+		m.logger.ErrorContext(ctx, "failed to load session data", "err", err)
 		writeJSONError(w, http.StatusBadRequest, "Invalid session.")
 		return
 	}
@@ -190,30 +190,30 @@ func (s *Server) handleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Req
 
 	credential, err := provider.wan.FinishRegistration(user, *session, r)
 	if err != nil {
-		s.logger.ErrorContext(ctx, "webauthn registration failed", "err", err)
+		m.logger.ErrorContext(ctx, "webauthn registration failed", "err", err)
 		writeJSONError(w, http.StatusBadRequest, "Registration failed: "+err.Error())
 		return
 	}
 
-	newCred := convertCredential(credential, s.now())
-	if err := s.storage.UpdateUserIdentity(ctx, mfa.authReq.Claims.UserID, mfa.authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
+	newCred := convertCredential(credential, m.now())
+	if err := m.storage.UpdateUserIdentity(ctx, mfa.authReq.Claims.UserID, mfa.authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
 		if old.WebAuthnCredentials == nil {
 			old.WebAuthnCredentials = make(map[string][]storage.WebAuthnCredential)
 		}
 		old.WebAuthnCredentials[mfa.authenticatorID] = append(old.WebAuthnCredentials[mfa.authenticatorID], newCred)
 		return old, nil
 	}); err != nil {
-		s.logger.ErrorContext(ctx, "failed to store credential", "err", err)
+		m.logger.ErrorContext(ctx, "failed to store credential", "err", err)
 		writeJSONError(w, http.StatusInternalServerError, "Internal server error.")
 		return
 	}
 
-	s.writeCompleteMFAStepResponse(w, r, mfa)
+	m.writeCompleteMFAStepResponse(w, r, mfa)
 }
 
-// handleWebAuthnLoginBegin starts the WebAuthn login ceremony.
-func (s *Server) handleWebAuthnLoginBegin(w http.ResponseWriter, r *http.Request) {
-	mfa, provider, ok := s.validateWebAuthnAPIRequest(w, r)
+// HandleWebAuthnLoginBegin starts the WebAuthn login ceremony.
+func (m *Manager) HandleWebAuthnLoginBegin(w http.ResponseWriter, r *http.Request) {
+	mfa, provider, ok := m.validateWebAuthnAPIRequest(w, r)
 	if !ok {
 		return
 	}
@@ -227,13 +227,13 @@ func (s *Server) handleWebAuthnLoginBegin(w http.ResponseWriter, r *http.Request
 
 	assertion, session, err := provider.wan.BeginLogin(user)
 	if err != nil {
-		s.logger.ErrorContext(ctx, "failed to begin webauthn login", "err", err)
+		m.logger.ErrorContext(ctx, "failed to begin webauthn login", "err", err)
 		writeJSONError(w, http.StatusInternalServerError, "Internal server error.")
 		return
 	}
 
-	if err := s.storeWebAuthnSession(ctx, mfa.authReq.ID, session); err != nil {
-		s.logger.ErrorContext(ctx, "failed to store session data", "err", err)
+	if err := m.storeWebAuthnSession(ctx, mfa.authReq.ID, session); err != nil {
+		m.logger.ErrorContext(ctx, "failed to store session data", "err", err)
 		writeJSONError(w, http.StatusInternalServerError, "Internal server error.")
 		return
 	}
@@ -241,23 +241,23 @@ func (s *Server) handleWebAuthnLoginBegin(w http.ResponseWriter, r *http.Request
 	writeJSON(w, assertion)
 }
 
-// handleWebAuthnLoginFinish completes the WebAuthn login ceremony.
+// HandleWebAuthnLoginFinish completes the WebAuthn login ceremony.
 //
 // TODO(nabokihms): this endpoint should be protected with a rate limit (like the auth endpoint).
 // Although WebAuthn is more resistant to brute-force than TOTP (challenges are random and
 // cryptographically signed), repeated attempts could still be used for denial-of-service.
 //
 // For now the best way is to use external rate limiting solutions.
-func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Request) {
-	mfa, provider, ok := s.validateWebAuthnAPIRequest(w, r)
+func (m *Manager) HandleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Request) {
+	mfa, provider, ok := m.validateWebAuthnAPIRequest(w, r)
 	if !ok {
 		return
 	}
 
 	ctx := r.Context()
-	session, err := s.loadWebAuthnSession(mfa.authReq)
+	session, err := m.loadWebAuthnSession(mfa.authReq)
 	if err != nil {
-		s.logger.ErrorContext(ctx, "failed to load session data", "err", err)
+		m.logger.ErrorContext(ctx, "failed to load session data", "err", err)
 		writeJSONError(w, http.StatusBadRequest, "Invalid session.")
 		return
 	}
@@ -265,7 +265,7 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 	user := buildWebAuthnUser(mfa.identity, mfa.authenticatorID)
 	credential, err := provider.wan.FinishLogin(user, *session, r)
 	if err != nil {
-		s.logger.ErrorContext(ctx, "webauthn login failed", "err", err)
+		m.logger.ErrorContext(ctx, "webauthn login failed", "err", err)
 		writeJSONError(w, http.StatusUnauthorized, "Authentication failed.")
 		return
 	}
@@ -273,7 +273,7 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 	// Update sign count and clone warning for the matched credential. The
 	// CloneWarning flag is persisted even when we reject below so it is visible
 	// to admins (e.g. via ListMFADevices).
-	if err := s.storage.UpdateUserIdentity(ctx, mfa.authReq.Claims.UserID, mfa.authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
+	if err := m.storage.UpdateUserIdentity(ctx, mfa.authReq.Claims.UserID, mfa.authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
 		creds := old.WebAuthnCredentials[mfa.authenticatorID]
 		for i := range creds {
 			if bytes.Equal(creds[i].CredentialID, credential.ID) {
@@ -285,7 +285,7 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 		old.WebAuthnCredentials[mfa.authenticatorID] = creds
 		return old, nil
 	}); err != nil {
-		s.logger.ErrorContext(ctx, "failed to update credential", "err", err)
+		m.logger.ErrorContext(ctx, "failed to update credential", "err", err)
 		writeJSONError(w, http.StatusInternalServerError, "Internal server error.")
 		return
 	}
@@ -294,30 +294,30 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 	// advance past the stored value, which indicates a cloned authenticator (or a
 	// replayed assertion). Reject the assertion instead of completing the MFA step.
 	if credential.Authenticator.CloneWarning {
-		s.logger.ErrorContext(ctx, "webauthn: signature counter regression, possible cloned authenticator — rejecting",
+		m.logger.ErrorContext(ctx, "webauthn: signature counter regression, possible cloned authenticator — rejecting",
 			"user_id", mfa.authReq.Claims.UserID, "connector_id", mfa.authReq.ConnectorID, "authenticator_id", mfa.authenticatorID)
 		writeJSONError(w, http.StatusUnauthorized, "Authentication failed.")
 		return
 	}
 
-	s.writeCompleteMFAStepResponse(w, r, mfa)
+	m.writeCompleteMFAStepResponse(w, r, mfa)
 }
 
 // validateWebAuthnAPIRequest validates a WebAuthn JSON API request.
 // It reuses validateMFARequest for HMAC/auth checks, then asserts the provider type
 // and loads the user identity.
-func (s *Server) validateWebAuthnAPIRequest(w http.ResponseWriter, r *http.Request) (*mfaRequestContext, *WebAuthnProvider, bool) {
+func (m *Manager) validateWebAuthnAPIRequest(w http.ResponseWriter, r *http.Request) (*mfaRequestContext, *WebAuthnProvider, bool) {
 	if r.Method != http.MethodPost {
 		writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed.")
 		return nil, nil, false
 	}
 
-	mfa, ok := s.validateMFARequest(w, r)
+	mfa, ok := m.validateMFARequest(w, r)
 	if !ok {
 		return nil, nil, false
 	}
 
-	provider, ok := s.mfaProviders[mfa.authenticatorID]
+	provider, ok := m.mfaProviders[mfa.authenticatorID]
 	if !ok {
 		writeJSONError(w, http.StatusBadRequest, "Unknown authenticator.")
 		return nil, nil, false
@@ -332,19 +332,19 @@ func (s *Server) validateWebAuthnAPIRequest(w http.ResponseWriter, r *http.Reque
 }
 
 // storeWebAuthnSession marshals and stores WebAuthn session data in the auth request.
-func (s *Server) storeWebAuthnSession(ctx context.Context, authReqID string, session *webauthn.SessionData) error {
+func (m *Manager) storeWebAuthnSession(ctx context.Context, authReqID string, session *webauthn.SessionData) error {
 	data, err := json.Marshal(session)
 	if err != nil {
 		return fmt.Errorf("marshal session: %w", err)
 	}
-	return s.storage.UpdateAuthRequest(ctx, authReqID, func(old storage.AuthRequest) (storage.AuthRequest, error) {
+	return m.storage.UpdateAuthRequest(ctx, authReqID, func(old storage.AuthRequest) (storage.AuthRequest, error) {
 		old.WebAuthnSessionData = data
 		return old, nil
 	})
 }
 
 // loadWebAuthnSession unmarshals WebAuthn session data from an auth request.
-func (s *Server) loadWebAuthnSession(authReq storage.AuthRequest) (*webauthn.SessionData, error) {
+func (m *Manager) loadWebAuthnSession(authReq storage.AuthRequest) (*webauthn.SessionData, error) {
 	var session webauthn.SessionData
 	if err := json.Unmarshal(authReq.WebAuthnSessionData, &session); err != nil {
 		return nil, fmt.Errorf("unmarshal session: %w", err)
@@ -353,11 +353,11 @@ func (s *Server) loadWebAuthnSession(authReq storage.AuthRequest) (*webauthn.Ses
 }
 
 // writeCompleteMFAStepResponse completes the MFA step and writes a JSON redirect response.
-func (s *Server) writeCompleteMFAStepResponse(w http.ResponseWriter, r *http.Request, mfa *mfaRequestContext) {
+func (m *Manager) writeCompleteMFAStepResponse(w http.ResponseWriter, r *http.Request, mfa *mfaRequestContext) {
 	ctx := r.Context()
-	redirectURL, err := s.completeMFAStep(ctx, mfa.authReq, mfa.authenticatorID)
+	redirectURL, err := m.CompleteStep(ctx, mfa.authReq, mfa.authenticatorID)
 	if err != nil {
-		s.logger.ErrorContext(ctx, "failed to complete MFA step", "err", err)
+		m.logger.ErrorContext(ctx, "failed to complete MFA step", "err", err)
 		writeJSONError(w, http.StatusInternalServerError, "Internal server error.")
 		return
 	}

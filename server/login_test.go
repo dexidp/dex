@@ -113,7 +113,7 @@ func TestFinalizeLoginCreatesUserIdentity(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	reqPath := fmt.Sprintf("/auth/%s/login?state=%s&back=&login=foo&password=password", connID, authReqID)
-	s.handlePasswordLogin(rr, httptest.NewRequest("POST", reqPath, nil))
+	s.ServeHTTP(rr, httptest.NewRequest("POST", reqPath, nil))
 
 	require.Equal(t, 303, rr.Code)
 
@@ -177,7 +177,7 @@ func TestFinalizeLoginUpdatesUserIdentity(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	reqPath := fmt.Sprintf("/auth/%s/login?state=%s&back=&login=foo&password=password", connID, authReqID)
-	s.handlePasswordLogin(rr, httptest.NewRequest("POST", reqPath, nil))
+	s.ServeHTTP(rr, httptest.NewRequest("POST", reqPath, nil))
 
 	require.Equal(t, 303, rr.Code)
 
@@ -226,7 +226,7 @@ func TestFinalizeLoginSkipsUserIdentityWhenDisabled(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	reqPath := fmt.Sprintf("/auth/%s/login?state=%s&back=&login=foo&password=password", connID, authReqID)
-	s.handlePasswordLogin(rr, httptest.NewRequest("POST", reqPath, nil))
+	s.ServeHTTP(rr, httptest.NewRequest("POST", reqPath, nil))
 
 	require.Equal(t, 303, rr.Code)
 
@@ -365,7 +365,7 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 			rr := httptest.NewRecorder()
 
 			path := fmt.Sprintf("/auth/%s/login?state=%s&back=&login=foo&password=password", connID, authReqID)
-			s.handlePasswordLogin(rr, httptest.NewRequest("POST", path, nil))
+			s.ServeHTTP(rr, httptest.NewRequest("POST", path, nil))
 
 			require.Equal(t, 303, rr.Code)
 
@@ -504,7 +504,7 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 			rr := httptest.NewRecorder()
 
 			path := fmt.Sprintf("/callback/%s?state=%s", connID, authReqID)
-			s.handleConnectorCallback(rr, httptest.NewRequest("GET", path, nil))
+			s.ServeHTTP(rr, httptest.NewRequest("GET", path, nil))
 
 			require.Equal(t, 303, rr.Code)
 
@@ -586,7 +586,7 @@ func TestHandlePasswordLogin_SPNEGOShortCircuit(t *testing.T) {
 	// GET login should short-circuit and redirect to /approval or code response
 	rr := httptest.NewRecorder()
 	path := fmt.Sprintf("/auth/%s/login?state=%s&back=", connID, authReqID)
-	s.handlePasswordLogin(rr, httptest.NewRequest("GET", path, nil))
+	s.ServeHTTP(rr, httptest.NewRequest("GET", path, nil))
 
 	// In SkipApproval mode server may directly send code response (200) or 303 redirect
 	if rr.Code != http.StatusSeeOther && rr.Code != http.StatusOK {
@@ -651,7 +651,7 @@ func TestHandlePasswordLogin_SPNEGOError(t *testing.T) {
 	// GET login should return 401 with error message rendered
 	rr := httptest.NewRecorder()
 	path := fmt.Sprintf("/auth/%s/login?state=%s&back=", connID, authReqID)
-	s.handlePasswordLogin(rr, httptest.NewRequest("GET", path, nil))
+	s.ServeHTTP(rr, httptest.NewRequest("GET", path, nil))
 
 	// Should return 401 (unauthorized) with an error page, not 200 (form) or empty response
 	if rr.Code != http.StatusUnauthorized {

@@ -1,4 +1,4 @@
-package server
+package authflow
 
 import (
 	"context"
@@ -40,7 +40,7 @@ func newDisplayedErr(status int, format string, a ...interface{}) *displayedAuth
 
 // redirectWithError redirects back to the client with an OAuth2 error response.
 // Used for prompt=none when login or consent is required.
-func (s *Server) redirectWithError(w http.ResponseWriter, r *http.Request, authReq *storage.AuthRequest, errType, description string) {
+func (h *Handler) redirectWithError(w http.ResponseWriter, r *http.Request, authReq *storage.AuthRequest, errType, description string) {
 	err := &redirectedAuthErr{
 		State:       authReq.State,
 		RedirectURI: authReq.RedirectURI,
@@ -104,8 +104,8 @@ func (err *redirectedAuthErr) Handler() http.Handler {
 // validateIDTokenHint verifies the signature and issuer of an id_token_hint.
 // Expired tokens are accepted per OIDC Core 1.0 §3.1.2.1.
 // Returns the verified token so callers can extract Subject, Audience, etc.
-func (s *Server) validateIDTokenHint(ctx context.Context, hint string) (*oidc.IDToken, error) {
-	verifier := oidc.NewVerifier(s.issuerURL.String(), &signer.KeySet{Signer: s.signer}, &oidc.Config{
+func (h *Handler) validateIDTokenHint(ctx context.Context, hint string) (*oidc.IDToken, error) {
+	verifier := oidc.NewVerifier(h.issuerURL.String(), &signer.KeySet{Signer: h.signer}, &oidc.Config{
 		SkipExpiryCheck: true,
 		// SkipClientIDCheck is set because the hint may originate from any client that
 		// Dex issued a token to — the caller does not know the expected audience in advance.
@@ -133,7 +133,7 @@ func sessionMatchesHint(session *storage.AuthSession, hintSubject string) bool {
 
 // parseAuthorizationRequest parses the initial request from the OAuth2 client.
 // Returns the auth request, the raw subject from id_token_hint (empty if not provided), and any error.
-func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthRequest, string, error) {
+func (h *Handler) parseAuthorizationRequest(r *http.Request) (*storage.AuthRequest, string, error) {
 	ctx := r.Context()
 	if err := r.ParseForm(); err != nil {
 		return nil, "", newDisplayedErr(http.StatusBadRequest, "Failed to parse request.")
@@ -158,22 +158,22 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		codeChallengeMethod = oauth2.PKCEMethodPlain
 	}
 
-	client, err := s.storage.GetClient(ctx, clientID)
+	client, err := h.storage.GetClient(ctx, clientID)
 	if err != nil {
 		if err == storage.ErrNotFound {
-			s.logger.ErrorContext(r.Context(), "invalid client_id provided", "client_id", clientID)
+			h.logger.ErrorContext(r.Context(), "invalid client_id provided", "client_id", clientID)
 			return nil, "", newDisplayedErr(http.StatusNotFound, "Invalid client_id.")
 		}
-		s.logger.ErrorContext(r.Context(), "failed to get client", "err", err)
+		h.logger.ErrorContext(r.Context(), "failed to get client", "err", err)
 		return nil, "", newDisplayedErr(http.StatusInternalServerError, "Database error.")
 	}
 
 	if !validateRedirectURI(client, redirectURI) {
-		s.logger.ErrorContext(r.Context(), "unregistered redirect_uri", "redirect_uri", redirectURI, "client_id", clientID)
+		h.logger.ErrorContext(r.Context(), "unregistered redirect_uri", "redirect_uri", redirectURI, "client_id", clientID)
 		return nil, "", newDisplayedErr(http.StatusBadRequest, "Unregistered redirect_uri.")
 	}
 	if redirectURI == oauth2.DeviceCallbackURI && client.Public {
-		redirectURI = s.absPath(oauth2.DeviceCallbackURI)
+		redirectURI = h.AbsPath(oauth2.DeviceCallbackURI)
 	}
 
 	// From here on out, we want to redirect back to the client with an error.
@@ -182,9 +182,9 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	}
 
 	if connectorID != "" {
-		connectors, err := s.storage.ListConnectors(ctx)
+		connectors, err := h.storage.ListConnectors(ctx)
 		if err != nil {
-			s.logger.ErrorContext(r.Context(), "failed to list connectors", "err", err)
+			h.logger.ErrorContext(r.Context(), "failed to list connectors", "err", err)
 			return nil, "", newRedirectedErr(oauth2.ServerError, "Unable to retrieve connectors")
 		}
 		if !validateConnectorID(connectors, connectorID) {
@@ -201,13 +201,13 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		return nil, "", newRedirectedErr(oauth2.RequestNotSupported, "Server does not support request parameter.")
 	}
 
-	if codeChallenge != "" && !slices.Contains(s.pkce.CodeChallengeMethodsSupported, codeChallengeMethod) {
+	if codeChallenge != "" && !slices.Contains(h.pkce.CodeChallengeMethodsSupported, codeChallengeMethod) {
 		return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Unsupported PKCE challenge method (%q).", codeChallengeMethod)
 	}
 
 	// Enforce PKCE if configured.
 	// https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-12#section-4.1.1
-	if s.pkce.Enforce && codeChallenge == "" {
+	if h.pkce.Enforce && codeChallenge == "" {
 		return nil, "", newRedirectedErr(oauth2.InvalidRequest, "PKCE is required. The code_challenge parameter must be provided.")
 	}
 
@@ -228,7 +228,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 				continue
 			}
 
-			isTrusted, err := tokens.CrossClientTrusted(r.Context(), s.storage, clientID, peerID)
+			isTrusted, err := tokens.CrossClientTrusted(r.Context(), h.storage, clientID, peerID)
 			if err != nil {
 				return nil, "", newRedirectedErr(oauth2.ServerError, "Internal server error.")
 			}
@@ -265,7 +265,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Invalid response type %q", responseType)
 		}
 
-		if !s.supportedResponseTypes[responseType] {
+		if !h.supportedResponseTypes[responseType] {
 			return nil, "", newRedirectedErr(oauth2.UnsupportedResponseType, "Unsupported response type %q", responseType)
 		}
 	}
@@ -316,7 +316,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	// Validate id_token_hint if provided (OIDC Core 1.0 §3.1.2.1).
 	var idTokenHintSubject string
 	if hint := q.Get("id_token_hint"); hint != "" {
-		idToken, err := s.validateIDTokenHint(ctx, hint)
+		idToken, err := h.validateIDTokenHint(ctx, hint)
 		if err != nil {
 			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Invalid id_token_hint.")
 		}

@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/server/authflow/session"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/tokens"
@@ -213,14 +214,14 @@ func TestRefreshTokenAuthTime(t *testing.T) {
 
 	tests := []struct {
 		name               string
-		sessionConfig      *SessionConfig
+		sessionConfig      *session.Config
 		createUserIdentity bool
 		wantAuthTime       bool
 		wantHTTPError      bool
 	}{
 		{
 			name: "sessions enabled with user identity",
-			sessionConfig: &SessionConfig{
+			sessionConfig: &session.Config{
 				CookieName:       "dex_session",
 				AbsoluteLifetime: 24 * time.Hour,
 			},
@@ -235,7 +236,7 @@ func TestRefreshTokenAuthTime(t *testing.T) {
 		},
 		{
 			name: "sessions enabled but user identity missing",
-			sessionConfig: &SessionConfig{
+			sessionConfig: &session.Config{
 				CookieName:       "dex_session",
 				AbsoluteLifetime: 24 * time.Hour,
 			},
@@ -381,7 +382,7 @@ func TestRefreshDisconnectsUpstreamWhenSessionsEnabled(t *testing.T) {
 			httpServer, s := newTestServer(t, func(c *Config) {
 				c.Now = func() time.Time { return t0 }
 				if tc.sessionsEnabled {
-					c.SessionConfig = &SessionConfig{
+					c.SessionConfig = &session.Config{
 						CookieName:       "dex_session",
 						AbsoluteLifetime: 24 * time.Hour,
 					}
