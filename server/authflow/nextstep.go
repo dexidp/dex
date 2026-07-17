@@ -51,7 +51,7 @@ func (h *Handler) nextAuthStep(ctx context.Context, authReq *storage.AuthRequest
 	if len(chain) > 0 && !authReq.MFAValidated {
 		return mfaStep{authenticator: chain[0]}, nil
 	}
-	if h.consentSatisfied(ctx, authReq) {
+	if h.consent.Satisfied(ctx, authReq) {
 		return issueStep{}, nil
 	}
 	return approvalStep{}, nil
@@ -87,18 +87,4 @@ func blockedByPromptNone(authReq storage.AuthRequest, step authStep) bool {
 	}
 	_, silent := step.(issueStep)
 	return !silent
-}
-
-// consentSatisfied reports whether the approval screen can be skipped: the client
-// did not force it, and either approval is disabled server-wide or the user has
-// already consented to the requested scopes for this client.
-func (h *Handler) consentSatisfied(ctx context.Context, authReq *storage.AuthRequest) bool {
-	if authReq.ForceApprovalPrompt {
-		return false
-	}
-	if h.skipApproval {
-		return true
-	}
-	ui, err := h.storage.GetUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID)
-	return err == nil && scopesCoveredByConsent(ui.Consents[authReq.ClientID], authReq.Scopes)
 }

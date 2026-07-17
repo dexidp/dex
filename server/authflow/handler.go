@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dexidp/dex/server/authflow/consent"
 	"github.com/dexidp/dex/server/authflow/issue"
 	"github.com/dexidp/dex/server/authflow/mfa"
 	"github.com/dexidp/dex/server/authflow/session"
@@ -65,6 +66,8 @@ type Handler struct {
 	sessions *session.Manager
 	// mfa owns the authenticator chain and the TOTP/WebAuthn endpoints.
 	mfa *mfa.Manager
+	// consent owns the approval screen and consent bookkeeping.
+	consent *consent.Manager
 	// issue writes the authorization response back to the client.
 	issue *issue.Writer
 }
@@ -73,6 +76,8 @@ type Handler struct {
 func NewHandler(c Config) *Handler {
 	ui := &web.UI{Templates: c.Templates, IssuerURL: c.IssuerURL, Logger: c.Logger}
 	sessions := &session.Manager{Storage: c.Storage, Config: c.SessionConfig, Now: c.Now, Logger: c.Logger, IssuerURL: c.IssuerURL}
+	mfaManager := &mfa.Manager{UI: ui, Storage: c.Storage, Templates: c.Templates, Logger: c.Logger, MFAProviders: c.MFAProviders, DefaultMFAChain: c.DefaultMFAChain, Now: c.Now, Connectors: c.Connectors}
+	issueWriter := &issue.Writer{UI: ui, Storage: c.Storage, Templates: c.Templates, Logger: c.Logger, Issuer: c.Issuer, Sessions: sessions, Now: c.Now}
 	return &Handler{
 		UI:                     ui,
 		connectors:             c.Connectors,
@@ -89,13 +94,18 @@ func NewHandler(c Config) *Handler {
 		alwaysShowLogin:        c.AlwaysShowLogin,
 		authRequestsValidFor:   c.AuthRequestsValidFor,
 		sessions:               sessions,
-		mfa:                    &mfa.Manager{UI: ui, Storage: c.Storage, Templates: c.Templates, Logger: c.Logger, MFAProviders: c.MFAProviders, DefaultMFAChain: c.DefaultMFAChain, Now: c.Now, Connectors: c.Connectors},
-		issue:                  &issue.Writer{UI: ui, Storage: c.Storage, Templates: c.Templates, Logger: c.Logger, Issuer: c.Issuer, Sessions: sessions, Now: c.Now},
+		mfa:                    mfaManager,
+		issue:                  issueWriter,
+		consent: &consent.Manager{
+			UI: ui, Storage: c.Storage, Templates: c.Templates, Logger: c.Logger,
+			Sessions: sessions, MFA: mfaManager, Issue: issueWriter, SkipApproval: c.SkipApproval,
+		},
 	}
 }
 
-// Mount registers the interactive auth-flow routes. The logout and MFA endpoints
-// require sessions (they are only wired when a session config is present).
+// Mount registers the login routes. Consent, MFA and issuance mount their own
+// endpoints; logout requires sessions and is only wired when a session config
+// is present.
 func (h *Handler) Mount(m router.Mux) {
 	m.HandleFunc("/auth", h.handleAuthorization)
 	m.HandleFunc("/auth/{connector}", h.handleConnectorLogin)
@@ -113,7 +123,6 @@ func (h *Handler) Mount(m router.Mux) {
 	// For easier connector-specific web server configuration, e.g. for the
 	// "authproxy" connector.
 	m.HandleFunc("/callback/{connector}", h.handleConnectorCallback)
-	m.HandleFunc("/approval", h.handleApproval)
 
 	if !h.sessions.Enabled() {
 		return
@@ -125,3 +134,6 @@ func (h *Handler) Mount(m router.Mux) {
 
 // MFA returns the MFA component so the server can mount its endpoints directly.
 func (h *Handler) MFA() *mfa.Manager { return h.mfa }
+
+// Consent returns the consent component so the server can mount its endpoint directly.
+func (h *Handler) Consent() *consent.Manager { return h.consent }

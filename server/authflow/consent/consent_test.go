@@ -1,4 +1,4 @@
-package authflow
+package consent
 
 import (
 	"testing"

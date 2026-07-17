@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/authflow/consent"
 	"github.com/dexidp/dex/server/authflow/issue"
 	"github.com/dexidp/dex/server/authflow/mfa"
 	"github.com/dexidp/dex/server/authflow/session"
@@ -46,6 +47,7 @@ func newTestSessionServer(t *testing.T) *Handler {
 	s.sessions = &session.Manager{Storage: s.storage, Config: sessionCfg, Now: s.now, Logger: slog.Default(), IssuerURL: *issuerURL}
 	s.mfa = &mfa.Manager{UI: s.UI, Storage: s.storage, Logger: slog.Default(), Now: s.now, Connectors: s.connectors}
 	s.issue = &issue.Writer{UI: s.UI, Storage: s.storage, Logger: slog.Default(), Sessions: s.sessions, Now: s.now}
+	s.consent = &consent.Manager{UI: s.UI, Storage: s.storage, Logger: slog.Default(), Sessions: s.sessions, MFA: s.mfa, Issue: s.issue}
 	return s
 }
 
@@ -2156,4 +2158,5 @@ func TestRememberMeDefault(t *testing.T) {
 func resetSessions(s *Handler, cfg *session.Config, issuer url.URL) {
 	s.sessions = &session.Manager{Storage: s.storage, Config: cfg, Now: s.now, Logger: slog.Default(), IssuerURL: issuer}
 	s.issue.Sessions = s.sessions
+	s.consent.Sessions = s.sessions
 }
