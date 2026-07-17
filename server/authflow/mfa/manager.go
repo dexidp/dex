@@ -38,27 +38,13 @@ type mfaRequestContext struct {
 // building; the Handler delegates the MFA endpoints and chain lookups to it.
 type Manager struct {
 	*web.UI
-	storage         storage.Storage
-	templates       *templates.Templates
-	logger          *slog.Logger
-	mfaProviders    map[string]Provider
-	defaultMFAChain []string
-	now             func() time.Time
-	connectors      *connectors.Cache
-}
-
-// New builds an MFA Manager.
-func New(ui *web.UI, store storage.Storage, tmpls *templates.Templates, logger *slog.Logger, providers map[string]Provider, defaultChain []string, now func() time.Time, conns *connectors.Cache) *Manager {
-	return &Manager{
-		UI:              ui,
-		storage:         store,
-		templates:       tmpls,
-		logger:          logger,
-		mfaProviders:    providers,
-		defaultMFAChain: defaultChain,
-		now:             now,
-		connectors:      conns,
-	}
+	Storage         storage.Storage
+	Templates       *templates.Templates
+	Logger          *slog.Logger
+	MFAProviders    map[string]Provider
+	DefaultMFAChain []string
+	Now             func() time.Time
+	Connectors      *connectors.Cache
 }
 
 func (m *Manager) validateMFARequest(w http.ResponseWriter, r *http.Request) (*mfaRequestContext, bool) {
@@ -70,14 +56,14 @@ func (m *Manager) validateMFARequest(w http.ResponseWriter, r *http.Request) (*m
 
 	ctx := r.Context()
 
-	authReq, err := m.storage.GetAuthRequest(ctx, r.FormValue("req"))
+	authReq, err := m.Storage.GetAuthRequest(ctx, r.FormValue("req"))
 	if err != nil {
-		m.logger.ErrorContext(ctx, "failed to get auth request", "err", err)
+		m.Logger.ErrorContext(ctx, "failed to get auth request", "err", err)
 		m.RenderError(r, w, http.StatusInternalServerError, "Database error.")
 		return nil, false
 	}
 	if !authReq.LoggedIn {
-		m.logger.ErrorContext(ctx, "auth request does not have an identity for MFA verification")
+		m.Logger.ErrorContext(ctx, "auth request does not have an identity for MFA verification")
 		m.RenderError(r, w, http.StatusInternalServerError, "Login process not yet finalized.")
 		return nil, false
 	}
@@ -89,9 +75,9 @@ func (m *Manager) validateMFARequest(w http.ResponseWriter, r *http.Request) (*m
 		return nil, false
 	}
 
-	identity, err := m.storage.GetUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID)
+	identity, err := m.Storage.GetUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID)
 	if err != nil {
-		m.logger.ErrorContext(ctx, "failed to get user identity", "err", err)
+		m.Logger.ErrorContext(ctx, "failed to get user identity", "err", err)
 		m.RenderError(r, w, http.StatusInternalServerError, "Database error.")
 		return nil, false
 	}
@@ -112,11 +98,11 @@ func (m *Manager) validateMFARequest(w http.ResponseWriter, r *http.Request) (*m
 }
 
 func (m *Manager) ChainForClient(ctx context.Context, clientID, connectorID string) ([]string, error) {
-	if len(m.mfaProviders) == 0 {
+	if len(m.MFAProviders) == 0 {
 		return nil, nil
 	}
 
-	client, err := m.storage.GetClient(ctx, clientID)
+	client, err := m.Storage.GetClient(ctx, clientID)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +111,7 @@ func (m *Manager) ChainForClient(ctx context.Context, clientID, connectorID stri
 	// Explicit empty slice ([]string{}) means "no MFA" — don't fall back.
 	source := client.MFAChain
 	if source == nil {
-		source = m.defaultMFAChain
+		source = m.DefaultMFAChain
 	}
 
 	// Resolve connector type from connector ID.
@@ -136,7 +122,7 @@ func (m *Manager) ChainForClient(ctx context.Context, clientID, connectorID stri
 
 	var chain []string
 	for _, authID := range source {
-		provider, ok := m.mfaProviders[authID]
+		provider, ok := m.MFAProviders[authID]
 		if ok && provider.EnabledForConnectorType(connectorType) {
 			chain = append(chain, authID)
 		}
@@ -146,7 +132,7 @@ func (m *Manager) ChainForClient(ctx context.Context, clientID, connectorID stri
 
 // getConnectorType returns the type of the connector with the given ID.
 func (m *Manager) getConnectorType(ctx context.Context, connectorID string) (string, error) {
-	conn, err := m.connectors.Get(ctx, connectorID)
+	conn, err := m.Connectors.Get(ctx, connectorID)
 	if err != nil {
 		return "", fmt.Errorf("get connector %q: %w", connectorID, err)
 	}
@@ -155,7 +141,7 @@ func (m *Manager) getConnectorType(ctx context.Context, connectorID string) (str
 
 // mfaPagePath returns the page URL path for the given MFA provider type.
 func (m *Manager) mfaPagePath(authenticatorID string) string {
-	provider, ok := m.mfaProviders[authenticatorID]
+	provider, ok := m.MFAProviders[authenticatorID]
 	if ok && provider.Type() == "WebAuthn" {
 		return "/mfa/webauthn"
 	}
@@ -184,7 +170,7 @@ func (m *Manager) CompleteStep(ctx context.Context, authReq storage.AuthRequest,
 	}
 
 	// All authenticators completed — mark as validated.
-	if err := m.storage.UpdateAuthRequest(ctx, authReq.ID, func(old storage.AuthRequest) (storage.AuthRequest, error) {
+	if err := m.Storage.UpdateAuthRequest(ctx, authReq.ID, func(old storage.AuthRequest) (storage.AuthRequest, error) {
 		old.MFAValidated = true
 		return old, nil
 	}); err != nil {

@@ -777,7 +777,7 @@ func TestValidateIDTokenHint(t *testing.T) {
 		signer:    sig,
 		issuerURL: *issuerURL,
 		logger:    slog.Default(),
-		UI:        web.New(nil, *issuerURL, slog.Default()),
+		UI:        &web.UI{IssuerURL: *issuerURL, Logger: slog.Default()},
 	}
 
 	now := time.Now()

@@ -29,26 +29,21 @@ type Config struct {
 
 // Manager owns the session lifecycle. Construct it with New.
 type Manager struct {
-	storage   storage.Storage
-	config    *Config
-	now       func() time.Time
-	logger    *slog.Logger
-	issuerURL url.URL
-}
-
-// New builds a session Manager.
-func New(storage storage.Storage, config *Config, now func() time.Time, logger *slog.Logger, issuerURL url.URL) *Manager {
-	return &Manager{storage: storage, config: config, now: now, logger: logger, issuerURL: issuerURL}
+	Storage   storage.Storage
+	Config    *Config
+	Now       func() time.Time
+	Logger    *slog.Logger
+	IssuerURL url.URL
 }
 
 // Enabled reports whether sessions are configured.
-func (m *Manager) Enabled() bool { return m.config != nil }
+func (m *Manager) Enabled() bool { return m.Config != nil }
 
 func (m *Manager) RememberMeDefault() *bool {
-	if m.config == nil {
+	if m.Config == nil {
 		return nil
 	}
-	v := m.config.RememberMeCheckedByDefault
+	v := m.Config.RememberMeCheckedByDefault
 	return &v
 }
 
@@ -61,34 +56,34 @@ func remoteIP(r *http.Request) string {
 }
 
 func (m *Manager) cookiePath() string {
-	if m.issuerURL.Path == "" {
+	if m.IssuerURL.Path == "" {
 		return "/"
 	}
-	return m.issuerURL.Path
+	return m.IssuerURL.Path
 }
 
 func (m *Manager) SetCookie(w http.ResponseWriter, userID, connectorID, nonce string, rememberMe bool) {
 	cookie := &http.Cookie{
-		Name:     m.config.CookieName,
-		Value:    internal.SessionCookieValue(userID, connectorID, nonce, m.config.CookieEncryptionKey),
+		Name:     m.Config.CookieName,
+		Value:    internal.SessionCookieValue(userID, connectorID, nonce, m.Config.CookieEncryptionKey),
 		Path:     m.cookiePath(),
 		HttpOnly: true,
-		Secure:   m.issuerURL.Scheme == "https",
+		Secure:   m.IssuerURL.Scheme == "https",
 		SameSite: http.SameSiteLaxMode,
 	}
 	if rememberMe {
-		cookie.MaxAge = int(m.config.AbsoluteLifetime.Seconds())
+		cookie.MaxAge = int(m.Config.AbsoluteLifetime.Seconds())
 	}
 	http.SetCookie(w, cookie)
 }
 
 func (m *Manager) ClearCookie(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
-		Name:     m.config.CookieName,
+		Name:     m.Config.CookieName,
 		Value:    "",
 		Path:     m.cookiePath(),
 		HttpOnly: true,
-		Secure:   m.issuerURL.Scheme == "https",
+		Secure:   m.IssuerURL.Scheme == "https",
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 	})
@@ -99,26 +94,26 @@ func (m *Manager) ClearCookie(w http.ResponseWriter) {
 // looks up the session by composite key, and verifies the nonce.
 // Invalid or expired session cookies are cleared automatically.
 func (m *Manager) ValidSession(ctx context.Context, w http.ResponseWriter, r *http.Request) *storage.AuthSession {
-	if m.config == nil {
+	if m.Config == nil {
 		return nil
 	}
 
-	cookie, err := r.Cookie(m.config.CookieName)
+	cookie, err := r.Cookie(m.Config.CookieName)
 	if err != nil || cookie.Value == "" {
 		return nil
 	}
 
-	userID, connectorID, nonce, err := internal.ParseSessionCookie(cookie.Value, m.config.CookieEncryptionKey)
+	userID, connectorID, nonce, err := internal.ParseSessionCookie(cookie.Value, m.Config.CookieEncryptionKey)
 	if err != nil {
-		m.logger.DebugContext(ctx, "invalid session cookie format", "err", err)
+		m.Logger.DebugContext(ctx, "invalid session cookie format", "err", err)
 		m.ClearCookie(w)
 		return nil
 	}
 
-	session, err := m.storage.GetAuthSession(ctx, userID, connectorID)
+	session, err := m.Storage.GetAuthSession(ctx, userID, connectorID)
 	if err != nil {
 		if !errors.Is(err, storage.ErrNotFound) {
-			m.logger.ErrorContext(ctx, "failed to get auth session", "err", err)
+			m.Logger.ErrorContext(ctx, "failed to get auth session", "err", err)
 		}
 		m.ClearCookie(w)
 		return nil
@@ -128,19 +123,19 @@ func (m *Manager) ValidSession(ctx context.Context, w http.ResponseWriter, r *ht
 	// Use constant-time comparison to prevent timing attacks that could
 	// allow an attacker to recover the nonce byte-by-byte.
 	if subtle.ConstantTimeCompare([]byte(session.Nonce), []byte(nonce)) != 1 {
-		m.logger.DebugContext(ctx, "auth session nonce mismatch")
+		m.Logger.DebugContext(ctx, "auth session nonce mismatch")
 		m.ClearCookie(w)
 		return nil
 	}
 
-	now := m.now()
+	now := m.Now()
 
 	// Check absolute lifetime using the stored expiry (set once at creation).
 	if !session.AbsoluteExpiry.IsZero() && now.After(session.AbsoluteExpiry) {
-		m.logger.InfoContext(ctx, "auth session expired (absolute lifetime)",
+		m.Logger.InfoContext(ctx, "auth session expired (absolute lifetime)",
 			"user_id", session.UserID, "connector_id", session.ConnectorID)
-		if err := m.storage.DeleteAuthSession(ctx, session.UserID, session.ConnectorID); err != nil {
-			m.logger.DebugContext(ctx, "failed to delete expired auth session", "err", err)
+		if err := m.Storage.DeleteAuthSession(ctx, session.UserID, session.ConnectorID); err != nil {
+			m.Logger.DebugContext(ctx, "failed to delete expired auth session", "err", err)
 		}
 		m.ClearCookie(w)
 		return nil
@@ -148,10 +143,10 @@ func (m *Manager) ValidSession(ctx context.Context, w http.ResponseWriter, r *ht
 
 	// Check idle timeout using the stored expiry (updated on every activity).
 	if !session.IdleExpiry.IsZero() && now.After(session.IdleExpiry) {
-		m.logger.InfoContext(ctx, "auth session expired (idle timeout)",
+		m.Logger.InfoContext(ctx, "auth session expired (idle timeout)",
 			"user_id", session.UserID, "connector_id", session.ConnectorID)
-		if err := m.storage.DeleteAuthSession(ctx, session.UserID, session.ConnectorID); err != nil {
-			m.logger.DebugContext(ctx, "failed to delete expired auth session", "err", err)
+		if err := m.Storage.DeleteAuthSession(ctx, session.UserID, session.ConnectorID); err != nil {
+			m.Logger.DebugContext(ctx, "failed to delete expired auth session", "err", err)
 		}
 		m.ClearCookie(w)
 		return nil
@@ -179,30 +174,30 @@ func (m *Manager) ValidAuthSession(ctx context.Context, w http.ResponseWriter, r
 // after a successful login, and sets the session cookie.
 // rememberMe controls whether the cookie is persistent (survives browser close).
 func (m *Manager) CreateOrUpdateAuthSession(ctx context.Context, r *http.Request, w http.ResponseWriter, authReq storage.AuthRequest, rememberMe bool) error {
-	if m.config == nil {
+	if m.Config == nil {
 		return nil
 	}
 
-	now := m.now()
+	now := m.Now()
 	userID := authReq.Claims.UserID
 	connectorID := authReq.ConnectorID
 
 	clientState := &storage.ClientAuthState{
 		Active:       true,
-		ExpiresAt:    now.Add(m.config.AbsoluteLifetime),
+		ExpiresAt:    now.Add(m.Config.AbsoluteLifetime),
 		LastActivity: now,
 	}
 
 	// Try to reuse existing session for this (userID, connectorID).
-	session, err := m.storage.GetAuthSession(ctx, userID, connectorID)
+	session, err := m.Storage.GetAuthSession(ctx, userID, connectorID)
 	if err == nil {
 		// Session exists, update it.
-		m.logger.DebugContext(ctx, "updating existing auth session",
+		m.Logger.DebugContext(ctx, "updating existing auth session",
 			"user_id", userID, "connector_id", connectorID, "client_id", authReq.ClientID)
 
-		if err := m.storage.UpdateAuthSession(ctx, userID, connectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
+		if err := m.Storage.UpdateAuthSession(ctx, userID, connectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
 			old.LastActivity = now
-			old.IdleExpiry = now.Add(m.config.ValidIfNotUsedFor)
+			old.IdleExpiry = now.Add(m.Config.ValidIfNotUsedFor)
 			if old.ClientStates == nil {
 				old.ClientStates = make(map[string]*storage.ClientAuthState)
 			}
@@ -233,15 +228,15 @@ func (m *Manager) CreateOrUpdateAuthSession(ctx context.Context, r *http.Request
 		LastActivity:   now,
 		IPAddress:      remoteIP(r),
 		UserAgent:      r.UserAgent(),
-		AbsoluteExpiry: now.Add(m.config.AbsoluteLifetime),
-		IdleExpiry:     now.Add(m.config.ValidIfNotUsedFor),
+		AbsoluteExpiry: now.Add(m.Config.AbsoluteLifetime),
+		IdleExpiry:     now.Add(m.Config.ValidIfNotUsedFor),
 	}
 
-	if err := m.storage.CreateAuthSession(ctx, newSession); err != nil {
+	if err := m.Storage.CreateAuthSession(ctx, newSession); err != nil {
 		return fmt.Errorf("create auth session: %w", err)
 	}
 
-	m.logger.DebugContext(ctx, "created new auth session",
+	m.Logger.DebugContext(ctx, "created new auth session",
 		"user_id", userID, "connector_id", connectorID, "client_id", authReq.ClientID)
 	m.SetCookie(w, userID, connectorID, nonce, rememberMe)
 	return nil
@@ -255,7 +250,7 @@ func (m *Manager) ClientSharesWith(sourceClient storage.Client, targetClientID s
 
 	// If client has no explicit ssoSharedWith, use default from session config.
 	if ssoSharedWith == nil {
-		switch m.config.SSOSharedWithDefault {
+		switch m.Config.SSOSharedWithDefault {
 		case "all":
 			return true
 		default: // "none" or ""
@@ -285,7 +280,7 @@ func (m *Manager) ClientSharesWith(sourceClient storage.Client, targetClientID s
 // policies determine whether SSO is allowed. These are different clients,
 // so the GetClient calls below are not redundant.
 func (m *Manager) FindSSO(ctx context.Context, session *storage.AuthSession, targetClientID string) *storage.ClientAuthState {
-	now := m.now()
+	now := m.Now()
 
 	for sourceClientID, state := range session.ClientStates {
 		if !state.Active || now.After(state.ExpiresAt) {
@@ -300,9 +295,9 @@ func (m *Manager) FindSSO(ctx context.Context, session *storage.AuthSession, tar
 			continue
 		}
 
-		sourceClient, err := m.storage.GetClient(ctx, sourceClientID)
+		sourceClient, err := m.Storage.GetClient(ctx, sourceClientID)
 		if err != nil {
-			m.logger.DebugContext(ctx, "session: SSO lookup failed to get source client",
+			m.Logger.DebugContext(ctx, "session: SSO lookup failed to get source client",
 				"source_client_id", sourceClientID, "err", err)
 			continue
 		}
@@ -319,24 +314,24 @@ func (m *Manager) FindSSO(ctx context.Context, session *storage.AuthSession, tar
 // This allows callers to inspect the session (e.g., for id_token_hint comparison) before
 // attempting session-based login.
 func (m *Manager) UpdateTokenIssuedAt(r *http.Request, clientID string) {
-	if m.config == nil {
+	if m.Config == nil {
 		return
 	}
 
-	cookie, err := r.Cookie(m.config.CookieName)
+	cookie, err := r.Cookie(m.Config.CookieName)
 	if err != nil || cookie.Value == "" {
 		return
 	}
 
-	userID, connectorID, _, err := internal.ParseSessionCookie(cookie.Value, m.config.CookieEncryptionKey)
+	userID, connectorID, _, err := internal.ParseSessionCookie(cookie.Value, m.Config.CookieEncryptionKey)
 	if err != nil {
 		return
 	}
 
-	now := m.now()
-	_ = m.storage.UpdateAuthSession(r.Context(), userID, connectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
+	now := m.Now()
+	_ = m.Storage.UpdateAuthSession(r.Context(), userID, connectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
 		old.LastActivity = now
-		old.IdleExpiry = now.Add(m.config.ValidIfNotUsedFor)
+		old.IdleExpiry = now.Add(m.Config.ValidIfNotUsedFor)
 		if cs, ok := old.ClientStates[clientID]; ok {
 			cs.LastTokenIssuedAt = now
 			cs.LastActivity = now
@@ -350,14 +345,14 @@ func (m *Manager) UpdateTokenIssuedAt(r *http.Request, clientID string) {
 // ParseCookie reads and decodes the session cookie from the request. ok is false
 // when sessions are disabled, the cookie is absent, or it fails to decode.
 func (m *Manager) ParseCookie(r *http.Request) (userID, connectorID, nonce string, ok bool) {
-	if m.config == nil {
+	if m.Config == nil {
 		return "", "", "", false
 	}
-	cookie, err := r.Cookie(m.config.CookieName)
+	cookie, err := r.Cookie(m.Config.CookieName)
 	if err != nil {
 		return "", "", "", false
 	}
-	uid, cid, n, err := internal.ParseSessionCookie(cookie.Value, m.config.CookieEncryptionKey)
+	uid, cid, n, err := internal.ParseSessionCookie(cookie.Value, m.Config.CookieEncryptionKey)
 	if err != nil {
 		return "", "", "", false
 	}
@@ -366,15 +361,15 @@ func (m *Manager) ParseCookie(r *http.Request) (userID, connectorID, nonce strin
 
 // AbsoluteExpiry returns the absolute session expiry measured from now.
 func (m *Manager) AbsoluteExpiry(now time.Time) time.Time {
-	return now.Add(m.config.AbsoluteLifetime)
+	return now.Add(m.Config.AbsoluteLifetime)
 }
 
 // IdleExpiry returns the idle-timeout expiry measured from now.
 func (m *Manager) IdleExpiry(now time.Time) time.Time {
-	return now.Add(m.config.ValidIfNotUsedFor)
+	return now.Add(m.Config.ValidIfNotUsedFor)
 }
 
 // DefaultRememberMe reports the configured default for the remember-me choice.
 func (m *Manager) DefaultRememberMe() bool {
-	return m.config != nil && m.config.RememberMeCheckedByDefault
+	return m.Config != nil && m.Config.RememberMeCheckedByDefault
 }

@@ -68,8 +68,8 @@ type Handler struct {
 
 // NewHandler builds the interactive auth-flow handler from its configuration.
 func NewHandler(c Config) *Handler {
-	ui := web.New(c.Templates, c.IssuerURL, c.Logger)
-	sessions := session.New(c.Storage, c.SessionConfig, c.Now, c.Logger, c.IssuerURL)
+	ui := &web.UI{Templates: c.Templates, IssuerURL: c.IssuerURL, Logger: c.Logger}
+	sessions := &session.Manager{Storage: c.Storage, Config: c.SessionConfig, Now: c.Now, Logger: c.Logger, IssuerURL: c.IssuerURL}
 	return &Handler{
 		UI:                     ui,
 		connectors:             c.Connectors,
@@ -86,7 +86,7 @@ func NewHandler(c Config) *Handler {
 		alwaysShowLogin:        c.AlwaysShowLogin,
 		authRequestsValidFor:   c.AuthRequestsValidFor,
 		sessions:               sessions,
-		mfa:                    mfa.New(ui, c.Storage, c.Templates, c.Logger, c.MFAProviders, c.DefaultMFAChain, c.Now, c.Connectors),
+		mfa:                    &mfa.Manager{UI: ui, Storage: c.Storage, Templates: c.Templates, Logger: c.Logger, MFAProviders: c.MFAProviders, DefaultMFAChain: c.DefaultMFAChain, Now: c.Now, Connectors: c.Connectors},
 	}
 }
 

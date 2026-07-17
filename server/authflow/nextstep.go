@@ -70,14 +70,23 @@ func (h *Handler) advance(w http.ResponseWriter, r *http.Request, authReq storag
 
 	// prompt=none forbids any user-facing interaction: only a silent issue is
 	// allowed; MFA or consent means interaction_required.
-	if prompt, _ := oauth2.ParsePrompt(authReq.Prompt); prompt.None() {
-		if _, ok := step.(issueStep); !ok {
-			h.redirectWithError(w, r, &authReq, oauth2.InteractionRequired, "User interaction required")
-			return
-		}
+	if blockedByPromptNone(authReq, step) {
+		h.redirectWithError(w, r, &authReq, oauth2.InteractionRequired, "User interaction required")
+		return
 	}
 
 	step.run(h, w, r, authReq)
+}
+
+// blockedByPromptNone reports whether prompt=none forbids the step: everything
+// but a silent issue needs the user, which prompt=none does not allow.
+func blockedByPromptNone(authReq storage.AuthRequest, step authStep) bool {
+	prompt, _ := oauth2.ParsePrompt(authReq.Prompt)
+	if !prompt.None() {
+		return false
+	}
+	_, silent := step.(issueStep)
+	return !silent
 }
 
 // consentSatisfied reports whether the approval screen can be skipped: the client

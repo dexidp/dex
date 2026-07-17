@@ -39,11 +39,11 @@ func newTestSessionServer(t *testing.T) *Handler {
 		storage: memory.New(nil),
 		now:     func() time.Time { return now },
 		logger:  slog.Default(),
-		UI:      web.New(nil, *issuerURL, slog.Default()),
+		UI:      &web.UI{IssuerURL: *issuerURL, Logger: slog.Default()},
 	}
 	s.connectors = connectors.NewCache(s.storage, testResolveConnector)
-	s.sessions = session.New(s.storage, sessionCfg, s.now, slog.Default(), *issuerURL)
-	s.mfa = mfa.New(s.UI, s.storage, nil, slog.Default(), nil, nil, s.now, s.connectors)
+	s.sessions = &session.Manager{Storage: s.storage, Config: sessionCfg, Now: s.now, Logger: slog.Default(), IssuerURL: *issuerURL}
+	s.mfa = &mfa.Manager{UI: s.UI, Storage: s.storage, Logger: slog.Default(), Now: s.now, Connectors: s.connectors}
 	return s
 }
 
@@ -1376,7 +1376,7 @@ func TestFinishSessionLogin_MFA(t *testing.T) {
 		t.Helper()
 		s := newTestSessionServer(t)
 		s.skipApproval = true
-		s.mfa = mfa.New(s.UI, s.storage, nil, slog.Default(), mfaProviders, nil, s.now, s.connectors)
+		s.mfa = &mfa.Manager{UI: s.UI, Storage: s.storage, Logger: slog.Default(), MFAProviders: mfaProviders, Now: s.now, Connectors: s.connectors}
 
 		// Create connector in storage and register it in the connectors map.
 		require.NoError(t, s.storage.CreateConnector(ctx, storage.Connector{
@@ -1634,9 +1634,9 @@ func TestPromptNone(t *testing.T) {
 		// In handleConnectorLogin, this is a successful (ok=true) redirect, not oauth2.LoginRequired.
 		s := newTestSessionServer(t)
 		s.skipApproval = true
-		s.mfa = mfa.New(s.UI, s.storage, nil, slog.Default(), map[string]mfa.Provider{
+		s.mfa = &mfa.Manager{UI: s.UI, Storage: s.storage, Logger: slog.Default(), MFAProviders: map[string]mfa.Provider{
 			"totp": mfa.NewTOTPProvider("test-issuer", nil),
-		}, nil, s.now, s.connectors)
+		}, Now: s.now, Connectors: s.connectors}
 
 		require.NoError(t, s.storage.CreateConnector(ctx, storage.Connector{
 			ID: "mock", Type: "ldap", Name: "Mock", ResourceVersion: "1",
@@ -1771,9 +1771,9 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 	t.Run("SSO with MFA required on target client redirects to MFA", func(t *testing.T) {
 		s := newTestSessionServer(t)
 		s.skipApproval = true
-		s.mfa = mfa.New(s.UI, s.storage, nil, slog.Default(), map[string]mfa.Provider{
+		s.mfa = &mfa.Manager{UI: s.UI, Storage: s.storage, Logger: slog.Default(), MFAProviders: map[string]mfa.Provider{
 			"totp": mfa.NewTOTPProvider("test-issuer", nil),
-		}, nil, s.now, s.connectors)
+		}, Now: s.now, Connectors: s.connectors}
 
 		require.NoError(t, s.storage.CreateConnector(ctx, storage.Connector{
 			ID: "mock", Type: "ldap", Name: "Mock", ResourceVersion: "1",
@@ -1802,9 +1802,9 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 	t.Run("SSO source without MFA target with MFA enforces MFA", func(t *testing.T) {
 		s := newTestSessionServer(t)
 		s.skipApproval = true
-		s.mfa = mfa.New(s.UI, s.storage, nil, slog.Default(), map[string]mfa.Provider{
+		s.mfa = &mfa.Manager{UI: s.UI, Storage: s.storage, Logger: slog.Default(), MFAProviders: map[string]mfa.Provider{
 			"totp": mfa.NewTOTPProvider("test-issuer", nil),
-		}, nil, s.now, s.connectors)
+		}, Now: s.now, Connectors: s.connectors}
 
 		require.NoError(t, s.storage.CreateConnector(ctx, storage.Connector{
 			ID: "mock", Type: "ldap", Name: "Mock", ResourceVersion: "1",
@@ -2130,19 +2130,19 @@ func TestSSO_TransitiveTrustChain(t *testing.T) {
 // returns the correct value based on session configuration.
 func TestRememberMeDefault(t *testing.T) {
 	t.Run("sessions disabled returns nil", func(t *testing.T) {
-		s := session.New(nil, nil, nil, nil, url.URL{})
+		s := &session.Manager{}
 		assert.Nil(t, s.RememberMeDefault())
 	})
 
 	t.Run("default false", func(t *testing.T) {
-		s := session.New(nil, &session.Config{RememberMeCheckedByDefault: false}, nil, nil, url.URL{})
+		s := &session.Manager{Config: &session.Config{RememberMeCheckedByDefault: false}}
 		v := s.RememberMeDefault()
 		require.NotNil(t, v)
 		assert.False(t, *v)
 	})
 
 	t.Run("default true", func(t *testing.T) {
-		s := session.New(nil, &session.Config{RememberMeCheckedByDefault: true}, nil, nil, url.URL{})
+		s := &session.Manager{Config: &session.Config{RememberMeCheckedByDefault: true}}
 		v := s.RememberMeDefault()
 		require.NotNil(t, v)
 		assert.True(t, *v)
@@ -2152,5 +2152,5 @@ func TestRememberMeDefault(t *testing.T) {
 // resetSessions rebuilds the Handler's session manager with the given config and
 // issuer, for tests that exercise Manager behavior under a different config.
 func resetSessions(s *Handler, cfg *session.Config, issuer url.URL) {
-	s.sessions = session.New(s.storage, cfg, s.now, slog.Default(), issuer)
+	s.sessions = &session.Manager{Storage: s.storage, Config: cfg, Now: s.now, Logger: slog.Default(), IssuerURL: issuer}
 }
