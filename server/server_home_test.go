@@ -10,9 +10,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexidp/dex/server/authflow/session"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
+	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"

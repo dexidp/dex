@@ -8,11 +8,11 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/dexidp/dex/server/authflow/web"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/templates"
+	"github.com/dexidp/dex/server/web"
 	"github.com/dexidp/dex/storage"
 )
 

@@ -12,14 +12,14 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 
 	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/server/authflow/session"
-	"github.com/dexidp/dex/server/authflow/web"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/router"
+	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/server/tokens"
+	"github.com/dexidp/dex/server/web"
 	"github.com/dexidp/dex/storage"
 )
 

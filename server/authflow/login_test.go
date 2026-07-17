@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/server/authflow/session"
+	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/storage"
 )
 

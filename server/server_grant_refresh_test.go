@@ -18,9 +18,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/server/authflow/session"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )

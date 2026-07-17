@@ -7,17 +7,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dexidp/dex/server/authflow/consent"
-	"github.com/dexidp/dex/server/authflow/issue"
-	"github.com/dexidp/dex/server/authflow/logout"
-	"github.com/dexidp/dex/server/authflow/mfa"
-	"github.com/dexidp/dex/server/authflow/session"
-	"github.com/dexidp/dex/server/authflow/web"
 	"github.com/dexidp/dex/server/connectors"
+	"github.com/dexidp/dex/server/consent"
+	"github.com/dexidp/dex/server/issue"
+	"github.com/dexidp/dex/server/logout"
+	"github.com/dexidp/dex/server/mfa"
 	"github.com/dexidp/dex/server/router"
+	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/server/tokens"
+	"github.com/dexidp/dex/server/web"
 	"github.com/dexidp/dex/storage"
 )
 

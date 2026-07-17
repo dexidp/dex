@@ -16,10 +16,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexidp/dex/server/authflow/web"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/tokens"
+	"github.com/dexidp/dex/server/web"
 	"github.com/dexidp/dex/storage"
 )
 

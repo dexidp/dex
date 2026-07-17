@@ -9,11 +9,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/dexidp/dex/server/authflow/session"
-	"github.com/dexidp/dex/server/authflow/web"
 	"github.com/dexidp/dex/server/oauth2"
+	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/server/tokens"
+	"github.com/dexidp/dex/server/web"
 	"github.com/dexidp/dex/storage"
 )
 

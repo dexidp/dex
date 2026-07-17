@@ -5,14 +5,14 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/dexidp/dex/server/authflow/issue"
-	"github.com/dexidp/dex/server/authflow/mfa"
-	"github.com/dexidp/dex/server/authflow/session"
-	"github.com/dexidp/dex/server/authflow/web"
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/issue"
+	"github.com/dexidp/dex/server/mfa"
 	"github.com/dexidp/dex/server/router"
+	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/server/tokens"
+	"github.com/dexidp/dex/server/web"
 	"github.com/dexidp/dex/storage"
 )
 
