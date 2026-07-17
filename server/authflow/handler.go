@@ -117,10 +117,5 @@ func (h *Handler) Mount(m router.Mux) {
 	// The following endpoints require DEX_SESSIONS_ENABLED=true.
 	m.HandleFunc("/logout", h.handleLogout)
 	m.HandleFunc("/logout/callback", h.handleLogoutCallback)
-	m.HandleFunc("/mfa/totp", h.mfa.HandleTOTP)
-	m.HandleFunc("/mfa/webauthn", h.mfa.HandleWebAuthn)
-	m.HandleFunc("/mfa/webauthn/register/begin", h.mfa.HandleWebAuthnRegisterBegin)
-	m.HandleFunc("/mfa/webauthn/register/finish", h.mfa.HandleWebAuthnRegisterFinish)
-	m.HandleFunc("/mfa/webauthn/login/begin", h.mfa.HandleWebAuthnLoginBegin)
-	m.HandleFunc("/mfa/webauthn/login/finish", h.mfa.HandleWebAuthnLoginFinish)
+	h.mfa.Mount(m)
 }

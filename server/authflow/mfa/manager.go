@@ -11,6 +11,7 @@ import (
 	"github.com/dexidp/dex/server/authflow/web"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/storage"
 )
@@ -187,4 +188,14 @@ func (m *Manager) BuildRedirectURL(authReq storage.AuthRequest, authenticatorID 
 	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, authenticatorID))
 	v.Set("authenticator", authenticatorID)
 	return m.AbsPath(m.mfaPagePath(authenticatorID)) + "?" + v.Encode()
+}
+
+// Mount registers the MFA endpoints on the given mux.
+func (m *Manager) Mount(mux router.Mux) {
+	mux.HandleFunc("/mfa/totp", m.handleTOTP)
+	mux.HandleFunc("/mfa/webauthn", m.handleWebAuthn)
+	mux.HandleFunc("/mfa/webauthn/register/begin", m.handleWebAuthnRegisterBegin)
+	mux.HandleFunc("/mfa/webauthn/register/finish", m.handleWebAuthnRegisterFinish)
+	mux.HandleFunc("/mfa/webauthn/login/begin", m.handleWebAuthnLoginBegin)
+	mux.HandleFunc("/mfa/webauthn/login/finish", m.handleWebAuthnLoginFinish)
 }

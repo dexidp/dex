@@ -143,8 +143,8 @@ func buildWebAuthnUser(identity storage.UserIdentity, authenticatorID string) *w
 	}
 }
 
-// HandleWebAuthnRegisterBegin starts the WebAuthn registration ceremony.
-func (m *Manager) HandleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Request) {
+// handleWebAuthnRegisterBegin starts the WebAuthn registration ceremony.
+func (m *Manager) handleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Request) {
 	mfa, provider, ok := m.validateWebAuthnAPIRequest(w, r)
 	if !ok {
 		return
@@ -170,8 +170,8 @@ func (m *Manager) HandleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Req
 	writeJSON(w, creation)
 }
 
-// HandleWebAuthnRegisterFinish completes the WebAuthn registration ceremony.
-func (m *Manager) HandleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Request) {
+// handleWebAuthnRegisterFinish completes the WebAuthn registration ceremony.
+func (m *Manager) handleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Request) {
 	mfa, provider, ok := m.validateWebAuthnAPIRequest(w, r)
 	if !ok {
 		return
@@ -211,8 +211,8 @@ func (m *Manager) HandleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Re
 	m.writeCompleteMFAStepResponse(w, r, mfa)
 }
 
-// HandleWebAuthnLoginBegin starts the WebAuthn login ceremony.
-func (m *Manager) HandleWebAuthnLoginBegin(w http.ResponseWriter, r *http.Request) {
+// handleWebAuthnLoginBegin starts the WebAuthn login ceremony.
+func (m *Manager) handleWebAuthnLoginBegin(w http.ResponseWriter, r *http.Request) {
 	mfa, provider, ok := m.validateWebAuthnAPIRequest(w, r)
 	if !ok {
 		return
@@ -241,14 +241,14 @@ func (m *Manager) HandleWebAuthnLoginBegin(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, assertion)
 }
 
-// HandleWebAuthnLoginFinish completes the WebAuthn login ceremony.
+// handleWebAuthnLoginFinish completes the WebAuthn login ceremony.
 //
 // TODO(nabokihms): this endpoint should be protected with a rate limit (like the auth endpoint).
 // Although WebAuthn is more resistant to brute-force than TOTP (challenges are random and
 // cryptographically signed), repeated attempts could still be used for denial-of-service.
 //
 // For now the best way is to use external rate limiting solutions.
-func (m *Manager) HandleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Request) {
+func (m *Manager) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Request) {
 	mfa, provider, ok := m.validateWebAuthnAPIRequest(w, r)
 	if !ok {
 		return
@@ -398,7 +398,7 @@ func writeJSONError(w http.ResponseWriter, status int, message string) {
 	json.NewEncoder(w).Encode(map[string]string{"error": message})
 }
 
-func (m *Manager) HandleWebAuthn(w http.ResponseWriter, r *http.Request) {
+func (m *Manager) handleWebAuthn(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		m.RenderError(r, w, http.StatusMethodNotAllowed, "Unsupported request method.")
 		return
@@ -421,5 +421,3 @@ func (m *Manager) HandleWebAuthn(w http.ResponseWriter, r *http.Request) {
 		m.Logger.ErrorContext(r.Context(), "server template error", "err", err)
 	}
 }
-
-// handleTOTPVerify handles TOTP enrollment and verification.

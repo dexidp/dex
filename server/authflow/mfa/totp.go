@@ -97,7 +97,7 @@ func (p *TOTPProvider) generate(connID, email string) (*otp.Key, error) {
 }
 
 // mfaRequestContext holds validated MFA request data shared across handlers.
-func (m *Manager) HandleTOTP(w http.ResponseWriter, r *http.Request) {
+func (m *Manager) handleTOTP(w http.ResponseWriter, r *http.Request) {
 	mfa, ok := m.validateMFARequest(w, r)
 	if !ok {
 		return

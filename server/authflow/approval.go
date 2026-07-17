@@ -107,5 +107,3 @@ func scopesCoveredByConsent(approved, requested []string) bool {
 
 	return true
 }
-
-// tokenErrHelper writes a JSON OAuth2 error response.
