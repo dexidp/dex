@@ -14,6 +14,7 @@ import (
 
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
@@ -1670,7 +1671,7 @@ func TestPromptConsent(t *testing.T) {
 	})
 
 	t.Run("login+consent parsed correctly", func(t *testing.T) {
-		prompt, err := ParsePrompt("login consent")
+		prompt, err := oauth2.ParsePrompt("login consent")
 		require.NoError(t, err)
 		assert.True(t, prompt.Login(), "login flag should be set")
 		assert.True(t, prompt.Consent(), "consent flag should be set")

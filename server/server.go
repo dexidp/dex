@@ -52,6 +52,7 @@ import (
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/introspection"
 	"github.com/dexidp/dex/server/oauth2"
+	"github.com/dexidp/dex/server/passwords"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/templates"
@@ -267,7 +268,7 @@ func (m routeMux) HandleCORS(p string, h http.HandlerFunc) { m.handleCORS(p, h) 
 func (m routeMux) HandlePrefix(p string, h http.Handler)   { m.handlePrefix(p, h) }
 
 // newDiscoveryHandler builds a discovery handler from the server's settings. It
-// is shared by the mounted handler and constructDiscovery.
+// is shared by the mounted handler and ConstructDiscovery.
 func (s *Server) newDiscoveryHandler() *discovery.Handler {
 	return &discovery.Handler{
 		Issuer:          s.issuerURL.String(),
@@ -282,9 +283,13 @@ func (s *Server) newDiscoveryHandler() *discovery.Handler {
 	}
 }
 
-// constructDiscovery builds the OIDC discovery document, letting the gRPC API
-// obtain it without reaching into a handler.
-func (s *Server) constructDiscovery(ctx context.Context) discovery.Document {
+// Connectors is the server's connector cache. The gRPC API needs it to
+// invalidate the cache on connector CRUD.
+func (s *Server) Connectors() *connectors.Cache { return s.connectors }
+
+// ConstructDiscovery builds the OIDC discovery document. The gRPC API's
+// GetDiscovery uses it to return the same document served over HTTP.
+func (s *Server) ConstructDiscovery(ctx context.Context) discovery.Document {
 	return s.newDiscoveryHandler().Construct(ctx)
 }
 
@@ -710,7 +715,7 @@ func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, passw
 	}
 	// This check prevents dex users from logging in using static passwords
 	// configured with hash costs that are too high or low.
-	if err := checkCost(p.Hash); err != nil {
+	if err := passwords.CheckCost(p.Hash); err != nil {
 		return connector.Identity{}, false, err
 	}
 	if err := bcrypt.CompareHashAndPassword(p.Hash, []byte(password)); err != nil {

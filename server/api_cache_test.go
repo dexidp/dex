@@ -8,6 +8,7 @@ import (
 	"github.com/dexidp/dex/api/v2"
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/connector/mock"
+	"github.com/dexidp/dex/server/apiserver"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/storage/memory"
 )
@@ -24,7 +25,7 @@ func TestConnectorCacheInvalidation(t *testing.T) {
 	}
 	serv.connectors = connectors.NewCache(s, serv.resolveConnector)
 
-	apiServer := NewAPI(s, logger, "test", serv)
+	apiServer := apiserver.NewAPI(s, logger, "test", serv.connectors, serv.ConstructDiscovery)
 	ctx := context.Background()
 
 	connID := "mock-conn"

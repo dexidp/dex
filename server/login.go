@@ -95,7 +95,7 @@ func (s *Server) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Handle OIDC prompt parameter and session-based login.
-	prompt, err := ParsePrompt(authReq.Prompt)
+	prompt, err := oauth2.ParsePrompt(authReq.Prompt)
 	if err != nil {
 		// Server error because authReq was validated before saving it to database.
 		s.redirectWithError(w, r, authReq, oauth2.ServerError, "Invalid authentication request")

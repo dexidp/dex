@@ -295,7 +295,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		}
 	}
 
-	prompt, err := ParsePrompt(q.Get("prompt"))
+	prompt, err := oauth2.ParsePrompt(q.Get("prompt"))
 	if err != nil {
 		return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Invalid prompt parameter: %v", err)
 	}
