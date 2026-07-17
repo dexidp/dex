@@ -1,4 +1,4 @@
-package web
+package render
 
 import (
 	"log/slog"

@@ -18,9 +18,9 @@ import (
 	"github.com/dexidp/dex/server/issue"
 	"github.com/dexidp/dex/server/mfa"
 	"github.com/dexidp/dex/server/oauth2"
+	"github.com/dexidp/dex/server/render"
 	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/tokens"
-	"github.com/dexidp/dex/server/web"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
 )
@@ -41,7 +41,7 @@ func newTestSessionServer(t *testing.T) *Handler {
 		storage: memory.New(nil),
 		now:     func() time.Time { return now },
 		logger:  slog.Default(),
-		UI:      &web.UI{IssuerURL: *issuerURL, Logger: slog.Default()},
+		UI:      &render.UI{IssuerURL: *issuerURL, Logger: slog.Default()},
 	}
 	s.connectors = connectors.NewCache(s.storage, testResolveConnector)
 	s.sessions = &session.Manager{Storage: s.storage, Config: sessionCfg, Now: s.now, Logger: slog.Default(), IssuerURL: *issuerURL}

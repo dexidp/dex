@@ -10,9 +10,9 @@ import (
 
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/render"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/templates"
-	"github.com/dexidp/dex/server/web"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -38,7 +38,7 @@ type mfaRequestContext struct {
 // endpoints, and challenge lifecycle. It embeds web for error rendering and URL
 // building; the Handler delegates the MFA endpoints and chain lookups to it.
 type Manager struct {
-	*web.UI
+	*render.UI
 	Storage         storage.Storage
 	Templates       *templates.Templates
 	Logger          *slog.Logger

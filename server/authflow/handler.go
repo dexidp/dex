@@ -12,12 +12,12 @@ import (
 	"github.com/dexidp/dex/server/issue"
 	"github.com/dexidp/dex/server/logout"
 	"github.com/dexidp/dex/server/mfa"
+	"github.com/dexidp/dex/server/render"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/server/tokens"
-	"github.com/dexidp/dex/server/web"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -43,11 +43,11 @@ type Config struct {
 	DefaultMFAChain        []string
 }
 
-// Handler serves the interactive authorization flow. It embeds web (shared
+// Handler serves the interactive authorization flow. It embeds render (shared
 // browser rendering / URL building) and delegates the session and MFA domains
 // to their own components; what remains on the Handler is HTTP orchestration.
 type Handler struct {
-	*web.UI
+	*render.UI
 
 	connectors             *connectors.Cache
 	storage                storage.Storage
@@ -77,7 +77,7 @@ type Handler struct {
 
 // NewHandler builds the interactive auth-flow handler from its configuration.
 func NewHandler(c Config) *Handler {
-	ui := &web.UI{Templates: c.Templates, IssuerURL: c.IssuerURL, Logger: c.Logger}
+	ui := &render.UI{Templates: c.Templates, IssuerURL: c.IssuerURL, Logger: c.Logger}
 	sessions := &session.Manager{Storage: c.Storage, Config: c.SessionConfig, Now: c.Now, Logger: c.Logger, IssuerURL: c.IssuerURL}
 	mfaManager := &mfa.Manager{UI: ui, Storage: c.Storage, Templates: c.Templates, Logger: c.Logger, MFAProviders: c.MFAProviders, DefaultMFAChain: c.DefaultMFAChain, Now: c.Now, Connectors: c.Connectors}
 	issueWriter := &issue.Writer{UI: ui, Storage: c.Storage, Templates: c.Templates, Logger: c.Logger, Issuer: c.Issuer, Sessions: sessions, Now: c.Now}

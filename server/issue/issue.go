@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/dexidp/dex/server/oauth2"
+	"github.com/dexidp/dex/server/render"
 	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/server/tokens"
-	"github.com/dexidp/dex/server/web"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -22,7 +22,7 @@ import (
 // token issuer, the session manager and browser rendering), so it depends on no
 // browser-login code and can be driven by any flow step that reaches issuance.
 type Writer struct {
-	*web.UI
+	*render.UI
 
 	Storage   storage.Storage
 	Templates *templates.Templates

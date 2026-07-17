@@ -8,11 +8,11 @@ import (
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/issue"
 	"github.com/dexidp/dex/server/mfa"
+	"github.com/dexidp/dex/server/render"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/server/tokens"
-	"github.com/dexidp/dex/server/web"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -22,7 +22,7 @@ import (
 // issue component. It depends only on lower flow components (mfa, issue), never
 // on the browser-login code that drives it.
 type Manager struct {
-	*web.UI
+	*render.UI
 
 	Storage      storage.Storage
 	Templates    *templates.Templates
