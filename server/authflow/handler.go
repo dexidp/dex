@@ -114,8 +114,10 @@ func (h *Handler) Mount(m router.Mux) {
 	if !h.sessions.Enabled() {
 		return
 	}
-	// The following endpoints require DEX_SESSIONS_ENABLED=true.
+	// Logout requires an active session.
 	m.HandleFunc("/logout", h.handleLogout)
 	m.HandleFunc("/logout/callback", h.handleLogoutCallback)
-	h.mfa.Mount(m)
 }
+
+// MFA returns the MFA component so the server can mount its endpoints directly.
+func (h *Handler) MFA() *mfa.Manager { return h.mfa }

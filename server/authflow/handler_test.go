@@ -111,6 +111,7 @@ func newTestHandler(t *testing.T, updateConfig func(c *Config)) (*httptest.Serve
 
 	router := mux.NewRouter()
 	h.Mount(testMux{router})
+	h.MFA().Mount(testMux{router})
 	handler = router
 
 	for _, id := range []string{"mock", "mock2"} {

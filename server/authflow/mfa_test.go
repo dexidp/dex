@@ -75,6 +75,13 @@ func TestCompleteMFAStep(t *testing.T) {
 func TestWebAuthnHandlersMissingHMAC(t *testing.T) {
 	httpServer, server := newTestHandler(t, func(c *Config) {
 		c.SessionConfig = &session.Config{AbsoluteLifetime: time.Hour, ValidIfNotUsedFor: time.Hour}
+
+		provider, err := mfa.NewWebAuthnProvider("Test", "", nil, "", "",
+			"http://127.0.0.1", nil)
+		require.NoError(t, err)
+
+		c.MFAProviders = map[string]mfa.Provider{"webauthn-1": provider}
+		c.DefaultMFAChain = []string{"webauthn-1"}
 	})
 	defer httpServer.Close()
 

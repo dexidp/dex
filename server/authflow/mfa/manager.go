@@ -190,8 +190,13 @@ func (m *Manager) BuildRedirectURL(authReq storage.AuthRequest, authenticatorID 
 	return m.AbsPath(m.mfaPagePath(authenticatorID)) + "?" + v.Encode()
 }
 
-// Mount registers the MFA endpoints on the given mux.
+// Mount registers the MFA endpoints on the given mux, but only when at least one
+// authenticator is configured. MFA is independent of sessions: it verifies a
+// factor and marks the auth request, so it mounts on its own terms.
 func (m *Manager) Mount(mux router.Mux) {
+	if len(m.MFAProviders) == 0 {
+		return
+	}
 	mux.HandleFunc("/mfa/totp", m.handleTOTP)
 	mux.HandleFunc("/mfa/webauthn", m.handleWebAuthn)
 	mux.HandleFunc("/mfa/webauthn/register/begin", m.handleWebAuthnRegisterBegin)
