@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/authflow/authcode"
 	"github.com/dexidp/dex/server/authflow/authreq"
 	"github.com/dexidp/dex/server/authflow/mfa"
 	"github.com/dexidp/dex/server/authflow/session"
@@ -45,6 +46,7 @@ func newTestSessionServer(t *testing.T) *Handler {
 	s.connectors = connectors.NewCache(s.storage, testResolveConnector)
 	s.sessions = session.New(s.storage, sessionCfg, s.now, slog.Default(), *issuerURL)
 	s.mfa = mfa.New(s.UI, s.storage, nil, slog.Default(), nil, nil, s.now, s.connectors)
+	s.authcode = authcode.New(s.UI, s.storage, nil, s.sessions, nil, s.now, slog.Default())
 	return s
 }
 

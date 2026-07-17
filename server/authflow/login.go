@@ -312,7 +312,7 @@ func (h *Handler) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 							h.RenderError(r, w, http.StatusInternalServerError, "Login error.")
 							return
 						}
-						h.sendCodeResponse(w, r, authReq)
+						h.authcode.Send(w, r, authReq)
 						return
 					}
 
@@ -368,7 +368,7 @@ func (h *Handler) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 
 		if canSkipApproval {
 			// authReq was already re-read after finalizeLogin above.
-			h.sendCodeResponse(w, r, authReq)
+			h.authcode.Send(w, r, authReq)
 			return
 		}
 
@@ -482,7 +482,7 @@ func (h *Handler) handleConnectorCallback(w http.ResponseWriter, r *http.Request
 
 	if canSkipApproval {
 		// authReq was already re-read after finalizeLogin above.
-		h.sendCodeResponse(w, r, authReq)
+		h.authcode.Send(w, r, authReq)
 		return
 	}
 

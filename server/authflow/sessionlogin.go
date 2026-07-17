@@ -133,7 +133,7 @@ func (h *Handler) finishSessionLogin(ctx context.Context, r *http.Request, w htt
 	case mfaStep:
 		return h.mfa.BuildRedirectURL(updated, st.authenticator), true
 	case issueStep:
-		h.sendCodeResponse(w, r, updated)
+		h.authcode.Send(w, r, updated)
 		return "", true
 	default: // approvalStep
 		return h.BuildApprovalURL(updated), true

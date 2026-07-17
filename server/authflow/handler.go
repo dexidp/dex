@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dexidp/dex/server/authflow/authcode"
 	"github.com/dexidp/dex/server/authflow/authreq"
 	"github.com/dexidp/dex/server/authflow/mfa"
 	"github.com/dexidp/dex/server/authflow/session"
@@ -78,11 +79,14 @@ type Handler struct {
 	sessions *session.Manager
 	// mfa owns the authenticator chain and the TOTP/WebAuthn endpoints.
 	mfa *mfa.Manager
+	// authcode issues the authorization-code and token response.
+	authcode *authcode.Issuer
 }
 
 // NewHandler builds the interactive auth-flow handler from its configuration.
 func NewHandler(c Config) *Handler {
 	ui := web.New(c.Templates, c.IssuerURL, c.Logger)
+	sessions := session.New(c.Storage, c.SessionConfig, c.Now, c.Logger, c.IssuerURL)
 	return &Handler{
 		UI:                   ui,
 		connectors:           c.Connectors,
@@ -95,8 +99,9 @@ func NewHandler(c Config) *Handler {
 		alwaysShowLogin:      c.AlwaysShowLogin,
 		authRequestsValidFor: c.AuthRequestsValidFor,
 		req:                  authreq.New(c.Storage, c.Logger, c.Signer, c.IssuerURL, c.PKCE, c.SupportedResponseTypes),
-		sessions:             session.New(c.Storage, c.SessionConfig, c.Now, c.Logger, c.IssuerURL),
+		sessions:             sessions,
 		mfa:                  mfa.New(ui, c.Storage, c.Templates, c.Logger, c.MFAProviders, c.DefaultMFAChain, c.Now, c.Connectors),
+		authcode:             authcode.New(ui, c.Storage, c.Issuer, sessions, c.Templates, c.Now, c.Logger),
 	}
 }
 
