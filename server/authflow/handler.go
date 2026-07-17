@@ -9,6 +9,7 @@ import (
 
 	"github.com/dexidp/dex/server/authflow/consent"
 	"github.com/dexidp/dex/server/authflow/issue"
+	"github.com/dexidp/dex/server/authflow/logout"
 	"github.com/dexidp/dex/server/authflow/mfa"
 	"github.com/dexidp/dex/server/authflow/session"
 	"github.com/dexidp/dex/server/authflow/web"
@@ -70,6 +71,8 @@ type Handler struct {
 	consent *consent.Manager
 	// issue writes the authorization response back to the client.
 	issue *issue.Writer
+	// logout owns RP-Initiated Logout and upstream single-logout.
+	logout *logout.Manager
 }
 
 // NewHandler builds the interactive auth-flow handler from its configuration.
@@ -100,12 +103,15 @@ func NewHandler(c Config) *Handler {
 			UI: ui, Storage: c.Storage, Templates: c.Templates, Logger: c.Logger,
 			Sessions: sessions, MFA: mfaManager, Issue: issueWriter, SkipApproval: c.SkipApproval,
 		},
+		logout: &logout.Manager{
+			UI: ui, Storage: c.Storage, Templates: c.Templates, Logger: c.Logger,
+			Sessions: sessions, Connectors: c.Connectors, Issuer: c.Issuer, Signer: c.Signer, IssuerURL: c.IssuerURL,
+		},
 	}
 }
 
-// Mount registers the login routes. Consent, MFA and issuance mount their own
-// endpoints; logout requires sessions and is only wired when a session config
-// is present.
+// Mount registers the login routes. Consent, MFA and logout are self-contained
+// flow components that mount their own endpoints.
 func (h *Handler) Mount(m router.Mux) {
 	m.HandleFunc("/auth", h.handleAuthorization)
 	m.HandleFunc("/auth/{connector}", h.handleConnectorLogin)
@@ -123,13 +129,6 @@ func (h *Handler) Mount(m router.Mux) {
 	// For easier connector-specific web server configuration, e.g. for the
 	// "authproxy" connector.
 	m.HandleFunc("/callback/{connector}", h.handleConnectorCallback)
-
-	if !h.sessions.Enabled() {
-		return
-	}
-	// Logout requires an active session.
-	m.HandleFunc("/logout", h.handleLogout)
-	m.HandleFunc("/logout/callback", h.handleLogoutCallback)
 }
 
 // MFA returns the MFA component so the server can mount its endpoints directly.
@@ -137,3 +136,6 @@ func (h *Handler) MFA() *mfa.Manager { return h.mfa }
 
 // Consent returns the consent component so the server can mount its endpoint directly.
 func (h *Handler) Consent() *consent.Manager { return h.consent }
+
+// Logout returns the logout component so the server can mount its endpoints directly.
+func (h *Handler) Logout() *logout.Manager { return h.logout }

@@ -607,7 +607,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	// Self-contained domains mount their own routes through the router.Mux
 	// abstraction, so this list is the only place they are wired in.
 	mux := routeMux{handle: handle, handleFunc: handleFunc, handleCORS: handleWithCORS, handlePrefix: handlePrefix}
-	for _, h := range []router.Handler{tokenEndpoint, discoveryHandler, userInfoHandler, introspectHandler, deviceHandler, homeHandler, authFlow, authFlow.MFA(), authFlow.Consent()} {
+	for _, h := range []router.Handler{tokenEndpoint, discoveryHandler, userInfoHandler, introspectHandler, deviceHandler, homeHandler, authFlow, authFlow.MFA(), authFlow.Consent(), authFlow.Logout()} {
 		h.Mount(mux)
 	}
 
