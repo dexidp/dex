@@ -58,7 +58,7 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 	var userID, connectorID, clientID string
 
 	if idTokenHint != "" {
-		idToken, err := h.req.ValidateIDTokenHint(ctx, idTokenHint)
+		idToken, err := h.validateIDTokenHint(ctx, idTokenHint)
 		if err != nil {
 			h.logger.ErrorContext(ctx, "logout: invalid id_token_hint", "err", err)
 			h.RenderError(r, w, http.StatusBadRequest, "Invalid id_token_hint.")

@@ -15,7 +15,6 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/connector/mock"
-	"github.com/dexidp/dex/server/authflow/authreq"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/templates"
@@ -101,7 +100,7 @@ func newTestHandler(t *testing.T, updateConfig func(c *Config)) (*httptest.Serve
 		Logger:                 logger,
 		SkipApproval:           true,
 		SupportedResponseTypes: map[string]bool{"code": true, "token": true, "id_token": true},
-		PKCE:                   authreq.PKCEConfig{CodeChallengeMethodsSupported: []string{"S256", "plain"}},
+		PKCE:                   PKCEConfig{CodeChallengeMethodsSupported: []string{"S256", "plain"}},
 		AuthRequestsValidFor:   24 * time.Hour,
 	}
 	if updateConfig != nil {
@@ -135,3 +134,13 @@ var testKey = func() *rsa.PrivateKey {
 	}
 	return key
 }()
+
+// toResponseTypeSet converts a list of response types to the set form the
+// Handler expects.
+func toResponseTypeSet(types []string) map[string]bool {
+	m := make(map[string]bool, len(types))
+	for _, t := range types {
+		m[t] = true
+	}
+	return m
+}

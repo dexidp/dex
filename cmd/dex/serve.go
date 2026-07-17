@@ -39,7 +39,7 @@ import (
 	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/server/apiserver"
-	"github.com/dexidp/dex/server/authflow/authreq"
+	"github.com/dexidp/dex/server/authflow"
 	"github.com/dexidp/dex/server/authflow/mfa"
 	"github.com/dexidp/dex/server/authflow/session"
 	"github.com/dexidp/dex/server/connectors"
@@ -374,7 +374,7 @@ func runServe(options serveOptions) error {
 		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
 		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
 		PasswordConnector:      c.OAuth2.PasswordConnector,
-		PKCE: authreq.PKCEConfig{
+		PKCE: authflow.PKCEConfig{
 			Enforce:                       c.OAuth2.PKCE.Enforce,
 			CodeChallengeMethodsSupported: c.OAuth2.PKCE.CodeChallengeMethodsSupported,
 		},

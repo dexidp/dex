@@ -16,7 +16,6 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/featureflags"
-	"github.com/dexidp/dex/server/authflow/authreq"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
@@ -25,14 +24,14 @@ import (
 
 func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	authReq, hintSubject, err := h.req.Parse(r)
+	authReq, hintSubject, err := h.parseAuthorizationRequest(r)
 	if err != nil {
 		h.logger.ErrorContext(r.Context(), "failed to parse authorization request", "err", err)
 
 		switch authErr := err.(type) {
-		case *authreq.RedirectedErr:
+		case *redirectedAuthErr:
 			authErr.Handler().ServeHTTP(w, r)
-		case *authreq.DisplayedErr:
+		case *displayedAuthErr:
 			h.RenderError(r, w, authErr.Status, err.Error())
 		default:
 			panic("unsupported error type")
@@ -99,7 +98,7 @@ func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	prompt, err := oauth2.ParsePrompt(authReq.Prompt)
 	if err != nil {
 		// Server error because authReq was validated before saving it to database.
-		authreq.RedirectWithError(w, r, authReq, oauth2.ServerError, "Invalid authentication request")
+		h.redirectWithError(w, r, authReq, oauth2.ServerError, "Invalid authentication request")
 		return
 	}
 	// handle prompt only if sessions are enabled
@@ -110,38 +109,30 @@ func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		// id_token_hint logic (OIDC Core 1.0 3.1.2.1):
 		// When a hint is provided, verify that the session user matches.
 		if hintSubject != "" {
-			if !authreq.SessionMatchesHint(session, hintSubject) {
+			if !sessionMatchesHint(session, hintSubject) {
 				// Clear the session if the user is different from the hint.
 				session = nil
 			}
 			if session == nil && prompt.None() {
 				// Cannot authenticate silently with prompt=none.
-				authreq.RedirectWithError(w, r, authReq, oauth2.LoginRequired, "id_token_hint does not match authenticated user")
+				h.redirectWithError(w, r, authReq, oauth2.LoginRequired, "id_token_hint does not match authenticated user")
 				return
 			}
 		}
 
 		// prompt=none: no UI allowed.
 		if prompt.None() {
-			redirectURL, ok := h.trySessionLoginWithSession(ctx, r, w, authReq, session)
-			if !ok {
-				authreq.RedirectWithError(w, r, authReq, oauth2.LoginRequired, "User not authenticated")
-				return
-			}
-			if redirectURL != "" {
-				// Session found but user interaction is needed (consent or MFA) — no UI allowed.
-				authreq.RedirectWithError(w, r, authReq, oauth2.InteractionRequired, "User interaction required")
-				return
+			// prompt=none: no UI allowed. advance reports interaction_required if the
+			// session login can't complete silently; a missing session is login_required.
+			if !h.trySessionLoginWithSession(ctx, r, w, authReq, session) {
+				h.redirectWithError(w, r, authReq, oauth2.LoginRequired, "User not authenticated")
 			}
 			return
 		}
 
 		if !prompt.Login() {
 			// Normal flow: try session-based login (skip if prompt=login forces re-auth).
-			if redirectURL, ok := h.trySessionLoginWithSession(ctx, r, w, authReq, session); ok {
-				if redirectURL != "" {
-					http.Redirect(w, r, redirectURL, http.StatusSeeOther)
-				}
+			if h.trySessionLoginWithSession(ctx, r, w, authReq, session) {
 				return
 			}
 		}
@@ -298,25 +289,13 @@ func (h *Handler) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				if ident != nil {
-					redirectURL, canSkipApproval, err := h.finalizeLogin(ctx, *ident, authReq, conn.Connector)
+					authReq, err = h.finalizeLogin(ctx, *ident, authReq, conn.Connector)
 					if err != nil {
 						h.logger.ErrorContext(ctx, "failed to finalize login", "err", err)
 						h.RenderError(r, w, http.StatusInternalServerError, "Login error.")
 						return
 					}
-
-					if canSkipApproval {
-						authReq, err = h.storage.GetAuthRequest(ctx, authReq.ID)
-						if err != nil {
-							h.logger.ErrorContext(ctx, "failed to get finalized auth request", "err", err)
-							h.RenderError(r, w, http.StatusInternalServerError, "Login error.")
-							return
-						}
-						h.authcode.Send(w, r, authReq)
-						return
-					}
-
-					http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+					h.advance(w, r, authReq)
 					return
 				}
 				// handled with no identity typically means the SPNEGO middleware
@@ -346,17 +325,9 @@ func (h *Handler) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 			h.logger.ErrorContext(r.Context(), "failed login attempt: Invalid credentials.", "user", username)
 			return
 		}
-		redirectURL, canSkipApproval, err := h.finalizeLogin(r.Context(), identity, authReq, conn.Connector)
+		authReq, err = h.finalizeLogin(r.Context(), identity, authReq, conn.Connector)
 		if err != nil {
 			h.logger.ErrorContext(r.Context(), "failed to finalize login", "err", err)
-			h.RenderError(r, w, http.StatusInternalServerError, "Login error.")
-			return
-		}
-
-		// Re-read auth request after finalizeLogin populated Claims.
-		authReq, err = h.storage.GetAuthRequest(ctx, authReq.ID)
-		if err != nil {
-			h.logger.ErrorContext(r.Context(), "failed to get finalized auth request", "err", err)
 			h.RenderError(r, w, http.StatusInternalServerError, "Login error.")
 			return
 		}
@@ -366,13 +337,7 @@ func (h *Handler) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 			h.logger.ErrorContext(ctx, "failed to create/update auth session", "err", err)
 		}
 
-		if canSkipApproval {
-			// authReq was already re-read after finalizeLogin above.
-			h.authcode.Send(w, r, authReq)
-			return
-		}
-
-		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+		h.advance(w, r, authReq)
 	default:
 		h.RenderError(r, w, http.StatusBadRequest, "Unsupported request method.")
 	}
@@ -459,17 +424,9 @@ func (h *Handler) handleConnectorCallback(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	redirectURL, canSkipApproval, err := h.finalizeLogin(ctx, identity, authReq, conn.Connector)
+	authReq, err = h.finalizeLogin(ctx, identity, authReq, conn.Connector)
 	if err != nil {
 		h.logger.ErrorContext(r.Context(), "failed to finalize login", "err", err)
-		h.RenderError(r, w, http.StatusInternalServerError, "Login error.")
-		return
-	}
-
-	// Re-read auth request after finalizeLogin populated Claims.
-	authReq, err = h.storage.GetAuthRequest(ctx, authReq.ID)
-	if err != nil {
-		h.logger.ErrorContext(r.Context(), "failed to get finalized auth request", "err", err)
 		h.RenderError(r, w, http.StatusInternalServerError, "Login error.")
 		return
 	}
@@ -480,18 +437,12 @@ func (h *Handler) handleConnectorCallback(w http.ResponseWriter, r *http.Request
 		h.logger.ErrorContext(ctx, "failed to create/update auth session", "err", err)
 	}
 
-	if canSkipApproval {
-		// authReq was already re-read after finalizeLogin above.
-		h.authcode.Send(w, r, authReq)
-		return
-	}
-
-	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+	h.advance(w, r, authReq)
 }
 
 // finalizeLogin associates the user's identity with the current AuthRequest, then returns
 // the approval page's path.
-func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity, authReq storage.AuthRequest, conn connector.Connector) (string, bool, error) {
+func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity, authReq storage.AuthRequest, conn connector.Connector) (storage.AuthRequest, error) {
 	// Refuse to complete login for a locked account. BlockedUntil lives on the
 	// persisted UserIdentity, which only exists when the sessions feature is on;
 	// a first-time login (no stored identity yet) cannot be blocked.
@@ -502,10 +453,10 @@ func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity
 			if !storedIdentity.BlockedUntil.IsZero() && h.now().Before(storedIdentity.BlockedUntil) {
 				h.logger.WarnContext(ctx, "login rejected for locked account",
 					"connector_id", authReq.ConnectorID, "user_id", identity.UserID, "blocked_until", storedIdentity.BlockedUntil)
-				return "", false, fmt.Errorf("account is locked until %s", storedIdentity.BlockedUntil.Format(time.RFC3339))
+				return storage.AuthRequest{}, fmt.Errorf("account is locked until %s", storedIdentity.BlockedUntil.Format(time.RFC3339))
 			}
 		case !errors.Is(err, storage.ErrNotFound):
-			return "", false, fmt.Errorf("failed to look up user identity: %w", err)
+			return storage.AuthRequest{}, fmt.Errorf("failed to look up user identity: %w", err)
 		}
 	}
 
@@ -526,7 +477,7 @@ func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity
 		return a, nil
 	}
 	if err := h.storage.UpdateAuthRequest(ctx, authReq.ID, updater); err != nil {
-		return "", false, fmt.Errorf("failed to update auth request: %v", err)
+		return storage.AuthRequest{}, fmt.Errorf("failed to update auth request: %v", err)
 	}
 	// Keep the in-memory copy in sync with what was persisted so later reads
 	// (the next-step decision below) see the identity we just stored.
@@ -567,7 +518,7 @@ func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity
 			// the newly received refreshtoken.
 			if err := h.storage.CreateOfflineSessions(ctx, offlineSessions); err != nil {
 				h.logger.ErrorContext(ctx, "failed to create offline session", "err", err)
-				return "", false, err
+				return storage.AuthRequest{}, err
 			}
 		case err == nil:
 			// Update existing OfflineSession obj with new RefreshTokenRef.
@@ -578,11 +529,11 @@ func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity
 				return old, nil
 			}); err != nil {
 				h.logger.ErrorContext(ctx, "failed to update offline session", "err", err)
-				return "", false, err
+				return storage.AuthRequest{}, err
 			}
 		default:
 			h.logger.ErrorContext(ctx, "failed to get offline session", "err", err)
-			return "", false, err
+			return storage.AuthRequest{}, err
 		}
 	}
 
@@ -603,7 +554,7 @@ func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity
 			}
 			if err := h.storage.CreateUserIdentity(ctx, ui); err != nil {
 				h.logger.ErrorContext(ctx, "failed to create user identity", "err", err)
-				return "", false, err
+				return storage.AuthRequest{}, err
 			}
 		case err == nil:
 			if err := h.storage.UpdateUserIdentity(ctx, identity.UserID, authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
@@ -612,34 +563,17 @@ func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity
 				return old, nil
 			}); err != nil {
 				h.logger.ErrorContext(ctx, "failed to update user identity", "err", err)
-				return "", false, err
+				return storage.AuthRequest{}, err
 			}
 		default:
 			h.logger.ErrorContext(ctx, "failed to get user identity", "err", err)
-			return "", false, err
+			return storage.AuthRequest{}, err
 		}
 	}
 
-	step, err := h.nextAuthStep(ctx, &authReq)
-	if err != nil {
-		return "", false, fmt.Errorf("failed to determine next auth step: %v", err)
-	}
-	if mfa, ok := step.(mfaStep); ok {
-		return h.mfa.BuildRedirectURL(authReq, mfa.authenticator), false, nil
-	}
-
-	// MFA is satisfied — record it so a later /approval re-entry doesn't re-check.
-	if err := h.storage.UpdateAuthRequest(ctx, authReq.ID, func(a storage.AuthRequest) (storage.AuthRequest, error) {
-		a.MFAValidated = true
-		return a, nil
-	}); err != nil {
-		return "", false, fmt.Errorf("failed to update auth request MFA status: %v", err)
-	}
-
-	if _, ok := step.(issueStep); ok {
-		return "", true, nil
-	}
-	return h.BuildApprovalURL(authReq), false, nil
+	// The identity is persisted; return the finalized request so the caller can
+	// create the session and advance the flow.
+	return h.storage.GetAuthRequest(ctx, authReq.ID)
 }
 
 // Check for username prompt override from connector. Defaults to "Username".

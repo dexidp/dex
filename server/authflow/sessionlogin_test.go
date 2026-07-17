@@ -12,8 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexidp/dex/server/authflow/authcode"
-	"github.com/dexidp/dex/server/authflow/authreq"
 	"github.com/dexidp/dex/server/authflow/mfa"
 	"github.com/dexidp/dex/server/authflow/session"
 	"github.com/dexidp/dex/server/authflow/web"
@@ -46,7 +44,6 @@ func newTestSessionServer(t *testing.T) *Handler {
 	s.connectors = connectors.NewCache(s.storage, testResolveConnector)
 	s.sessions = session.New(s.storage, sessionCfg, s.now, slog.Default(), *issuerURL)
 	s.mfa = mfa.New(s.UI, s.storage, nil, slog.Default(), nil, nil, s.now, s.connectors)
-	s.authcode = authcode.New(s.UI, s.storage, nil, s.sessions, nil, s.now, slog.Default())
 	return s
 }
 
@@ -505,7 +502,7 @@ func TestTrySessionLogin(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 
-		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		ok := s.trySessionLogin(ctx, r, w, &authReq)
 		assert.False(t, ok)
 	})
 
@@ -517,7 +514,7 @@ func TestTrySessionLogin(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		ok := s.trySessionLogin(ctx, r, w, &authReq)
 		assert.True(t, ok)
 	})
 
@@ -535,7 +532,8 @@ func TestTrySessionLogin(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		redirectURL, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		ok := s.trySessionLogin(ctx, r, w, &authReq)
+		redirectURL := w.Header().Get("Location")
 		assert.True(t, ok)
 		assert.Contains(t, redirectURL, "/approval")
 		assert.Contains(t, redirectURL, "req="+authReq.ID)
@@ -549,7 +547,7 @@ func TestTrySessionLogin(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		ok := s.trySessionLogin(ctx, r, w, &authReq)
 		assert.True(t, ok)
 	})
 
@@ -561,7 +559,7 @@ func TestTrySessionLogin(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		ok := s.trySessionLogin(ctx, r, w, &authReq)
 		assert.False(t, ok)
 	})
 
@@ -573,7 +571,7 @@ func TestTrySessionLogin(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		ok := s.trySessionLogin(ctx, r, w, &authReq)
 		assert.False(t, ok)
 	})
 
@@ -619,7 +617,7 @@ func TestTrySessionLogin(t *testing.T) {
 		r := sessionCookieRequest("user-exp", "mock", "nonce-exp")
 		w := httptest.NewRecorder()
 
-		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		ok := s.trySessionLogin(ctx, r, w, &authReq)
 		assert.False(t, ok)
 	})
 
@@ -631,7 +629,7 @@ func TestTrySessionLogin(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		ok := s.trySessionLogin(ctx, r, w, &authReq)
 		require.True(t, ok)
 
 		session, err := s.storage.GetAuthSession(ctx, "user-1", "mock")
@@ -708,7 +706,7 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 		r.AddCookie(&http.Cookie{Name: "dex_session", Value: internal.SessionCookieValue("user-1", "mock", "test-nonce", nil)})
 		w := httptest.NewRecorder()
 
-		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		ok := s.trySessionLogin(ctx, r, w, &authReq)
 		assert.True(t, ok, "session should be reused when max_age is not specified")
 	})
 
@@ -724,7 +722,7 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 		r.AddCookie(&http.Cookie{Name: "dex_session", Value: internal.SessionCookieValue("user-1", "mock", "test-nonce", nil)})
 		w := httptest.NewRecorder()
 
-		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		ok := s.trySessionLogin(ctx, r, w, &authReq)
 		assert.True(t, ok, "session should be reused when max_age is satisfied")
 	})
 
@@ -740,7 +738,7 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 		r.AddCookie(&http.Cookie{Name: "dex_session", Value: internal.SessionCookieValue("user-1", "mock", "test-nonce", nil)})
 		w := httptest.NewRecorder()
 
-		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		ok := s.trySessionLogin(ctx, r, w, &authReq)
 		assert.False(t, ok, "session should NOT be reused when max_age is exceeded")
 	})
 
@@ -756,7 +754,7 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 		r.AddCookie(&http.Cookie{Name: "dex_session", Value: internal.SessionCookieValue("user-1", "mock", "test-nonce", nil)})
 		w := httptest.NewRecorder()
 
-		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		ok := s.trySessionLogin(ctx, r, w, &authReq)
 		assert.False(t, ok, "max_age=0 should always force re-authentication")
 	})
 
@@ -778,7 +776,8 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 		r.AddCookie(&http.Cookie{Name: "dex_session", Value: internal.SessionCookieValue("user-1", "mock", "test-nonce", nil)})
 		w := httptest.NewRecorder()
 
-		redirectURL, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		ok := s.trySessionLogin(ctx, r, w, &authReq)
+		redirectURL := w.Header().Get("Location")
 		require.True(t, ok)
 		assert.Contains(t, redirectURL, "/approval")
 
@@ -808,12 +807,12 @@ func TestTrySessionLoginWithSession_IDTokenHint(t *testing.T) {
 		require.NotNil(t, session)
 
 		// Verify hint matches.
-		assert.True(t, authreq.SessionMatchesHint(session, hintSubjectForUser1Mock))
+		assert.True(t, sessionMatchesHint(session, hintSubjectForUser1Mock))
 
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		assert.True(t, ok)
 	})
 
@@ -826,7 +825,7 @@ func TestTrySessionLoginWithSession_IDTokenHint(t *testing.T) {
 		require.NotNil(t, session)
 
 		// Verify hint does NOT match.
-		assert.False(t, authreq.SessionMatchesHint(session, hintSubjectOther))
+		assert.False(t, sessionMatchesHint(session, hintSubjectOther))
 
 		// Simulating the hint mismatch logic from handleConnectorLogin:
 		// when hint doesn't match and prompt is not none, session is set to nil.
@@ -834,7 +833,7 @@ func TestTrySessionLoginWithSession_IDTokenHint(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, nilSession)
+		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, nilSession)
 		assert.False(t, ok, "session login should fail when session is invalidated due to hint mismatch")
 	})
 
@@ -846,7 +845,7 @@ func TestTrySessionLoginWithSession_IDTokenHint(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 
-		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, nil)
+		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, nil)
 		assert.False(t, ok)
 	})
 
@@ -861,7 +860,7 @@ func TestTrySessionLoginWithSession_IDTokenHint(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		assert.True(t, ok)
 	})
 }
@@ -1162,7 +1161,7 @@ func TestTrySessionLogin_SSO(t *testing.T) {
 		session := s.sessions.ValidAuthSession(ctx, w, r, &authReq)
 		require.NotNil(t, session)
 
-		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		assert.True(t, ok, "SSO login should succeed")
 
 		// Verify client-b state was created in session
@@ -1236,7 +1235,7 @@ func TestTrySessionLogin_SSO(t *testing.T) {
 		session := s.sessions.ValidAuthSession(ctx, w, r, &authReq)
 		require.NotNil(t, session)
 
-		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		assert.True(t, ok, "SSO login should succeed")
 
 		updated, err := s.storage.GetAuthSession(ctx, "user-1", "mock")
@@ -1309,7 +1308,7 @@ func TestTrySessionLogin_SSO(t *testing.T) {
 		session := s.sessions.ValidAuthSession(ctx, w, r, &authReq)
 		require.NotNil(t, session)
 
-		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		assert.True(t, ok, "SSO login should succeed")
 
 		updated, err := s.storage.GetAuthSession(ctx, "user-1", "mock")
@@ -1365,7 +1364,7 @@ func TestTrySessionLogin_SSO(t *testing.T) {
 		session := s.sessions.ValidAuthSession(ctx, w, r, &authReq)
 		require.NotNil(t, session)
 
-		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		assert.False(t, ok, "SSO login should fail when client does not share")
 	})
 }
@@ -1408,7 +1407,8 @@ func TestFinishSessionLogin_MFA(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		redirectURL, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		ok := s.trySessionLogin(ctx, r, w, &authReq)
+		redirectURL := w.Header().Get("Location")
 		require.True(t, ok)
 		assert.Contains(t, redirectURL, "/mfa/totp", "should redirect to MFA page")
 		assert.Contains(t, redirectURL, "req="+authReq.ID, "redirect should include auth request ID")
@@ -1436,7 +1436,8 @@ func TestFinishSessionLogin_MFA(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		redirectURL, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		ok := s.trySessionLogin(ctx, r, w, &authReq)
+		redirectURL := w.Header().Get("Location")
 		require.True(t, ok)
 		assert.Contains(t, redirectURL, "/approval")
 	})
@@ -1511,9 +1512,10 @@ func TestPromptNone(t *testing.T) {
 		session := s.sessions.ValidAuthSession(ctx, w, r, &authReq)
 		require.NotNil(t, session)
 
-		redirectURL, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		redirectURL := w.Header().Get("Location")
 		require.True(t, ok, "session login should succeed")
-		assert.Empty(t, redirectURL, "should return empty URL when code is issued directly (silent auth)")
+		assert.Contains(t, redirectURL, "code=", "code should be issued directly to the client (silent auth)")
 	})
 
 	t.Run("valid session without consent returns approval URL", func(t *testing.T) {
@@ -1562,7 +1564,8 @@ func TestPromptNone(t *testing.T) {
 
 		// In handleConnectorLogin, a non-empty redirectURL with prompt=none
 		// triggers oauth2.InteractionRequired ("Consent required").
-		redirectURL, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		redirectURL := w.Header().Get("Location")
 		require.True(t, ok, "session login should succeed (user is authenticated)")
 		assert.Contains(t, redirectURL, "/approval", "should return approval URL when consent is missing")
 	})
@@ -1574,7 +1577,7 @@ func TestPromptNone(t *testing.T) {
 		w := httptest.NewRecorder()
 
 		// In handleConnectorLogin, this triggers oauth2.LoginRequired.
-		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		ok := s.trySessionLogin(ctx, r, w, &authReq)
 		assert.False(t, ok, "should fail without session")
 	})
 
@@ -1615,9 +1618,10 @@ func TestPromptNone(t *testing.T) {
 		session := s.sessions.ValidAuthSession(ctx, w, r, &authReq)
 		require.NotNil(t, session)
 
-		redirectURL, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		redirectURL := w.Header().Get("Location")
 		require.True(t, ok, "SSO silent login should succeed")
-		assert.Empty(t, redirectURL, "should issue code silently via SSO (skipApproval=true, openid-only)")
+		assert.Contains(t, redirectURL, "code=", "code should be issued silently via SSO (skipApproval=true, openid-only)")
 
 		// Verify SSO created a new client state.
 		updated, err := s.storage.GetAuthSession(ctx, "user-1", "mock")
@@ -1647,7 +1651,8 @@ func TestPromptNone(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		redirectURL, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		ok := s.trySessionLogin(ctx, r, w, &authReq)
+		redirectURL := w.Header().Get("Location")
 		require.True(t, ok)
 		assert.Contains(t, redirectURL, "/mfa/totp", "prompt=none with MFA should redirect to MFA page")
 	})
@@ -1673,7 +1678,8 @@ func TestPromptConsent(t *testing.T) {
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
 
-		redirectURL, ok := s.trySessionLogin(ctx, r, w, &authReq)
+		ok := s.trySessionLogin(ctx, r, w, &authReq)
+		redirectURL := w.Header().Get("Location")
 		require.True(t, ok)
 		assert.Contains(t, redirectURL, "/approval", "should show approval even though consent exists")
 	})
@@ -1739,7 +1745,8 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 		session := s.sessions.ValidAuthSession(ctx, w, r, &authReq)
 		require.NotNil(t, session)
 
-		redirectURL, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		redirectURL := w.Header().Get("Location")
 		require.True(t, ok, "SSO login should succeed")
 		assert.Contains(t, redirectURL, "/approval", "should show approval when target client has no consent")
 	})
@@ -1755,9 +1762,10 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 		session := s.sessions.ValidAuthSession(ctx, w, r, &authReq)
 		require.NotNil(t, session)
 
-		redirectURL, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		redirectURL := w.Header().Get("Location")
 		require.True(t, ok, "SSO login should succeed")
-		assert.Empty(t, redirectURL, "should skip approval when consent exists for target client")
+		assert.Contains(t, redirectURL, "code=", "should issue code to client (skip approval) when consent exists for target")
 	})
 
 	t.Run("SSO with MFA required on target client redirects to MFA", func(t *testing.T) {
@@ -1785,7 +1793,8 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 		session := s.sessions.ValidAuthSession(ctx, w, r, &authReq)
 		require.NotNil(t, session)
 
-		redirectURL, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		redirectURL := w.Header().Get("Location")
 		require.True(t, ok)
 		assert.Contains(t, redirectURL, "/mfa/totp", "SSO to MFA-requiring client should redirect to MFA")
 	})
@@ -1841,7 +1850,8 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 		session := s.sessions.ValidAuthSession(ctx, w, r, &authReq)
 		require.NotNil(t, session)
 
-		redirectURL, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		redirectURL := w.Header().Get("Location")
 		require.True(t, ok)
 		assert.Contains(t, redirectURL, "/mfa/totp",
 			"SSO from no-MFA source to MFA-requiring target must enforce MFA")
@@ -1961,7 +1971,7 @@ func TestIdleExpiryExtension(t *testing.T) {
 		session := s.sessions.ValidAuthSession(ctx, w, r, &authReq)
 		require.NotNil(t, session)
 
-		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		require.True(t, ok)
 
 		updated, err := s.storage.GetAuthSession(ctx, "user-1", "mock")
@@ -2024,7 +2034,7 @@ func TestSSO_Unidirectional(t *testing.T) {
 
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
-		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		assert.True(t, ok, "A→B SSO should succeed")
 	})
 
@@ -2044,7 +2054,7 @@ func TestSSO_Unidirectional(t *testing.T) {
 
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
-		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
+		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		assert.False(t, ok, "B→A SSO should fail because B does not share with A")
 	})
 }
@@ -2096,7 +2106,7 @@ func TestSSO_TransitiveTrustChain(t *testing.T) {
 		w := httptest.NewRecorder()
 		session := s.sessions.ValidAuthSession(ctx, w, r, &req)
 		require.NotNil(t, session)
-		_, ok := s.trySessionLoginWithSession(ctx, r, w, &req, session)
+		ok := s.trySessionLoginWithSession(ctx, r, w, &req, session)
 		return ok
 	}
 

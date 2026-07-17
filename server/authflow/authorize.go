@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/dexidp/dex/server/authflow/authreq"
 	conns "github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/templates"
@@ -103,14 +102,14 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 
 	// Skip connector selection if a valid session exists, unless prompt=select_account or alwaysShowLogin.
 	if h.sessions.Enabled() {
-		authReq, _, err := h.req.Parse(r)
+		authReq, _, err := h.parseAuthorizationRequest(r)
 		if err != nil {
 			h.logger.ErrorContext(r.Context(), "failed to parse authorization request", "err", err)
 
 			switch authErr := err.(type) {
-			case *authreq.RedirectedErr:
+			case *redirectedAuthErr:
 				authErr.Handler().ServeHTTP(w, r)
-			case *authreq.DisplayedErr:
+			case *displayedAuthErr:
 				h.RenderError(r, w, authErr.Status, err.Error())
 			default:
 				panic("unsupported error type")
@@ -120,7 +119,7 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		prompt, err := oauth2.ParsePrompt(authReq.Prompt)
 		if err != nil {
 			// Server error because authReq was validated before saving it to database.
-			authreq.RedirectWithError(w, r, authReq, oauth2.ServerError, "Invalid authentication request")
+			h.redirectWithError(w, r, authReq, oauth2.ServerError, "Invalid authentication request")
 			return
 		}
 
@@ -140,7 +139,7 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		}
 		if prompt.None() {
 			// Cannot authenticate silently with prompt=none.
-			authreq.RedirectWithError(w, r, authReq, oauth2.LoginRequired, "id_token_hint does not match authenticated user")
+			h.redirectWithError(w, r, authReq, oauth2.LoginRequired, "id_token_hint does not match authenticated user")
 			return
 		}
 	}
@@ -161,18 +160,18 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// getClientWithAuthError retrieves a client by ID and returns a authreq.DisplayedErr on failure.
+// getClientWithAuthError retrieves a client by ID and returns a displayedAuthErr on failure.
 // Invalid client_id is not treated as a redirect error per RFC 6749 §4.1.2.1.
 // https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.2.1
-func (h *Handler) getClientWithAuthError(ctx context.Context, clientID string) (storage.Client, *authreq.DisplayedErr) {
+func (h *Handler) getClientWithAuthError(ctx context.Context, clientID string) (storage.Client, *displayedAuthErr) {
 	client, err := h.storage.GetClient(ctx, clientID)
 	if err != nil {
 		if err == storage.ErrNotFound {
 			h.logger.ErrorContext(ctx, "invalid client_id provided", "client_id", clientID)
-			return storage.Client{}, authreq.NewDisplayedErr(http.StatusBadRequest, "Invalid client_id provided.")
+			return storage.Client{}, newDisplayedErr(http.StatusBadRequest, "Invalid client_id provided.")
 		}
 		h.logger.ErrorContext(ctx, "failed to get client", "client_id", clientID, "err", err)
-		return storage.Client{}, authreq.NewDisplayedErr(http.StatusInternalServerError, "Database error.")
+		return storage.Client{}, newDisplayedErr(http.StatusInternalServerError, "Database error.")
 	}
 	return client, nil
 }

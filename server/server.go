@@ -43,7 +43,6 @@ import (
 	"github.com/dexidp/dex/connector/saml"
 	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server/authflow"
-	"github.com/dexidp/dex/server/authflow/authreq"
 	"github.com/dexidp/dex/server/authflow/mfa"
 	"github.com/dexidp/dex/server/authflow/session"
 	"github.com/dexidp/dex/server/connectors"
@@ -116,7 +115,7 @@ type Config struct {
 	PasswordConnector string
 
 	// PKCE configuration
-	PKCE authreq.PKCEConfig
+	PKCE authflow.PKCEConfig
 
 	GCFrequency time.Duration // Defaults to 5 minutes
 
@@ -212,7 +211,7 @@ type Server struct {
 
 	supportedGrantTypes []string
 
-	pkce authreq.PKCEConfig
+	pkce authflow.PKCEConfig
 
 	now func() time.Time
 

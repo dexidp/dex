@@ -59,7 +59,7 @@ func (h *Handler) handleApproval(w http.ResponseWriter, r *http.Request) {
 		// needed. This also covers the MFA redirect case: after MFA completion the
 		// user lands here via GET and shouldn't see the consent screen again.
 		if _, ok := step.(issueStep); ok {
-			h.authcode.Send(w, r, authReq)
+			h.sendCodeResponse(w, r, authReq)
 			return
 		}
 
@@ -89,7 +89,7 @@ func (h *Handler) handleApproval(w http.ResponseWriter, r *http.Request) {
 				h.logger.ErrorContext(ctx, "failed to update user identity consents", "err", err)
 			}
 		}
-		h.authcode.Send(w, r, authReq)
+		h.sendCodeResponse(w, r, authReq)
 	}
 }
 

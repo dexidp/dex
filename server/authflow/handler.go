@@ -1,18 +1,3 @@
-// Package authflow implements dex's interactive browser-facing authorization
-// flow: the /auth authorization endpoint, connector and password login, the
-// session (SSO) shortcut, MFA (TOTP and WebAuthn), the consent/approval screen,
-// and RP-initiated logout.
-//
-// The flow is a state machine over a storage.AuthRequest. Two abstractions keep
-// it honest:
-//
-//   - nextAuthStep (nextstep.go) is the single, data-oriented decision for what
-//     a logged-in request needs next — an MFA factor, consent, or issuing the
-//     code — in the spirit of zitadel's nextSteps. The handlers dispatch on its
-//     typed result; they don't re-derive the decision.
-//   - responseTypeHandler (approval.go) issues the authorization response, one
-//     self-selecting handler per OAuth2 response_type, in the spirit of fosite's
-//     AuthorizeEndpointHandler.
 package authflow
 
 import (
@@ -22,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dexidp/dex/server/authflow/authcode"
-	"github.com/dexidp/dex/server/authflow/authreq"
 	"github.com/dexidp/dex/server/authflow/mfa"
 	"github.com/dexidp/dex/server/authflow/session"
 	"github.com/dexidp/dex/server/authflow/web"
@@ -50,7 +33,7 @@ type Config struct {
 	SkipApproval           bool
 	AlwaysShowLogin        bool
 	SupportedResponseTypes map[string]bool
-	PKCE                   authreq.PKCEConfig
+	PKCE                   PKCEConfig
 	AuthRequestsValidFor   time.Duration
 	SessionConfig          *session.Config
 	MFAProviders           map[string]mfa.Provider
@@ -63,24 +46,24 @@ type Config struct {
 type Handler struct {
 	*web.UI
 
-	connectors           *connectors.Cache
-	storage              storage.Storage
-	templates            *templates.Templates
-	logger               *slog.Logger
-	issuer               *tokens.Issuer
-	now                  func() time.Time
-	skipApproval         bool
-	alwaysShowLogin      bool
-	authRequestsValidFor time.Duration
+	connectors             *connectors.Cache
+	storage                storage.Storage
+	templates              *templates.Templates
+	logger                 *slog.Logger
+	issuer                 *tokens.Issuer
+	signer                 signer.Signer
+	issuerURL              url.URL
+	pkce                   PKCEConfig
+	supportedResponseTypes map[string]bool
+	now                    func() time.Time
+	skipApproval           bool
+	alwaysShowLogin        bool
+	authRequestsValidFor   time.Duration
 
-	// req parses and validates the /auth authorization request.
-	req *authreq.Parser
 	// sessions owns the session cookie, SSO lookup and auth-session CRUD.
 	sessions *session.Manager
 	// mfa owns the authenticator chain and the TOTP/WebAuthn endpoints.
 	mfa *mfa.Manager
-	// authcode issues the authorization-code and token response.
-	authcode *authcode.Issuer
 }
 
 // NewHandler builds the interactive auth-flow handler from its configuration.
@@ -88,20 +71,22 @@ func NewHandler(c Config) *Handler {
 	ui := web.New(c.Templates, c.IssuerURL, c.Logger)
 	sessions := session.New(c.Storage, c.SessionConfig, c.Now, c.Logger, c.IssuerURL)
 	return &Handler{
-		UI:                   ui,
-		connectors:           c.Connectors,
-		storage:              c.Storage,
-		templates:            c.Templates,
-		logger:               c.Logger,
-		issuer:               c.Issuer,
-		now:                  c.Now,
-		skipApproval:         c.SkipApproval,
-		alwaysShowLogin:      c.AlwaysShowLogin,
-		authRequestsValidFor: c.AuthRequestsValidFor,
-		req:                  authreq.New(c.Storage, c.Logger, c.Signer, c.IssuerURL, c.PKCE, c.SupportedResponseTypes),
-		sessions:             sessions,
-		mfa:                  mfa.New(ui, c.Storage, c.Templates, c.Logger, c.MFAProviders, c.DefaultMFAChain, c.Now, c.Connectors),
-		authcode:             authcode.New(ui, c.Storage, c.Issuer, sessions, c.Templates, c.Now, c.Logger),
+		UI:                     ui,
+		connectors:             c.Connectors,
+		storage:                c.Storage,
+		templates:              c.Templates,
+		logger:                 c.Logger,
+		issuer:                 c.Issuer,
+		signer:                 c.Signer,
+		issuerURL:              c.IssuerURL,
+		pkce:                   c.PKCE,
+		supportedResponseTypes: c.SupportedResponseTypes,
+		now:                    c.Now,
+		skipApproval:           c.SkipApproval,
+		alwaysShowLogin:        c.AlwaysShowLogin,
+		authRequestsValidFor:   c.AuthRequestsValidFor,
+		sessions:               sessions,
+		mfa:                    mfa.New(ui, c.Storage, c.Templates, c.Logger, c.MFAProviders, c.DefaultMFAChain, c.Now, c.Connectors),
 	}
 }
 

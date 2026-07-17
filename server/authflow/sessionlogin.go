@@ -8,16 +8,16 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
-func (h *Handler) trySessionLogin(ctx context.Context, r *http.Request, w http.ResponseWriter, authReq *storage.AuthRequest) (string, bool) {
+func (h *Handler) trySessionLogin(ctx context.Context, r *http.Request, w http.ResponseWriter, authReq *storage.AuthRequest) bool {
 	session := h.sessions.ValidAuthSession(ctx, w, r, authReq)
 	return h.trySessionLoginWithSession(ctx, r, w, authReq, session)
 }
 
 // clientSharesSessionWith checks if sourceClient shares its session with targetClientID.
 // SSO sharing is unidirectional: source sharing with target does NOT mean target shares with source.
-func (h *Handler) trySessionLoginWithSession(ctx context.Context, r *http.Request, w http.ResponseWriter, authReq *storage.AuthRequest, session *storage.AuthSession) (string, bool) {
+func (h *Handler) trySessionLoginWithSession(ctx context.Context, r *http.Request, w http.ResponseWriter, authReq *storage.AuthRequest, session *storage.AuthSession) bool {
 	if session == nil {
-		return "", false
+		return false
 	}
 
 	now := h.now()
@@ -29,7 +29,7 @@ func (h *Handler) trySessionLoginWithSession(ctx context.Context, r *http.Reques
 		// No direct session for this client — try SSO from a sharing client.
 		sourceState := h.sessions.FindSSO(ctx, session, authReq.ClientID)
 		if sourceState == nil {
-			return "", false
+			return false
 		}
 
 		// Cap the derived state expiry at min(configured lifetime, source state expiry).
@@ -54,7 +54,7 @@ func (h *Handler) trySessionLoginWithSession(ctx context.Context, r *http.Reques
 			return old, nil
 		}); err != nil {
 			h.logger.ErrorContext(ctx, "session: failed to create SSO client state", "err", err)
-			return "", false
+			return false
 		}
 
 		h.logger.DebugContext(ctx, "session: SSO login from sharing client",
@@ -65,13 +65,13 @@ func (h *Handler) trySessionLoginWithSession(ctx context.Context, r *http.Reques
 	ui, err := h.storage.GetUserIdentity(ctx, session.UserID, session.ConnectorID)
 	if err != nil {
 		h.logger.ErrorContext(ctx, "session: failed to get user identity", "err", err)
-		return "", false
+		return false
 	}
 
 	// Check max_age: if the user's last authentication is too old, force re-auth.
 	if authReq.MaxAge >= 0 {
 		if now.Sub(ui.LastLogin) > time.Duration(authReq.MaxAge)*time.Second {
-			return "", false
+			return false
 		}
 	}
 
@@ -85,7 +85,7 @@ func (h *Handler) trySessionLoginWithSession(ctx context.Context, r *http.Reques
 
 // finishSessionLogin completes a session-based login (direct or SSO) by updating the auth request
 // with the user's identity, refreshing session activity, and returning the appropriate redirect URL.
-func (h *Handler) finishSessionLogin(ctx context.Context, r *http.Request, w http.ResponseWriter, authReq *storage.AuthRequest, session *storage.AuthSession, ui *storage.UserIdentity, now time.Time) (string, bool) {
+func (h *Handler) finishSessionLogin(ctx context.Context, r *http.Request, w http.ResponseWriter, authReq *storage.AuthRequest, session *storage.AuthSession, ui *storage.UserIdentity, now time.Time) bool {
 	claims := storage.Claims{
 		UserID:            ui.Claims.UserID,
 		Username:          ui.Claims.Username,
@@ -104,7 +104,7 @@ func (h *Handler) finishSessionLogin(ctx context.Context, r *http.Request, w htt
 		return a, nil
 	}); err != nil {
 		h.logger.ErrorContext(ctx, "session: failed to update auth request", "err", err)
-		return "", false
+		return false
 	}
 
 	// Update session activity.
@@ -122,22 +122,10 @@ func (h *Handler) finishSessionLogin(ctx context.Context, r *http.Request, w htt
 	updated, err := h.storage.GetAuthRequest(ctx, authReq.ID)
 	if err != nil {
 		h.logger.ErrorContext(ctx, "session: failed to get auth request", "err", err)
-		return "", false
+		return false
 	}
-	step, err := h.nextAuthStep(ctx, &updated)
-	if err != nil {
-		h.logger.ErrorContext(ctx, "session: failed to determine next auth step", "err", err)
-		return "", false
-	}
-	switch st := step.(type) {
-	case mfaStep:
-		return h.mfa.BuildRedirectURL(updated, st.authenticator), true
-	case issueStep:
-		h.authcode.Send(w, r, updated)
-		return "", true
-	default: // approvalStep
-		return h.BuildApprovalURL(updated), true
-	}
+	h.advance(w, r, updated)
+	return true
 }
 
 // updateSessionTokenIssuedAt updates the session's LastTokenIssuedAt for the given client.

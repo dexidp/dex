@@ -1,64 +1,45 @@
-// Package authcode issues the authorization response once the flow is complete:
-// it mints the auth code and, for implicit/hybrid flows, the access and ID
-// tokens, then redirects (or renders the OOB page). One self-selecting handler
-// per response_type populates a shared authResponse — fosite's
-// AuthorizeEndpointHandler model.
-package authcode
+package authflow
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"slices"
 	"strconv"
 	"time"
 
-	"github.com/dexidp/dex/server/authflow/session"
-	"github.com/dexidp/dex/server/authflow/web"
 	"github.com/dexidp/dex/server/oauth2"
-	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
-// Issuer issues authorization-code and token responses.
-type Issuer struct {
-	*web.UI
-	storage     storage.Storage
-	tokenIssuer *tokens.Issuer
-	sessions    *session.Manager
-	templates   *templates.Templates
-	now         func() time.Time
-	logger      *slog.Logger
-}
+// response.go issues the authorization response once the flow completes: it mints
+// the auth code and, for implicit/hybrid flows, the access and ID tokens, then
+// redirects (or renders the OOB page). One self-selecting handler per
+// response_type populates a shared authResponse (fosite's AuthorizeEndpointHandler
+// model).
 
-// New builds an Issuer.
-func New(ui *web.UI, store storage.Storage, tokenIssuer *tokens.Issuer, sessions *session.Manager, tmpls *templates.Templates, now func() time.Time, logger *slog.Logger) *Issuer {
-	return &Issuer{UI: ui, storage: store, tokenIssuer: tokenIssuer, sessions: sessions, templates: tmpls, now: now, logger: logger}
-}
-
-func (i *Issuer) Send(w http.ResponseWriter, r *http.Request, authReq storage.AuthRequest) {
-	i.sessions.UpdateTokenIssuedAt(r, authReq.ClientID)
+func (h *Handler) sendCodeResponse(w http.ResponseWriter, r *http.Request, authReq storage.AuthRequest) {
+	h.sessions.UpdateTokenIssuedAt(r, authReq.ClientID)
 
 	ctx := r.Context()
-	if i.now().After(authReq.Expiry) {
-		i.RenderError(r, w, http.StatusBadRequest, "User session has expired.")
+	if h.now().After(authReq.Expiry) {
+		h.RenderError(r, w, http.StatusBadRequest, "User session has expired.")
 		return
 	}
 
-	if err := i.storage.DeleteAuthRequest(ctx, authReq.ID); err != nil {
+	if err := h.storage.DeleteAuthRequest(ctx, authReq.ID); err != nil {
 		if err != storage.ErrNotFound {
-			i.logger.ErrorContext(r.Context(), "Failed to delete authorization request", "err", err)
-			i.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+			h.logger.ErrorContext(r.Context(), "Failed to delete authorization request", "err", err)
+			h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
 		} else {
-			i.RenderError(r, w, http.StatusBadRequest, "User session error.")
+			h.RenderError(r, w, http.StatusBadRequest, "User session error.")
 		}
 		return
 	}
 	u, err := url.Parse(authReq.RedirectURI)
 	if err != nil {
-		i.RenderError(r, w, http.StatusInternalServerError, "Invalid redirect URI.")
+		h.RenderError(r, w, http.StatusInternalServerError, "Invalid redirect URI.")
 		return
 	}
 
@@ -67,9 +48,9 @@ func (i *Issuer) Send(w http.ResponseWriter, r *http.Request, authReq storage.Au
 	// Order matters: the code and access token feed the id_token signature.
 	resp := &authResponse{}
 	for _, handle := range []responseTypeHandler{
-		i.issueCode,
-		i.issueAccessToken,
-		i.issueIDToken,
+		h.issueCode,
+		h.issueAccessToken,
+		h.issueIDToken,
 	} {
 		if !handle(ctx, w, r, authReq, resp) {
 			return // the handler already wrote the response (error or OOB)
@@ -87,7 +68,7 @@ func (i *Issuer) Send(w http.ResponseWriter, r *http.Request, authReq storage.Au
 			//
 			// https://openid.net/specs/openid-connect-core-1_0.html#HybridAuthResponse
 			if resp.code.ID == "" {
-				v.Set("expires_in", strconv.Itoa(int(resp.idTokenExpiry.Sub(i.now()).Seconds())))
+				v.Set("expires_in", strconv.Itoa(int(resp.idTokenExpiry.Sub(h.now()).Seconds())))
 			}
 		}
 		v.Set("state", authReq.State)
@@ -151,7 +132,7 @@ type authResponse struct {
 type responseTypeHandler func(ctx context.Context, w http.ResponseWriter, r *http.Request, authReq storage.AuthRequest, resp *authResponse) bool
 
 // issueCode handles the "code" response_type: it mints and stores an auth code.
-func (i *Issuer) issueCode(ctx context.Context, w http.ResponseWriter, r *http.Request, authReq storage.AuthRequest, resp *authResponse) bool {
+func (h *Handler) issueCode(ctx context.Context, w http.ResponseWriter, r *http.Request, authReq storage.AuthRequest, resp *authResponse) bool {
 	if !slices.Contains(authReq.ResponseTypes, oauth2.ResponseTypeCode) {
 		return true
 	}
@@ -162,23 +143,23 @@ func (i *Issuer) issueCode(ctx context.Context, w http.ResponseWriter, r *http.R
 		Nonce:         authReq.Nonce,
 		Scopes:        authReq.Scopes,
 		Claims:        authReq.Claims,
-		Expiry:        i.now().Add(time.Minute * 30),
+		Expiry:        h.now().Add(time.Minute * 30),
 		RedirectURI:   authReq.RedirectURI,
 		ConnectorData: authReq.ConnectorData,
 		PKCE:          authReq.PKCE,
 		AuthTime:      authReq.AuthTime,
 	}
-	if err := i.storage.CreateAuthCode(ctx, resp.code); err != nil {
-		i.logger.ErrorContext(r.Context(), "Failed to create auth code", "err", err)
-		i.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+	if err := h.storage.CreateAuthCode(ctx, resp.code); err != nil {
+		h.logger.ErrorContext(r.Context(), "Failed to create auth code", "err", err)
+		h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
 		return false
 	}
 
 	// Implicit and hybrid flows that try to use the OOB redirect URI are
 	// rejected earlier. If we got here we're using the code flow.
 	if authReq.RedirectURI == oauth2.RedirectURIOOB {
-		if err := i.templates.OOB(r, w, resp.code.ID); err != nil {
-			i.logger.ErrorContext(r.Context(), "server template error", "err", err)
+		if err := h.templates.OOB(r, w, resp.code.ID); err != nil {
+			h.logger.ErrorContext(r.Context(), "server template error", "err", err)
 		}
 		return false // OOB fully rendered the response
 	}
@@ -186,12 +167,12 @@ func (i *Issuer) issueCode(ctx context.Context, w http.ResponseWriter, r *http.R
 }
 
 // issueAccessToken handles the "token" response_type: it signs an access token.
-func (i *Issuer) issueAccessToken(ctx context.Context, w http.ResponseWriter, r *http.Request, authReq storage.AuthRequest, resp *authResponse) bool {
+func (h *Handler) issueAccessToken(ctx context.Context, w http.ResponseWriter, r *http.Request, authReq storage.AuthRequest, resp *authResponse) bool {
 	if !slices.Contains(authReq.ResponseTypes, oauth2.ResponseTypeToken) {
 		return true
 	}
 	resp.implicitOrHybrid = true
-	accessToken, _, err := i.tokenIssuer.SignAccessToken(ctx, tokens.Authorization{
+	accessToken, _, err := h.issuer.SignAccessToken(ctx, tokens.Authorization{
 		Client:      storage.Client{ID: authReq.ClientID},
 		Claims:      authReq.Claims,
 		Scopes:      authReq.Scopes,
@@ -200,8 +181,8 @@ func (i *Issuer) issueAccessToken(ctx context.Context, w http.ResponseWriter, r 
 		AuthTime:    authReq.AuthTime,
 	})
 	if err != nil {
-		i.logger.ErrorContext(r.Context(), "failed to create new access token", "err", err)
-		i.tokenErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
+		h.logger.ErrorContext(r.Context(), "failed to create new access token", "err", err)
+		h.tokenErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
 		return false
 	}
 	resp.accessToken = accessToken
@@ -210,12 +191,12 @@ func (i *Issuer) issueAccessToken(ctx context.Context, w http.ResponseWriter, r 
 
 // issueIDToken handles the "id_token" response_type. It runs after issueCode and
 // issueAccessToken because the id_token signature binds the code and access token.
-func (i *Issuer) issueIDToken(ctx context.Context, w http.ResponseWriter, r *http.Request, authReq storage.AuthRequest, resp *authResponse) bool {
+func (h *Handler) issueIDToken(ctx context.Context, w http.ResponseWriter, r *http.Request, authReq storage.AuthRequest, resp *authResponse) bool {
 	if !slices.Contains(authReq.ResponseTypes, oauth2.ResponseTypeIDToken) {
 		return true
 	}
 	resp.implicitOrHybrid = true
-	idToken, idTokenExpiry, err := i.tokenIssuer.SignIDToken(ctx, tokens.Authorization{
+	idToken, idTokenExpiry, err := h.issuer.SignIDToken(ctx, tokens.Authorization{
 		Client:      storage.Client{ID: authReq.ClientID},
 		Claims:      authReq.Claims,
 		Scopes:      authReq.Scopes,
@@ -224,8 +205,8 @@ func (i *Issuer) issueIDToken(ctx context.Context, w http.ResponseWriter, r *htt
 		AuthTime:    authReq.AuthTime,
 	}, resp.accessToken, resp.code.ID)
 	if err != nil {
-		i.logger.ErrorContext(r.Context(), "failed to create ID token", "err", err)
-		i.tokenErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
+		h.logger.ErrorContext(r.Context(), "failed to create ID token", "err", err)
+		h.tokenErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
 		return false
 	}
 	resp.idToken = idToken
@@ -236,8 +217,8 @@ func (i *Issuer) issueIDToken(ctx context.Context, w http.ResponseWriter, r *htt
 // scopesCoveredByConsent checks whether the approved scopes cover all requested scopes.
 // The openid scope is excluded from the comparison as it is a technical scope
 // that does not require user consent.
-func (i *Issuer) tokenErrHelper(w http.ResponseWriter, typ string, description string, statusCode int) {
+func (h *Handler) tokenErrHelper(w http.ResponseWriter, typ string, description string, statusCode int) {
 	if err := oauth2.WriteError(w, typ, description, statusCode); err != nil {
-		i.logger.Error("token error response", "err", err)
+		h.logger.Error("token error response", "err", err)
 	}
 }
