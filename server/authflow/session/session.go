@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/dexidp/dex/server/internal"
-	"github.com/dexidp/dex/server/log"
+	"github.com/dexidp/dex/server/reqctx"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -54,7 +54,7 @@ func (m *Manager) RememberMeDefault() *bool {
 
 // remoteIP returns the real IP from context (set by parseRealIP middleware) or falls back to r.RemoteAddr.
 func remoteIP(r *http.Request) string {
-	if ip, ok := r.Context().Value(log.RequestKeyRemoteIP).(string); ok && ip != "" {
+	if ip, ok := r.Context().Value(reqctx.RequestKeyRemoteIP).(string); ok && ip != "" {
 		return ip
 	}
 	return r.RemoteAddr

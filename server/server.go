@@ -51,9 +51,9 @@ import (
 	"github.com/dexidp/dex/server/grants"
 	"github.com/dexidp/dex/server/home"
 	"github.com/dexidp/dex/server/introspection"
-	"github.com/dexidp/dex/server/log"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/passwords"
+	"github.com/dexidp/dex/server/reqctx"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/templates"
@@ -566,12 +566,12 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 
 			// Context values are used for logging purposes with the log/slog logger.
 			rCtx := r.Context()
-			rCtx = log.WithRequestID(rCtx)
+			rCtx = reqctx.WithRequestID(rCtx)
 
 			if c.RealIPHeader != "" {
 				realIP, err := parseRealIP(r)
 				if err == nil {
-					rCtx = log.WithRemoteIP(rCtx, realIP)
+					rCtx = reqctx.WithRemoteIP(rCtx, realIP)
 				}
 			}
 

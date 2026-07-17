@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/dexidp/dex/server/log"
+	"github.com/dexidp/dex/server/reqctx"
 )
 
 var logFormats = []string{"json", "text"}
@@ -49,12 +49,12 @@ func (h requestContextHandler) Enabled(ctx context.Context, level slog.Level) bo
 }
 
 func (h requestContextHandler) Handle(ctx context.Context, record slog.Record) error {
-	if v, ok := ctx.Value(log.RequestKeyRemoteIP).(string); ok {
-		record.AddAttrs(slog.String(string(log.RequestKeyRemoteIP), v))
+	if v, ok := ctx.Value(reqctx.RequestKeyRemoteIP).(string); ok {
+		record.AddAttrs(slog.String(string(reqctx.RequestKeyRemoteIP), v))
 	}
 
-	if v, ok := ctx.Value(log.RequestKeyRequestID).(string); ok {
-		record.AddAttrs(slog.String(string(log.RequestKeyRequestID), v))
+	if v, ok := ctx.Value(reqctx.RequestKeyRequestID).(string); ok {
+		record.AddAttrs(slog.String(string(reqctx.RequestKeyRequestID), v))
 	}
 
 	return h.handler.Handle(ctx, record)
