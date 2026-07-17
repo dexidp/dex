@@ -331,6 +331,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		}
 	}
 	sort.Strings(supportedGrants)
+	c.Logger.Debug("dex config: ", slog.String("supported_grants", strings.Join(supportedGrants, ", ")))
 
 	webFS := web.FS()
 	if c.Web.Dir != "" {
@@ -534,7 +535,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	handleFunc("/auth", s.handleAuthorization)
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
 	handleFunc("/auth/{connector}/login", s.handlePasswordLogin)
-	if contains(s.supportedGrantTypes, grantTypeDeviceCode) {
+	if slices.Contains(s.supportedGrantTypes, grantTypeDeviceCode) {
 		handleFunc("/device", s.handleDeviceExchange)
 		handleFunc("/device/auth/verify_code", s.verifyUserCode)
 		handleFunc("/device/code", s.handleDeviceCode)
