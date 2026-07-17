@@ -86,7 +86,7 @@ func (h *Handler) handleApproval(w http.ResponseWriter, r *http.Request) {
 				h.logger.ErrorContext(ctx, "failed to update user identity consents", "err", err)
 			}
 		}
-		h.sendCodeResponse(w, r, authReq)
+		h.issue.WriteResponse(w, r, authReq)
 	}
 }
 

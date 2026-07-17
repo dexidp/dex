@@ -36,7 +36,7 @@ func (approvalStep) run(h *Handler, w http.ResponseWriter, r *http.Request, auth
 type issueStep struct{}
 
 func (issueStep) run(h *Handler, w http.ResponseWriter, r *http.Request, authReq storage.AuthRequest) {
-	h.sendCodeResponse(w, r, authReq)
+	h.issue.WriteResponse(w, r, authReq)
 }
 
 // nextAuthStep decides what a logged-in auth request needs next: an MFA factor,

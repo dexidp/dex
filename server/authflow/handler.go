@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dexidp/dex/server/authflow/issue"
 	"github.com/dexidp/dex/server/authflow/mfa"
 	"github.com/dexidp/dex/server/authflow/session"
 	"github.com/dexidp/dex/server/authflow/web"
@@ -64,6 +65,8 @@ type Handler struct {
 	sessions *session.Manager
 	// mfa owns the authenticator chain and the TOTP/WebAuthn endpoints.
 	mfa *mfa.Manager
+	// issue writes the authorization response back to the client.
+	issue *issue.Writer
 }
 
 // NewHandler builds the interactive auth-flow handler from its configuration.
@@ -87,6 +90,7 @@ func NewHandler(c Config) *Handler {
 		authRequestsValidFor:   c.AuthRequestsValidFor,
 		sessions:               sessions,
 		mfa:                    &mfa.Manager{UI: ui, Storage: c.Storage, Templates: c.Templates, Logger: c.Logger, MFAProviders: c.MFAProviders, DefaultMFAChain: c.DefaultMFAChain, Now: c.Now, Connectors: c.Connectors},
+		issue:                  &issue.Writer{UI: ui, Storage: c.Storage, Templates: c.Templates, Logger: c.Logger, Issuer: c.Issuer, Sessions: sessions, Now: c.Now},
 	}
 }
 
