@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/authflow/authreq"
 	"github.com/dexidp/dex/server/authflow/mfa"
 	"github.com/dexidp/dex/server/authflow/session"
 	"github.com/dexidp/dex/server/authflow/web"
@@ -36,11 +37,10 @@ func newTestSessionServer(t *testing.T) *Handler {
 		ValidIfNotUsedFor: 1 * time.Hour,
 	}
 	s := &Handler{
-		storage:   memory.New(nil),
-		now:       func() time.Time { return now },
-		issuerURL: *issuerURL,
-		logger:    slog.Default(),
-		UI:        web.New(nil, *issuerURL, slog.Default()),
+		storage: memory.New(nil),
+		now:     func() time.Time { return now },
+		logger:  slog.Default(),
+		UI:      web.New(nil, *issuerURL, slog.Default()),
 	}
 	s.connectors = connectors.NewCache(s.storage, testResolveConnector)
 	s.sessions = session.New(s.storage, sessionCfg, s.now, slog.Default(), *issuerURL)
@@ -806,7 +806,7 @@ func TestTrySessionLoginWithSession_IDTokenHint(t *testing.T) {
 		require.NotNil(t, session)
 
 		// Verify hint matches.
-		assert.True(t, sessionMatchesHint(session, hintSubjectForUser1Mock))
+		assert.True(t, authreq.SessionMatchesHint(session, hintSubjectForUser1Mock))
 
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
 		w := httptest.NewRecorder()
@@ -824,7 +824,7 @@ func TestTrySessionLoginWithSession_IDTokenHint(t *testing.T) {
 		require.NotNil(t, session)
 
 		// Verify hint does NOT match.
-		assert.False(t, sessionMatchesHint(session, hintSubjectOther))
+		assert.False(t, authreq.SessionMatchesHint(session, hintSubjectOther))
 
 		// Simulating the hint mismatch logic from handleConnectorLogin:
 		// when hint doesn't match and prompt is not none, session is set to nil.
@@ -944,7 +944,7 @@ func TestClientSharesSessionWith(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newTestSessionServer(t)
-			resetSessions(s, &session.Config{CookieName: "dex_session", AbsoluteLifetime: 24 * time.Hour, ValidIfNotUsedFor: time.Hour, SSOSharedWithDefault: tt.defaultPolicy}, s.issuerURL)
+			resetSessions(s, &session.Config{CookieName: "dex_session", AbsoluteLifetime: 24 * time.Hour, ValidIfNotUsedFor: time.Hour, SSOSharedWithDefault: tt.defaultPolicy}, url.URL{})
 
 			client := storage.Client{
 				ID:            "source-client",
@@ -1065,7 +1065,7 @@ func TestFindSSOSession(t *testing.T) {
 
 	t.Run("wildcard SSO with default all", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		resetSessions(s, &session.Config{CookieName: "dex_session", AbsoluteLifetime: 24 * time.Hour, ValidIfNotUsedFor: time.Hour, SSOSharedWithDefault: "all"}, s.issuerURL)
+		resetSessions(s, &session.Config{CookieName: "dex_session", AbsoluteLifetime: 24 * time.Hour, ValidIfNotUsedFor: time.Hour, SSOSharedWithDefault: "all"}, url.URL{})
 		now := s.now()
 
 		// Client with nil SSOSharedWith — uses default "all"

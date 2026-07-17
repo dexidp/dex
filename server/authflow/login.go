@@ -16,6 +16,7 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/featureflags"
+	"github.com/dexidp/dex/server/authflow/authreq"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
@@ -24,14 +25,14 @@ import (
 
 func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	authReq, hintSubject, err := h.parseAuthorizationRequest(r)
+	authReq, hintSubject, err := h.req.Parse(r)
 	if err != nil {
 		h.logger.ErrorContext(r.Context(), "failed to parse authorization request", "err", err)
 
 		switch authErr := err.(type) {
-		case *redirectedAuthErr:
+		case *authreq.RedirectedErr:
 			authErr.Handler().ServeHTTP(w, r)
-		case *displayedAuthErr:
+		case *authreq.DisplayedErr:
 			h.RenderError(r, w, authErr.Status, err.Error())
 		default:
 			panic("unsupported error type")
@@ -98,7 +99,7 @@ func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	prompt, err := oauth2.ParsePrompt(authReq.Prompt)
 	if err != nil {
 		// Server error because authReq was validated before saving it to database.
-		h.redirectWithError(w, r, authReq, oauth2.ServerError, "Invalid authentication request")
+		authreq.RedirectWithError(w, r, authReq, oauth2.ServerError, "Invalid authentication request")
 		return
 	}
 	// handle prompt only if sessions are enabled
@@ -109,13 +110,13 @@ func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		// id_token_hint logic (OIDC Core 1.0 3.1.2.1):
 		// When a hint is provided, verify that the session user matches.
 		if hintSubject != "" {
-			if !sessionMatchesHint(session, hintSubject) {
+			if !authreq.SessionMatchesHint(session, hintSubject) {
 				// Clear the session if the user is different from the hint.
 				session = nil
 			}
 			if session == nil && prompt.None() {
 				// Cannot authenticate silently with prompt=none.
-				h.redirectWithError(w, r, authReq, oauth2.LoginRequired, "id_token_hint does not match authenticated user")
+				authreq.RedirectWithError(w, r, authReq, oauth2.LoginRequired, "id_token_hint does not match authenticated user")
 				return
 			}
 		}
@@ -124,12 +125,12 @@ func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		if prompt.None() {
 			redirectURL, ok := h.trySessionLoginWithSession(ctx, r, w, authReq, session)
 			if !ok {
-				h.redirectWithError(w, r, authReq, oauth2.LoginRequired, "User not authenticated")
+				authreq.RedirectWithError(w, r, authReq, oauth2.LoginRequired, "User not authenticated")
 				return
 			}
 			if redirectURL != "" {
 				// Session found but user interaction is needed (consent or MFA) — no UI allowed.
-				h.redirectWithError(w, r, authReq, oauth2.InteractionRequired, "User interaction required")
+				authreq.RedirectWithError(w, r, authReq, oauth2.InteractionRequired, "User interaction required")
 				return
 			}
 			return

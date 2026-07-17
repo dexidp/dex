@@ -1,4 +1,4 @@
-package authflow
+package authreq
 
 import (
 	"crypto/rand"
@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexidp/dex/server/authflow/web"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/tokens"
@@ -84,7 +83,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"response_type": "code",
 				"scope":         "openid email profile",
 			},
-			expectedError: &displayedAuthErr{Status: http.StatusNotFound},
+			expectedError: &DisplayedErr{Status: http.StatusNotFound},
 		},
 		{
 			name: "invalid redirect uri",
@@ -101,7 +100,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"response_type": "code",
 				"scope":         "openid email profile",
 			},
-			expectedError: &displayedAuthErr{Status: http.StatusBadRequest},
+			expectedError: &DisplayedErr{Status: http.StatusBadRequest},
 		},
 		{
 			name: "implicit flow",
@@ -134,7 +133,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"response_type": "code id_token",
 				"scope":         "openid email profile",
 			},
-			expectedError: &redirectedAuthErr{Type: oauth2.UnsupportedResponseType},
+			expectedError: &RedirectedErr{Type: oauth2.UnsupportedResponseType},
 		},
 		{
 			name: "only token response type",
@@ -151,7 +150,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"response_type": "token",
 				"scope":         "openid email profile",
 			},
-			expectedError: &redirectedAuthErr{Type: oauth2.InvalidRequest},
+			expectedError: &RedirectedErr{Type: oauth2.InvalidRequest},
 		},
 		{
 			name: "choose connector_id",
@@ -203,7 +202,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"response_type": "code id_token",
 				"scope":         "openid email profile",
 			},
-			expectedError: &redirectedAuthErr{Type: oauth2.InvalidRequest},
+			expectedError: &RedirectedErr{Type: oauth2.InvalidRequest},
 		},
 		{
 			name: "PKCE code_challenge_method plain",
@@ -275,7 +274,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"code_challenge_method": "invalid_method",
 				"scope":                 "openid email profile",
 			},
-			expectedError: &redirectedAuthErr{Type: oauth2.InvalidRequest},
+			expectedError: &RedirectedErr{Type: oauth2.InvalidRequest},
 		},
 		{
 			name: "No response type",
@@ -293,7 +292,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"code_challenge_method": "plain",
 				"scope":                 "openid email profile",
 			},
-			expectedError: &redirectedAuthErr{Type: oauth2.InvalidRequest},
+			expectedError: &RedirectedErr{Type: oauth2.InvalidRequest},
 		},
 		{
 			name: "PKCE enforced, no code_challenge provided",
@@ -314,7 +313,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"response_type": "code",
 				"scope":         "openid email profile",
 			},
-			expectedError: &redirectedAuthErr{Type: oauth2.InvalidRequest},
+			expectedError: &RedirectedErr{Type: oauth2.InvalidRequest},
 		},
 		{
 			name: "PKCE enforced, code_challenge provided",
@@ -358,7 +357,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"code_challenge_method": "plain",
 				"scope":                 "openid email profile",
 			},
-			expectedError: &redirectedAuthErr{Type: oauth2.InvalidRequest},
+			expectedError: &RedirectedErr{Type: oauth2.InvalidRequest},
 		},
 		{
 			name: "PKCE only S256 allowed, S256 accepted",
@@ -385,14 +384,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			httpServer, server := newTestHandler(t, func(c *Config) {
-				c.SupportedResponseTypes = toResponseTypeSet(tc.supportedResponseTypes)
-				c.Storage = storage.WithStaticClients(c.Storage, tc.clients)
-				if len(tc.pkce.CodeChallengeMethodsSupported) > 0 || tc.pkce.Enforce {
-					c.PKCE = tc.pkce
-				}
-			})
-			defer httpServer.Close()
+			p := newTestParser(t, tc.clients, tc.pkce, toResponseTypeSet(tc.supportedResponseTypes), nil)
 
 			params := url.Values{}
 			for k, v := range tc.queryParams {
@@ -401,23 +393,23 @@ func TestParseAuthorizationRequest(t *testing.T) {
 			var req *http.Request
 			if tc.usePOST {
 				body := strings.NewReader(params.Encode())
-				req = httptest.NewRequest("POST", httpServer.URL+"/auth", body)
+				req = httptest.NewRequest("POST", "/auth", body)
 				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			} else {
-				req = httptest.NewRequest("GET", httpServer.URL+"/auth?"+params.Encode(), nil)
+				req = httptest.NewRequest("GET", "/auth?"+params.Encode(), nil)
 			}
 
-			_, _, err := server.parseAuthorizationRequest(req)
+			_, _, err := p.Parse(req)
 			if tc.expectedError == nil {
 				if err != nil {
 					t.Errorf("%s: expected no error", tc.name)
 				}
 			} else {
 				switch expectedErr := tc.expectedError.(type) {
-				case *redirectedAuthErr:
-					e, ok := err.(*redirectedAuthErr)
+				case *RedirectedErr:
+					e, ok := err.(*RedirectedErr)
 					if !ok {
-						t.Fatalf("%s: expected redirectedAuthErr error", tc.name)
+						t.Fatalf("%s: expected RedirectedErr error", tc.name)
 					}
 					if e.Type != expectedErr.Type {
 						t.Errorf("%s: expected error type %v, got %v", tc.name, expectedErr.Type, e.Type)
@@ -425,10 +417,10 @@ func TestParseAuthorizationRequest(t *testing.T) {
 					if e.RedirectURI != tc.queryParams["redirect_uri"] {
 						t.Errorf("%s: expected error to be returned in redirect to %v", tc.name, tc.queryParams["redirect_uri"])
 					}
-				case *displayedAuthErr:
-					e, ok := err.(*displayedAuthErr)
+				case *DisplayedErr:
+					e, ok := err.(*DisplayedErr)
 					if !ok {
-						t.Fatalf("%s: expected displayedAuthErr error", tc.name)
+						t.Fatalf("%s: expected DisplayedErr error", tc.name)
 					}
 					if e.Status != expectedErr.Status {
 						t.Errorf("%s: expected http status %v, got %v", tc.name, expectedErr.Status, e.Status)
@@ -693,7 +685,7 @@ func TestRedirectedAuthErrHandler(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			err := &redirectedAuthErr{
+			err := &RedirectedErr{
 				State:       tc.state,
 				RedirectURI: tc.redirectURI,
 				Type:        tc.errType,
@@ -773,12 +765,7 @@ func TestValidateIDTokenHint(t *testing.T) {
 	issuerURL, err := url.Parse("https://issuer.example.com")
 	require.NoError(t, err)
 
-	s := &Handler{
-		signer:    sig,
-		issuerURL: *issuerURL,
-		logger:    slog.Default(),
-		UI:        web.New(nil, *issuerURL, slog.Default()),
-	}
+	s := New(nil, slog.Default(), sig, *issuerURL, PKCEConfig{}, nil)
 
 	now := time.Now()
 
@@ -788,7 +775,7 @@ func TestValidateIDTokenHint(t *testing.T) {
 			Subject: "CgNmb28SA2Jhcg",
 			Expiry:  now.Add(1 * time.Hour).Unix(),
 		})
-		idToken, err := s.validateIDTokenHint(t.Context(), token)
+		idToken, err := s.ValidateIDTokenHint(t.Context(), token)
 		require.NoError(t, err)
 		assert.Equal(t, "CgNmb28SA2Jhcg", idToken.Subject)
 	})
@@ -799,7 +786,7 @@ func TestValidateIDTokenHint(t *testing.T) {
 			Subject: "CgNmb28SA2Jhcg",
 			Expiry:  now.Add(-1 * time.Hour).Unix(),
 		})
-		idToken, err := s.validateIDTokenHint(t.Context(), token)
+		idToken, err := s.ValidateIDTokenHint(t.Context(), token)
 		require.NoError(t, err)
 		assert.Equal(t, "CgNmb28SA2Jhcg", idToken.Subject)
 	})
@@ -822,7 +809,7 @@ func TestValidateIDTokenHint(t *testing.T) {
 		token, err := jws.CompactSerialize()
 		require.NoError(t, err)
 
-		_, err = s.validateIDTokenHint(t.Context(), token)
+		_, err = s.ValidateIDTokenHint(t.Context(), token)
 		assert.Error(t, err)
 	})
 
@@ -832,22 +819,22 @@ func TestValidateIDTokenHint(t *testing.T) {
 			Subject: "CgNmb28SA2Jhcg",
 			Expiry:  now.Add(1 * time.Hour).Unix(),
 		})
-		_, err := s.validateIDTokenHint(t.Context(), token)
+		_, err := s.ValidateIDTokenHint(t.Context(), token)
 		assert.Error(t, err)
 	})
 
 	t.Run("malformed token", func(t *testing.T) {
-		_, err := s.validateIDTokenHint(t.Context(), "not-a-valid-jwt")
+		_, err := s.ValidateIDTokenHint(t.Context(), "not-a-valid-jwt")
 		assert.Error(t, err)
 	})
 }
 
 func TestSessionMatchesHint(t *testing.T) {
 	// tokens.GenSubject("foo", "bar") == "CgNmb28SA2Jhcg" (from TestGetSubject)
-	assert.True(t, sessionMatchesHint(&storage.AuthSession{UserID: "foo", ConnectorID: "bar"}, "CgNmb28SA2Jhcg"))
-	assert.False(t, sessionMatchesHint(&storage.AuthSession{UserID: "other", ConnectorID: "bar"}, "CgNmb28SA2Jhcg"))
-	assert.False(t, sessionMatchesHint(&storage.AuthSession{UserID: "foo", ConnectorID: "other"}, "CgNmb28SA2Jhcg"))
-	assert.False(t, sessionMatchesHint(nil, "CgNmb28SA2Jhcg"))
+	assert.True(t, SessionMatchesHint(&storage.AuthSession{UserID: "foo", ConnectorID: "bar"}, "CgNmb28SA2Jhcg"))
+	assert.False(t, SessionMatchesHint(&storage.AuthSession{UserID: "other", ConnectorID: "bar"}, "CgNmb28SA2Jhcg"))
+	assert.False(t, SessionMatchesHint(&storage.AuthSession{UserID: "foo", ConnectorID: "other"}, "CgNmb28SA2Jhcg"))
+	assert.False(t, SessionMatchesHint(nil, "CgNmb28SA2Jhcg"))
 }
 
 func TestParseAuthorizationRequest_IDTokenHint(t *testing.T) {
@@ -857,17 +844,10 @@ func TestParseAuthorizationRequest_IDTokenHint(t *testing.T) {
 	now := time.Now()
 
 	t.Run("valid id_token_hint populates subject", func(t *testing.T) {
-		httpServer, server := newTestHandler(t, func(c *Config) {
-			c.SupportedResponseTypes = map[string]bool{"code": true}
-			c.Storage = storage.WithStaticClients(c.Storage, []storage.Client{
-				{ID: "foo", RedirectURIs: []string{"https://example.com/foo"}},
-			})
-			c.Signer = sig
-		})
-		defer httpServer.Close()
+		p := newTestParser(t, []storage.Client{{ID: "foo", RedirectURIs: []string{"https://example.com/foo"}}}, PKCEConfig{}, map[string]bool{"code": true}, sig)
 
 		token := signTestIDToken(t, tokens.IDTokenClaims{
-			Issuer:  httpServer.URL,
+			Issuer:  testIssuer,
 			Subject: "CgNmb28SA2Jhcg",
 			Expiry:  now.Add(1 * time.Hour).Unix(),
 		})
@@ -879,22 +859,15 @@ func TestParseAuthorizationRequest_IDTokenHint(t *testing.T) {
 			"scope":         {"openid"},
 			"id_token_hint": {token},
 		}
-		req := httptest.NewRequest("GET", httpServer.URL+"/auth?"+params.Encode(), nil)
+		req := httptest.NewRequest("GET", "/auth?"+params.Encode(), nil)
 
-		_, hintSubject, err := server.parseAuthorizationRequest(req)
+		_, hintSubject, err := p.Parse(req)
 		require.NoError(t, err)
 		assert.Equal(t, "CgNmb28SA2Jhcg", hintSubject)
 	})
 
 	t.Run("invalid id_token_hint returns error", func(t *testing.T) {
-		httpServer, server := newTestHandler(t, func(c *Config) {
-			c.SupportedResponseTypes = map[string]bool{"code": true}
-			c.Storage = storage.WithStaticClients(c.Storage, []storage.Client{
-				{ID: "foo", RedirectURIs: []string{"https://example.com/foo"}},
-			})
-			c.Signer = sig
-		})
-		defer httpServer.Close()
+		p := newTestParser(t, []storage.Client{{ID: "foo", RedirectURIs: []string{"https://example.com/foo"}}}, PKCEConfig{}, map[string]bool{"code": true}, sig)
 
 		params := url.Values{
 			"client_id":     {"foo"},
@@ -903,23 +876,17 @@ func TestParseAuthorizationRequest_IDTokenHint(t *testing.T) {
 			"scope":         {"openid"},
 			"id_token_hint": {"invalid-token"},
 		}
-		req := httptest.NewRequest("GET", httpServer.URL+"/auth?"+params.Encode(), nil)
+		req := httptest.NewRequest("GET", "/auth?"+params.Encode(), nil)
 
-		_, _, err := server.parseAuthorizationRequest(req)
+		_, _, err := p.Parse(req)
 		require.Error(t, err)
-		redirectErr, ok := err.(*redirectedAuthErr)
+		redirectErr, ok := err.(*RedirectedErr)
 		require.True(t, ok)
 		assert.Equal(t, oauth2.InvalidRequest, redirectErr.Type)
 	})
 
 	t.Run("no id_token_hint leaves subject empty", func(t *testing.T) {
-		httpServer, server := newTestHandler(t, func(c *Config) {
-			c.SupportedResponseTypes = map[string]bool{"code": true}
-			c.Storage = storage.WithStaticClients(c.Storage, []storage.Client{
-				{ID: "foo", RedirectURIs: []string{"https://example.com/foo"}},
-			})
-		})
-		defer httpServer.Close()
+		p := newTestParser(t, []storage.Client{{ID: "foo", RedirectURIs: []string{"https://example.com/foo"}}}, PKCEConfig{}, map[string]bool{"code": true}, nil)
 
 		params := url.Values{
 			"client_id":     {"foo"},
@@ -927,9 +894,9 @@ func TestParseAuthorizationRequest_IDTokenHint(t *testing.T) {
 			"response_type": {"code"},
 			"scope":         {"openid"},
 		}
-		req := httptest.NewRequest("GET", httpServer.URL+"/auth?"+params.Encode(), nil)
+		req := httptest.NewRequest("GET", "/auth?"+params.Encode(), nil)
 
-		_, hintSubject, err := server.parseAuthorizationRequest(req)
+		_, hintSubject, err := p.Parse(req)
 		require.NoError(t, err)
 		assert.Equal(t, "", hintSubject)
 	})
