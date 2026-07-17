@@ -397,3 +397,29 @@ func writeJSONError(w http.ResponseWriter, status int, message string) {
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(map[string]string{"error": message})
 }
+
+func (m *Manager) HandleWebAuthn(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		m.RenderError(r, w, http.StatusMethodNotAllowed, "Unsupported request method.")
+		return
+	}
+
+	mfa, ok := m.validateMFARequest(w, r)
+	if !ok {
+		return
+	}
+
+	w.Header().Set("Cache-Control", "no-store")
+
+	user := buildWebAuthnUser(mfa.identity, mfa.authenticatorID)
+	mode := "login"
+	if len(user.credentials) == 0 {
+		mode = "register"
+	}
+
+	if err := m.templates.WebAuthnVerify(r, w, mode, mfa.authenticatorID); err != nil {
+		m.logger.ErrorContext(r.Context(), "server template error", "err", err)
+	}
+}
+
+// handleTOTPVerify handles TOTP enrollment and verification.
