@@ -6,7 +6,6 @@ package authflow
 import (
 	"net/http"
 
-	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
@@ -35,31 +34,29 @@ func (h *Handler) handleApproval(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Defensively re-check the next step: MFA may have been enabled after the flow
-	// started, in which case the user is sent through it before consent.
+	if !internal.VerifyHMAC(authReq.HMACKey, macEncoded, authReq.ID, "") {
+		h.RenderError(r, w, http.StatusUnauthorized, "Unauthorized request")
+		return
+	}
+
 	step, err := h.nextAuthStep(ctx, &authReq)
 	if err != nil {
 		h.logger.ErrorContext(ctx, "failed to determine next auth step", "err", err)
 		h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
 		return
 	}
-	if mfa, ok := step.(mfaStep); ok {
-		http.Redirect(w, r, h.mfa.BuildRedirectURL(authReq, mfa.authenticator), http.StatusSeeOther)
-		return
-	}
-
-	if !internal.VerifyHMAC(authReq.HMACKey, macEncoded, authReq.ID, "") {
-		h.RenderError(r, w, http.StatusUnauthorized, "Unauthorized request")
+	// MFA may have been enabled mid-flow: send the user through it before consent.
+	if _, ok := step.(mfaStep); ok {
+		step.run(h, w, r, authReq)
 		return
 	}
 
 	switch r.Method {
 	case http.MethodGet:
-		// Skip the approval page and issue the code directly when consent isn't
-		// needed. This also covers the MFA redirect case: after MFA completion the
-		// user lands here via GET and shouldn't see the consent screen again.
+		// Consent already satisfied → issue the code directly; otherwise the user
+		// lands here after MFA and shouldn't see the consent screen again.
 		if _, ok := step.(issueStep); ok {
-			h.sendCodeResponse(w, r, authReq)
+			step.run(h, w, r, authReq)
 			return
 		}
 
@@ -78,7 +75,7 @@ func (h *Handler) handleApproval(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Persist user-approved scopes as consent for this client.
-		if featureflags.SessionsEnabled.Enabled() {
+		if h.sessions.Enabled() {
 			if err := h.storage.UpdateUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
 				if old.Consents == nil {
 					old.Consents = make(map[string][]string)

@@ -15,7 +15,6 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
@@ -446,7 +445,7 @@ func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity
 	// Refuse to complete login for a locked account. BlockedUntil lives on the
 	// persisted UserIdentity, which only exists when the sessions feature is on;
 	// a first-time login (no stored identity yet) cannot be blocked.
-	if featureflags.SessionsEnabled.Enabled() {
+	if h.sessions.Enabled() {
 		storedIdentity, err := h.storage.GetUserIdentity(ctx, identity.UserID, authReq.ConnectorID)
 		switch {
 		case err == nil:
@@ -538,7 +537,7 @@ func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity
 	}
 
 	// Create or update UserIdentity to persist user claims across sessions.
-	if featureflags.SessionsEnabled.Enabled() {
+	if h.sessions.Enabled() {
 		now := h.now()
 
 		_, err := h.storage.GetUserIdentity(ctx, identity.UserID, authReq.ConnectorID)
