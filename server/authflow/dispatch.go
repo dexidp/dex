@@ -1,11 +1,12 @@
 package authflow
 
-// continue.go is the flow dispatcher: the central point the authorization flow
-// converges on. Login and every interactive step (MFA factor, consent) redirect
-// back here; the dispatcher inspects the auth request and decides the next step
-// — another MFA factor, the consent screen, or issuing the response — in one
-// place. This mirrors the authorize endpoint in hydra and the finalize step in
-// zitadel: the steps hold no reference to one another, only to this hub.
+// continue.go is the flow dispatcher, reached by re-entering the authorize
+// endpoint (/auth) with an auth-request id. Login and every interactive step
+// (MFA factor, consent) redirect back to /auth; the dispatcher inspects the auth
+// request and decides the next step — another MFA factor, the consent screen, or
+// issuing the response — in one place. This mirrors hydra re-entering
+// /oauth2/auth with a verifier: the steps hold no reference to one another, only
+// to this hub.
 
 import (
 	"net/http"

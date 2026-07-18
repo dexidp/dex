@@ -14,7 +14,7 @@ import (
 )
 
 // TestFlowStepsRequireHMAC verifies the dispatcher's step-skip protection: the
-// /continue endpoint rejects requests that do not carry the HMAC the previous
+// /auth dispatcher rejects requests that do not carry the HMAC the previous
 // step would have issued. A browser can only reach the dispatcher by being
 // redirected there with its HMAC, so a missing or wrong HMAC is rejected.
 func TestFlowStepsRequireHMAC(t *testing.T) {
@@ -45,8 +45,8 @@ func TestFlowStepsRequireHMAC(t *testing.T) {
 		name string
 		path string
 	}{
-		{"dispatcher without hmac", "/continue?req=" + authReq.ID},
-		{"dispatcher with wrong-step hmac", "/continue?req=" + authReq.ID + "&hmac=" + wrongStepMAC},
+		{"dispatcher without hmac", "/auth?req=" + authReq.ID},
+		{"dispatcher with wrong-step hmac", "/auth?req=" + authReq.ID + "&hmac=" + wrongStepMAC},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rr := httptest.NewRecorder()
@@ -59,7 +59,7 @@ func TestFlowStepsRequireHMAC(t *testing.T) {
 	// satisfied, issues the code to the client.
 	rr := httptest.NewRecorder()
 	continueMAC := internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "continue")
-	s.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/continue?req="+authReq.ID+"&hmac="+continueMAC, nil))
+	s.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/auth?req="+authReq.ID+"&hmac="+continueMAC, nil))
 	require.Equal(t, http.StatusSeeOther, rr.Code)
 	require.Contains(t, rr.Header().Get("Location"), "https://client.example/callback")
 }

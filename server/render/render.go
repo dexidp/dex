@@ -48,14 +48,15 @@ func (u *UI) BuildApprovalURL(authReq storage.AuthRequest) string {
 	return u.AbsPath("/approval") + "?" + v.Encode()
 }
 
-// BuildContinueURL builds an HMAC-protected URL for the flow dispatcher: the
-// central point every step returns to so the next step (or issuance) is decided
-// in one place.
+// BuildContinueURL builds an HMAC-protected URL that re-enters the authorize
+// endpoint to resume an in-progress request. The authorize endpoint is the flow
+// dispatcher: every step returns here so the next step (or issuance) is decided
+// in one place, mirroring hydra re-entering /oauth2/auth with a verifier.
 func (u *UI) BuildContinueURL(authReq storage.AuthRequest) string {
 	v := url.Values{}
 	v.Set("req", authReq.ID)
 	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "continue"))
-	return u.AbsPath("/continue") + "?" + v.Encode()
+	return u.AbsPath("/auth") + "?" + v.Encode()
 }
 
 // RedirectAuthError redirects back to the client's redirect_uri with an OAuth2

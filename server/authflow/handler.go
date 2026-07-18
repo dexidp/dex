@@ -93,13 +93,13 @@ func NewHandler(c Config) *Handler {
 	}
 }
 
-// Mount registers the login routes and the flow dispatcher. The step components
-// (consent, mfa, logout) are mounted separately by the server.
+// Mount registers the login routes. The /auth endpoint doubles as the flow
+// dispatcher (see continue.go). The step components (consent, mfa, logout) are
+// mounted separately by the server.
 func (h *Handler) Mount(m router.Mux) {
 	m.HandleFunc("/auth", h.handleAuthorization)
 	m.HandleFunc("/auth/{connector}", h.handleConnectorLogin)
 	m.HandleFunc("/auth/{connector}/login", h.handlePasswordLogin)
-	m.HandleFunc("/continue", h.handleContinue)
 	m.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
 		// Strip the X-Remote-* headers to prevent security issues on
 		// misconfigured authproxy connector setups.
