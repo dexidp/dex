@@ -57,7 +57,10 @@ func (m testMux) HandlePrefix(p string, h http.Handler) {
 // over HTTP via ServeHTTP.
 type testServer struct {
 	*Handler
-	mux http.Handler
+	mux     http.Handler
+	mfa     *mfa.Manager
+	consent *consent.Manager
+	issue   *issue.Writer
 }
 
 func (ts *testServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -126,19 +129,17 @@ func newTestHandler(t *testing.T, updateConfig func(c *testFlowConfig)) (*httpte
 		updateConfig(&tc)
 	}
 
-	// Assemble the shared components exactly as the server does.
+	// Assemble the flow the same way the server does: shared infrastructure plus
+	// independent step handlers that hand off by redirect.
 	ui := &render.UI{Templates: tmpls, IssuerURL: *issuerURL, Logger: logger}
 	sessions := &session.Manager{Storage: store, Config: tc.SessionConfig, Now: now, Logger: logger, IssuerURL: *issuerURL}
 	mfaManager := &mfa.Manager{UI: ui, Storage: store, Templates: tmpls, Logger: logger, MFAProviders: tc.MFAProviders, DefaultMFAChain: tc.DefaultMFAChain, Now: now, Connectors: conns}
 	issueWriter := &issue.Writer{UI: ui, Storage: store, Templates: tmpls, Logger: logger, Issuer: issuer, Sessions: sessions, Now: now}
-	consentManager := &consent.Manager{UI: ui, Storage: store, Templates: tmpls, Logger: logger, Sessions: sessions, MFA: mfaManager, Issue: issueWriter, SkipApproval: tc.SkipApproval}
+	consentManager := &consent.Manager{UI: ui, Storage: store, Templates: tmpls, Logger: logger, Sessions: sessions, SkipApproval: tc.SkipApproval}
 	logoutManager := &logout.Manager{UI: ui, Storage: store, Templates: tmpls, Logger: logger, Sessions: sessions, Connectors: conns, Issuer: issuer, Signer: sig, IssuerURL: *issuerURL}
 
 	tc.Config.UI = ui
 	tc.Config.Sessions = sessions
-	tc.Config.MFA = mfaManager
-	tc.Config.Consent = consentManager
-	tc.Config.Issue = issueWriter
 
 	h := NewHandler(tc.Config)
 
@@ -146,6 +147,7 @@ func newTestHandler(t *testing.T, updateConfig func(c *testFlowConfig)) (*httpte
 	h.Mount(testMux{router})
 	mfaManager.Mount(testMux{router})
 	consentManager.Mount(testMux{router})
+	issueWriter.Mount(testMux{router})
 	logoutManager.Mount(testMux{router})
 	handler = router
 
@@ -158,7 +160,7 @@ func newTestHandler(t *testing.T, updateConfig func(c *testFlowConfig)) (*httpte
 		}))
 	}
 
-	return srv, &testServer{Handler: h, mux: router}
+	return srv, &testServer{Handler: h, mux: router, mfa: mfaManager, consent: consentManager, issue: issueWriter}
 }
 
 // testKey is a throwaway RSA key for the mock signer; the flow's unit tests

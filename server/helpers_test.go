@@ -3,7 +3,9 @@ package server
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,6 +17,45 @@ import (
 
 func boolPtr(v bool) *bool {
 	return &v
+}
+
+// isFlowPath reports whether a redirect target is an internal step of the login
+// chain (MFA gate/factors, consent, issuance) rather than the client redirect.
+func isFlowPath(p string) bool {
+	for _, step := range []string{"/mfa/", "/approval", "/issue"} {
+		if strings.Contains(p, step) {
+			return true
+		}
+	}
+	return false
+}
+
+// followFlow walks the internal redirects of the login chain starting from rr
+// (each hop is HMAC-protected and followed with a GET) and returns the path the
+// flow comes to rest at: the client redirect_uri when the request is issued, or
+// the flow step that renders a page (e.g. /approval). It leaves rr on the final
+// response so callers can still inspect status, body or the Location query.
+func followFlow(t *testing.T, s *Server, rr *httptest.ResponseRecorder) (*httptest.ResponseRecorder, string) {
+	t.Helper()
+	for range 10 {
+		if rr.Code != http.StatusFound && rr.Code != http.StatusSeeOther {
+			return rr, "" // rendered a page with no redirect
+		}
+		loc := rr.Header().Get("Location")
+		u, err := url.Parse(loc)
+		require.NoError(t, err)
+		if !isFlowPath(u.Path) {
+			return rr, u.Path // left the flow — this is the client redirect
+		}
+		next := httptest.NewRecorder()
+		s.ServeHTTP(next, httptest.NewRequest(http.MethodGet, loc, nil))
+		if next.Code != http.StatusFound && next.Code != http.StatusSeeOther {
+			return next, u.Path // this flow step rendered (e.g. the consent screen)
+		}
+		rr = next
+	}
+	t.Fatal("followFlow: redirect loop did not settle")
+	return rr, ""
 }
 
 type emptyStorage struct {

@@ -8,9 +8,6 @@ import (
 	"time"
 
 	"github.com/dexidp/dex/server/connectors"
-	"github.com/dexidp/dex/server/consent"
-	"github.com/dexidp/dex/server/issue"
-	"github.com/dexidp/dex/server/mfa"
 	"github.com/dexidp/dex/server/render"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
@@ -19,9 +16,10 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
-// Config is the login flow's configuration. The shared flow components (session,
-// mfa, consent, issue) are built and owned by the server and injected here: the
-// flow drives them through the spine but does not construct them.
+// Config is the login flow's configuration. The login handler only authenticates
+// the user and then redirects into the MFA gate; the remaining steps (mfa,
+// consent, issue) are separate components the server mounts alongside it. Only
+// the shared browser rendering (UI) and the session manager are injected here.
 type Config struct {
 	IssuerURL              url.URL
 	Connectors             *connectors.Cache
@@ -37,14 +35,11 @@ type Config struct {
 
 	UI       *render.UI
 	Sessions *session.Manager
-	MFA      *mfa.Manager
-	Consent  *consent.Manager
-	Issue    *issue.Writer
 }
 
-// Handler serves the interactive login flow. It embeds render (shared browser
-// rendering / URL building) and holds references to the shared flow components
-// (session, mfa, consent, issue) that the spine drives; it does not own them.
+// Handler serves the interactive login flow: connector selection, connector and
+// password login, and the callback. Once the user is authenticated it redirects
+// into the MFA gate; it holds no reference to the later flow steps.
 type Handler struct {
 	*render.UI
 
@@ -62,16 +57,9 @@ type Handler struct {
 
 	// sessions owns the session cookie, SSO lookup and auth-session CRUD.
 	sessions *session.Manager
-	// mfa owns the authenticator chain and the TOTP/WebAuthn endpoints.
-	mfa *mfa.Manager
-	// consent owns the approval screen and consent bookkeeping.
-	consent *consent.Manager
-	// issue writes the authorization response back to the client.
-	issue *issue.Writer
 }
 
-// NewHandler builds the login-flow handler from its configuration. The shared
-// components are built by the server and passed in via Config.
+// NewHandler builds the login-flow handler from its configuration.
 func NewHandler(c Config) *Handler {
 	return &Handler{
 		UI:                     c.UI,
@@ -87,9 +75,6 @@ func NewHandler(c Config) *Handler {
 		alwaysShowLogin:        c.AlwaysShowLogin,
 		authRequestsValidFor:   c.AuthRequestsValidFor,
 		sessions:               c.Sessions,
-		mfa:                    c.MFA,
-		consent:                c.Consent,
-		issue:                  c.Issue,
 	}
 }
 

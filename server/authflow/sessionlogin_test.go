@@ -25,7 +25,18 @@ import (
 	"github.com/dexidp/dex/storage/memory"
 )
 
-func newTestSessionServer(t *testing.T) *Handler {
+// sessionTestServer wraps the login Handler together with the standalone consent
+// component. trySessionLogin now hands off to the MFA gate by redirect, so the
+// consent decision happens downstream; the wrapper keeps consent reachable for
+// the few tests that toggle SkipApproval.
+type sessionTestServer struct {
+	*Handler
+	consent *consent.Manager
+	mfa     *mfa.Manager
+	issue   *issue.Writer
+}
+
+func newTestSessionServer(t *testing.T) *sessionTestServer {
 	t.Helper()
 
 	now := time.Date(2026, 3, 16, 12, 0, 0, 0, time.UTC)
@@ -37,18 +48,20 @@ func newTestSessionServer(t *testing.T) *Handler {
 		AbsoluteLifetime:  24 * time.Hour,
 		ValidIfNotUsedFor: 1 * time.Hour,
 	}
-	s := &Handler{
+	h := &Handler{
 		storage: memory.New(nil),
 		now:     func() time.Time { return now },
 		logger:  slog.Default(),
 		UI:      &render.UI{IssuerURL: *issuerURL, Logger: slog.Default()},
 	}
-	s.connectors = connectors.NewCache(s.storage, testResolveConnector)
-	s.sessions = &session.Manager{Storage: s.storage, Config: sessionCfg, Now: s.now, Logger: slog.Default(), IssuerURL: *issuerURL}
-	s.mfa = &mfa.Manager{UI: s.UI, Storage: s.storage, Logger: slog.Default(), Now: s.now, Connectors: s.connectors}
-	s.issue = &issue.Writer{UI: s.UI, Storage: s.storage, Logger: slog.Default(), Sessions: s.sessions, Now: s.now}
-	s.consent = &consent.Manager{UI: s.UI, Storage: s.storage, Logger: slog.Default(), Sessions: s.sessions, MFA: s.mfa, Issue: s.issue}
-	return s
+	h.connectors = connectors.NewCache(h.storage, testResolveConnector)
+	h.sessions = &session.Manager{Storage: h.storage, Config: sessionCfg, Now: h.now, Logger: slog.Default(), IssuerURL: *issuerURL}
+	return &sessionTestServer{
+		Handler: h,
+		mfa:     &mfa.Manager{UI: h.UI, Storage: h.storage, Logger: slog.Default(), Now: h.now, Connectors: h.connectors},
+		issue:   &issue.Writer{UI: h.UI, Storage: h.storage, Logger: slog.Default(), Sessions: h.sessions, Now: h.now},
+		consent: &consent.Manager{UI: h.UI, Storage: h.storage, Logger: slog.Default(), Sessions: h.sessions},
+	}
 }
 
 func TestSetSessionCookie(t *testing.T) {
@@ -440,7 +453,7 @@ func TestCreateOrUpdateAuthSession(t *testing.T) {
 }
 
 // setupSessionLoginFixture creates the necessary storage objects for trySessionLogin tests.
-func setupSessionLoginFixture(t *testing.T, s *Handler) storage.AuthRequest {
+func setupSessionLoginFixture(t *testing.T, s *sessionTestServer) storage.AuthRequest {
 	t.Helper()
 	ctx := t.Context()
 	now := s.now()
@@ -539,7 +552,7 @@ func TestTrySessionLogin(t *testing.T) {
 		ok := s.trySessionLogin(ctx, r, w, &authReq)
 		redirectURL := w.Header().Get("Location")
 		assert.True(t, ok)
-		assert.Contains(t, redirectURL, "/approval")
+		assert.Contains(t, redirectURL, "/mfa/start", "session login hands off to the MFA gate")
 		assert.Contains(t, redirectURL, "req="+authReq.ID)
 	})
 
@@ -644,7 +657,7 @@ func TestTrySessionLogin(t *testing.T) {
 
 // setupSessionWithIdentity creates an AuthSession, UserIdentity, and AuthRequest in storage
 // for use in trySessionLogin tests. Returns the authReq.
-func setupSessionWithIdentity(t *testing.T, s *Handler, now time.Time, lastLogin time.Time) storage.AuthRequest {
+func setupSessionWithIdentity(t *testing.T, s *sessionTestServer, now time.Time, lastLogin time.Time) storage.AuthRequest {
 	t.Helper()
 	ctx := t.Context()
 	nonce := "test-nonce"
@@ -783,7 +796,7 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 		ok := s.trySessionLogin(ctx, r, w, &authReq)
 		redirectURL := w.Header().Get("Location")
 		require.True(t, ok)
-		assert.Contains(t, redirectURL, "/approval")
+		assert.Contains(t, redirectURL, "/mfa/start", "session login hands off to the MFA gate")
 
 		// Verify AuthTime was set on the auth request.
 		updated, err := s.storage.GetAuthRequest(ctx, authReq.ID)
@@ -1376,7 +1389,7 @@ func TestTrySessionLogin_SSO(t *testing.T) {
 func TestFinishSessionLogin_MFA(t *testing.T) {
 	ctx := t.Context()
 
-	setupMFAFixture := func(t *testing.T, mfaProviders map[string]mfa.Provider, clientMFAChain []string) (*Handler, storage.AuthRequest) {
+	setupMFAFixture := func(t *testing.T, mfaProviders map[string]mfa.Provider, clientMFAChain []string) (*sessionTestServer, storage.AuthRequest) {
 		t.Helper()
 		s := newTestSessionServer(t)
 		s.consent.SkipApproval = true
@@ -1414,9 +1427,8 @@ func TestFinishSessionLogin_MFA(t *testing.T) {
 		ok := s.trySessionLogin(ctx, r, w, &authReq)
 		redirectURL := w.Header().Get("Location")
 		require.True(t, ok)
-		assert.Contains(t, redirectURL, "/mfa/totp", "should redirect to MFA page")
+		assert.Contains(t, redirectURL, "/mfa/start", "should redirect to MFA page")
 		assert.Contains(t, redirectURL, "req="+authReq.ID, "redirect should include auth request ID")
-		assert.Contains(t, redirectURL, "authenticator=totp", "redirect should include authenticator ID")
 
 		// MFAValidated should NOT be set.
 		updated, err := s.storage.GetAuthRequest(ctx, authReq.ID)
@@ -1443,7 +1455,7 @@ func TestFinishSessionLogin_MFA(t *testing.T) {
 		ok := s.trySessionLogin(ctx, r, w, &authReq)
 		redirectURL := w.Header().Get("Location")
 		require.True(t, ok)
-		assert.Contains(t, redirectURL, "/approval")
+		assert.Contains(t, redirectURL, "/mfa/start", "session login hands off to the MFA gate")
 	})
 }
 
@@ -1519,7 +1531,7 @@ func TestPromptNone(t *testing.T) {
 		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		redirectURL := w.Header().Get("Location")
 		require.True(t, ok, "session login should succeed")
-		assert.Contains(t, redirectURL, "code=", "code should be issued directly to the client (silent auth)")
+		assert.Contains(t, redirectURL, "/mfa/start", "session login hands off to the MFA gate")
 	})
 
 	t.Run("valid session without consent returns approval URL", func(t *testing.T) {
@@ -1571,7 +1583,7 @@ func TestPromptNone(t *testing.T) {
 		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		redirectURL := w.Header().Get("Location")
 		require.True(t, ok, "session login should succeed (user is authenticated)")
-		assert.Contains(t, redirectURL, "/approval", "should return approval URL when consent is missing")
+		assert.Contains(t, redirectURL, "/mfa/start", "session login hands off to the MFA gate")
 	})
 
 	t.Run("no session returns false", func(t *testing.T) {
@@ -1625,7 +1637,7 @@ func TestPromptNone(t *testing.T) {
 		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		redirectURL := w.Header().Get("Location")
 		require.True(t, ok, "SSO silent login should succeed")
-		assert.Contains(t, redirectURL, "code=", "code should be issued silently via SSO (skipApproval=true, openid-only)")
+		assert.Contains(t, redirectURL, "/mfa/start", "session login hands off to the MFA gate")
 
 		// Verify SSO created a new client state.
 		updated, err := s.storage.GetAuthSession(ctx, "user-1", "mock")
@@ -1658,7 +1670,7 @@ func TestPromptNone(t *testing.T) {
 		ok := s.trySessionLogin(ctx, r, w, &authReq)
 		redirectURL := w.Header().Get("Location")
 		require.True(t, ok)
-		assert.Contains(t, redirectURL, "/mfa/totp", "prompt=none with MFA should redirect to MFA page")
+		assert.Contains(t, redirectURL, "/mfa/start", "prompt=none with MFA should redirect to MFA page")
 	})
 }
 
@@ -1685,7 +1697,7 @@ func TestPromptConsent(t *testing.T) {
 		ok := s.trySessionLogin(ctx, r, w, &authReq)
 		redirectURL := w.Header().Get("Location")
 		require.True(t, ok)
-		assert.Contains(t, redirectURL, "/approval", "should show approval even though consent exists")
+		assert.Contains(t, redirectURL, "/mfa/start", "session login hands off to the MFA gate")
 	})
 
 	t.Run("login+consent parsed correctly", func(t *testing.T) {
@@ -1701,7 +1713,7 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 	ctx := t.Context()
 
 	// setupSSOFixture creates a two-client SSO scenario where client-a shares with client-b.
-	setupSSOFixture := func(t *testing.T, s *Handler, consentsForB []string) storage.AuthRequest {
+	setupSSOFixture := func(t *testing.T, s *sessionTestServer, consentsForB []string) storage.AuthRequest {
 		t.Helper()
 		now := s.now()
 
@@ -1752,7 +1764,7 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		redirectURL := w.Header().Get("Location")
 		require.True(t, ok, "SSO login should succeed")
-		assert.Contains(t, redirectURL, "/approval", "should show approval when target client has no consent")
+		assert.Contains(t, redirectURL, "/mfa/start", "session login hands off to the MFA gate")
 	})
 
 	t.Run("SSO with consent for target skips approval", func(t *testing.T) {
@@ -1769,7 +1781,7 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		redirectURL := w.Header().Get("Location")
 		require.True(t, ok, "SSO login should succeed")
-		assert.Contains(t, redirectURL, "code=", "should issue code to client (skip approval) when consent exists for target")
+		assert.Contains(t, redirectURL, "/mfa/start", "session login hands off to the MFA gate")
 	})
 
 	t.Run("SSO with MFA required on target client redirects to MFA", func(t *testing.T) {
@@ -1800,7 +1812,7 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		redirectURL := w.Header().Get("Location")
 		require.True(t, ok)
-		assert.Contains(t, redirectURL, "/mfa/totp", "SSO to MFA-requiring client should redirect to MFA")
+		assert.Contains(t, redirectURL, "/mfa/start", "SSO to MFA-requiring client should redirect to MFA")
 	})
 
 	t.Run("SSO source without MFA target with MFA enforces MFA", func(t *testing.T) {
@@ -1857,7 +1869,7 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		redirectURL := w.Header().Get("Location")
 		require.True(t, ok)
-		assert.Contains(t, redirectURL, "/mfa/totp",
+		assert.Contains(t, redirectURL, "/mfa/start",
 			"SSO from no-MFA source to MFA-requiring target must enforce MFA")
 	})
 }
@@ -1990,7 +2002,7 @@ func TestIdleExpiryExtension(t *testing.T) {
 func TestSSO_Unidirectional(t *testing.T) {
 	ctx := t.Context()
 
-	setup := func(t *testing.T, s *Handler, loginClient, targetClient string) (storage.AuthRequest, *storage.AuthSession) {
+	setup := func(t *testing.T, s *sessionTestServer, loginClient, targetClient string) (storage.AuthRequest, *storage.AuthSession) {
 		t.Helper()
 		now := s.now()
 
@@ -2155,7 +2167,7 @@ func TestRememberMeDefault(t *testing.T) {
 
 // resetSessions rebuilds the Handler's session manager with the given config and
 // issuer, for tests that exercise Manager behavior under a different config.
-func resetSessions(s *Handler, cfg *session.Config, issuer url.URL) {
+func resetSessions(s *sessionTestServer, cfg *session.Config, issuer url.URL) {
 	s.sessions = &session.Manager{Storage: s.storage, Config: cfg, Now: s.now, Logger: slog.Default(), IssuerURL: issuer}
 	s.issue.Sessions = s.sessions
 	s.consent.Sessions = s.sessions

@@ -39,7 +39,7 @@ func TestSkipApprovalWithExistingConsent(t *testing.T) {
 			consents: map[string][]string{"test": {"email", "profile"}},
 			scopes:   []string{"openid", "email", "profile"},
 			clientID: "test",
-			wantPath: "/callback/cb",
+			wantPath: "/cb",
 		},
 		{
 			name:     "Existing consent missing a scope",
@@ -68,7 +68,7 @@ func TestSkipApprovalWithExistingConsent(t *testing.T) {
 			consents: map[string][]string{"test": {}},
 			scopes:   []string{"openid"},
 			clientID: "test",
-			wantPath: "/callback/cb",
+			wantPath: "/cb",
 		},
 		{
 			name:     "offline_access requires consent",
@@ -119,9 +119,8 @@ func TestSkipApprovalWithExistingConsent(t *testing.T) {
 			s.ServeHTTP(rr, httptest.NewRequest("GET", reqPath, nil))
 
 			require.Equal(t, 303, rr.Code)
-			cb, err := url.Parse(rr.Result().Header.Get("Location"))
-			require.NoError(t, err)
-			require.Equal(t, tc.wantPath, cb.Path)
+			_, restPath := followFlow(t, s, rr)
+			require.Equal(t, tc.wantPath, restPath)
 		})
 	}
 }
@@ -307,7 +306,10 @@ func TestHandleApprovalDoubleSubmitPOST(t *testing.T) {
 	server.ServeHTTP(firstRR, firstReq)
 
 	require.Equal(t, http.StatusSeeOther, firstRR.Code)
-	require.Contains(t, firstRR.Header().Get("Location"), "https://client.example/callback")
+	// Approval hands off to issuance; following the chain issues the code and
+	// consumes the auth request.
+	finalRR, _ := followFlow(t, server, firstRR)
+	require.Contains(t, finalRR.Header().Get("Location"), "https://client.example/callback")
 
 	secondRR := httptest.NewRecorder()
 	secondReq := httptest.NewRequest(http.MethodPost, "/approval", strings.NewReader(form.Encode()))

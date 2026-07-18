@@ -83,7 +83,7 @@ func (h *Handler) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 						h.RenderError(r, w, http.StatusInternalServerError, "Login error.")
 						return
 					}
-					h.advance(w, r, authReq)
+					http.Redirect(w, r, h.BuildMFAURL(authReq), http.StatusSeeOther)
 					return
 				}
 				// handled with no identity typically means the SPNEGO middleware
@@ -125,7 +125,7 @@ func (h *Handler) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 			h.logger.ErrorContext(ctx, "failed to create/update auth session", "err", err)
 		}
 
-		h.advance(w, r, authReq)
+		http.Redirect(w, r, h.BuildMFAURL(authReq), http.StatusSeeOther)
 	default:
 		h.RenderError(r, w, http.StatusBadRequest, "Unsupported request method.")
 	}

@@ -6,8 +6,7 @@ import (
 	"net/http"
 
 	"github.com/dexidp/dex/server/internal"
-	"github.com/dexidp/dex/server/issue"
-	"github.com/dexidp/dex/server/mfa"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/render"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
@@ -16,11 +15,10 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
-// Manager owns the consent step. It sits between authentication and issuance:
-// once the user is logged in (and any MFA is satisfied) it either skips consent
-// or shows the approval screen, records the granted scopes, and hands off to the
-// issue component. It depends only on lower flow components (mfa, issue), never
-// on the browser-login code that drives it.
+// Manager owns the consent step of the login chain. It is reached from the MFA
+// gate once the user is authenticated: it either skips consent or shows the
+// approval screen, records the granted scopes, and hands off to the issue step
+// by redirect. It holds no reference to the other flow steps.
 type Manager struct {
 	*render.UI
 
@@ -28,8 +26,6 @@ type Manager struct {
 	Templates    *templates.Templates
 	Logger       *slog.Logger
 	Sessions     *session.Manager
-	MFA          *mfa.Manager
-	Issue        *issue.Writer
 	SkipApproval bool
 }
 
@@ -80,24 +76,16 @@ func (m *Manager) handleApproval(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// MFA may have been enabled mid-flow: send the user through it before consent.
-	chain, err := m.MFA.ChainForClient(ctx, authReq.ClientID, authReq.ConnectorID)
-	if err != nil {
-		m.Logger.ErrorContext(ctx, "failed to determine MFA chain", "err", err)
-		m.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
-		return
-	}
-	if len(chain) > 0 && !authReq.MFAValidated {
-		http.Redirect(w, r, m.MFA.BuildRedirectURL(authReq, chain[0]), http.StatusSeeOther)
-		return
-	}
-
 	switch r.Method {
 	case http.MethodGet:
-		// Consent already satisfied → issue the code directly; otherwise the user
-		// lands here after MFA and shouldn't see the consent screen again.
+		// Consent already covered — hand off to issuance without showing the screen.
 		if m.Satisfied(ctx, &authReq) {
-			m.Issue.WriteResponse(w, r, authReq)
+			http.Redirect(w, r, m.BuildIssueURL(authReq), http.StatusSeeOther)
+			return
+		}
+		// Consent is required, but prompt=none forbids showing the screen.
+		if prompt, _ := oauth2.ParsePrompt(authReq.Prompt); prompt.None() {
+			m.RedirectAuthError(w, r, authReq, oauth2.InteractionRequired, "User interaction required")
 			return
 		}
 
@@ -127,7 +115,7 @@ func (m *Manager) handleApproval(w http.ResponseWriter, r *http.Request) {
 				m.Logger.ErrorContext(ctx, "failed to update user identity consents", "err", err)
 			}
 		}
-		m.Issue.WriteResponse(w, r, authReq)
+		http.Redirect(w, r, m.BuildIssueURL(authReq), http.StatusSeeOther)
 	}
 }
 

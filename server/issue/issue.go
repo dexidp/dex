@@ -9,8 +9,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/render"
+	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/server/tokens"
@@ -30,6 +32,44 @@ type Writer struct {
 	Issuer    *tokens.Issuer
 	Sessions  *session.Manager
 	Now       func() time.Time
+}
+
+// Mount registers the issuance endpoint. It is the terminal step of the login
+// chain: the consent step redirects here once the request is fully authorized.
+func (wr *Writer) Mount(mux router.Mux) {
+	mux.HandleFunc("/issue", wr.handleIssue)
+}
+
+// handleIssue is the HMAC-guarded entry to issuance. Only a request that has
+// been routed through login, MFA and consent carries a valid "issue" HMAC, so
+// reaching this endpoint proves the earlier steps completed.
+func (wr *Writer) handleIssue(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	mac := r.FormValue("hmac")
+	if mac == "" {
+		wr.RenderError(r, w, http.StatusUnauthorized, "Unauthorized request")
+		return
+	}
+	authReq, err := wr.Storage.GetAuthRequest(ctx, r.FormValue("req"))
+	if err != nil {
+		if err == storage.ErrNotFound {
+			wr.RenderError(r, w, http.StatusBadRequest, "User session error.")
+			return
+		}
+		wr.Logger.ErrorContext(ctx, "failed to get auth request", "err", err)
+		wr.RenderError(r, w, http.StatusInternalServerError, "Database error.")
+		return
+	}
+	if !authReq.LoggedIn {
+		wr.Logger.ErrorContext(ctx, "issue requested for auth request without an identity")
+		wr.RenderError(r, w, http.StatusInternalServerError, "Login process not yet finalized.")
+		return
+	}
+	if !internal.VerifyHMAC(authReq.HMACKey, mac, authReq.ID, "issue") {
+		wr.RenderError(r, w, http.StatusUnauthorized, "Unauthorized request")
+		return
+	}
+	wr.WriteResponse(w, r, authReq)
 }
 
 // WriteResponse issues the authorization response for a completed auth request:

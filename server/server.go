@@ -451,9 +451,10 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		SupportedGrantTypes: s.supportedGrantTypes,
 	})
 
-	// Build the shared flow components. They are peer domains (like grants and
-	// device), so the server owns them and mounts them in the loop below; the
-	// login flow only receives the ones its spine drives.
+	// ui and sessions are the shared browser infrastructure; each flow handler
+	// mounted below embeds them. The flow handlers themselves hold no reference to
+	// one another — they hand off by HMAC-protected redirect — so they are
+	// constructed inline in the mount list.
 	ui := &render.UI{
 		Templates: s.templates,
 		IssuerURL: s.issuerURL,
@@ -466,65 +467,6 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		Logger:    s.logger,
 		IssuerURL: s.issuerURL,
 	}
-	mfaManager := &mfa.Manager{
-		UI:              ui,
-		Storage:         s.storage,
-		Templates:       s.templates,
-		Logger:          s.logger,
-		MFAProviders:    s.mfaProviders,
-		DefaultMFAChain: s.defaultMFAChain,
-		Now:             s.now,
-		Connectors:      s.connectors,
-	}
-	issueWriter := &issue.Writer{
-		UI:        ui,
-		Storage:   s.storage,
-		Templates: s.templates,
-		Logger:    s.logger,
-		Issuer:    s.issuer,
-		Sessions:  sessions,
-		Now:       s.now,
-	}
-	consentManager := &consent.Manager{
-		UI:           ui,
-		Storage:      s.storage,
-		Templates:    s.templates,
-		Logger:       s.logger,
-		Sessions:     sessions,
-		MFA:          mfaManager,
-		Issue:        issueWriter,
-		SkipApproval: s.skipApproval,
-	}
-	logoutManager := &logout.Manager{
-		UI:         ui,
-		Storage:    s.storage,
-		Templates:  s.templates,
-		Logger:     s.logger,
-		Sessions:   sessions,
-		Connectors: s.connectors,
-		Issuer:     s.issuer,
-		Signer:     s.signer,
-		IssuerURL:  s.issuerURL,
-	}
-
-	authFlow := authflow.NewHandler(authflow.Config{
-		IssuerURL:              s.issuerURL,
-		Connectors:             s.connectors,
-		Storage:                s.storage,
-		Templates:              s.templates,
-		Signer:                 s.signer,
-		Now:                    s.now,
-		Logger:                 s.logger,
-		AlwaysShowLogin:        s.alwaysShowLogin,
-		SupportedResponseTypes: s.supportedResponseTypes,
-		PKCE:                   s.pkce,
-		AuthRequestsValidFor:   s.authRequestsValidFor,
-		UI:                     ui,
-		Sessions:               sessions,
-		MFA:                    mfaManager,
-		Consent:                consentManager,
-		Issue:                  issueWriter,
-	})
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
 	// defined in the ConfigMap and dynamic connectors retrieved from the storage.
@@ -667,7 +609,67 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	// Self-contained domains mount their own routes through the router.Mux
 	// abstraction, so this list is the only place they are wired in.
 	mux := routeMux{handle: handle, handleFunc: handleFunc, handleCORS: handleWithCORS, handlePrefix: handlePrefix}
-	for _, h := range []router.Handler{tokenEndpoint, discoveryHandler, userInfoHandler, introspectHandler, deviceHandler, homeHandler, authFlow, mfaManager, consentManager, logoutManager} {
+	for _, h := range []router.Handler{
+		tokenEndpoint,
+		discoveryHandler,
+		userInfoHandler,
+		introspectHandler,
+		deviceHandler,
+		homeHandler,
+		authflow.NewHandler(authflow.Config{
+			IssuerURL:              s.issuerURL,
+			Connectors:             s.connectors,
+			Storage:                s.storage,
+			Templates:              s.templates,
+			Signer:                 s.signer,
+			Now:                    s.now,
+			Logger:                 s.logger,
+			AlwaysShowLogin:        s.alwaysShowLogin,
+			SupportedResponseTypes: s.supportedResponseTypes,
+			PKCE:                   s.pkce,
+			AuthRequestsValidFor:   s.authRequestsValidFor,
+			UI:                     ui,
+			Sessions:               sessions,
+		}),
+		&mfa.Manager{
+			UI:              ui,
+			Storage:         s.storage,
+			Templates:       s.templates,
+			Logger:          s.logger,
+			MFAProviders:    s.mfaProviders,
+			DefaultMFAChain: s.defaultMFAChain,
+			Now:             s.now,
+			Connectors:      s.connectors,
+		},
+		&consent.Manager{
+			UI:           ui,
+			Storage:      s.storage,
+			Templates:    s.templates,
+			Logger:       s.logger,
+			Sessions:     sessions,
+			SkipApproval: s.skipApproval,
+		},
+		&issue.Writer{
+			UI:        ui,
+			Storage:   s.storage,
+			Templates: s.templates,
+			Logger:    s.logger,
+			Issuer:    s.issuer,
+			Sessions:  sessions,
+			Now:       s.now,
+		},
+		&logout.Manager{
+			UI:         ui,
+			Storage:    s.storage,
+			Templates:  s.templates,
+			Logger:     s.logger,
+			Sessions:   sessions,
+			Connectors: s.connectors,
+			Issuer:     s.issuer,
+			Signer:     s.signer,
+			IssuerURL:  s.issuerURL,
+		},
+	} {
 		h.Mount(mux)
 	}
 

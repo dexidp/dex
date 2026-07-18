@@ -47,3 +47,47 @@ func (u *UI) BuildApprovalURL(authReq storage.AuthRequest) string {
 	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, ""))
 	return u.AbsPath("/approval") + "?" + v.Encode()
 }
+
+// BuildMFAURL builds an HMAC-protected URL for the MFA gate, the first step of
+// the post-login chain.
+func (u *UI) BuildMFAURL(authReq storage.AuthRequest) string {
+	v := url.Values{}
+	v.Set("req", authReq.ID)
+	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "mfa"))
+	return u.AbsPath("/mfa/start") + "?" + v.Encode()
+}
+
+// BuildIssueURL builds an HMAC-protected URL for the final issuance step.
+func (u *UI) BuildIssueURL(authReq storage.AuthRequest) string {
+	v := url.Values{}
+	v.Set("req", authReq.ID)
+	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "issue"))
+	return u.AbsPath("/issue") + "?" + v.Encode()
+}
+
+// RedirectAuthError redirects back to the client's redirect_uri with an OAuth2
+// error. Steps use it when prompt=none forbids the interaction they would need.
+func (u *UI) RedirectAuthError(w http.ResponseWriter, r *http.Request, authReq storage.AuthRequest, errType, description string) {
+	v := url.Values{}
+	v.Add("state", authReq.State)
+	v.Add("error", errType)
+	if description != "" {
+		v.Add("error_description", description)
+	}
+
+	redirectURI, err := url.Parse(authReq.RedirectURI)
+	if err != nil {
+		http.Error(w, "Invalid redirect URI", http.StatusBadRequest)
+		return
+	}
+
+	query := redirectURI.Query()
+	for key, values := range v {
+		for _, value := range values {
+			query.Add(key, value)
+		}
+	}
+	redirectURI.RawQuery = query.Encode()
+
+	http.Redirect(w, r, redirectURI.String(), http.StatusSeeOther)
+}

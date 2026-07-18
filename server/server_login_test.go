@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -302,7 +301,7 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 				ResponseTypes:       resTypes,
 				ForceApprovalPrompt: false,
 			},
-			expectedRes:           "/auth/mockPw/cb",
+			expectedRes:           "/cb",
 			offlineSessionCreated: false,
 		},
 		{
@@ -332,7 +331,7 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 				ForceApprovalPrompt: false,
 				Scopes:              []string{"offline_access"},
 			},
-			expectedRes:           "/auth/mockPw/cb",
+			expectedRes:           "/cb",
 			offlineSessionCreated: true,
 		},
 	}
@@ -369,12 +368,8 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 
 			require.Equal(t, 303, rr.Code)
 
-			resp := rr.Result()
-
-			defer resp.Body.Close()
-
-			cb, _ := url.Parse(resp.Header.Get("Location"))
-			require.Equal(t, tc.expectedRes, cb.Path)
+			_, restPath := followFlow(t, s, rr)
+			require.Equal(t, tc.expectedRes, restPath)
 
 			offlineSession, err := s.storage.GetOfflineSessions(ctx, "0-385-28089-0", connID)
 			if tc.offlineSessionCreated {
@@ -455,7 +450,7 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 				ResponseTypes:       resTypes,
 				ForceApprovalPrompt: false,
 			},
-			expectedRes:           "/callback/cb",
+			expectedRes:           "/cb",
 			offlineSessionCreated: false,
 		},
 		{
@@ -485,7 +480,7 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 				ForceApprovalPrompt: false,
 				Scopes:              []string{"offline_access"},
 			},
-			expectedRes:           "/callback/cb",
+			expectedRes:           "/cb",
 			offlineSessionCreated: false,
 		},
 	}
@@ -508,11 +503,8 @@ func TestHandleConnectorCallbackWithSkipApproval(t *testing.T) {
 
 			require.Equal(t, 303, rr.Code)
 
-			resp := rr.Result()
-			defer resp.Body.Close()
-
-			cb, _ := url.Parse(resp.Header.Get("Location"))
-			require.Equal(t, tc.expectedRes, cb.Path)
+			_, restPath := followFlow(t, s, rr)
+			require.Equal(t, tc.expectedRes, restPath)
 
 			offlineSession, err := s.storage.GetOfflineSessions(ctx, "0-385-28089-0", connID)
 			if tc.offlineSessionCreated {
