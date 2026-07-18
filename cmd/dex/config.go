@@ -647,6 +647,10 @@ type Expiry struct {
 	// DeviceRequests defines the duration of time for which the DeviceRequests will be valid.
 	DeviceRequests string `json:"deviceRequests"`
 
+	// GarbageCollectionFrequency defines how often dex sweeps expired auth
+	// codes, device requests, and refresh tokens from storage. Defaults to 5m.
+	GarbageCollectionFrequency string `json:"garbageCollectionFrequency"`
+
 	// RefreshTokens defines refresh tokens expiry policy
 	RefreshTokens RefreshToken `json:"refreshTokens"`
 }

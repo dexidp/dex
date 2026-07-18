@@ -408,6 +408,14 @@ func runServe(options serveOptions) error {
 		logger.Info("config device requests", "valid_for", deviceRequests)
 		serverConfig.DeviceRequestsValidFor = deviceRequests
 	}
+	if c.Expiry.GarbageCollectionFrequency != "" {
+		gcFrequency, err := time.ParseDuration(c.Expiry.GarbageCollectionFrequency)
+		if err != nil {
+			return fmt.Errorf("invalid config value %q for garbage collection frequency: %v", c.Expiry.GarbageCollectionFrequency, err)
+		}
+		logger.Info("config garbage collection frequency", "frequency", gcFrequency)
+		serverConfig.GCFrequency = gcFrequency
+	}
 	refreshTokenPolicy, err := tokens.NewRefreshTokenPolicy(
 		logger,
 		c.Expiry.RefreshTokens.DisableRotation,

@@ -90,6 +90,7 @@ telemetry:
 #   deviceRequests: "5m"
 #   signingKeys: "6h" # deprecated, use signer.config.keysRotationPeriod
 #   idTokens: "24h"
+#   garbageCollectionFrequency: "5m" # how often expired records are swept from storage
 #   refreshTokens:
 #     reuseInterval: "3s"
 #     validIfNotUsedFor: "2160h" # 90 days
