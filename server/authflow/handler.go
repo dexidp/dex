@@ -54,17 +54,22 @@ func (h *Handler) Mount(m router.Mux) {
 	m.HandleFunc("/auth", h.handleAuthorization)
 	m.HandleFunc("/auth/{connector}", h.handleConnectorLogin)
 	m.HandleFunc("/auth/{connector}/login", h.handlePasswordLogin)
+	// The bare /callback serves OAuth/OIDC redirects, where X-Remote-* never
+	// belongs, so strip it: a client must not spoof the authproxy connector here.
+	// The /callback/{connector} route is authproxy's own and passes them through.
 	m.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
-		// Strip the X-Remote-* headers to prevent security issues on
-		// misconfigured authproxy connector setups.
-		for key := range r.Header {
-			if strings.HasPrefix(strings.ToLower(key), "x-remote-") {
-				r.Header.Del(key)
-			}
-		}
+		stripRemoteHeaders(r)
 		h.handleConnectorCallback(w, r)
 	})
-	// For easier connector-specific web server configuration, e.g. for the
-	// "authproxy" connector.
 	m.HandleFunc("/callback/{connector}", h.handleConnectorCallback)
+}
+
+// stripRemoteHeaders drops the X-Remote-* request headers the authproxy
+// connector trusts, so they cannot be forged on a route that does not set them.
+func stripRemoteHeaders(r *http.Request) {
+	for key := range r.Header {
+		if strings.HasPrefix(strings.ToLower(key), "x-remote-") {
+			r.Header.Del(key)
+		}
+	}
 }
