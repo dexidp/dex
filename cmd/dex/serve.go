@@ -553,7 +553,11 @@ func runServe(options serveOptions) error {
 		}
 		allowedTLSCiphers := allowedTLSCiphers
 		if len(c.Web.AllowedTLSCiphers) > 0 {
-			allowedTLSCiphers, err = parseCipherSuites(c.Web.AllowedTLSCiphers)
+			ciphers, err := parseCipherSuites(c.Web.AllowedTLSCiphers)
+			if err != nil {
+				return fmt.Errorf("invalid TLS cipher suites: %w", err)
+			}
+			allowedTLSCiphers = ciphers
 		}
 		var CurvePreferences []tls.CurveID
 		if len(c.Web.AllowedCurvePreferences) > 0 {
