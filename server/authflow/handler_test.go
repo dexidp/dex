@@ -16,6 +16,12 @@ import (
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/connector/mock"
 	"github.com/dexidp/dex/server/connectors"
+	"github.com/dexidp/dex/server/consent"
+	"github.com/dexidp/dex/server/issue"
+	"github.com/dexidp/dex/server/logout"
+	"github.com/dexidp/dex/server/mfa"
+	"github.com/dexidp/dex/server/render"
+	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/server/tokens"
@@ -58,10 +64,20 @@ func (ts *testServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ts.mux.ServeHTTP(w, r)
 }
 
-// newTestHandler builds an interactive auth-flow Handler wired to an httptest
-// server, mirroring the server package's newTestServer but without the rest of
-// the Server. updateConfig may tweak the Config before the Handler is built.
-func newTestHandler(t *testing.T, updateConfig func(c *Config)) (*httptest.Server, *testServer) {
+// testFlowConfig bundles the login Config with the raw inputs the server uses to
+// build the shared flow components, so a test can tweak either before assembly.
+type testFlowConfig struct {
+	Config
+	SessionConfig   *session.Config
+	MFAProviders    map[string]mfa.Provider
+	DefaultMFAChain []string
+	SkipApproval    bool
+}
+
+// newTestHandler builds the login flow and its shared components wired to an
+// httptest server, assembling them exactly as the server package does.
+// updateConfig may tweak the config before the components are built.
+func newTestHandler(t *testing.T, updateConfig func(c *testFlowConfig)) (*httptest.Server, *testServer) {
 	t.Helper()
 	logger := newLogger(t)
 	ctx := t.Context()
@@ -88,32 +104,49 @@ func newTestHandler(t *testing.T, updateConfig func(c *Config)) (*httptest.Serve
 	require.NoError(t, err)
 
 	now := func() time.Time { return time.Now() }
+	conns := connectors.NewCache(store, testResolveConnector)
+	issuer := tokens.NewIssuer(store, sig, *issuerURL, 24*time.Hour, now, logger)
 
-	cfg := Config{
-		IssuerURL:              *issuerURL,
-		Connectors:             connectors.NewCache(store, testResolveConnector),
-		Storage:                store,
-		Templates:              tmpls,
-		Signer:                 sig,
-		Issuer:                 tokens.NewIssuer(store, sig, *issuerURL, 24*time.Hour, now, logger),
-		Now:                    now,
-		Logger:                 logger,
-		SkipApproval:           true,
-		SupportedResponseTypes: map[string]bool{"code": true, "token": true, "id_token": true},
-		PKCE:                   PKCEConfig{CodeChallengeMethodsSupported: []string{"S256", "plain"}},
-		AuthRequestsValidFor:   24 * time.Hour,
+	tc := testFlowConfig{
+		Config: Config{
+			IssuerURL:              *issuerURL,
+			Connectors:             conns,
+			Storage:                store,
+			Templates:              tmpls,
+			Signer:                 sig,
+			Now:                    now,
+			Logger:                 logger,
+			SupportedResponseTypes: map[string]bool{"code": true, "token": true, "id_token": true},
+			PKCE:                   PKCEConfig{CodeChallengeMethodsSupported: []string{"S256", "plain"}},
+			AuthRequestsValidFor:   24 * time.Hour,
+		},
+		SkipApproval: true,
 	}
 	if updateConfig != nil {
-		updateConfig(&cfg)
+		updateConfig(&tc)
 	}
 
-	h := NewHandler(cfg)
+	// Assemble the shared components exactly as the server does.
+	ui := &render.UI{Templates: tmpls, IssuerURL: *issuerURL, Logger: logger}
+	sessions := &session.Manager{Storage: store, Config: tc.SessionConfig, Now: now, Logger: logger, IssuerURL: *issuerURL}
+	mfaManager := &mfa.Manager{UI: ui, Storage: store, Templates: tmpls, Logger: logger, MFAProviders: tc.MFAProviders, DefaultMFAChain: tc.DefaultMFAChain, Now: now, Connectors: conns}
+	issueWriter := &issue.Writer{UI: ui, Storage: store, Templates: tmpls, Logger: logger, Issuer: issuer, Sessions: sessions, Now: now}
+	consentManager := &consent.Manager{UI: ui, Storage: store, Templates: tmpls, Logger: logger, Sessions: sessions, MFA: mfaManager, Issue: issueWriter, SkipApproval: tc.SkipApproval}
+	logoutManager := &logout.Manager{UI: ui, Storage: store, Templates: tmpls, Logger: logger, Sessions: sessions, Connectors: conns, Issuer: issuer, Signer: sig, IssuerURL: *issuerURL}
+
+	tc.Config.UI = ui
+	tc.Config.Sessions = sessions
+	tc.Config.MFA = mfaManager
+	tc.Config.Consent = consentManager
+	tc.Config.Issue = issueWriter
+
+	h := NewHandler(tc.Config)
 
 	router := mux.NewRouter()
 	h.Mount(testMux{router})
-	h.MFA().Mount(testMux{router})
-	h.Consent().Mount(testMux{router})
-	h.Logout().Mount(testMux{router})
+	mfaManager.Mount(testMux{router})
+	consentManager.Mount(testMux{router})
+	logoutManager.Mount(testMux{router})
 	handler = router
 
 	for _, id := range []string{"mock", "mock2"} {

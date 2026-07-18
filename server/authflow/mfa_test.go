@@ -16,7 +16,7 @@ import (
 )
 
 func TestCompleteMFAStep(t *testing.T) {
-	httpServer, server := newTestHandler(t, func(c *Config) {
+	httpServer, server := newTestHandler(t, func(c *testFlowConfig) {
 		c.SessionConfig = &session.Config{AbsoluteLifetime: time.Hour, ValidIfNotUsedFor: time.Hour}
 
 		provider, err := mfa.NewWebAuthnProvider("Test", "", nil, "", "",
@@ -73,7 +73,7 @@ func TestCompleteMFAStep(t *testing.T) {
 }
 
 func TestWebAuthnHandlersMissingHMAC(t *testing.T) {
-	httpServer, server := newTestHandler(t, func(c *Config) {
+	httpServer, server := newTestHandler(t, func(c *testFlowConfig) {
 		c.SessionConfig = &session.Config{AbsoluteLifetime: time.Hour, ValidIfNotUsedFor: time.Hour}
 
 		provider, err := mfa.NewWebAuthnProvider("Test", "", nil, "", "",
@@ -104,7 +104,7 @@ func TestWebAuthnHandlersMissingHMAC(t *testing.T) {
 }
 
 func TestWebAuthnVerifyPageRender(t *testing.T) {
-	httpServer, server := newTestHandler(t, func(c *Config) {
+	httpServer, server := newTestHandler(t, func(c *testFlowConfig) {
 		c.SessionConfig = &session.Config{AbsoluteLifetime: time.Hour, ValidIfNotUsedFor: time.Hour}
 
 		provider, err := mfa.NewWebAuthnProvider("Test", "", nil, "", "",

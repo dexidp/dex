@@ -385,7 +385,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			httpServer, server := newTestHandler(t, func(c *Config) {
+			httpServer, server := newTestHandler(t, func(c *testFlowConfig) {
 				c.SupportedResponseTypes = toResponseTypeSet(tc.supportedResponseTypes)
 				c.Storage = storage.WithStaticClients(c.Storage, tc.clients)
 				if len(tc.pkce.CodeChallengeMethodsSupported) > 0 || tc.pkce.Enforce {
@@ -857,7 +857,7 @@ func TestParseAuthorizationRequest_IDTokenHint(t *testing.T) {
 	now := time.Now()
 
 	t.Run("valid id_token_hint populates subject", func(t *testing.T) {
-		httpServer, server := newTestHandler(t, func(c *Config) {
+		httpServer, server := newTestHandler(t, func(c *testFlowConfig) {
 			c.SupportedResponseTypes = map[string]bool{"code": true}
 			c.Storage = storage.WithStaticClients(c.Storage, []storage.Client{
 				{ID: "foo", RedirectURIs: []string{"https://example.com/foo"}},
@@ -887,7 +887,7 @@ func TestParseAuthorizationRequest_IDTokenHint(t *testing.T) {
 	})
 
 	t.Run("invalid id_token_hint returns error", func(t *testing.T) {
-		httpServer, server := newTestHandler(t, func(c *Config) {
+		httpServer, server := newTestHandler(t, func(c *testFlowConfig) {
 			c.SupportedResponseTypes = map[string]bool{"code": true}
 			c.Storage = storage.WithStaticClients(c.Storage, []storage.Client{
 				{ID: "foo", RedirectURIs: []string{"https://example.com/foo"}},
@@ -913,7 +913,7 @@ func TestParseAuthorizationRequest_IDTokenHint(t *testing.T) {
 	})
 
 	t.Run("no id_token_hint leaves subject empty", func(t *testing.T) {
-		httpServer, server := newTestHandler(t, func(c *Config) {
+		httpServer, server := newTestHandler(t, func(c *testFlowConfig) {
 			c.SupportedResponseTypes = map[string]bool{"code": true}
 			c.Storage = storage.WithStaticClients(c.Storage, []storage.Client{
 				{ID: "foo", RedirectURIs: []string{"https://example.com/foo"}},

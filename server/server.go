@@ -44,14 +44,18 @@ import (
 	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server/authflow"
 	"github.com/dexidp/dex/server/connectors"
+	"github.com/dexidp/dex/server/consent"
 	"github.com/dexidp/dex/server/device"
 	"github.com/dexidp/dex/server/discovery"
 	"github.com/dexidp/dex/server/grants"
 	"github.com/dexidp/dex/server/home"
 	"github.com/dexidp/dex/server/introspection"
+	"github.com/dexidp/dex/server/issue"
+	"github.com/dexidp/dex/server/logout"
 	"github.com/dexidp/dex/server/mfa"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/passwords"
+	"github.com/dexidp/dex/server/render"
 	"github.com/dexidp/dex/server/reqctx"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
@@ -447,23 +451,33 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		SupportedGrantTypes: s.supportedGrantTypes,
 	})
 
+	// Build the shared flow components. They are peer domains (like grants and
+	// device), so the server owns them and mounts them in the loop below; the
+	// login flow only receives the ones its spine drives.
+	ui := &render.UI{Templates: s.templates, IssuerURL: s.issuerURL, Logger: s.logger}
+	sessions := &session.Manager{Storage: s.storage, Config: s.sessionConfig, Now: s.now, Logger: s.logger, IssuerURL: s.issuerURL}
+	mfaManager := &mfa.Manager{UI: ui, Storage: s.storage, Templates: s.templates, Logger: s.logger, MFAProviders: s.mfaProviders, DefaultMFAChain: s.defaultMFAChain, Now: s.now, Connectors: s.connectors}
+	issueWriter := &issue.Writer{UI: ui, Storage: s.storage, Templates: s.templates, Logger: s.logger, Issuer: s.issuer, Sessions: sessions, Now: s.now}
+	consentManager := &consent.Manager{UI: ui, Storage: s.storage, Templates: s.templates, Logger: s.logger, Sessions: sessions, MFA: mfaManager, Issue: issueWriter, SkipApproval: s.skipApproval}
+	logoutManager := &logout.Manager{UI: ui, Storage: s.storage, Templates: s.templates, Logger: s.logger, Sessions: sessions, Connectors: s.connectors, Issuer: s.issuer, Signer: s.signer, IssuerURL: s.issuerURL}
+
 	authFlow := authflow.NewHandler(authflow.Config{
 		IssuerURL:              s.issuerURL,
 		Connectors:             s.connectors,
 		Storage:                s.storage,
 		Templates:              s.templates,
 		Signer:                 s.signer,
-		Issuer:                 s.issuer,
 		Now:                    s.now,
 		Logger:                 s.logger,
-		SkipApproval:           s.skipApproval,
 		AlwaysShowLogin:        s.alwaysShowLogin,
 		SupportedResponseTypes: s.supportedResponseTypes,
 		PKCE:                   s.pkce,
 		AuthRequestsValidFor:   s.authRequestsValidFor,
-		SessionConfig:          s.sessionConfig,
-		MFAProviders:           s.mfaProviders,
-		DefaultMFAChain:        s.defaultMFAChain,
+		UI:                     ui,
+		Sessions:               sessions,
+		MFA:                    mfaManager,
+		Consent:                consentManager,
+		Issue:                  issueWriter,
 	})
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
@@ -607,7 +621,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	// Self-contained domains mount their own routes through the router.Mux
 	// abstraction, so this list is the only place they are wired in.
 	mux := routeMux{handle: handle, handleFunc: handleFunc, handleCORS: handleWithCORS, handlePrefix: handlePrefix}
-	for _, h := range []router.Handler{tokenEndpoint, discoveryHandler, userInfoHandler, introspectHandler, deviceHandler, homeHandler, authFlow, authFlow.MFA(), authFlow.Consent(), authFlow.Logout()} {
+	for _, h := range []router.Handler{tokenEndpoint, discoveryHandler, userInfoHandler, introspectHandler, deviceHandler, homeHandler, authFlow, mfaManager, consentManager, logoutManager} {
 		h.Mount(mux)
 	}
 

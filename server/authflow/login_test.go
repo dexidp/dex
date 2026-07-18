@@ -14,7 +14,7 @@ import (
 func TestFinalizeLoginBlockedAccount(t *testing.T) {
 	t.Setenv("DEX_SESSIONS_ENABLED", "true")
 
-	httpServer, server := newTestHandler(t, func(c *Config) {
+	httpServer, server := newTestHandler(t, func(c *testFlowConfig) {
 		c.SessionConfig = &session.Config{AbsoluteLifetime: time.Hour, ValidIfNotUsedFor: time.Hour}
 	})
 	defer httpServer.Close()

@@ -10,42 +10,41 @@ import (
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/consent"
 	"github.com/dexidp/dex/server/issue"
-	"github.com/dexidp/dex/server/logout"
 	"github.com/dexidp/dex/server/mfa"
 	"github.com/dexidp/dex/server/render"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/templates"
-	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
-// Config holds everything the interactive auth flow depends on. It is the narrow
-// contract between the top-level Server and this package: NewHandler copies these
-// into a Handler, and the flow never reaches back into the Server.
+// Config is the login flow's configuration. The shared flow components (session,
+// mfa, consent, issue) are built and owned by the server and injected here: the
+// flow drives them through the spine but does not construct them.
 type Config struct {
 	IssuerURL              url.URL
 	Connectors             *connectors.Cache
 	Storage                storage.Storage
 	Templates              *templates.Templates
 	Signer                 signer.Signer
-	Issuer                 *tokens.Issuer
 	Now                    func() time.Time
 	Logger                 *slog.Logger
-	SkipApproval           bool
 	AlwaysShowLogin        bool
 	SupportedResponseTypes map[string]bool
 	PKCE                   PKCEConfig
 	AuthRequestsValidFor   time.Duration
-	SessionConfig          *session.Config
-	MFAProviders           map[string]mfa.Provider
-	DefaultMFAChain        []string
+
+	UI       *render.UI
+	Sessions *session.Manager
+	MFA      *mfa.Manager
+	Consent  *consent.Manager
+	Issue    *issue.Writer
 }
 
-// Handler serves the interactive authorization flow. It embeds render (shared
-// browser rendering / URL building) and delegates the session and MFA domains
-// to their own components; what remains on the Handler is HTTP orchestration.
+// Handler serves the interactive login flow. It embeds render (shared browser
+// rendering / URL building) and holds references to the shared flow components
+// (session, mfa, consent, issue) that the spine drives; it does not own them.
 type Handler struct {
 	*render.UI
 
@@ -53,13 +52,11 @@ type Handler struct {
 	storage                storage.Storage
 	templates              *templates.Templates
 	logger                 *slog.Logger
-	issuer                 *tokens.Issuer
 	signer                 signer.Signer
 	issuerURL              url.URL
 	pkce                   PKCEConfig
 	supportedResponseTypes map[string]bool
 	now                    func() time.Time
-	skipApproval           bool
 	alwaysShowLogin        bool
 	authRequestsValidFor   time.Duration
 
@@ -71,47 +68,33 @@ type Handler struct {
 	consent *consent.Manager
 	// issue writes the authorization response back to the client.
 	issue *issue.Writer
-	// logout owns RP-Initiated Logout and upstream single-logout.
-	logout *logout.Manager
 }
 
-// NewHandler builds the interactive auth-flow handler from its configuration.
+// NewHandler builds the login-flow handler from its configuration. The shared
+// components are built by the server and passed in via Config.
 func NewHandler(c Config) *Handler {
-	ui := &render.UI{Templates: c.Templates, IssuerURL: c.IssuerURL, Logger: c.Logger}
-	sessions := &session.Manager{Storage: c.Storage, Config: c.SessionConfig, Now: c.Now, Logger: c.Logger, IssuerURL: c.IssuerURL}
-	mfaManager := &mfa.Manager{UI: ui, Storage: c.Storage, Templates: c.Templates, Logger: c.Logger, MFAProviders: c.MFAProviders, DefaultMFAChain: c.DefaultMFAChain, Now: c.Now, Connectors: c.Connectors}
-	issueWriter := &issue.Writer{UI: ui, Storage: c.Storage, Templates: c.Templates, Logger: c.Logger, Issuer: c.Issuer, Sessions: sessions, Now: c.Now}
 	return &Handler{
-		UI:                     ui,
+		UI:                     c.UI,
 		connectors:             c.Connectors,
 		storage:                c.Storage,
 		templates:              c.Templates,
 		logger:                 c.Logger,
-		issuer:                 c.Issuer,
 		signer:                 c.Signer,
 		issuerURL:              c.IssuerURL,
 		pkce:                   c.PKCE,
 		supportedResponseTypes: c.SupportedResponseTypes,
 		now:                    c.Now,
-		skipApproval:           c.SkipApproval,
 		alwaysShowLogin:        c.AlwaysShowLogin,
 		authRequestsValidFor:   c.AuthRequestsValidFor,
-		sessions:               sessions,
-		mfa:                    mfaManager,
-		issue:                  issueWriter,
-		consent: &consent.Manager{
-			UI: ui, Storage: c.Storage, Templates: c.Templates, Logger: c.Logger,
-			Sessions: sessions, MFA: mfaManager, Issue: issueWriter, SkipApproval: c.SkipApproval,
-		},
-		logout: &logout.Manager{
-			UI: ui, Storage: c.Storage, Templates: c.Templates, Logger: c.Logger,
-			Sessions: sessions, Connectors: c.Connectors, Issuer: c.Issuer, Signer: c.Signer, IssuerURL: c.IssuerURL,
-		},
+		sessions:               c.Sessions,
+		mfa:                    c.MFA,
+		consent:                c.Consent,
+		issue:                  c.Issue,
 	}
 }
 
-// Mount registers the login routes. Consent, MFA and logout are self-contained
-// flow components that mount their own endpoints.
+// Mount registers the login routes. The shared components (consent, mfa, logout)
+// are mounted separately by the server, not through this handler.
 func (h *Handler) Mount(m router.Mux) {
 	m.HandleFunc("/auth", h.handleAuthorization)
 	m.HandleFunc("/auth/{connector}", h.handleConnectorLogin)
@@ -130,12 +113,3 @@ func (h *Handler) Mount(m router.Mux) {
 	// "authproxy" connector.
 	m.HandleFunc("/callback/{connector}", h.handleConnectorCallback)
 }
-
-// MFA returns the MFA component so the server can mount its endpoints directly.
-func (h *Handler) MFA() *mfa.Manager { return h.mfa }
-
-// Consent returns the consent component so the server can mount its endpoint directly.
-func (h *Handler) Consent() *consent.Manager { return h.consent }
-
-// Logout returns the logout component so the server can mount its endpoints directly.
-func (h *Handler) Logout() *logout.Manager { return h.logout }
