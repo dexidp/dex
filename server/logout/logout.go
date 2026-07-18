@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"path"
 	"slices"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -14,7 +15,6 @@ import (
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
-	"github.com/dexidp/dex/server/render"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/signer"
@@ -24,11 +24,9 @@ import (
 )
 
 // Handler implements RP-Initiated Logout. It depends only on lower components
-// (sessions, storage, connectors, the token issuer) and the browser rendering
-// helpers, so it carries no login-flow code.
+// (sessions, storage, connectors, the token issuer), so it carries no login-flow
+// code.
 type Handler struct {
-	*render.UI
-
 	Storage    storage.Storage
 	Templates  *templates.Templates
 	Logger     *slog.Logger
@@ -37,6 +35,20 @@ type Handler struct {
 	Issuer     *tokens.Issuer
 	Signer     signer.Signer
 	IssuerURL  url.URL
+}
+
+// renderError renders a user-facing HTML error page.
+func (h *Handler) renderError(r *http.Request, w http.ResponseWriter, status int, description string) {
+	if err := h.Templates.Err(r, w, status, description); err != nil {
+		h.Logger.ErrorContext(r.Context(), "server template error", "err", err)
+	}
+}
+
+// absURL returns the absolute issuer URL for the given path items.
+func (h *Handler) absURL(pathItems ...string) string {
+	u := h.IssuerURL
+	u.Path = path.Join(append([]string{h.IssuerURL.Path}, pathItems...)...)
+	return u.String()
 }
 
 // Mount registers the logout endpoints. Logout requires an active session, so it
@@ -72,7 +84,7 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	if r.Method != http.MethodGet && r.Method != http.MethodPost {
-		h.RenderError(r, w, http.StatusMethodNotAllowed, "Method not allowed.")
+		h.renderError(r, w, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
 
@@ -97,14 +109,14 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 		idToken, err := h.validateIDTokenHint(ctx, idTokenHint)
 		if err != nil {
 			h.Logger.ErrorContext(ctx, "logout: invalid id_token_hint", "err", err)
-			h.RenderError(r, w, http.StatusBadRequest, "Invalid id_token_hint.")
+			h.renderError(r, w, http.StatusBadRequest, "Invalid id_token_hint.")
 			return
 		}
 
 		sub := new(internal.IDTokenSubject)
 		if err := internal.Unmarshal(idToken.Subject, sub); err != nil {
 			h.Logger.ErrorContext(ctx, "logout: failed to unmarshal subject", "err", err)
-			h.RenderError(r, w, http.StatusBadRequest, "Invalid id_token_hint subject.")
+			h.renderError(r, w, http.StatusBadRequest, "Invalid id_token_hint subject.")
 			return
 		}
 
@@ -122,7 +134,7 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := idToken.Claims(&claims); err != nil {
 			h.Logger.ErrorContext(ctx, "logout: failed to decode id_token_hint claims", "err", err)
-			h.RenderError(r, w, http.StatusBadRequest, "Invalid id_token_hint.")
+			h.renderError(r, w, http.StatusBadRequest, "Invalid id_token_hint.")
 			return
 		}
 
@@ -153,21 +165,21 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 	// Validate post_logout_redirect_uri against registered client URIs.
 	if postLogoutRedirectURI != "" {
 		if clientID == "" {
-			h.RenderError(r, w, http.StatusBadRequest, "post_logout_redirect_uri requires id_token_hint.")
+			h.renderError(r, w, http.StatusBadRequest, "post_logout_redirect_uri requires id_token_hint.")
 			return
 		}
 
 		client, err := h.Storage.GetClient(ctx, clientID)
 		if err != nil {
 			h.Logger.ErrorContext(ctx, "logout: failed to get client", "client_id", clientID, "err", err)
-			h.RenderError(r, w, http.StatusBadRequest, "Invalid client.")
+			h.renderError(r, w, http.StatusBadRequest, "Invalid client.")
 			return
 		}
 
 		if !slices.Contains(client.PostLogoutRedirectURIs, postLogoutRedirectURI) {
 			h.Logger.WarnContext(ctx, "logout: unregistered post_logout_redirect_uri",
 				"uri", postLogoutRedirectURI, "client_id", clientID)
-			h.RenderError(r, w, http.StatusBadRequest, "Unregistered post_logout_redirect_uri.")
+			h.renderError(r, w, http.StatusBadRequest, "Unregistered post_logout_redirect_uri.")
 			return
 		}
 	}
@@ -205,7 +217,7 @@ func (h *Handler) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 	// Resolve identity from the session cookie.
 	userID, connectorID, nonce, ok := h.Sessions.ParseCookie(r)
 	if !ok {
-		h.RenderError(r, w, http.StatusBadRequest, "Invalid session cookie.")
+		h.renderError(r, w, http.StatusBadRequest, "Invalid session cookie.")
 		return
 	}
 
@@ -213,17 +225,17 @@ func (h *Handler) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 	session, err := h.Storage.GetAuthSession(ctx, userID, connectorID)
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "logout callback: session not found", "err", err)
-		h.RenderError(r, w, http.StatusBadRequest, "Session not found.")
+		h.renderError(r, w, http.StatusBadRequest, "Session not found.")
 		return
 	}
 
 	if subtle.ConstantTimeCompare([]byte(session.Nonce), []byte(nonce)) != 1 {
-		h.RenderError(r, w, http.StatusBadRequest, "Invalid session.")
+		h.renderError(r, w, http.StatusBadRequest, "Invalid session.")
 		return
 	}
 
 	if session.LogoutState == nil {
-		h.RenderError(r, w, http.StatusBadRequest, "No logout in progress.")
+		h.renderError(r, w, http.StatusBadRequest, "No logout in progress.")
 		return
 	}
 
@@ -310,7 +322,7 @@ func (h *Handler) tryUpstreamLogout(ctx context.Context, userID, connectorID, po
 		return "", false
 	}
 
-	callbackURI := h.AbsURL("/logout/callback")
+	callbackURI := h.absURL("/logout/callback")
 	upstreamURL, err := logoutConn.LogoutURL(ctx, callbackURI)
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "logout: upstream connector error", "err", err)

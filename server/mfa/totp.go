@@ -105,12 +105,12 @@ func (h *Handler) handleTOTP(w http.ResponseWriter, r *http.Request) {
 
 	provider, ok := h.MFAProviders[mfa.authenticatorID]
 	if !ok {
-		h.RenderError(r, w, http.StatusBadRequest, "Unknown authenticator.")
+		h.renderError(r, w, http.StatusBadRequest, "Unknown authenticator.")
 		return
 	}
 	totpProvider, ok := provider.(*TOTPProvider)
 	if !ok {
-		h.RenderError(r, w, http.StatusBadRequest, "Not a TOTP authenticator.")
+		h.renderError(r, w, http.StatusBadRequest, "Not a TOTP authenticator.")
 		return
 	}
 
@@ -132,7 +132,7 @@ func (h *Handler) handleTOTPVerify(w http.ResponseWriter, r *http.Request, ctx c
 			generated, err := totpProvider.generate(authReq.ConnectorID, authReq.Claims.Email)
 			if err != nil {
 				h.Logger.ErrorContext(ctx, "failed to generate TOTP key", "err", err)
-				h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+				h.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 				return
 			}
 
@@ -152,7 +152,7 @@ func (h *Handler) handleTOTPVerify(w http.ResponseWriter, r *http.Request, ctx c
 				return old, nil
 			}); err != nil {
 				h.Logger.ErrorContext(ctx, "failed to store MFA secret", "err", err)
-				h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+				h.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 				return
 			}
 		}
@@ -166,7 +166,7 @@ func (h *Handler) handleTOTPVerify(w http.ResponseWriter, r *http.Request, ctx c
 		//
 		// For now the best way is to use external rate limiting solutions.
 		if secret == nil || secret.Secret == "" {
-			h.RenderError(r, w, http.StatusBadRequest, "MFA not enrolled.")
+			h.renderError(r, w, http.StatusBadRequest, "MFA not enrolled.")
 			return
 		}
 
@@ -174,7 +174,7 @@ func (h *Handler) handleTOTPVerify(w http.ResponseWriter, r *http.Request, ctx c
 		generated, err := otp.NewKeyFromURL(secret.Secret)
 		if err != nil {
 			h.Logger.ErrorContext(ctx, "failed to load TOTP key", "err", err)
-			h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+			h.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 			return
 		}
 
@@ -207,14 +207,14 @@ func (h *Handler) handleTOTPVerify(w http.ResponseWriter, r *http.Request, ctx c
 				return
 			}
 			h.Logger.ErrorContext(ctx, "failed to update MFA secret", "err", err)
-			h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+			h.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 			return
 		}
 
 		redirectURL, err := h.CompleteStep(ctx, authReq, authenticatorID)
 		if err != nil {
 			h.Logger.ErrorContext(ctx, "failed to complete MFA step", "err", err)
-			h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+			h.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 			return
 		}
 
@@ -223,7 +223,7 @@ func (h *Handler) handleTOTPVerify(w http.ResponseWriter, r *http.Request, ctx c
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 
 	default:
-		h.RenderError(r, w, http.StatusBadRequest, "Unsupported request method.")
+		h.renderError(r, w, http.StatusBadRequest, "Unsupported request method.")
 	}
 }
 
@@ -236,7 +236,7 @@ func (h *Handler) renderTOTPPage(secret *storage.MFASecret, lastFail bool, issue
 		qrCode, err = generateTOTPQRCode(secret.Secret)
 		if err != nil {
 			h.Logger.ErrorContext(r.Context(), "failed to generate QR code", "err", err)
-			h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+			h.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 			return
 		}
 	}

@@ -19,22 +19,22 @@ func (h *Handler) handleContinue(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	mac := r.FormValue("hmac")
 	if mac == "" {
-		h.RenderError(r, w, http.StatusUnauthorized, "Unauthorized request")
+		h.renderError(r, w, http.StatusUnauthorized, "Unauthorized request")
 		return
 	}
 	authReq, err := h.storage.GetAuthRequest(ctx, r.FormValue("req"))
 	if err != nil {
 		if err == storage.ErrNotFound {
-			h.RenderError(r, w, http.StatusBadRequest, "User session error.")
+			h.renderError(r, w, http.StatusBadRequest, "User session error.")
 			return
 		}
 		h.logger.ErrorContext(ctx, "failed to get auth request", "err", err)
-		h.RenderError(r, w, http.StatusInternalServerError, "Database error.")
+		h.renderError(r, w, http.StatusInternalServerError, "Database error.")
 		return
 	}
 	if !authReq.LoggedIn {
 		h.logger.ErrorContext(ctx, "flow dispatcher reached for auth request without an identity")
-		h.RenderError(r, w, http.StatusInternalServerError, "Login process not yet finalized.")
+		h.renderError(r, w, http.StatusInternalServerError, "Login process not yet finalized.")
 		return
 	}
 
@@ -43,7 +43,7 @@ func (h *Handler) handleContinue(w http.ResponseWriter, r *http.Request) {
 	// resolved for this request even under prompt=consent / ForceApprovalPrompt.
 	consentApproved := internal.VerifyHMAC(authReq.HMACKey, mac, authReq.ID, "approved")
 	if !consentApproved && !internal.VerifyHMAC(authReq.HMACKey, mac, authReq.ID, "continue") {
-		h.RenderError(r, w, http.StatusUnauthorized, "Unauthorized request")
+		h.renderError(r, w, http.StatusUnauthorized, "Unauthorized request")
 		return
 	}
 
@@ -62,7 +62,7 @@ func (h *Handler) dispatch(w http.ResponseWriter, r *http.Request, authReq stora
 	chain, err := h.mfa.ChainForClient(ctx, authReq.ClientID, authReq.ConnectorID)
 	if err != nil {
 		h.logger.ErrorContext(ctx, "failed to determine MFA chain", "err", err)
-		h.RenderError(r, w, http.StatusInternalServerError, ErrMsgInternalServerError)
+		h.renderError(r, w, http.StatusInternalServerError, ErrMsgInternalServerError)
 		return
 	}
 	if len(chain) > 0 && !authReq.MFAValidated {

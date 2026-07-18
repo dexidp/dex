@@ -6,11 +6,11 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"path"
 	"time"
 
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
-	"github.com/dexidp/dex/server/render"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/storage"
@@ -35,20 +35,32 @@ type mfaRequestContext struct {
 // /auth dispatcher queries), the TOTP and WebAuthn factor endpoints, and the
 // challenge lifecycle. A completed factor returns to the dispatcher.
 type Handler struct {
-	*render.UI
 	Storage         storage.Storage
 	Templates       *templates.Templates
 	Logger          *slog.Logger
+	IssuerURL       url.URL
 	MFAProviders    map[string]Provider
 	DefaultMFAChain []string
 	Now             func() time.Time
 	Connectors      *connectors.Cache
 }
 
+// renderError renders a user-facing HTML error page.
+func (h *Handler) renderError(r *http.Request, w http.ResponseWriter, status int, description string) {
+	if err := h.Templates.Err(r, w, status, description); err != nil {
+		h.Logger.ErrorContext(r.Context(), "server template error", "err", err)
+	}
+}
+
+// absPath returns the issuer path joined with the given path items.
+func (h *Handler) absPath(pathItems ...string) string {
+	return path.Join(append([]string{h.IssuerURL.Path}, pathItems...)...)
+}
+
 func (h *Handler) validateMFARequest(w http.ResponseWriter, r *http.Request) (*mfaRequestContext, bool) {
 	macEncoded := r.FormValue("hmac")
 	if macEncoded == "" {
-		h.RenderError(r, w, http.StatusUnauthorized, "Unauthorized request.")
+		h.renderError(r, w, http.StatusUnauthorized, "Unauthorized request.")
 		return nil, false
 	}
 
@@ -57,26 +69,26 @@ func (h *Handler) validateMFARequest(w http.ResponseWriter, r *http.Request) (*m
 	authReq, err := h.Storage.GetAuthRequest(ctx, r.FormValue("req"))
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "failed to get auth request", "err", err)
-		h.RenderError(r, w, http.StatusInternalServerError, "Database error.")
+		h.renderError(r, w, http.StatusInternalServerError, "Database error.")
 		return nil, false
 	}
 	if !authReq.LoggedIn {
 		h.Logger.ErrorContext(ctx, "auth request does not have an identity for MFA verification")
-		h.RenderError(r, w, http.StatusInternalServerError, "Login process not yet finalized.")
+		h.renderError(r, w, http.StatusInternalServerError, "Login process not yet finalized.")
 		return nil, false
 	}
 
 	authenticatorID := r.FormValue("authenticator")
 
 	if !internal.VerifyHMAC(authReq.HMACKey, macEncoded, authReq.ID, authenticatorID) {
-		h.RenderError(r, w, http.StatusUnauthorized, "Unauthorized request.")
+		h.renderError(r, w, http.StatusUnauthorized, "Unauthorized request.")
 		return nil, false
 	}
 
 	identity, err := h.Storage.GetUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID)
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "failed to get user identity", "err", err)
-		h.RenderError(r, w, http.StatusInternalServerError, "Database error.")
+		h.renderError(r, w, http.StatusInternalServerError, "Database error.")
 		return nil, false
 	}
 
@@ -183,7 +195,7 @@ func (h *Handler) BuildRedirectURL(authReq storage.AuthRequest, authenticatorID 
 	v.Set("req", authReq.ID)
 	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, authenticatorID))
 	v.Set("authenticator", authenticatorID)
-	return h.AbsPath(h.mfaPagePath(authenticatorID)) + "?" + v.Encode()
+	return h.absPath(h.mfaPagePath(authenticatorID)) + "?" + v.Encode()
 }
 
 // buildContinueURL builds the HMAC-protected URL that returns to the authorize
@@ -192,7 +204,7 @@ func (h *Handler) buildContinueURL(authReq storage.AuthRequest) string {
 	v := url.Values{}
 	v.Set("req", authReq.ID)
 	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "continue"))
-	return h.AbsPath("/auth") + "?" + v.Encode()
+	return h.absPath("/auth") + "?" + v.Encode()
 }
 
 // Mount registers the MFA factor endpoints, only when at least one authenticator

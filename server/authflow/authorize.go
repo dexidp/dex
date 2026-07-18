@@ -41,7 +41,7 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		h.logger.ErrorContext(r.Context(), "failed to parse arguments", "err", err)
 
-		h.RenderError(r, w, http.StatusBadRequest, ErrMsgInvalidRequest)
+		h.renderError(r, w, http.StatusBadRequest, ErrMsgInvalidRequest)
 		return
 	}
 
@@ -55,7 +55,7 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	allConnectors, err := h.storage.ListConnectors(ctx)
 	if err != nil {
 		h.logger.ErrorContext(r.Context(), "failed to get list of connectors", "err", err)
-		h.RenderError(r, w, http.StatusInternalServerError, "Failed to retrieve connector list.")
+		h.renderError(r, w, http.StatusInternalServerError, "Failed to retrieve connector list.")
 		return
 	}
 
@@ -72,13 +72,13 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	// client_id is required per RFC 6749 §4.1.1.
 	client, authErr := h.getClientWithAuthError(ctx, r.Form.Get("client_id"))
 	if authErr != nil {
-		h.RenderError(r, w, authErr.Status, authErr.Error())
+		h.renderError(r, w, authErr.Status, authErr.Error())
 		return
 	}
 	connectors = conns.Filter(connectors, client.AllowedConnectors)
 
 	if len(connectors) == 0 {
-		h.RenderError(r, w, http.StatusBadRequest, "No connectors available for this client.")
+		h.renderError(r, w, http.StatusBadRequest, "No connectors available for this client.")
 		return
 	}
 
@@ -94,17 +94,17 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	if connectorID != "" {
 		for _, c := range connectors {
 			if c.ID == connectorID {
-				connURL.Path = h.AbsPath("/auth", url.PathEscape(c.ID))
+				connURL.Path = h.absPath("/auth", url.PathEscape(c.ID))
 				http.Redirect(w, r, connURL.String(), http.StatusFound)
 				return
 			}
 		}
-		h.RenderError(r, w, http.StatusBadRequest, "Connector ID does not match a valid Connector")
+		h.renderError(r, w, http.StatusBadRequest, "Connector ID does not match a valid Connector")
 		return
 	}
 
 	if len(connectors) == 1 && !h.alwaysShowLogin {
-		connURL.Path = h.AbsPath("/auth", url.PathEscape(connectors[0].ID))
+		connURL.Path = h.absPath("/auth", url.PathEscape(connectors[0].ID))
 		http.Redirect(w, r, connURL.String(), http.StatusFound)
 		return
 	}
@@ -119,7 +119,7 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 			case *redirectedAuthErr:
 				authErr.Handler().ServeHTTP(w, r)
 			case *displayedAuthErr:
-				h.RenderError(r, w, authErr.Status, err.Error())
+				h.renderError(r, w, authErr.Status, err.Error())
 			default:
 				panic("unsupported error type")
 			}
@@ -140,7 +140,7 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 					if c.ID != session.ConnectorID {
 						continue
 					}
-					connURL.Path = h.AbsPath("/auth", url.PathEscape(session.ConnectorID))
+					connURL.Path = h.absPath("/auth", url.PathEscape(session.ConnectorID))
 					http.Redirect(w, r, connURL.String(), http.StatusFound)
 					return
 				}
@@ -155,7 +155,7 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 
 	connectorInfos := make([]templates.ConnectorInfo, 0, len(connectors))
 	for _, conn := range connectors {
-		connURL.Path = h.AbsPath("/auth", url.PathEscape(conn.ID))
+		connURL.Path = h.absPath("/auth", url.PathEscape(conn.ID))
 		connectorInfos = append(connectorInfos, templates.ConnectorInfo{
 			ID:   conn.ID,
 			Name: conn.Name,

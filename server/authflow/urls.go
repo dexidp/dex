@@ -13,7 +13,7 @@ func (h *Handler) buildContinueURL(authReq storage.AuthRequest) string {
 	v := url.Values{}
 	v.Set("req", authReq.ID)
 	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "continue"))
-	return h.AbsPath("/auth") + "?" + v.Encode()
+	return h.absPath("/auth") + "?" + v.Encode()
 }
 
 // buildApprovalURL builds the HMAC-protected URL of the consent screen, where the
@@ -22,5 +22,5 @@ func (h *Handler) buildApprovalURL(authReq storage.AuthRequest) string {
 	v := url.Values{}
 	v.Set("req", authReq.ID)
 	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "approval"))
-	return h.AbsPath("/approval") + "?" + v.Encode()
+	return h.absPath("/approval") + "?" + v.Encode()
 }

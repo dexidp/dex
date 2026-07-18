@@ -19,7 +19,6 @@ import (
 	"github.com/dexidp/dex/server/consent"
 	"github.com/dexidp/dex/server/logout"
 	"github.com/dexidp/dex/server/mfa"
-	"github.com/dexidp/dex/server/render"
 	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/templates"
@@ -129,13 +128,11 @@ func newTestHandler(t *testing.T, updateConfig func(c *testFlowConfig)) (*httpte
 
 	// Assemble the flow the same way the server does: shared infrastructure plus
 	// independent step handlers that hand off by redirect.
-	ui := &render.UI{Templates: tmpls, IssuerURL: *issuerURL, Logger: logger}
 	sessions := &session.Manager{Storage: store, Config: tc.SessionConfig, Now: now, Logger: logger, IssuerURL: *issuerURL}
-	mfaManager := &mfa.Handler{UI: ui, Storage: store, Templates: tmpls, Logger: logger, MFAProviders: tc.MFAProviders, DefaultMFAChain: tc.DefaultMFAChain, Now: now, Connectors: conns}
-	consentManager := &consent.Handler{UI: ui, Storage: store, Templates: tmpls, Logger: logger, Sessions: sessions, SkipApproval: tc.SkipApproval}
-	logoutManager := &logout.Handler{UI: ui, Storage: store, Templates: tmpls, Logger: logger, Sessions: sessions, Connectors: conns, Issuer: issuer, Signer: sig, IssuerURL: *issuerURL}
+	mfaManager := &mfa.Handler{IssuerURL: *issuerURL, Storage: store, Templates: tmpls, Logger: logger, MFAProviders: tc.MFAProviders, DefaultMFAChain: tc.DefaultMFAChain, Now: now, Connectors: conns}
+	consentManager := &consent.Handler{IssuerURL: *issuerURL, Storage: store, Templates: tmpls, Logger: logger, Sessions: sessions, SkipApproval: tc.SkipApproval}
+	logoutManager := &logout.Handler{Storage: store, Templates: tmpls, Logger: logger, Sessions: sessions, Connectors: conns, Issuer: issuer, Signer: sig, IssuerURL: *issuerURL}
 
-	tc.Config.UI = ui
 	tc.Config.Sessions = sessions
 	tc.Config.Issuer = issuer
 	tc.Config.MFA = mfaManager

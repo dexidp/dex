@@ -27,22 +27,22 @@ func (h *Handler) writeResponse(w http.ResponseWriter, r *http.Request, authReq 
 
 	ctx := r.Context()
 	if h.now().After(authReq.Expiry) {
-		h.RenderError(r, w, http.StatusBadRequest, "User session has expired.")
+		h.renderError(r, w, http.StatusBadRequest, "User session has expired.")
 		return
 	}
 
 	if err := h.storage.DeleteAuthRequest(ctx, authReq.ID); err != nil {
 		if err != storage.ErrNotFound {
 			h.logger.ErrorContext(r.Context(), "Failed to delete authorization request", "err", err)
-			h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+			h.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 		} else {
-			h.RenderError(r, w, http.StatusBadRequest, "User session error.")
+			h.renderError(r, w, http.StatusBadRequest, "User session error.")
 		}
 		return
 	}
 	u, err := url.Parse(authReq.RedirectURI)
 	if err != nil {
-		h.RenderError(r, w, http.StatusInternalServerError, "Invalid redirect URI.")
+		h.renderError(r, w, http.StatusInternalServerError, "Invalid redirect URI.")
 		return
 	}
 
@@ -154,7 +154,7 @@ func (h *Handler) issueCode(ctx context.Context, w http.ResponseWriter, r *http.
 	}
 	if err := h.storage.CreateAuthCode(ctx, resp.code); err != nil {
 		h.logger.ErrorContext(r.Context(), "Failed to create auth code", "err", err)
-		h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+		h.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 		return false
 	}
 

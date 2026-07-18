@@ -400,7 +400,7 @@ func writeJSONError(w http.ResponseWriter, status int, message string) {
 
 func (h *Handler) handleWebAuthn(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		h.RenderError(r, w, http.StatusMethodNotAllowed, "Unsupported request method.")
+		h.renderError(r, w, http.StatusMethodNotAllowed, "Unsupported request method.")
 		return
 	}
 

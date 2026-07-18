@@ -30,7 +30,7 @@ func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		case *redirectedAuthErr:
 			authErr.Handler().ServeHTTP(w, r)
 		case *displayedAuthErr:
-			h.RenderError(r, w, authErr.Status, err.Error())
+			h.renderError(r, w, authErr.Status, err.Error())
 		default:
 			panic("unsupported error type")
 		}
@@ -41,27 +41,27 @@ func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	connID, err := url.PathUnescape(mux.Vars(r)["connector"])
 	if err != nil {
 		h.logger.ErrorContext(r.Context(), "failed to parse connector", "err", err)
-		h.RenderError(r, w, http.StatusBadRequest, "Requested resource does not exist")
+		h.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist")
 		return
 	}
 
 	// Validate that the connector is allowed for this client.
 	client, authErr := h.getClientWithAuthError(ctx, authReq.ClientID)
 	if authErr != nil {
-		h.RenderError(r, w, authErr.Status, authErr.Error())
+		h.renderError(r, w, authErr.Status, authErr.Error())
 		return
 	}
 	if !connectors.ConnectorAllowed(client.AllowedConnectors, connID) {
 		h.logger.ErrorContext(r.Context(), "connector not allowed for client",
 			"connector_id", connID, "client_id", authReq.ClientID)
-		h.RenderError(r, w, http.StatusForbidden, "Connector not allowed for this client.")
+		h.renderError(r, w, http.StatusForbidden, "Connector not allowed for this client.")
 		return
 	}
 
 	conn, err := h.connectors.Get(ctx, connID)
 	if err != nil {
 		h.logger.ErrorContext(r.Context(), "Failed to get connector", "err", err)
-		h.RenderError(r, w, http.StatusBadRequest, "Connector failed to initialize")
+		h.renderError(r, w, http.StatusBadRequest, "Connector failed to initialize")
 		return
 	}
 
@@ -70,7 +70,7 @@ func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	if !connectors.GrantTypeAllowed(conn.GrantTypes, grantType) {
 		h.logger.ErrorContext(r.Context(), "connector does not allow requested grant type",
 			"connector_id", connID, "grant_type", grantType)
-		h.RenderError(r, w, http.StatusBadRequest, "Requested connector does not support this grant type.")
+		h.renderError(r, w, http.StatusBadRequest, "Requested connector does not support this grant type.")
 		return
 	}
 
@@ -78,7 +78,7 @@ func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	if authReq.ConnectorID != "" && authReq.ConnectorID != connID {
 		h.logger.ErrorContext(r.Context(), "mismatched connector ID in auth request",
 			"auth_request_connector_id", authReq.ConnectorID, "connector_id", connID)
-		h.RenderError(r, w, http.StatusBadRequest, "Bad connector ID")
+		h.renderError(r, w, http.StatusBadRequest, "Bad connector ID")
 		return
 	}
 
@@ -88,7 +88,7 @@ func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	authReq.Expiry = h.now().Add(h.authRequestsValidFor)
 	if err := h.storage.CreateAuthRequest(ctx, *authReq); err != nil {
 		h.logger.ErrorContext(r.Context(), "failed to create authorization request", "err", err)
-		h.RenderError(r, w, http.StatusInternalServerError, "Failed to connect to the database.")
+		h.renderError(r, w, http.StatusInternalServerError, "Failed to connect to the database.")
 		return
 	}
 
@@ -149,7 +149,7 @@ func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			backLinkParams.Set("prompt", "select_account")
 		}
 		backLinkURL := url.URL{
-			Path:     h.AbsPath("/auth"),
+			Path:     h.absPath("/auth"),
 			RawQuery: backLinkParams.Encode(),
 		}
 		backLink = backLinkURL.String()
@@ -162,10 +162,10 @@ func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			// Use the auth request ID as the "state" token.
 			//
 			// TODO(ericchiang): Is this appropriate or should we also be using a nonce?
-			callbackURL, connData, err := conn.LoginURL(scopes, h.AbsURL("/callback"), authReq.ID)
+			callbackURL, connData, err := conn.LoginURL(scopes, h.absURL("/callback"), authReq.ID)
 			if err != nil {
 				h.logger.ErrorContext(r.Context(), "connector returned error when creating callback", "connector_id", connID, "err", err)
-				h.RenderError(r, w, http.StatusInternalServerError, "Login error.")
+				h.renderError(r, w, http.StatusInternalServerError, "Login error.")
 				return
 			}
 			if len(connData) > 0 {
@@ -176,14 +176,14 @@ func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 				err := h.storage.UpdateAuthRequest(ctx, authReq.ID, updater)
 				if err != nil {
 					h.logger.ErrorContext(r.Context(), "Failed to set connector data on auth request", "connector_id", connID, "err", err)
-					h.RenderError(r, w, http.StatusInternalServerError, "Database error.")
+					h.renderError(r, w, http.StatusInternalServerError, "Database error.")
 					return
 				}
 			}
 			http.Redirect(w, r, callbackURL, http.StatusFound)
 		case connector.PasswordConnector:
 			loginURL := url.URL{
-				Path: h.AbsPath("/auth", connID, "login"),
+				Path: h.absPath("/auth", connID, "login"),
 			}
 			q := loginURL.Query()
 			q.Set("state", authReq.ID)
@@ -195,7 +195,7 @@ func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			action, value, err := conn.POSTData(scopes, authReq.ID)
 			if err != nil {
 				h.logger.ErrorContext(r.Context(), "creating SAML data", "err", err)
-				h.RenderError(r, w, http.StatusInternalServerError, "Connector Login Error")
+				h.renderError(r, w, http.StatusInternalServerError, "Connector Login Error")
 				return
 			}
 
@@ -217,9 +217,9 @@ func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			  </body>
 			  </html>`, action, value, authReq.ID)
 		default:
-			h.RenderError(r, w, http.StatusBadRequest, "Requested resource does not exist.")
+			h.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist.")
 		}
 	default:
-		h.RenderError(r, w, http.StatusBadRequest, "Unsupported request method.")
+		h.renderError(r, w, http.StatusBadRequest, "Unsupported request method.")
 	}
 }

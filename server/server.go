@@ -54,7 +54,6 @@ import (
 	"github.com/dexidp/dex/server/mfa"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/passwords"
-	"github.com/dexidp/dex/server/render"
 	"github.com/dexidp/dex/server/reqctx"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
@@ -403,14 +402,9 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	}
 	s.issuer = tokens.NewIssuer(s.storage, s.signer, s.issuerURL, s.idTokensValidFor, s.now, s.logger)
 	s.connectors = connectors.NewCache(s.storage, s.resolveConnector)
-	// ui and sessions are the shared browser infrastructure every flow handler
-	// embeds. mfa and consent are held as vars because the /auth dispatcher queries
-	// them for its step decisions; they are also mounted (as handlers) below.
-	ui := &render.UI{
-		Templates: s.templates,
-		IssuerURL: s.issuerURL,
-		Logger:    s.logger,
-	}
+	// sessions is shared infrastructure. mfa and consent are held as vars because
+	// the /auth dispatcher queries them for its step decisions; they are also
+	// mounted (as handlers) below.
 	sessions := &session.Manager{
 		Storage:   s.storage,
 		Config:    s.sessionConfig,
@@ -419,20 +413,20 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		IssuerURL: s.issuerURL,
 	}
 	mfaHandler := &mfa.Handler{
-		UI:              ui,
 		Storage:         s.storage,
 		Templates:       s.templates,
 		Logger:          s.logger,
+		IssuerURL:       s.issuerURL,
 		MFAProviders:    s.mfaProviders,
 		DefaultMFAChain: s.defaultMFAChain,
 		Now:             s.now,
 		Connectors:      s.connectors,
 	}
 	consentHandler := &consent.Handler{
-		UI:           ui,
 		Storage:      s.storage,
 		Templates:    s.templates,
 		Logger:       s.logger,
+		IssuerURL:    s.issuerURL,
 		Sessions:     sessions,
 		SkipApproval: s.skipApproval,
 	}
@@ -632,7 +626,6 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			SupportedResponseTypes: s.supportedResponseTypes,
 			PKCE:                   s.pkce,
 			AuthRequestsValidFor:   s.authRequestsValidFor,
-			UI:                     ui,
 			Sessions:               sessions,
 			Issuer:                 s.issuer,
 			MFA:                    mfaHandler,
@@ -641,7 +634,6 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		mfaHandler,
 		consentHandler,
 		&logout.Handler{
-			UI:         ui,
 			Storage:    s.storage,
 			Templates:  s.templates,
 			Logger:     s.logger,

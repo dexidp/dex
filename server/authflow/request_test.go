@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/server/oauth2"
-	"github.com/dexidp/dex/server/render"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
@@ -777,7 +776,6 @@ func TestValidateIDTokenHint(t *testing.T) {
 		signer:    sig,
 		issuerURL: *issuerURL,
 		logger:    slog.Default(),
-		UI:        &render.UI{IssuerURL: *issuerURL, Logger: slog.Default()},
 	}
 
 	now := time.Now()

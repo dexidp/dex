@@ -10,7 +10,6 @@ import (
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/consent"
 	"github.com/dexidp/dex/server/mfa"
-	"github.com/dexidp/dex/server/render"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/signer"
@@ -37,7 +36,6 @@ type Config struct {
 	PKCE                   PKCEConfig
 	AuthRequestsValidFor   time.Duration
 
-	UI       *render.UI
 	Sessions *session.Manager
 	Issuer   *tokens.Issuer
 	MFA      *mfa.Handler
@@ -49,8 +47,6 @@ type Config struct {
 // step and issues the response. It queries mfa and consent for their decisions;
 // the steps hold no reference back.
 type Handler struct {
-	*render.UI
-
 	connectors             *connectors.Cache
 	storage                storage.Storage
 	templates              *templates.Templates
@@ -75,7 +71,6 @@ type Handler struct {
 // NewHandler builds the login-flow handler from its configuration.
 func NewHandler(c Config) *Handler {
 	return &Handler{
-		UI:                     c.UI,
 		connectors:             c.Connectors,
 		storage:                c.Storage,
 		templates:              c.Templates,

@@ -48,7 +48,7 @@ func TestRenderErrorSafeMessages(t *testing.T) {
 			rr := httptest.NewRecorder()
 			req := httptest.NewRequest("GET", "/", nil)
 
-			s.RenderError(req, rr, tc.statusCode, tc.message)
+			s.renderError(req, rr, tc.statusCode, tc.message)
 
 			resp := rr.Result()
 			defer resp.Body.Close()

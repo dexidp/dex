@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"path"
 
 	"github.com/dexidp/dex/server/internal"
-	"github.com/dexidp/dex/server/render"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/templates"
@@ -20,13 +20,24 @@ import (
 // approve it records the granted scopes and returns to the dispatcher with the
 // "approved" verifier. It holds no reference to the other flow steps.
 type Handler struct {
-	*render.UI
-
 	Storage      storage.Storage
 	Templates    *templates.Templates
 	Logger       *slog.Logger
+	IssuerURL    url.URL
 	Sessions     *session.Manager
 	SkipApproval bool
+}
+
+// renderError renders a user-facing HTML error page.
+func (h *Handler) renderError(r *http.Request, w http.ResponseWriter, status int, description string) {
+	if err := h.Templates.Err(r, w, status, description); err != nil {
+		h.Logger.ErrorContext(r.Context(), "server template error", "err", err)
+	}
+}
+
+// absPath returns the issuer path joined with the given path items.
+func (h *Handler) absPath(pathItems ...string) string {
+	return path.Join(append([]string{h.IssuerURL.Path}, pathItems...)...)
 }
 
 // Mount registers the consent endpoint.
@@ -41,7 +52,7 @@ func (h *Handler) buildApprovedURL(authReq storage.AuthRequest) string {
 	v := url.Values{}
 	v.Set("req", authReq.ID)
 	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "approved"))
-	return h.AbsPath("/auth") + "?" + v.Encode()
+	return h.absPath("/auth") + "?" + v.Encode()
 }
 
 // Satisfied reports whether the approval screen can be skipped: the client did
@@ -62,27 +73,27 @@ func (h *Handler) handleApproval(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	macEncoded := r.FormValue("hmac")
 	if macEncoded == "" {
-		h.RenderError(r, w, http.StatusUnauthorized, "Unauthorized request")
+		h.renderError(r, w, http.StatusUnauthorized, "Unauthorized request")
 		return
 	}
 	authReq, err := h.Storage.GetAuthRequest(ctx, r.FormValue("req"))
 	if err != nil {
 		if err == storage.ErrNotFound {
-			h.RenderError(r, w, http.StatusBadRequest, "User session error.")
+			h.renderError(r, w, http.StatusBadRequest, "User session error.")
 			return
 		}
 		h.Logger.ErrorContext(ctx, "failed to get auth request", "err", err)
-		h.RenderError(r, w, http.StatusInternalServerError, "Database error.")
+		h.renderError(r, w, http.StatusInternalServerError, "Database error.")
 		return
 	}
 	if !authReq.LoggedIn {
 		h.Logger.ErrorContext(ctx, "auth request does not have an identity for approval")
-		h.RenderError(r, w, http.StatusInternalServerError, "Login process not yet finalized.")
+		h.renderError(r, w, http.StatusInternalServerError, "Login process not yet finalized.")
 		return
 	}
 
 	if !internal.VerifyHMAC(authReq.HMACKey, macEncoded, authReq.ID, "approval") {
-		h.RenderError(r, w, http.StatusUnauthorized, "Unauthorized request")
+		h.renderError(r, w, http.StatusUnauthorized, "Unauthorized request")
 		return
 	}
 
@@ -93,7 +104,7 @@ func (h *Handler) handleApproval(w http.ResponseWriter, r *http.Request) {
 		client, err := h.Storage.GetClient(ctx, authReq.ClientID)
 		if err != nil {
 			h.Logger.ErrorContext(ctx, "Failed to get client", "client_id", authReq.ClientID, "err", err)
-			h.RenderError(r, w, http.StatusInternalServerError, "Failed to retrieve client.")
+			h.renderError(r, w, http.StatusInternalServerError, "Failed to retrieve client.")
 			return
 		}
 		if err := h.Templates.Approval(r, w, authReq.ID, authReq.Claims.Username, client.Name, authReq.Scopes); err != nil {
@@ -101,7 +112,7 @@ func (h *Handler) handleApproval(w http.ResponseWriter, r *http.Request) {
 		}
 	case http.MethodPost:
 		if r.FormValue("approval") != "approve" {
-			h.RenderError(r, w, http.StatusInternalServerError, "Approval rejected.")
+			h.renderError(r, w, http.StatusInternalServerError, "Approval rejected.")
 			return
 		}
 		// Persist the approved scopes so a future request skips consent, then return
