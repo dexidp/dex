@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -257,16 +258,18 @@ type PKCE struct {
 
 // Web is the config format for the HTTP server.
 type Web struct {
-	HTTP           string         `json:"http"`
-	HTTPS          string         `json:"https"`
-	Headers        Headers        `json:"headers"`
-	TLSCert        string         `json:"tlsCert"`
-	TLSKey         string         `json:"tlsKey"`
-	TLSMinVersion  string         `json:"tlsMinVersion"`
-	TLSMaxVersion  string         `json:"tlsMaxVersion"`
-	AllowedOrigins []string       `json:"allowedOrigins"`
-	AllowedHeaders []string       `json:"allowedHeaders"`
-	ClientRemoteIP ClientRemoteIP `json:"clientRemoteIP"`
+	HTTP                    string         `json:"http"`
+	HTTPS                   string         `json:"https"`
+	Headers                 Headers        `json:"headers"`
+	TLSCert                 string         `json:"tlsCert"`
+	TLSKey                  string         `json:"tlsKey"`
+	TLSMinVersion           string         `json:"tlsMinVersion"`
+	TLSMaxVersion           string         `json:"tlsMaxVersion"`
+	AllowedTLSCiphers       []string       `json:"allowedTLSCiphers"`
+	AllowedOrigins          []string       `json:"allowedOrigins"`
+	AllowedHeaders          []string       `json:"allowedHeaders"`
+	ClientRemoteIP          ClientRemoteIP `json:"clientRemoteIP"`
+	AllowedCurvePreferences []tls.CurveID  `json:"allowedCurvePreferences"`
 }
 
 type ClientRemoteIP struct {
