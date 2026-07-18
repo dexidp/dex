@@ -454,12 +454,58 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	// Build the shared flow components. They are peer domains (like grants and
 	// device), so the server owns them and mounts them in the loop below; the
 	// login flow only receives the ones its spine drives.
-	ui := &render.UI{Templates: s.templates, IssuerURL: s.issuerURL, Logger: s.logger}
-	sessions := &session.Manager{Storage: s.storage, Config: s.sessionConfig, Now: s.now, Logger: s.logger, IssuerURL: s.issuerURL}
-	mfaManager := &mfa.Manager{UI: ui, Storage: s.storage, Templates: s.templates, Logger: s.logger, MFAProviders: s.mfaProviders, DefaultMFAChain: s.defaultMFAChain, Now: s.now, Connectors: s.connectors}
-	issueWriter := &issue.Writer{UI: ui, Storage: s.storage, Templates: s.templates, Logger: s.logger, Issuer: s.issuer, Sessions: sessions, Now: s.now}
-	consentManager := &consent.Manager{UI: ui, Storage: s.storage, Templates: s.templates, Logger: s.logger, Sessions: sessions, MFA: mfaManager, Issue: issueWriter, SkipApproval: s.skipApproval}
-	logoutManager := &logout.Manager{UI: ui, Storage: s.storage, Templates: s.templates, Logger: s.logger, Sessions: sessions, Connectors: s.connectors, Issuer: s.issuer, Signer: s.signer, IssuerURL: s.issuerURL}
+	ui := &render.UI{
+		Templates: s.templates,
+		IssuerURL: s.issuerURL,
+		Logger:    s.logger,
+	}
+	sessions := &session.Manager{
+		Storage:   s.storage,
+		Config:    s.sessionConfig,
+		Now:       s.now,
+		Logger:    s.logger,
+		IssuerURL: s.issuerURL,
+	}
+	mfaManager := &mfa.Manager{
+		UI:              ui,
+		Storage:         s.storage,
+		Templates:       s.templates,
+		Logger:          s.logger,
+		MFAProviders:    s.mfaProviders,
+		DefaultMFAChain: s.defaultMFAChain,
+		Now:             s.now,
+		Connectors:      s.connectors,
+	}
+	issueWriter := &issue.Writer{
+		UI:        ui,
+		Storage:   s.storage,
+		Templates: s.templates,
+		Logger:    s.logger,
+		Issuer:    s.issuer,
+		Sessions:  sessions,
+		Now:       s.now,
+	}
+	consentManager := &consent.Manager{
+		UI:           ui,
+		Storage:      s.storage,
+		Templates:    s.templates,
+		Logger:       s.logger,
+		Sessions:     sessions,
+		MFA:          mfaManager,
+		Issue:        issueWriter,
+		SkipApproval: s.skipApproval,
+	}
+	logoutManager := &logout.Manager{
+		UI:         ui,
+		Storage:    s.storage,
+		Templates:  s.templates,
+		Logger:     s.logger,
+		Sessions:   sessions,
+		Connectors: s.connectors,
+		Issuer:     s.issuer,
+		Signer:     s.signer,
+		IssuerURL:  s.issuerURL,
+	}
 
 	authFlow := authflow.NewHandler(authflow.Config{
 		IssuerURL:              s.issuerURL,
