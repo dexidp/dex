@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"net/url"
 
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
@@ -33,6 +34,15 @@ type Handler struct {
 // Mount registers the consent endpoint.
 func (h *Handler) Mount(mux router.Mux) {
 	mux.HandleFunc("/approval", h.handleApproval)
+}
+
+// buildIssueURL builds the HMAC-protected URL that re-enters the authorize
+// endpoint to issue the response — the step consent hands off to.
+func (h *Handler) buildIssueURL(authReq storage.AuthRequest) string {
+	v := url.Values{}
+	v.Set("req", authReq.ID)
+	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "issue"))
+	return h.AbsPath("/auth") + "?" + v.Encode()
 }
 
 // Satisfied reports whether the approval screen can be skipped: the client did
@@ -81,7 +91,7 @@ func (h *Handler) handleApproval(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		// Consent already covered — go straight to issuance.
 		if h.Satisfied(ctx, &authReq) {
-			http.Redirect(w, r, h.BuildIssueURL(authReq), http.StatusSeeOther)
+			http.Redirect(w, r, h.buildIssueURL(authReq), http.StatusSeeOther)
 			return
 		}
 		// Consent is required, but prompt=none forbids showing the screen.
@@ -117,7 +127,7 @@ func (h *Handler) handleApproval(w http.ResponseWriter, r *http.Request) {
 				h.Logger.ErrorContext(ctx, "failed to update user identity consents", "err", err)
 			}
 		}
-		http.Redirect(w, r, h.BuildIssueURL(authReq), http.StatusSeeOther)
+		http.Redirect(w, r, h.buildIssueURL(authReq), http.StatusSeeOther)
 	}
 }
 

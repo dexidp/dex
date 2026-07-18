@@ -32,11 +32,10 @@ type mfaRequestContext struct {
 	authenticatorID string
 }
 
-// validateMFARequest performs common MFA request validation: HMAC check, auth request
-// lookup, user identity lookup, and approval URL generation.
 // Handler owns the MFA domain: the authenticator chain, the TOTP and WebAuthn
-// endpoints, and challenge lifecycle. It embeds web for error rendering and URL
-// building; the Handler delegates the MFA endpoints and chain lookups to it.
+// endpoints, and the challenge lifecycle. It embeds render for error pages and
+// issuer-relative URLs, decides its own step, and hands off to consent by
+// redirect.
 type Handler struct {
 	*render.UI
 	Storage         storage.Storage
@@ -85,7 +84,7 @@ func (h *Handler) validateMFARequest(w http.ResponseWriter, r *http.Request) (*m
 
 	// Already satisfied — move on to consent instead of showing a factor.
 	if authReq.MFAValidated {
-		http.Redirect(w, r, h.BuildApprovalURL(authReq), http.StatusSeeOther)
+		http.Redirect(w, r, h.buildApprovalURL(authReq), http.StatusSeeOther)
 		return nil, false
 	}
 
@@ -177,7 +176,7 @@ func (h *Handler) CompleteStep(ctx context.Context, authReq storage.AuthRequest,
 		return "", fmt.Errorf("update auth request: %w", err)
 	}
 
-	return h.BuildApprovalURL(authReq), nil
+	return h.buildApprovalURL(authReq), nil
 }
 
 // BuildRedirectURL builds an HMAC-protected redirect URL for the given authenticator.
@@ -187,6 +186,15 @@ func (h *Handler) BuildRedirectURL(authReq storage.AuthRequest, authenticatorID 
 	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, authenticatorID))
 	v.Set("authenticator", authenticatorID)
 	return h.AbsPath(h.mfaPagePath(authenticatorID)) + "?" + v.Encode()
+}
+
+// buildApprovalURL builds the HMAC-protected consent URL — the step MFA hands off
+// to once it is satisfied.
+func (h *Handler) buildApprovalURL(authReq storage.AuthRequest) string {
+	v := url.Values{}
+	v.Set("req", authReq.ID)
+	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, ""))
+	return h.AbsPath("/approval") + "?" + v.Encode()
 }
 
 // handleStart is the MFA gate: the first step after login. It decides for itself
@@ -237,7 +245,7 @@ func (h *Handler) handleStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// MFA satisfied or not required — hand off to consent.
-	http.Redirect(w, r, h.BuildApprovalURL(authReq), http.StatusSeeOther)
+	http.Redirect(w, r, h.buildApprovalURL(authReq), http.StatusSeeOther)
 }
 
 // Mount registers the MFA gate and, when authenticators are configured, the

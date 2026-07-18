@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"path"
 
-	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/storage"
 )
@@ -38,34 +37,6 @@ func (u *UI) AbsURL(pathItems ...string) string {
 	v := u.IssuerURL
 	v.Path = u.AbsPath(pathItems...)
 	return v.String()
-}
-
-// BuildApprovalURL builds an HMAC-protected approval URL.
-func (u *UI) BuildApprovalURL(authReq storage.AuthRequest) string {
-	v := url.Values{}
-	v.Set("req", authReq.ID)
-	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, ""))
-	return u.AbsPath("/approval") + "?" + v.Encode()
-}
-
-// BuildMFAURL builds an HMAC-protected URL for the MFA gate, the first step
-// after login. The gate decides for itself whether MFA applies.
-func (u *UI) BuildMFAURL(authReq storage.AuthRequest) string {
-	v := url.Values{}
-	v.Set("req", authReq.ID)
-	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "mfa"))
-	return u.AbsPath("/mfa/start") + "?" + v.Encode()
-}
-
-// BuildIssueURL builds an HMAC-protected URL that re-enters the authorize
-// endpoint to issue the response. Issuance is the authorize endpoint's job, so
-// the last interactive step redirects here to complete the flow — no separate
-// issue endpoint.
-func (u *UI) BuildIssueURL(authReq storage.AuthRequest) string {
-	v := url.Values{}
-	v.Set("req", authReq.ID)
-	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "issue"))
-	return u.AbsPath("/auth") + "?" + v.Encode()
 }
 
 // RedirectAuthError redirects back to the client's redirect_uri with an OAuth2
