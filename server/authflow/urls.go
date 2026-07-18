@@ -7,11 +7,20 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
-// buildMFAURL builds the HMAC-protected URL of the MFA gate — the step the login
-// handler hands off to once the user is authenticated.
-func (h *Handler) buildMFAURL(authReq storage.AuthRequest) string {
+// buildContinueURL builds the HMAC-protected URL that returns to the /auth
+// dispatcher, used once login completes so the dispatcher can pick the next step.
+func (h *Handler) buildContinueURL(authReq storage.AuthRequest) string {
 	v := url.Values{}
 	v.Set("req", authReq.ID)
-	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "mfa"))
-	return h.AbsPath("/mfa/start") + "?" + v.Encode()
+	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "continue"))
+	return h.AbsPath("/auth") + "?" + v.Encode()
+}
+
+// buildApprovalURL builds the HMAC-protected URL of the consent screen, where the
+// dispatcher sends the user when consent is required.
+func (h *Handler) buildApprovalURL(authReq storage.AuthRequest) string {
+	v := url.Values{}
+	v.Set("req", authReq.ID)
+	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "approval"))
+	return h.AbsPath("/approval") + "?" + v.Encode()
 }

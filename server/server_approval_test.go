@@ -160,7 +160,7 @@ func TestConsentPersistedOnApproval(t *testing.T) {
 	}
 	require.NoError(t, s.storage.CreateAuthRequest(ctx, authReq))
 
-	mac := internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "")
+	mac := internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "approval")
 
 	form := url.Values{
 		"approval": {"approve"},
@@ -292,7 +292,7 @@ func TestHandleApprovalDoubleSubmitPOST(t *testing.T) {
 	}
 	require.NoError(t, server.storage.CreateAuthRequest(ctx, authReq))
 
-	mac := internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "")
+	mac := internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "approval")
 
 	form := url.Values{
 		"approval": {"approve"},

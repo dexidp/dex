@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/dexidp/dex/server/connectors"
+	"github.com/dexidp/dex/server/consent"
+	"github.com/dexidp/dex/server/mfa"
 	"github.com/dexidp/dex/server/render"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
@@ -17,10 +19,11 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
-// Config is the login flow's configuration. The login handler owns the authorize
-// endpoint (/auth), which both starts the flow (login) and ends it (issuance);
-// it holds no reference to the mfa or consent steps, which decide for themselves
-// and hand off by redirect.
+// Config is the login flow's configuration. The /auth endpoint is the flow
+// dispatcher: it starts login, then on each return decides the next step (MFA
+// factor, consent screen) or issues. It queries mfa and consent for those
+// decisions — like hydra's authorize strategy holding its managers — but the
+// steps only redirect back to /auth, never to one another.
 type Config struct {
 	IssuerURL              url.URL
 	Connectors             *connectors.Cache
@@ -37,12 +40,14 @@ type Config struct {
 	UI       *render.UI
 	Sessions *session.Manager
 	Issuer   *tokens.Issuer
+	MFA      *mfa.Handler
+	Consent  *consent.Handler
 }
 
 // Handler serves the interactive login flow (connector selection, connector and
-// password login, the callback) and the authorize endpoint's issuance. Once the
-// user is authenticated it redirects into the MFA gate; it holds no reference to
-// the mfa or consent steps.
+// password login, the callback) and the /auth dispatcher that decides each next
+// step and issues the response. It queries mfa and consent for their decisions;
+// the steps hold no reference back.
 type Handler struct {
 	*render.UI
 
@@ -62,6 +67,9 @@ type Handler struct {
 	sessions *session.Manager
 	// issuer mints tokens for the authorization response (see response.go).
 	issuer *tokens.Issuer
+	// mfa and consent answer the dispatcher's "is this step needed" decisions.
+	mfa     *mfa.Handler
+	consent *consent.Handler
 }
 
 // NewHandler builds the login-flow handler from its configuration.
@@ -81,6 +89,8 @@ func NewHandler(c Config) *Handler {
 		authRequestsValidFor:   c.AuthRequestsValidFor,
 		sessions:               c.Sessions,
 		issuer:                 c.Issuer,
+		mfa:                    c.MFA,
+		consent:                c.Consent,
 	}
 }
 

@@ -1,11 +1,10 @@
 package authflow
 
-// response.go writes the authorization response once the request is fully
-// authorized: it mints the auth code and, for implicit/hybrid flows, the access
-// and ID tokens, then redirects the browser back to the client (or renders the
-// out-of-band page). This is the issuance half of the authorize endpoint —
-// fosite's WriteAuthorizeResponse — reached when the consent step redirects back
-// to /auth with an "issue" HMAC.
+// response.go writes the authorization response once the dispatcher determines
+// the request is fully authorized: it mints the auth code and, for
+// implicit/hybrid flows, the access and ID tokens, then redirects the browser
+// back to the client (or renders the out-of-band page). This is the issuance
+// half of the authorize endpoint — fosite's WriteAuthorizeResponse.
 
 import (
 	"context"
@@ -15,45 +14,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
-
-// handleIssue is the issuance re-entry into the authorize endpoint: the consent
-// step redirects here once the request is fully authorized. Only a request that
-// completed login, MFA and consent carries a valid "issue" HMAC, so reaching
-// this path proves the earlier steps ran. It is invoked from handleAuthorization
-// when the request carries an auth-request id.
-func (h *Handler) handleIssue(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	mac := r.FormValue("hmac")
-	if mac == "" {
-		h.RenderError(r, w, http.StatusUnauthorized, "Unauthorized request")
-		return
-	}
-	authReq, err := h.storage.GetAuthRequest(ctx, r.FormValue("req"))
-	if err != nil {
-		if err == storage.ErrNotFound {
-			h.RenderError(r, w, http.StatusBadRequest, "User session error.")
-			return
-		}
-		h.logger.ErrorContext(ctx, "failed to get auth request", "err", err)
-		h.RenderError(r, w, http.StatusInternalServerError, "Database error.")
-		return
-	}
-	if !authReq.LoggedIn {
-		h.logger.ErrorContext(ctx, "issue reached for auth request without an identity")
-		h.RenderError(r, w, http.StatusInternalServerError, "Login process not yet finalized.")
-		return
-	}
-	if !internal.VerifyHMAC(authReq.HMACKey, mac, authReq.ID, "issue") {
-		h.RenderError(r, w, http.StatusUnauthorized, "Unauthorized request")
-		return
-	}
-	h.writeResponse(w, r, authReq)
-}
 
 // writeResponse issues the authorization response for a completed auth request:
 // it mints the code (and, for implicit/hybrid flows, the tokens) and redirects

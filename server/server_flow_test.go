@@ -37,16 +37,16 @@ func TestFlowStepsRequireHMAC(t *testing.T) {
 	}
 	require.NoError(t, s.storage.CreateAuthRequest(ctx, authReq))
 
-	// Issuance at /auth is bound to (req id, "issue"); no other value is accepted,
-	// and neither is a value minted for a different step.
+	// The dispatcher accepts only the "continue" and "approved" verifiers; a value
+	// minted for a different step (or none) is rejected.
 	wrongStepMAC := internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "mfa")
 
 	for _, tc := range []struct {
 		name string
 		path string
 	}{
-		{"issue without hmac", "/auth?req=" + authReq.ID},
-		{"issue with wrong-step hmac", "/auth?req=" + authReq.ID + "&hmac=" + wrongStepMAC},
+		{"dispatcher without hmac", "/auth?req=" + authReq.ID},
+		{"dispatcher with wrong-step hmac", "/auth?req=" + authReq.ID + "&hmac=" + wrongStepMAC},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rr := httptest.NewRecorder()
@@ -55,10 +55,11 @@ func TestFlowStepsRequireHMAC(t *testing.T) {
 		})
 	}
 
-	// The matching issue HMAC is accepted and issues the code to the client.
+	// With no MFA configured and the "approved" verifier resolving consent, the
+	// dispatcher issues the code to the client.
 	rr := httptest.NewRecorder()
-	issueMAC := internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "issue")
-	s.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/auth?req="+authReq.ID+"&hmac="+issueMAC, nil))
+	approvedMAC := internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "approved")
+	s.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/auth?req="+authReq.ID+"&hmac="+approvedMAC, nil))
 	require.Equal(t, http.StatusSeeOther, rr.Code)
 	require.Contains(t, rr.Header().Get("Location"), "https://client.example/callback")
 }

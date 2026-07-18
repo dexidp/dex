@@ -45,9 +45,9 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// A request with an auth-request id is the completed flow returning to issue.
+	// A request with an auth-request id is a step returning to the dispatcher.
 	if r.Form.Get("req") != "" {
-		h.handleIssue(w, r)
+		h.handleContinue(w, r)
 		return
 	}
 

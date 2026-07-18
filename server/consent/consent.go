@@ -7,7 +7,6 @@ import (
 	"net/url"
 
 	"github.com/dexidp/dex/server/internal"
-	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/render"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
@@ -16,11 +15,10 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
-// Handler owns the consent step. Reached from the MFA gate, it decides for
-// itself whether consent is needed (Satisfied): if so it shows the approval
-// screen and records the granted scopes, otherwise it hands off to issuance.
-// Either way it moves the flow on by redirect and holds no reference to the
-// other flow steps.
+// Handler owns the consent step. The /auth dispatcher decides whether consent is
+// needed (via Satisfied) and, if so, routes to the approval screen here; on
+// approve it records the granted scopes and returns to the dispatcher with the
+// "approved" verifier. It holds no reference to the other flow steps.
 type Handler struct {
 	*render.UI
 
@@ -36,12 +34,13 @@ func (h *Handler) Mount(mux router.Mux) {
 	mux.HandleFunc("/approval", h.handleApproval)
 }
 
-// buildIssueURL builds the HMAC-protected URL that re-enters the authorize
-// endpoint to issue the response — the step consent hands off to.
-func (h *Handler) buildIssueURL(authReq storage.AuthRequest) string {
+// buildApprovedURL builds the HMAC-protected URL that returns to the authorize
+// dispatcher (/auth) with the "approved" verifier, so the dispatcher knows the
+// user consented and can issue.
+func (h *Handler) buildApprovedURL(authReq storage.AuthRequest) string {
 	v := url.Values{}
 	v.Set("req", authReq.ID)
-	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "issue"))
+	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "approved"))
 	return h.AbsPath("/auth") + "?" + v.Encode()
 }
 
@@ -82,24 +81,15 @@ func (h *Handler) handleApproval(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !internal.VerifyHMAC(authReq.HMACKey, macEncoded, authReq.ID, "") {
+	if !internal.VerifyHMAC(authReq.HMACKey, macEncoded, authReq.ID, "approval") {
 		h.RenderError(r, w, http.StatusUnauthorized, "Unauthorized request")
 		return
 	}
 
 	switch r.Method {
 	case http.MethodGet:
-		// Consent already covered — go straight to issuance.
-		if h.Satisfied(ctx, &authReq) {
-			http.Redirect(w, r, h.buildIssueURL(authReq), http.StatusSeeOther)
-			return
-		}
-		// Consent is required, but prompt=none forbids showing the screen.
-		if prompt, _ := oauth2.ParsePrompt(authReq.Prompt); prompt.None() {
-			h.RedirectAuthError(w, r, authReq, oauth2.InteractionRequired, "User interaction required")
-			return
-		}
-
+		// The dispatcher routes here only when consent is required, so just show
+		// the approval screen.
 		client, err := h.Storage.GetClient(ctx, authReq.ClientID)
 		if err != nil {
 			h.Logger.ErrorContext(ctx, "Failed to get client", "client_id", authReq.ClientID, "err", err)
@@ -114,8 +104,8 @@ func (h *Handler) handleApproval(w http.ResponseWriter, r *http.Request) {
 			h.RenderError(r, w, http.StatusInternalServerError, "Approval rejected.")
 			return
 		}
-		// Persist user-approved scopes as consent for this client, then hand off to
-		// issuance.
+		// Persist the approved scopes so a future request skips consent, then return
+		// to the dispatcher with the "approved" verifier.
 		if h.Sessions.Enabled() {
 			if err := h.Storage.UpdateUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
 				if old.Consents == nil {
@@ -127,7 +117,7 @@ func (h *Handler) handleApproval(w http.ResponseWriter, r *http.Request) {
 				h.Logger.ErrorContext(ctx, "failed to update user identity consents", "err", err)
 			}
 		}
-		http.Redirect(w, r, h.buildIssueURL(authReq), http.StatusSeeOther)
+		http.Redirect(w, r, h.buildApprovedURL(authReq), http.StatusSeeOther)
 	}
 }
 

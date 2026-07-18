@@ -403,9 +403,9 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	}
 	s.issuer = tokens.NewIssuer(s.storage, s.signer, s.issuerURL, s.idTokensValidFor, s.now, s.logger)
 	s.connectors = connectors.NewCache(s.storage, s.resolveConnector)
-	// ui and sessions are the shared browser infrastructure that every flow
-	// handler embeds; the handlers themselves hold no reference to one another and
-	// are constructed inline in the mount list below.
+	// ui and sessions are the shared browser infrastructure every flow handler
+	// embeds. mfa and consent are held as vars because the /auth dispatcher queries
+	// them for its step decisions; they are also mounted (as handlers) below.
 	ui := &render.UI{
 		Templates: s.templates,
 		IssuerURL: s.issuerURL,
@@ -417,6 +417,24 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		Now:       s.now,
 		Logger:    s.logger,
 		IssuerURL: s.issuerURL,
+	}
+	mfaHandler := &mfa.Handler{
+		UI:              ui,
+		Storage:         s.storage,
+		Templates:       s.templates,
+		Logger:          s.logger,
+		MFAProviders:    s.mfaProviders,
+		DefaultMFAChain: s.defaultMFAChain,
+		Now:             s.now,
+		Connectors:      s.connectors,
+	}
+	consentHandler := &consent.Handler{
+		UI:           ui,
+		Storage:      s.storage,
+		Templates:    s.templates,
+		Logger:       s.logger,
+		Sessions:     sessions,
+		SkipApproval: s.skipApproval,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
@@ -617,25 +635,11 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			UI:                     ui,
 			Sessions:               sessions,
 			Issuer:                 s.issuer,
+			MFA:                    mfaHandler,
+			Consent:                consentHandler,
 		}),
-		&mfa.Handler{
-			UI:              ui,
-			Storage:         s.storage,
-			Templates:       s.templates,
-			Logger:          s.logger,
-			MFAProviders:    s.mfaProviders,
-			DefaultMFAChain: s.defaultMFAChain,
-			Now:             s.now,
-			Connectors:      s.connectors,
-		},
-		&consent.Handler{
-			UI:           ui,
-			Storage:      s.storage,
-			Templates:    s.templates,
-			Logger:       s.logger,
-			Sessions:     sessions,
-			SkipApproval: s.skipApproval,
-		},
+		mfaHandler,
+		consentHandler,
 		&logout.Handler{
 			UI:         ui,
 			Storage:    s.storage,
