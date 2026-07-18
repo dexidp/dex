@@ -773,9 +773,9 @@ func TestValidateIDTokenHint(t *testing.T) {
 	require.NoError(t, err)
 
 	s := &Handler{
-		signer:    sig,
-		issuerURL: *issuerURL,
-		logger:    slog.Default(),
+		Signer:    sig,
+		IssuerURL: *issuerURL,
+		Logger:    slog.Default(),
 	}
 
 	now := time.Now()

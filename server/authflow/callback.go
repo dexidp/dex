@@ -34,32 +34,32 @@ func (h *Handler) handleConnectorCallback(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	authReq, err := h.storage.GetAuthRequest(ctx, authID)
+	authReq, err := h.Storage.GetAuthRequest(ctx, authID)
 	if err != nil {
 		if err == storage.ErrNotFound {
-			h.logger.ErrorContext(r.Context(), "invalid 'state' parameter provided", "err", err)
+			h.Logger.ErrorContext(r.Context(), "invalid 'state' parameter provided", "err", err)
 			h.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist.")
 			return
 		}
-		h.logger.ErrorContext(r.Context(), "failed to get auth request", "err", err)
+		h.Logger.ErrorContext(r.Context(), "failed to get auth request", "err", err)
 		h.renderError(r, w, http.StatusInternalServerError, "Database error.")
 		return
 	}
 
 	connID, err := url.PathUnescape(mux.Vars(r)["connector"])
 	if err != nil {
-		h.logger.ErrorContext(r.Context(), "failed to get connector", "connector_id", authReq.ConnectorID, "err", err)
+		h.Logger.ErrorContext(r.Context(), "failed to get connector", "connector_id", authReq.ConnectorID, "err", err)
 		h.renderError(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
 		return
 	} else if connID != "" && connID != authReq.ConnectorID {
-		h.logger.ErrorContext(r.Context(), "connector mismatch: callback triggered for different connector than authentication start", "authentication_start_connector_id", authReq.ConnectorID, "connector_id", connID)
+		h.Logger.ErrorContext(r.Context(), "connector mismatch: callback triggered for different connector than authentication start", "authentication_start_connector_id", authReq.ConnectorID, "connector_id", connID)
 		h.renderError(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
 		return
 	}
 
-	conn, err := h.connectors.Get(ctx, authReq.ConnectorID)
+	conn, err := h.Connectors.Get(ctx, authReq.ConnectorID)
 	if err != nil {
-		h.logger.ErrorContext(r.Context(), "failed to get connector", "connector_id", authReq.ConnectorID, "err", err)
+		h.Logger.ErrorContext(r.Context(), "failed to get connector", "connector_id", authReq.ConnectorID, "err", err)
 		h.renderError(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
 		return
 	}
@@ -68,14 +68,14 @@ func (h *Handler) handleConnectorCallback(w http.ResponseWriter, r *http.Request
 	switch conn := conn.Connector.(type) {
 	case connector.CallbackConnector:
 		if r.Method != http.MethodGet {
-			h.logger.ErrorContext(r.Context(), "SAML request mapped to OAuth2 connector")
+			h.Logger.ErrorContext(r.Context(), "SAML request mapped to OAuth2 connector")
 			h.renderError(r, w, http.StatusBadRequest, "Invalid request")
 			return
 		}
 		identity, err = conn.HandleCallback(tokens.ParseScopes(authReq.Scopes), authReq.ConnectorData, r)
 	case connector.SAMLConnector:
 		if r.Method != http.MethodPost {
-			h.logger.ErrorContext(r.Context(), "OAuth2 request mapped to SAML connector")
+			h.Logger.ErrorContext(r.Context(), "OAuth2 request mapped to SAML connector")
 			h.renderError(r, w, http.StatusBadRequest, "Invalid request")
 			return
 		}
@@ -86,7 +86,7 @@ func (h *Handler) handleConnectorCallback(w http.ResponseWriter, r *http.Request
 	}
 
 	if err != nil {
-		h.logger.ErrorContext(r.Context(), "failed to authenticate", "err", err)
+		h.Logger.ErrorContext(r.Context(), "failed to authenticate", "err", err)
 		var groupsErr *connector.UserNotInRequiredGroupsError
 		if errors.As(err, &groupsErr) {
 			h.renderError(r, w, http.StatusForbidden, ErrMsgNotInRequiredGroups)
@@ -98,15 +98,15 @@ func (h *Handler) handleConnectorCallback(w http.ResponseWriter, r *http.Request
 
 	authReq, err = h.finalizeLogin(ctx, identity, authReq, conn.Connector)
 	if err != nil {
-		h.logger.ErrorContext(r.Context(), "failed to finalize login", "err", err)
+		h.Logger.ErrorContext(r.Context(), "failed to finalize login", "err", err)
 		h.renderError(r, w, http.StatusInternalServerError, "Login error.")
 		return
 	}
 
 	// Connector callbacks don't render the remember_me checkbox, so we use the server default.
 	// The password login handler reads r.FormValue("remember_me") from the submitted form instead.
-	if err := h.sessions.CreateOrUpdateAuthSession(ctx, r, w, authReq, h.sessions.DefaultRememberMe()); err != nil {
-		h.logger.ErrorContext(ctx, "failed to create/update auth session", "err", err)
+	if err := h.Sessions.CreateOrUpdateAuthSession(ctx, r, w, authReq, h.Sessions.DefaultRememberMe()); err != nil {
+		h.Logger.ErrorContext(ctx, "failed to create/update auth session", "err", err)
 	}
 
 	http.Redirect(w, r, h.buildContinueURL(authReq), http.StatusSeeOther)

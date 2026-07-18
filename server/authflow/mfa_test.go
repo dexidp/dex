@@ -49,25 +49,25 @@ func TestCompleteMFAStep(t *testing.T) {
 		},
 		ConnectorID: "mock",
 	}
-	require.NoError(t, server.storage.CreateAuthRequest(ctx, authReq))
-	require.NoError(t, server.storage.CreateClient(ctx, storage.Client{
+	require.NoError(t, server.Storage.CreateAuthRequest(ctx, authReq))
+	require.NoError(t, server.Storage.CreateClient(ctx, storage.Client{
 		ID:     "example-app",
 		Secret: "secret",
 	}))
 
 	// Completing first step should redirect to second.
-	redirectURL, err := server.mfa.CompleteStep(ctx, authReq, "webauthn-1")
+	redirectURL, err := server.MFA.CompleteStep(ctx, authReq, "webauthn-1")
 	require.NoError(t, err)
 	require.Contains(t, redirectURL, "/mfa/webauthn")
 	require.Contains(t, redirectURL, "authenticator=webauthn-2")
 
 	// Completing the last step should redirect to the flow dispatcher.
-	redirectURL, err = server.mfa.CompleteStep(ctx, authReq, "webauthn-2")
+	redirectURL, err = server.MFA.CompleteStep(ctx, authReq, "webauthn-2")
 	require.NoError(t, err)
 	require.Contains(t, redirectURL, "/auth?")
 
 	// Verify MFAValidated was set.
-	updated, err := server.storage.GetAuthRequest(ctx, authReq.ID)
+	updated, err := server.Storage.GetAuthRequest(ctx, authReq.ID)
 	require.NoError(t, err)
 	require.True(t, updated.MFAValidated)
 }
@@ -136,10 +136,10 @@ func TestWebAuthnVerifyPageRender(t *testing.T) {
 		},
 		ConnectorID: "mock",
 	}
-	require.NoError(t, server.storage.CreateAuthRequest(ctx, authReq))
+	require.NoError(t, server.Storage.CreateAuthRequest(ctx, authReq))
 
 	// Create user identity without WebAuthn credentials (enrollment mode).
-	require.NoError(t, server.storage.CreateUserIdentity(ctx, storage.UserIdentity{
+	require.NoError(t, server.Storage.CreateUserIdentity(ctx, storage.UserIdentity{
 		UserID:              "user-1",
 		ConnectorID:         "mock",
 		Claims:              authReq.Claims,

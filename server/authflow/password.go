@@ -24,44 +24,44 @@ func (h *Handler) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 
 	backLink := r.URL.Query().Get("back")
 
-	authReq, err := h.storage.GetAuthRequest(ctx, authID)
+	authReq, err := h.Storage.GetAuthRequest(ctx, authID)
 	if err != nil {
 		if err == storage.ErrNotFound {
-			h.logger.ErrorContext(r.Context(), "invalid 'state' parameter provided", "err", err)
+			h.Logger.ErrorContext(r.Context(), "invalid 'state' parameter provided", "err", err)
 			h.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist.")
 			return
 		}
-		h.logger.ErrorContext(r.Context(), "failed to get auth request", "err", err)
+		h.Logger.ErrorContext(r.Context(), "failed to get auth request", "err", err)
 		h.renderError(r, w, http.StatusInternalServerError, "Database error.")
 		return
 	}
 
 	connID, err := url.PathUnescape(mux.Vars(r)["connector"])
 	if err != nil {
-		h.logger.ErrorContext(r.Context(), "failed to parse connector", "err", err)
+		h.Logger.ErrorContext(r.Context(), "failed to parse connector", "err", err)
 		h.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist")
 		return
 	} else if connID != "" && connID != authReq.ConnectorID {
-		h.logger.ErrorContext(r.Context(), "connector mismatch: password login triggered for different connector from authentication start", "start_connector_id", authReq.ConnectorID, "password_connector_id", connID)
+		h.Logger.ErrorContext(r.Context(), "connector mismatch: password login triggered for different connector from authentication start", "start_connector_id", authReq.ConnectorID, "password_connector_id", connID)
 		h.renderError(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
 		return
 	}
 
-	conn, err := h.connectors.Get(ctx, authReq.ConnectorID)
+	conn, err := h.Connectors.Get(ctx, authReq.ConnectorID)
 	if err != nil {
-		h.logger.ErrorContext(r.Context(), "failed to get connector", "connector_id", authReq.ConnectorID, "err", err)
+		h.Logger.ErrorContext(r.Context(), "failed to get connector", "connector_id", authReq.ConnectorID, "err", err)
 		h.renderError(r, w, http.StatusInternalServerError, "Connector failed to initialize.")
 		return
 	}
 
 	pwConn, ok := conn.Connector.(connector.PasswordConnector)
 	if !ok {
-		h.logger.ErrorContext(r.Context(), "expected password connector in handlePasswordLogin()", "password_connector", pwConn)
+		h.Logger.ErrorContext(r.Context(), "expected password connector in handlePasswordLogin()", "password_connector", pwConn)
 		h.renderError(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
 		return
 	}
 
-	rememberMe := h.sessions.RememberMeDefault()
+	rememberMe := h.Sessions.RememberMeDefault()
 
 	switch r.Method {
 	case http.MethodGet:
@@ -72,14 +72,14 @@ func (h *Handler) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 				if err != nil {
 					// SPNEGO handled the request but reported an error (e.g., LDAP lookup failed
 					// after successful Kerberos auth). Log error details, show generic message to user.
-					h.logger.ErrorContext(ctx, "SPNEGO authentication error", "err", err)
+					h.Logger.ErrorContext(ctx, "SPNEGO authentication error", "err", err)
 					h.renderError(r, w, http.StatusUnauthorized, ErrMsgAuthenticationFailed)
 					return
 				}
 				if ident != nil {
 					authReq, err = h.finalizeLogin(ctx, *ident, authReq, conn.Connector)
 					if err != nil {
-						h.logger.ErrorContext(ctx, "failed to finalize login", "err", err)
+						h.Logger.ErrorContext(ctx, "failed to finalize login", "err", err)
 						h.renderError(r, w, http.StatusInternalServerError, "Login error.")
 						return
 					}
@@ -92,8 +92,8 @@ func (h *Handler) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		if err := h.templates.Password(r, w, r.URL.String(), "", usernamePrompt(pwConn), false, backLink, rememberMe); err != nil {
-			h.logger.ErrorContext(r.Context(), "server template error", "err", err)
+		if err := h.Templates.Password(r, w, r.URL.String(), "", usernamePrompt(pwConn), false, backLink, rememberMe); err != nil {
+			h.Logger.ErrorContext(r.Context(), "server template error", "err", err)
 		}
 	case http.MethodPost:
 		username := r.FormValue("login")
@@ -102,27 +102,27 @@ func (h *Handler) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 
 		identity, ok, err := pwConn.Login(r.Context(), scopes, username, password)
 		if err != nil {
-			h.logger.ErrorContext(r.Context(), "failed to login user", "err", err)
+			h.Logger.ErrorContext(r.Context(), "failed to login user", "err", err)
 			h.renderError(r, w, http.StatusInternalServerError, ErrMsgLoginError)
 			return
 		}
 		if !ok {
-			if err := h.templates.Password(r, w, r.URL.String(), username, usernamePrompt(pwConn), true, backLink, rememberMe); err != nil {
-				h.logger.ErrorContext(r.Context(), "server template error", "err", err)
+			if err := h.Templates.Password(r, w, r.URL.String(), username, usernamePrompt(pwConn), true, backLink, rememberMe); err != nil {
+				h.Logger.ErrorContext(r.Context(), "server template error", "err", err)
 			}
-			h.logger.ErrorContext(r.Context(), "failed login attempt: Invalid credentials.", "user", username)
+			h.Logger.ErrorContext(r.Context(), "failed login attempt: Invalid credentials.", "user", username)
 			return
 		}
 		authReq, err = h.finalizeLogin(r.Context(), identity, authReq, conn.Connector)
 		if err != nil {
-			h.logger.ErrorContext(r.Context(), "failed to finalize login", "err", err)
+			h.Logger.ErrorContext(r.Context(), "failed to finalize login", "err", err)
 			h.renderError(r, w, http.StatusInternalServerError, "Login error.")
 			return
 		}
 
 		rememberMe := r.FormValue("remember_me") == "on"
-		if err := h.sessions.CreateOrUpdateAuthSession(ctx, r, w, authReq, rememberMe); err != nil {
-			h.logger.ErrorContext(ctx, "failed to create/update auth session", "err", err)
+		if err := h.Sessions.CreateOrUpdateAuthSession(ctx, r, w, authReq, rememberMe); err != nil {
+			h.Logger.ErrorContext(ctx, "failed to create/update auth session", "err", err)
 		}
 
 		http.Redirect(w, r, h.buildContinueURL(authReq), http.StatusSeeOther)

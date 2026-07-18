@@ -55,9 +55,7 @@ func (m testMux) HandlePrefix(p string, h http.Handler) {
 // over HTTP via ServeHTTP.
 type testServer struct {
 	*Handler
-	mux     http.Handler
-	mfa     *mfa.Handler
-	consent *consent.Handler
+	mux http.Handler
 }
 
 func (ts *testServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -67,7 +65,7 @@ func (ts *testServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // testFlowConfig bundles the login Config with the raw inputs the server uses to
 // build the shared flow components, so a test can tweak either before assembly.
 type testFlowConfig struct {
-	Config
+	Handler
 	SessionConfig   *session.Config
 	MFAProviders    map[string]mfa.Provider
 	DefaultMFAChain []string
@@ -108,7 +106,7 @@ func newTestHandler(t *testing.T, updateConfig func(c *testFlowConfig)) (*httpte
 	issuer := tokens.NewIssuer(store, sig, *issuerURL, 24*time.Hour, now, logger)
 
 	tc := testFlowConfig{
-		Config: Config{
+		Handler: Handler{
 			IssuerURL:              *issuerURL,
 			Connectors:             conns,
 			Storage:                store,
@@ -133,12 +131,12 @@ func newTestHandler(t *testing.T, updateConfig func(c *testFlowConfig)) (*httpte
 	consentManager := &consent.Handler{IssuerURL: *issuerURL, Storage: store, Templates: tmpls, Logger: logger, Sessions: sessions, SkipApproval: tc.SkipApproval}
 	logoutManager := &logout.Handler{Storage: store, Templates: tmpls, Logger: logger, Sessions: sessions, Connectors: conns, Issuer: issuer, Signer: sig, IssuerURL: *issuerURL}
 
-	tc.Config.Sessions = sessions
-	tc.Config.Issuer = issuer
-	tc.Config.MFA = mfaManager
-	tc.Config.Consent = consentManager
+	tc.Sessions = sessions
+	tc.Issuer = issuer
+	tc.MFA = mfaManager
+	tc.Consent = consentManager
 
-	h := NewHandler(tc.Config)
+	h := &tc.Handler
 
 	router := mux.NewRouter()
 	h.Mount(testMux{router})
@@ -156,7 +154,7 @@ func newTestHandler(t *testing.T, updateConfig func(c *testFlowConfig)) (*httpte
 		}))
 	}
 
-	return srv, &testServer{Handler: h, mux: router, mfa: mfaManager, consent: consentManager}
+	return srv, &testServer{Handler: h, mux: router}
 }
 
 // testKey is a throwaway RSA key for the mock signer; the flow's unit tests

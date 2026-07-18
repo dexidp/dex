@@ -161,7 +161,7 @@ type PKCEConfig struct {
 // Expired tokens are accepted per OIDC Core 1.0 §3.1.2.1. It returns the verified
 // token so callers can extract Subject, Audience, etc.
 func (h *Handler) validateIDTokenHint(ctx context.Context, hint string) (*oidc.IDToken, error) {
-	verifier := oidc.NewVerifier(h.issuerURL.String(), &signer.KeySet{Signer: h.signer}, &oidc.Config{
+	verifier := oidc.NewVerifier(h.IssuerURL.String(), &signer.KeySet{Signer: h.Signer}, &oidc.Config{
 		SkipExpiryCheck: true,
 		// SkipClientIDCheck is set because the hint may originate from any client that
 		// Dex issued a token to — the caller does not know the expected audience in advance.
@@ -200,18 +200,18 @@ func (h *Handler) parseAuthorizationRequest(r *http.Request) (*storage.AuthReque
 		codeChallengeMethod = oauth2.PKCEMethodPlain
 	}
 
-	client, err := h.storage.GetClient(ctx, clientID)
+	client, err := h.Storage.GetClient(ctx, clientID)
 	if err != nil {
 		if err == storage.ErrNotFound {
-			h.logger.ErrorContext(ctx, "invalid client_id provided", "client_id", clientID)
+			h.Logger.ErrorContext(ctx, "invalid client_id provided", "client_id", clientID)
 			return nil, "", newDisplayedErr(http.StatusNotFound, "Invalid client_id.")
 		}
-		h.logger.ErrorContext(ctx, "failed to get client", "err", err)
+		h.Logger.ErrorContext(ctx, "failed to get client", "err", err)
 		return nil, "", newDisplayedErr(http.StatusInternalServerError, "Database error.")
 	}
 
 	if !validateRedirectURI(client, redirectURI) {
-		h.logger.ErrorContext(ctx, "unregistered redirect_uri", "redirect_uri", redirectURI, "client_id", clientID)
+		h.Logger.ErrorContext(ctx, "unregistered redirect_uri", "redirect_uri", redirectURI, "client_id", clientID)
 		return nil, "", newDisplayedErr(http.StatusBadRequest, "Unregistered redirect_uri.")
 	}
 	if redirectURI == oauth2.DeviceCallbackURI && client.Public {
@@ -224,9 +224,9 @@ func (h *Handler) parseAuthorizationRequest(r *http.Request) (*storage.AuthReque
 	}
 
 	if connectorID != "" {
-		connectors, err := h.storage.ListConnectors(ctx)
+		connectors, err := h.Storage.ListConnectors(ctx)
 		if err != nil {
-			h.logger.ErrorContext(ctx, "failed to list connectors", "err", err)
+			h.Logger.ErrorContext(ctx, "failed to list connectors", "err", err)
 			return nil, "", newredirectedAuthErr(oauth2.ServerError, "Unable to retrieve connectors")
 		}
 		if !validateConnectorID(connectors, connectorID) {
@@ -243,13 +243,13 @@ func (h *Handler) parseAuthorizationRequest(r *http.Request) (*storage.AuthReque
 		return nil, "", newredirectedAuthErr(oauth2.RequestNotSupported, "Server does not support request parameter.")
 	}
 
-	if codeChallenge != "" && !slices.Contains(h.pkce.CodeChallengeMethodsSupported, codeChallengeMethod) {
+	if codeChallenge != "" && !slices.Contains(h.PKCE.CodeChallengeMethodsSupported, codeChallengeMethod) {
 		return nil, "", newredirectedAuthErr(oauth2.InvalidRequest, "Unsupported PKCE challenge method (%q).", codeChallengeMethod)
 	}
 
 	// Enforce PKCE if configured.
 	// https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-12#section-4.1.1
-	if h.pkce.Enforce && codeChallenge == "" {
+	if h.PKCE.Enforce && codeChallenge == "" {
 		return nil, "", newredirectedAuthErr(oauth2.InvalidRequest, "PKCE is required. The code_challenge parameter must be provided.")
 	}
 
@@ -270,7 +270,7 @@ func (h *Handler) parseAuthorizationRequest(r *http.Request) (*storage.AuthReque
 				continue
 			}
 
-			isTrusted, err := tokens.CrossClientTrusted(ctx, h.storage, clientID, peerID)
+			isTrusted, err := tokens.CrossClientTrusted(ctx, h.Storage, clientID, peerID)
 			if err != nil {
 				return nil, "", newredirectedAuthErr(oauth2.ServerError, "Internal server error.")
 			}
@@ -307,7 +307,7 @@ func (h *Handler) parseAuthorizationRequest(r *http.Request) (*storage.AuthReque
 			return nil, "", newredirectedAuthErr(oauth2.InvalidRequest, "Invalid response type %q", responseType)
 		}
 
-		if !h.supportedResponseTypes[responseType] {
+		if !h.SupportedResponseTypes[responseType] {
 			return nil, "", newredirectedAuthErr(oauth2.UnsupportedResponseType, "Unsupported response type %q", responseType)
 		}
 	}

@@ -28,8 +28,8 @@ func TestFinalizeLoginBlockedAccount(t *testing.T) {
 		Expiry:      time.Now().Add(time.Hour),
 		ConnectorID: "mock",
 	}
-	require.NoError(t, server.storage.CreateAuthRequest(ctx, authReq))
-	require.NoError(t, server.storage.CreateUserIdentity(ctx, storage.UserIdentity{
+	require.NoError(t, server.Storage.CreateAuthRequest(ctx, authReq))
+	require.NoError(t, server.Storage.CreateUserIdentity(ctx, storage.UserIdentity{
 		UserID:              "user-1",
 		ConnectorID:         "mock",
 		Claims:              storage.Claims{UserID: "user-1", Email: "user@example.com"},
@@ -46,12 +46,12 @@ func TestFinalizeLoginBlockedAccount(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "locked")
 
-	updated, err := server.storage.GetAuthRequest(ctx, authReq.ID)
+	updated, err := server.Storage.GetAuthRequest(ctx, authReq.ID)
 	require.NoError(t, err)
 	require.False(t, updated.LoggedIn, "blocked account must not be logged in")
 
 	// Clear the block: login should now proceed.
-	require.NoError(t, server.storage.UpdateUserIdentity(ctx, "user-1", "mock", func(u storage.UserIdentity) (storage.UserIdentity, error) {
+	require.NoError(t, server.Storage.UpdateUserIdentity(ctx, "user-1", "mock", func(u storage.UserIdentity) (storage.UserIdentity, error) {
 		u.BlockedUntil = time.Time{}
 		return u, nil
 	}))

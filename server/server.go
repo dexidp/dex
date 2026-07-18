@@ -573,7 +573,8 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	// abstraction, so this list is the only place they are wired in.
 	mux := routeMux{handle: handle, handleFunc: handleFunc, handleCORS: handleWithCORS, handlePrefix: handlePrefix}
 	for _, h := range []router.Handler{
-		grants.NewEndpoint(grants.Config{
+		s.newDiscoveryHandler(),
+		&grants.Handler{
 			Issuer:              s.issuer,
 			Storage:             s.storage,
 			Connectors:          s.connectors,
@@ -583,8 +584,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			RefreshPolicy:       s.refreshTokenPolicy,
 			SessionsEnabled:     s.sessionConfig != nil,
 			SupportedGrantTypes: s.supportedGrantTypes,
-		}),
-		s.newDiscoveryHandler(),
+		},
 		&userinfo.Handler{
 			Issuer: s.issuerURL.String(),
 			Signer: s.signer,
@@ -614,7 +614,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			Logger:        s.logger,
 			SessionConfig: s.sessionConfig,
 		},
-		authflow.NewHandler(authflow.Config{
+		&authflow.Handler{
 			IssuerURL:              s.issuerURL,
 			Connectors:             s.connectors,
 			Storage:                s.storage,
@@ -630,7 +630,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			Issuer:                 s.issuer,
 			MFA:                    mfaHandler,
 			Consent:                consentHandler,
-		}),
+		},
 		mfaHandler,
 		consentHandler,
 		&logout.Handler{

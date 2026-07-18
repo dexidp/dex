@@ -23,17 +23,17 @@ import (
 // it mints the code (and, for implicit/hybrid flows, the tokens) and redirects
 // the browser back to the client, or renders the out-of-band page.
 func (h *Handler) writeResponse(w http.ResponseWriter, r *http.Request, authReq storage.AuthRequest) {
-	h.sessions.UpdateTokenIssuedAt(r, authReq.ClientID)
+	h.Sessions.UpdateTokenIssuedAt(r, authReq.ClientID)
 
 	ctx := r.Context()
-	if h.now().After(authReq.Expiry) {
+	if h.Now().After(authReq.Expiry) {
 		h.renderError(r, w, http.StatusBadRequest, "User session has expired.")
 		return
 	}
 
-	if err := h.storage.DeleteAuthRequest(ctx, authReq.ID); err != nil {
+	if err := h.Storage.DeleteAuthRequest(ctx, authReq.ID); err != nil {
 		if err != storage.ErrNotFound {
-			h.logger.ErrorContext(r.Context(), "Failed to delete authorization request", "err", err)
+			h.Logger.ErrorContext(r.Context(), "Failed to delete authorization request", "err", err)
 			h.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 		} else {
 			h.renderError(r, w, http.StatusBadRequest, "User session error.")
@@ -71,7 +71,7 @@ func (h *Handler) writeResponse(w http.ResponseWriter, r *http.Request, authReq 
 			//
 			// https://openid.net/specs/openid-connect-core-1_0.html#HybridAuthResponse
 			if resp.code.ID == "" {
-				v.Set("expires_in", strconv.Itoa(int(resp.idTokenExpiry.Sub(h.now()).Seconds())))
+				v.Set("expires_in", strconv.Itoa(int(resp.idTokenExpiry.Sub(h.Now()).Seconds())))
 			}
 		}
 		v.Set("state", authReq.State)
@@ -146,14 +146,14 @@ func (h *Handler) issueCode(ctx context.Context, w http.ResponseWriter, r *http.
 		Nonce:         authReq.Nonce,
 		Scopes:        authReq.Scopes,
 		Claims:        authReq.Claims,
-		Expiry:        h.now().Add(time.Minute * 30),
+		Expiry:        h.Now().Add(time.Minute * 30),
 		RedirectURI:   authReq.RedirectURI,
 		ConnectorData: authReq.ConnectorData,
 		PKCE:          authReq.PKCE,
 		AuthTime:      authReq.AuthTime,
 	}
-	if err := h.storage.CreateAuthCode(ctx, resp.code); err != nil {
-		h.logger.ErrorContext(r.Context(), "Failed to create auth code", "err", err)
+	if err := h.Storage.CreateAuthCode(ctx, resp.code); err != nil {
+		h.Logger.ErrorContext(r.Context(), "Failed to create auth code", "err", err)
 		h.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 		return false
 	}
@@ -161,8 +161,8 @@ func (h *Handler) issueCode(ctx context.Context, w http.ResponseWriter, r *http.
 	// Implicit and hybrid flows that try to use the OOB redirect URI are
 	// rejected earlier. If we got here we're using the code flow.
 	if authReq.RedirectURI == oauth2.RedirectURIOOB {
-		if err := h.templates.OOB(r, w, resp.code.ID); err != nil {
-			h.logger.ErrorContext(r.Context(), "server template error", "err", err)
+		if err := h.Templates.OOB(r, w, resp.code.ID); err != nil {
+			h.Logger.ErrorContext(r.Context(), "server template error", "err", err)
 		}
 		return false // OOB fully rendered the response
 	}
@@ -175,7 +175,7 @@ func (h *Handler) issueAccessToken(ctx context.Context, w http.ResponseWriter, r
 		return true
 	}
 	resp.implicitOrHybrid = true
-	accessToken, _, err := h.issuer.SignAccessToken(ctx, tokens.Authorization{
+	accessToken, _, err := h.Issuer.SignAccessToken(ctx, tokens.Authorization{
 		Client:      storage.Client{ID: authReq.ClientID},
 		Claims:      authReq.Claims,
 		Scopes:      authReq.Scopes,
@@ -184,7 +184,7 @@ func (h *Handler) issueAccessToken(ctx context.Context, w http.ResponseWriter, r
 		AuthTime:    authReq.AuthTime,
 	})
 	if err != nil {
-		h.logger.ErrorContext(r.Context(), "failed to create new access token", "err", err)
+		h.Logger.ErrorContext(r.Context(), "failed to create new access token", "err", err)
 		h.tokenErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
 		return false
 	}
@@ -199,7 +199,7 @@ func (h *Handler) issueIDToken(ctx context.Context, w http.ResponseWriter, r *ht
 		return true
 	}
 	resp.implicitOrHybrid = true
-	idToken, idTokenExpiry, err := h.issuer.SignIDToken(ctx, tokens.Authorization{
+	idToken, idTokenExpiry, err := h.Issuer.SignIDToken(ctx, tokens.Authorization{
 		Client:      storage.Client{ID: authReq.ClientID},
 		Claims:      authReq.Claims,
 		Scopes:      authReq.Scopes,
@@ -208,7 +208,7 @@ func (h *Handler) issueIDToken(ctx context.Context, w http.ResponseWriter, r *ht
 		AuthTime:    authReq.AuthTime,
 	}, resp.accessToken, resp.code.ID)
 	if err != nil {
-		h.logger.ErrorContext(r.Context(), "failed to create ID token", "err", err)
+		h.Logger.ErrorContext(r.Context(), "failed to create ID token", "err", err)
 		h.tokenErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
 		return false
 	}
@@ -220,6 +220,6 @@ func (h *Handler) issueIDToken(ctx context.Context, w http.ResponseWriter, r *ht
 // tokenErrHelper writes an OAuth2 error response for the token-bearing flows.
 func (h *Handler) tokenErrHelper(w http.ResponseWriter, typ string, description string, statusCode int) {
 	if err := oauth2.WriteError(w, typ, description, statusCode); err != nil {
-		h.logger.Error("token error response", "err", err)
+		h.Logger.Error("token error response", "err", err)
 	}
 }

@@ -21,12 +21,12 @@ func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity
 	// Refuse to complete login for a locked account. BlockedUntil lives on the
 	// persisted UserIdentity, which only exists when the sessions feature is on;
 	// a first-time login (no stored identity yet) cannot be blocked.
-	if h.sessions.Enabled() {
-		storedIdentity, err := h.storage.GetUserIdentity(ctx, identity.UserID, authReq.ConnectorID)
+	if h.Sessions.Enabled() {
+		storedIdentity, err := h.Storage.GetUserIdentity(ctx, identity.UserID, authReq.ConnectorID)
 		switch {
 		case err == nil:
-			if !storedIdentity.BlockedUntil.IsZero() && h.now().Before(storedIdentity.BlockedUntil) {
-				h.logger.WarnContext(ctx, "login rejected for locked account",
+			if !storedIdentity.BlockedUntil.IsZero() && h.Now().Before(storedIdentity.BlockedUntil) {
+				h.Logger.WarnContext(ctx, "login rejected for locked account",
 					"connector_id", authReq.ConnectorID, "user_id", identity.UserID, "blocked_until", storedIdentity.BlockedUntil)
 				return storage.AuthRequest{}, fmt.Errorf("account is locked until %s", storedIdentity.BlockedUntil.Format(time.RFC3339))
 			}
@@ -48,10 +48,10 @@ func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity
 		a.LoggedIn = true
 		a.Claims = claims
 		a.ConnectorData = identity.ConnectorData
-		a.AuthTime = h.now()
+		a.AuthTime = h.Now()
 		return a, nil
 	}
-	if err := h.storage.UpdateAuthRequest(ctx, authReq.ID, updater); err != nil {
+	if err := h.Storage.UpdateAuthRequest(ctx, authReq.ID, updater); err != nil {
 		return storage.AuthRequest{}, fmt.Errorf("failed to update auth request: %v", err)
 	}
 	// Keep the in-memory copy in sync with what was persisted so later reads
@@ -63,7 +63,7 @@ func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity
 		email += " (unverified)"
 	}
 
-	h.logger.InfoContext(ctx, "login successful",
+	h.Logger.InfoContext(ctx, "login successful",
 		"connector_id", authReq.ConnectorID, "user_id", claims.UserID,
 		"username", claims.Username, "preferred_username", claims.PreferredUsername,
 		"email", email, "groups", claims.Groups)
@@ -79,7 +79,7 @@ func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity
 
 	if offlineAccessRequested && canRefresh {
 		// Try to retrieve an existing OfflineSession object for the corresponding user.
-		session, err := h.storage.GetOfflineSessions(ctx, identity.UserID, authReq.ConnectorID)
+		session, err := h.Storage.GetOfflineSessions(ctx, identity.UserID, authReq.ConnectorID)
 		switch {
 		case err != nil && err == storage.ErrNotFound:
 			offlineSessions := storage.OfflineSessions{
@@ -91,32 +91,32 @@ func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity
 
 			// Create a new OfflineSession object for the user and add a reference object for
 			// the newly received refreshtoken.
-			if err := h.storage.CreateOfflineSessions(ctx, offlineSessions); err != nil {
-				h.logger.ErrorContext(ctx, "failed to create offline session", "err", err)
+			if err := h.Storage.CreateOfflineSessions(ctx, offlineSessions); err != nil {
+				h.Logger.ErrorContext(ctx, "failed to create offline session", "err", err)
 				return storage.AuthRequest{}, err
 			}
 		case err == nil:
 			// Update existing OfflineSession obj with new RefreshTokenRef.
-			if err := h.storage.UpdateOfflineSessions(ctx, session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
+			if err := h.Storage.UpdateOfflineSessions(ctx, session.UserID, session.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
 				if len(identity.ConnectorData) > 0 {
 					old.ConnectorData = identity.ConnectorData
 				}
 				return old, nil
 			}); err != nil {
-				h.logger.ErrorContext(ctx, "failed to update offline session", "err", err)
+				h.Logger.ErrorContext(ctx, "failed to update offline session", "err", err)
 				return storage.AuthRequest{}, err
 			}
 		default:
-			h.logger.ErrorContext(ctx, "failed to get offline session", "err", err)
+			h.Logger.ErrorContext(ctx, "failed to get offline session", "err", err)
 			return storage.AuthRequest{}, err
 		}
 	}
 
 	// Create or update UserIdentity to persist user claims across sessions.
-	if h.sessions.Enabled() {
-		now := h.now()
+	if h.Sessions.Enabled() {
+		now := h.Now()
 
-		_, err := h.storage.GetUserIdentity(ctx, identity.UserID, authReq.ConnectorID)
+		_, err := h.Storage.GetUserIdentity(ctx, identity.UserID, authReq.ConnectorID)
 		switch {
 		case err != nil && errors.Is(err, storage.ErrNotFound):
 			ui := storage.UserIdentity{
@@ -127,26 +127,26 @@ func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity
 				CreatedAt:   now,
 				LastLogin:   now,
 			}
-			if err := h.storage.CreateUserIdentity(ctx, ui); err != nil {
-				h.logger.ErrorContext(ctx, "failed to create user identity", "err", err)
+			if err := h.Storage.CreateUserIdentity(ctx, ui); err != nil {
+				h.Logger.ErrorContext(ctx, "failed to create user identity", "err", err)
 				return storage.AuthRequest{}, err
 			}
 		case err == nil:
-			if err := h.storage.UpdateUserIdentity(ctx, identity.UserID, authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
+			if err := h.Storage.UpdateUserIdentity(ctx, identity.UserID, authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
 				old.Claims = claims
 				old.LastLogin = now
 				return old, nil
 			}); err != nil {
-				h.logger.ErrorContext(ctx, "failed to update user identity", "err", err)
+				h.Logger.ErrorContext(ctx, "failed to update user identity", "err", err)
 				return storage.AuthRequest{}, err
 			}
 		default:
-			h.logger.ErrorContext(ctx, "failed to get user identity", "err", err)
+			h.Logger.ErrorContext(ctx, "failed to get user identity", "err", err)
 			return storage.AuthRequest{}, err
 		}
 	}
 
 	// The identity is persisted; return the finalized request so the caller can
 	// create the session and advance the flow.
-	return h.storage.GetAuthRequest(ctx, authReq.ID)
+	return h.Storage.GetAuthRequest(ctx, authReq.ID)
 }

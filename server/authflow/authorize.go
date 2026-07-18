@@ -39,7 +39,7 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	// Extract the arguments
 	if err := r.ParseForm(); err != nil {
-		h.logger.ErrorContext(r.Context(), "failed to parse arguments", "err", err)
+		h.Logger.ErrorContext(r.Context(), "failed to parse arguments", "err", err)
 
 		h.renderError(r, w, http.StatusBadRequest, ErrMsgInvalidRequest)
 		return
@@ -52,9 +52,9 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	}
 
 	connectorID := r.Form.Get("connector_id")
-	allConnectors, err := h.storage.ListConnectors(ctx)
+	allConnectors, err := h.Storage.ListConnectors(ctx)
 	if err != nil {
-		h.logger.ErrorContext(r.Context(), "failed to get list of connectors", "err", err)
+		h.Logger.ErrorContext(r.Context(), "failed to get list of connectors", "err", err)
 		h.renderError(r, w, http.StatusInternalServerError, "Failed to retrieve connector list.")
 		return
 	}
@@ -103,17 +103,17 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(connectors) == 1 && !h.alwaysShowLogin {
+	if len(connectors) == 1 && !h.AlwaysShowLogin {
 		connURL.Path = h.absPath("/auth", url.PathEscape(connectors[0].ID))
 		http.Redirect(w, r, connURL.String(), http.StatusFound)
 		return
 	}
 
 	// Skip connector selection if a valid session exists, unless prompt=select_account or alwaysShowLogin.
-	if h.sessions.Enabled() {
+	if h.Sessions.Enabled() {
 		authReq, _, err := h.parseAuthorizationRequest(r)
 		if err != nil {
-			h.logger.ErrorContext(r.Context(), "failed to parse authorization request", "err", err)
+			h.Logger.ErrorContext(r.Context(), "failed to parse authorization request", "err", err)
 
 			switch authErr := err.(type) {
 			case *redirectedAuthErr:
@@ -133,8 +133,8 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Invalid prompts will be validated and properly redirected later
-		if !h.alwaysShowLogin && !prompt.SelectAccount() {
-			session := h.sessions.ValidSession(ctx, w, r)
+		if !h.AlwaysShowLogin && !prompt.SelectAccount() {
+			session := h.Sessions.ValidSession(ctx, w, r)
 			if session != nil {
 				for _, c := range connectors {
 					if c.ID != session.ConnectorID {
@@ -164,8 +164,8 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	if err := h.templates.Login(r, w, connectorInfos); err != nil {
-		h.logger.ErrorContext(r.Context(), "server template error", "err", err)
+	if err := h.Templates.Login(r, w, connectorInfos); err != nil {
+		h.Logger.ErrorContext(r.Context(), "server template error", "err", err)
 	}
 }
 
@@ -173,13 +173,13 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 // Invalid client_id is not treated as a redirect error per RFC 6749 §4.1.2.1.
 // https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.2.1
 func (h *Handler) getClientWithAuthError(ctx context.Context, clientID string) (storage.Client, *displayedAuthErr) {
-	client, err := h.storage.GetClient(ctx, clientID)
+	client, err := h.Storage.GetClient(ctx, clientID)
 	if err != nil {
 		if err == storage.ErrNotFound {
-			h.logger.ErrorContext(ctx, "invalid client_id provided", "client_id", clientID)
+			h.Logger.ErrorContext(ctx, "invalid client_id provided", "client_id", clientID)
 			return storage.Client{}, newDisplayedErr(http.StatusBadRequest, "Invalid client_id provided.")
 		}
-		h.logger.ErrorContext(ctx, "failed to get client", "client_id", clientID, "err", err)
+		h.Logger.ErrorContext(ctx, "failed to get client", "client_id", clientID, "err", err)
 		return storage.Client{}, newDisplayedErr(http.StatusInternalServerError, "Database error.")
 	}
 	return client, nil

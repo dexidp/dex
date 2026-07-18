@@ -22,18 +22,18 @@ func (h *Handler) handleContinue(w http.ResponseWriter, r *http.Request) {
 		h.renderError(r, w, http.StatusUnauthorized, "Unauthorized request")
 		return
 	}
-	authReq, err := h.storage.GetAuthRequest(ctx, r.FormValue("req"))
+	authReq, err := h.Storage.GetAuthRequest(ctx, r.FormValue("req"))
 	if err != nil {
 		if err == storage.ErrNotFound {
 			h.renderError(r, w, http.StatusBadRequest, "User session error.")
 			return
 		}
-		h.logger.ErrorContext(ctx, "failed to get auth request", "err", err)
+		h.Logger.ErrorContext(ctx, "failed to get auth request", "err", err)
 		h.renderError(r, w, http.StatusInternalServerError, "Database error.")
 		return
 	}
 	if !authReq.LoggedIn {
-		h.logger.ErrorContext(ctx, "flow dispatcher reached for auth request without an identity")
+		h.Logger.ErrorContext(ctx, "flow dispatcher reached for auth request without an identity")
 		h.renderError(r, w, http.StatusInternalServerError, "Login process not yet finalized.")
 		return
 	}
@@ -59,9 +59,9 @@ func (h *Handler) dispatch(w http.ResponseWriter, r *http.Request, authReq stora
 	prompt, _ := oauth2.ParsePrompt(authReq.Prompt)
 
 	// MFA: query the chain; redirect to the first pending factor if any.
-	chain, err := h.mfa.ChainForClient(ctx, authReq.ClientID, authReq.ConnectorID)
+	chain, err := h.MFA.ChainForClient(ctx, authReq.ClientID, authReq.ConnectorID)
 	if err != nil {
-		h.logger.ErrorContext(ctx, "failed to determine MFA chain", "err", err)
+		h.Logger.ErrorContext(ctx, "failed to determine MFA chain", "err", err)
 		h.renderError(r, w, http.StatusInternalServerError, ErrMsgInternalServerError)
 		return
 	}
@@ -70,13 +70,13 @@ func (h *Handler) dispatch(w http.ResponseWriter, r *http.Request, authReq stora
 			h.redirectWithError(w, r, &authReq, oauth2.InteractionRequired, "User interaction required")
 			return
 		}
-		http.Redirect(w, r, h.mfa.BuildRedirectURL(authReq, chain[0]), http.StatusSeeOther)
+		http.Redirect(w, r, h.MFA.BuildRedirectURL(authReq, chain[0]), http.StatusSeeOther)
 		return
 	}
 
 	// Consent: the "approved" verifier resolves it for this request; otherwise ask
 	// consent whether it can be skipped.
-	if !consentApproved && !h.consent.Satisfied(ctx, &authReq) {
+	if !consentApproved && !h.Consent.Satisfied(ctx, &authReq) {
 		if prompt.None() {
 			h.redirectWithError(w, r, &authReq, oauth2.InteractionRequired, "User interaction required")
 			return
