@@ -114,12 +114,12 @@ func (m *Manager) handleTOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	m.handleTOTPVerify(w, r, r.Context(), mfa.authReq, mfa.identity, mfa.authenticatorID, totpProvider, mfa.approvalURL)
+	m.handleTOTPVerify(w, r, r.Context(), mfa.authReq, mfa.identity, mfa.authenticatorID, totpProvider)
 }
 
 func (m *Manager) handleTOTPVerify(w http.ResponseWriter, r *http.Request, ctx context.Context,
 	authReq storage.AuthRequest, identity storage.UserIdentity,
-	authenticatorID string, totpProvider *TOTPProvider, returnURL string,
+	authenticatorID string, totpProvider *TOTPProvider,
 ) {
 	secret := identity.MFASecrets[authenticatorID]
 

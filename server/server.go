@@ -451,10 +451,10 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		SupportedGrantTypes: s.supportedGrantTypes,
 	})
 
-	// ui and sessions are the shared browser infrastructure; each flow handler
-	// mounted below embeds them. The flow handlers themselves hold no reference to
-	// one another — they hand off by HMAC-protected redirect — so they are
-	// constructed inline in the mount list.
+	// ui and sessions are the shared browser infrastructure. The step components
+	// (mfa, consent, issue) hold no reference to one another — they redirect back
+	// to the login flow's dispatcher — but the dispatcher drives them, so they are
+	// built here and injected into the login handler below.
 	ui := &render.UI{
 		Templates: s.templates,
 		IssuerURL: s.issuerURL,
@@ -466,6 +466,33 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		Now:       s.now,
 		Logger:    s.logger,
 		IssuerURL: s.issuerURL,
+	}
+	mfaManager := &mfa.Manager{
+		UI:              ui,
+		Storage:         s.storage,
+		Templates:       s.templates,
+		Logger:          s.logger,
+		MFAProviders:    s.mfaProviders,
+		DefaultMFAChain: s.defaultMFAChain,
+		Now:             s.now,
+		Connectors:      s.connectors,
+	}
+	issueWriter := &issue.Writer{
+		UI:        ui,
+		Storage:   s.storage,
+		Templates: s.templates,
+		Logger:    s.logger,
+		Issuer:    s.issuer,
+		Sessions:  sessions,
+		Now:       s.now,
+	}
+	consentManager := &consent.Manager{
+		UI:           ui,
+		Storage:      s.storage,
+		Templates:    s.templates,
+		Logger:       s.logger,
+		Sessions:     sessions,
+		SkipApproval: s.skipApproval,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
@@ -630,34 +657,12 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			AuthRequestsValidFor:   s.authRequestsValidFor,
 			UI:                     ui,
 			Sessions:               sessions,
+			MFA:                    mfaManager,
+			Consent:                consentManager,
+			Issue:                  issueWriter,
 		}),
-		&mfa.Manager{
-			UI:              ui,
-			Storage:         s.storage,
-			Templates:       s.templates,
-			Logger:          s.logger,
-			MFAProviders:    s.mfaProviders,
-			DefaultMFAChain: s.defaultMFAChain,
-			Now:             s.now,
-			Connectors:      s.connectors,
-		},
-		&consent.Manager{
-			UI:           ui,
-			Storage:      s.storage,
-			Templates:    s.templates,
-			Logger:       s.logger,
-			Sessions:     sessions,
-			SkipApproval: s.skipApproval,
-		},
-		&issue.Writer{
-			UI:        ui,
-			Storage:   s.storage,
-			Templates: s.templates,
-			Logger:    s.logger,
-			Issuer:    s.issuer,
-			Sessions:  sessions,
-			Now:       s.now,
-		},
+		mfaManager,
+		consentManager,
 		&logout.Manager{
 			UI:         ui,
 			Storage:    s.storage,

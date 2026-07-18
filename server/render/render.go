@@ -48,21 +48,14 @@ func (u *UI) BuildApprovalURL(authReq storage.AuthRequest) string {
 	return u.AbsPath("/approval") + "?" + v.Encode()
 }
 
-// BuildMFAURL builds an HMAC-protected URL for the MFA gate, the first step of
-// the post-login chain.
-func (u *UI) BuildMFAURL(authReq storage.AuthRequest) string {
+// BuildContinueURL builds an HMAC-protected URL for the flow dispatcher: the
+// central point every step returns to so the next step (or issuance) is decided
+// in one place.
+func (u *UI) BuildContinueURL(authReq storage.AuthRequest) string {
 	v := url.Values{}
 	v.Set("req", authReq.ID)
-	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "mfa"))
-	return u.AbsPath("/mfa/start") + "?" + v.Encode()
-}
-
-// BuildIssueURL builds an HMAC-protected URL for the final issuance step.
-func (u *UI) BuildIssueURL(authReq storage.AuthRequest) string {
-	v := url.Values{}
-	v.Set("req", authReq.ID)
-	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "issue"))
-	return u.AbsPath("/issue") + "?" + v.Encode()
+	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "continue"))
+	return u.AbsPath("/continue") + "?" + v.Encode()
 }
 
 // RedirectAuthError redirects back to the client's redirect_uri with an OAuth2

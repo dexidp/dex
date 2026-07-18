@@ -13,9 +13,9 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
-// TestFlowStepsRequireHMAC verifies the login chain's step-skip protection: the
-// MFA gate and the issuance endpoint reject requests that do not carry the HMAC
-// the previous step would have issued. A browser can only reach a step by being
+// TestFlowStepsRequireHMAC verifies the dispatcher's step-skip protection: the
+// /continue endpoint rejects requests that do not carry the HMAC the previous
+// step would have issued. A browser can only reach the dispatcher by being
 // redirected there with its HMAC, so a missing or wrong HMAC is rejected.
 func TestFlowStepsRequireHMAC(t *testing.T) {
 	ctx := t.Context()
@@ -37,17 +37,16 @@ func TestFlowStepsRequireHMAC(t *testing.T) {
 	}
 	require.NoError(t, s.storage.CreateAuthRequest(ctx, authReq))
 
-	// The valid HMAC for the issue step is bound to (req id, "issue"); no other
-	// value is accepted, and neither is a value minted for a different step.
+	// The dispatcher HMAC is bound to (req id, "continue"); no other value is
+	// accepted, and neither is a value minted for a different step.
 	wrongStepMAC := internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "mfa")
 
 	for _, tc := range []struct {
 		name string
 		path string
 	}{
-		{"issue without hmac", "/issue?req=" + authReq.ID},
-		{"issue with wrong-step hmac", "/issue?req=" + authReq.ID + "&hmac=" + wrongStepMAC},
-		{"mfa gate without hmac", "/mfa/start?req=" + authReq.ID},
+		{"dispatcher without hmac", "/continue?req=" + authReq.ID},
+		{"dispatcher with wrong-step hmac", "/continue?req=" + authReq.ID + "&hmac=" + wrongStepMAC},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rr := httptest.NewRecorder()
@@ -56,10 +55,11 @@ func TestFlowStepsRequireHMAC(t *testing.T) {
 		})
 	}
 
-	// The matching issue HMAC is accepted and issues the code to the client.
+	// The matching dispatcher HMAC is accepted and, with MFA and consent
+	// satisfied, issues the code to the client.
 	rr := httptest.NewRecorder()
-	issueMAC := internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "issue")
-	s.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/issue?req="+authReq.ID+"&hmac="+issueMAC, nil))
+	continueMAC := internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "continue")
+	s.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/continue?req="+authReq.ID+"&hmac="+continueMAC, nil))
 	require.Equal(t, http.StatusSeeOther, rr.Code)
 	require.Contains(t, rr.Header().Get("Location"), "https://client.example/callback")
 }

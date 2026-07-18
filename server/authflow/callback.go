@@ -109,5 +109,5 @@ func (h *Handler) handleConnectorCallback(w http.ResponseWriter, r *http.Request
 		h.logger.ErrorContext(ctx, "failed to create/update auth session", "err", err)
 	}
 
-	http.Redirect(w, r, h.BuildMFAURL(authReq), http.StatusSeeOther)
+	http.Redirect(w, r, h.BuildContinueURL(authReq), http.StatusSeeOther)
 }

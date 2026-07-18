@@ -20,9 +20,9 @@ func boolPtr(v bool) *bool {
 }
 
 // isFlowPath reports whether a redirect target is an internal step of the login
-// chain (MFA gate/factors, consent, issuance) rather than the client redirect.
+// chain (the dispatcher, MFA factors, consent) rather than the client redirect.
 func isFlowPath(p string) bool {
-	for _, step := range []string{"/mfa/", "/approval", "/issue"} {
+	for _, step := range []string{"/continue", "/mfa/", "/approval"} {
 		if strings.Contains(p, step) {
 			return true
 		}

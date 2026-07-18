@@ -140,6 +140,9 @@ func newTestHandler(t *testing.T, updateConfig func(c *testFlowConfig)) (*httpte
 
 	tc.Config.UI = ui
 	tc.Config.Sessions = sessions
+	tc.Config.MFA = mfaManager
+	tc.Config.Consent = consentManager
+	tc.Config.Issue = issueWriter
 
 	h := NewHandler(tc.Config)
 
@@ -147,7 +150,6 @@ func newTestHandler(t *testing.T, updateConfig func(c *testFlowConfig)) (*httpte
 	h.Mount(testMux{router})
 	mfaManager.Mount(testMux{router})
 	consentManager.Mount(testMux{router})
-	issueWriter.Mount(testMux{router})
 	logoutManager.Mount(testMux{router})
 	handler = router
 

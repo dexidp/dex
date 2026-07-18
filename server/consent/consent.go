@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/dexidp/dex/server/internal"
-	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/render"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
@@ -78,17 +77,8 @@ func (m *Manager) handleApproval(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		// Consent already covered — hand off to issuance without showing the screen.
-		if m.Satisfied(ctx, &authReq) {
-			http.Redirect(w, r, m.BuildIssueURL(authReq), http.StatusSeeOther)
-			return
-		}
-		// Consent is required, but prompt=none forbids showing the screen.
-		if prompt, _ := oauth2.ParsePrompt(authReq.Prompt); prompt.None() {
-			m.RedirectAuthError(w, r, authReq, oauth2.InteractionRequired, "User interaction required")
-			return
-		}
-
+		// The dispatcher only routes here when consent is required, so just show
+		// the approval screen.
 		client, err := m.Storage.GetClient(ctx, authReq.ClientID)
 		if err != nil {
 			m.Logger.ErrorContext(ctx, "Failed to get client", "client_id", authReq.ClientID, "err", err)
@@ -103,7 +93,8 @@ func (m *Manager) handleApproval(w http.ResponseWriter, r *http.Request) {
 			m.RenderError(r, w, http.StatusInternalServerError, "Approval rejected.")
 			return
 		}
-		// Persist user-approved scopes as consent for this client.
+		// Persist user-approved scopes as consent for this client, then return to
+		// the dispatcher to complete the flow.
 		if m.Sessions.Enabled() {
 			if err := m.Storage.UpdateUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
 				if old.Consents == nil {
@@ -115,7 +106,7 @@ func (m *Manager) handleApproval(w http.ResponseWriter, r *http.Request) {
 				m.Logger.ErrorContext(ctx, "failed to update user identity consents", "err", err)
 			}
 		}
-		http.Redirect(w, r, m.BuildIssueURL(authReq), http.StatusSeeOther)
+		http.Redirect(w, r, m.BuildContinueURL(authReq), http.StatusSeeOther)
 	}
 }
 

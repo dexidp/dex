@@ -61,10 +61,10 @@ func TestCompleteMFAStep(t *testing.T) {
 	require.Contains(t, redirectURL, "/mfa/webauthn")
 	require.Contains(t, redirectURL, "authenticator=webauthn-2")
 
-	// Completing second (last) step should redirect to approval.
+	// Completing the last step should redirect to the flow dispatcher.
 	redirectURL, err = server.mfa.CompleteStep(ctx, authReq, "webauthn-2")
 	require.NoError(t, err)
-	require.Contains(t, redirectURL, "/approval")
+	require.Contains(t, redirectURL, "/continue")
 
 	// Verify MFAValidated was set.
 	updated, err := server.storage.GetAuthRequest(ctx, authReq.ID)
