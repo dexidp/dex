@@ -467,7 +467,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		Logger:    s.logger,
 		IssuerURL: s.issuerURL,
 	}
-	mfaManager := &mfa.Manager{
+	mfaManager := &mfa.Handler{
 		UI:              ui,
 		Storage:         s.storage,
 		Templates:       s.templates,
@@ -486,7 +486,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		Sessions:  sessions,
 		Now:       s.now,
 	}
-	consentManager := &consent.Manager{
+	consentManager := &consent.Handler{
 		UI:           ui,
 		Storage:      s.storage,
 		Templates:    s.templates,
@@ -663,7 +663,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		}),
 		mfaManager,
 		consentManager,
-		&logout.Manager{
+		&logout.Handler{
 			UI:         ui,
 			Storage:    s.storage,
 			Templates:  s.templates,

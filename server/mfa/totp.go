@@ -97,27 +97,27 @@ func (p *TOTPProvider) generate(connID, email string) (*otp.Key, error) {
 }
 
 // mfaRequestContext holds validated MFA request data shared across handlers.
-func (m *Manager) handleTOTP(w http.ResponseWriter, r *http.Request) {
-	mfa, ok := m.validateMFARequest(w, r)
+func (h *Handler) handleTOTP(w http.ResponseWriter, r *http.Request) {
+	mfa, ok := h.validateMFARequest(w, r)
 	if !ok {
 		return
 	}
 
-	provider, ok := m.MFAProviders[mfa.authenticatorID]
+	provider, ok := h.MFAProviders[mfa.authenticatorID]
 	if !ok {
-		m.RenderError(r, w, http.StatusBadRequest, "Unknown authenticator.")
+		h.RenderError(r, w, http.StatusBadRequest, "Unknown authenticator.")
 		return
 	}
 	totpProvider, ok := provider.(*TOTPProvider)
 	if !ok {
-		m.RenderError(r, w, http.StatusBadRequest, "Not a TOTP authenticator.")
+		h.RenderError(r, w, http.StatusBadRequest, "Not a TOTP authenticator.")
 		return
 	}
 
-	m.handleTOTPVerify(w, r, r.Context(), mfa.authReq, mfa.identity, mfa.authenticatorID, totpProvider)
+	h.handleTOTPVerify(w, r, r.Context(), mfa.authReq, mfa.identity, mfa.authenticatorID, totpProvider)
 }
 
-func (m *Manager) handleTOTPVerify(w http.ResponseWriter, r *http.Request, ctx context.Context,
+func (h *Handler) handleTOTPVerify(w http.ResponseWriter, r *http.Request, ctx context.Context,
 	authReq storage.AuthRequest, identity storage.UserIdentity,
 	authenticatorID string, totpProvider *TOTPProvider,
 ) {
@@ -131,8 +131,8 @@ func (m *Manager) handleTOTPVerify(w http.ResponseWriter, r *http.Request, ctx c
 			// enrollment multiple times without completing it, old secrets accumulate.
 			generated, err := totpProvider.generate(authReq.ConnectorID, authReq.Claims.Email)
 			if err != nil {
-				m.Logger.ErrorContext(ctx, "failed to generate TOTP key", "err", err)
-				m.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+				h.Logger.ErrorContext(ctx, "failed to generate TOTP key", "err", err)
+				h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
 				return
 			}
 
@@ -141,23 +141,23 @@ func (m *Manager) handleTOTPVerify(w http.ResponseWriter, r *http.Request, ctx c
 				Type:            "TOTP",
 				Secret:          generated.String(),
 				Confirmed:       false,
-				CreatedAt:       m.Now(),
+				CreatedAt:       h.Now(),
 			}
 
-			if err := m.Storage.UpdateUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
+			if err := h.Storage.UpdateUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
 				if old.MFASecrets == nil {
 					old.MFASecrets = make(map[string]*storage.MFASecret)
 				}
 				old.MFASecrets[authenticatorID] = secret
 				return old, nil
 			}); err != nil {
-				m.Logger.ErrorContext(ctx, "failed to store MFA secret", "err", err)
-				m.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+				h.Logger.ErrorContext(ctx, "failed to store MFA secret", "err", err)
+				h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
 				return
 			}
 		}
 
-		m.renderTOTPPage(secret, false, totpProvider.issuer, authReq.ConnectorID, w, r)
+		h.renderTOTPPage(secret, false, totpProvider.issuer, authReq.ConnectorID, w, r)
 
 	case http.MethodPost:
 		// TODO(nabokihms): this endpoint should be protected with a rate limit (like the auth endpoint).
@@ -166,21 +166,21 @@ func (m *Manager) handleTOTPVerify(w http.ResponseWriter, r *http.Request, ctx c
 		//
 		// For now the best way is to use external rate limiting solutions.
 		if secret == nil || secret.Secret == "" {
-			m.RenderError(r, w, http.StatusBadRequest, "MFA not enrolled.")
+			h.RenderError(r, w, http.StatusBadRequest, "MFA not enrolled.")
 			return
 		}
 
 		code := r.FormValue("totp")
 		generated, err := otp.NewKeyFromURL(secret.Secret)
 		if err != nil {
-			m.Logger.ErrorContext(ctx, "failed to load TOTP key", "err", err)
-			m.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+			h.Logger.ErrorContext(ctx, "failed to load TOTP key", "err", err)
+			h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
 			return
 		}
 
-		ok, counter := validateTOTPCode(generated.Secret(), code, m.Now(), secret.LastUsedCounter)
+		ok, counter := validateTOTPCode(generated.Secret(), code, h.Now(), secret.LastUsedCounter)
 		if !ok {
-			m.renderTOTPPage(secret, true, totpProvider.issuer, authReq.ConnectorID, w, r)
+			h.renderTOTPPage(secret, true, totpProvider.issuer, authReq.ConnectorID, w, r)
 			return
 		}
 
@@ -190,7 +190,7 @@ func (m *Manager) handleTOTPVerify(w http.ResponseWriter, r *http.Request, ctx c
 		// requests with the same code cannot both succeed. This burn commits
 		// before CompleteStep marks the challenge passed, so a code can never
 		// pass the challenge without its counter being recorded first.
-		if err := m.Storage.UpdateUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
+		if err := h.Storage.UpdateUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
 			sec := old.MFASecrets[authenticatorID]
 			if sec == nil {
 				return old, errTOTPNotEnrolled
@@ -203,31 +203,31 @@ func (m *Manager) handleTOTPVerify(w http.ResponseWriter, r *http.Request, ctx c
 			return old, nil
 		}); err != nil {
 			if errors.Is(err, errTOTPReplay) || errors.Is(err, errTOTPNotEnrolled) {
-				m.renderTOTPPage(secret, true, totpProvider.issuer, authReq.ConnectorID, w, r)
+				h.renderTOTPPage(secret, true, totpProvider.issuer, authReq.ConnectorID, w, r)
 				return
 			}
-			m.Logger.ErrorContext(ctx, "failed to update MFA secret", "err", err)
-			m.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+			h.Logger.ErrorContext(ctx, "failed to update MFA secret", "err", err)
+			h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
 			return
 		}
 
-		redirectURL, err := m.CompleteStep(ctx, authReq, authenticatorID)
+		redirectURL, err := h.CompleteStep(ctx, authReq, authenticatorID)
 		if err != nil {
-			m.Logger.ErrorContext(ctx, "failed to complete MFA step", "err", err)
-			m.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+			h.Logger.ErrorContext(ctx, "failed to complete MFA step", "err", err)
+			h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
 			return
 		}
 
-		// CompleteStep returns either the next MFA step URL or the approval URL.
-		// Redirect in both cases — the approval handler handles skipApproval logic.
+		// CompleteStep returns the next factor URL or the dispatcher URL; the
+		// dispatcher decides what follows once MFA is complete.
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 
 	default:
-		m.RenderError(r, w, http.StatusBadRequest, "Unsupported request method.")
+		h.RenderError(r, w, http.StatusBadRequest, "Unsupported request method.")
 	}
 }
 
-func (m *Manager) renderTOTPPage(secret *storage.MFASecret, lastFail bool, issuer, connectorID string, w http.ResponseWriter, r *http.Request) {
+func (h *Handler) renderTOTPPage(secret *storage.MFASecret, lastFail bool, issuer, connectorID string, w http.ResponseWriter, r *http.Request) {
 	// Prevent browser from caching the TOTP page (contains QR code with secret).
 	w.Header().Set("Cache-Control", "no-store")
 	var qrCode string
@@ -235,13 +235,13 @@ func (m *Manager) renderTOTPPage(secret *storage.MFASecret, lastFail bool, issue
 		var err error
 		qrCode, err = generateTOTPQRCode(secret.Secret)
 		if err != nil {
-			m.Logger.ErrorContext(r.Context(), "failed to generate QR code", "err", err)
-			m.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+			h.Logger.ErrorContext(r.Context(), "failed to generate QR code", "err", err)
+			h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
 			return
 		}
 	}
-	if err := m.Templates.TOTPVerify(r, w, r.URL.String(), issuer, connectorID, qrCode, lastFail); err != nil {
-		m.Logger.ErrorContext(r.Context(), "server template error", "err", err)
+	if err := h.Templates.TOTPVerify(r, w, r.URL.String(), issuer, connectorID, qrCode, lastFail); err != nil {
+		h.Logger.ErrorContext(r.Context(), "server template error", "err", err)
 	}
 }
 

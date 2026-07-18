@@ -39,8 +39,8 @@ type Config struct {
 
 	UI       *render.UI
 	Sessions *session.Manager
-	MFA      *mfa.Manager
-	Consent  *consent.Manager
+	MFA      *mfa.Handler
+	Consent  *consent.Handler
 	Issue    *issue.Writer
 }
 
@@ -66,8 +66,8 @@ type Handler struct {
 	// sessions owns the session cookie, SSO lookup and auth-session CRUD.
 	sessions *session.Manager
 	// mfa, consent and issue are the steps the dispatcher drives.
-	mfa     *mfa.Manager
-	consent *consent.Manager
+	mfa     *mfa.Handler
+	consent *consent.Handler
 	issue   *issue.Writer
 }
 

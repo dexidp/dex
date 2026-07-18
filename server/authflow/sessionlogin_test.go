@@ -31,8 +31,8 @@ import (
 // the few tests that toggle SkipApproval.
 type sessionTestServer struct {
 	*Handler
-	consent *consent.Manager
-	mfa     *mfa.Manager
+	consent *consent.Handler
+	mfa     *mfa.Handler
 	issue   *issue.Writer
 }
 
@@ -58,9 +58,9 @@ func newTestSessionServer(t *testing.T) *sessionTestServer {
 	h.sessions = &session.Manager{Storage: h.storage, Config: sessionCfg, Now: h.now, Logger: slog.Default(), IssuerURL: *issuerURL}
 	return &sessionTestServer{
 		Handler: h,
-		mfa:     &mfa.Manager{UI: h.UI, Storage: h.storage, Logger: slog.Default(), Now: h.now, Connectors: h.connectors},
+		mfa:     &mfa.Handler{UI: h.UI, Storage: h.storage, Logger: slog.Default(), Now: h.now, Connectors: h.connectors},
 		issue:   &issue.Writer{UI: h.UI, Storage: h.storage, Logger: slog.Default(), Sessions: h.sessions, Now: h.now},
-		consent: &consent.Manager{UI: h.UI, Storage: h.storage, Logger: slog.Default(), Sessions: h.sessions},
+		consent: &consent.Handler{UI: h.UI, Storage: h.storage, Logger: slog.Default(), Sessions: h.sessions},
 	}
 }
 
@@ -1393,7 +1393,7 @@ func TestFinishSessionLogin_MFA(t *testing.T) {
 		t.Helper()
 		s := newTestSessionServer(t)
 		s.consent.SkipApproval = true
-		s.mfa = &mfa.Manager{UI: s.UI, Storage: s.storage, Logger: slog.Default(), MFAProviders: mfaProviders, Now: s.now, Connectors: s.connectors}
+		s.mfa = &mfa.Handler{UI: s.UI, Storage: s.storage, Logger: slog.Default(), MFAProviders: mfaProviders, Now: s.now, Connectors: s.connectors}
 
 		// Create connector in storage and register it in the connectors map.
 		require.NoError(t, s.storage.CreateConnector(ctx, storage.Connector{
@@ -1650,7 +1650,7 @@ func TestPromptNone(t *testing.T) {
 		// In handleConnectorLogin, this is a successful (ok=true) redirect, not oauth2.LoginRequired.
 		s := newTestSessionServer(t)
 		s.consent.SkipApproval = true
-		s.mfa = &mfa.Manager{UI: s.UI, Storage: s.storage, Logger: slog.Default(), MFAProviders: map[string]mfa.Provider{
+		s.mfa = &mfa.Handler{UI: s.UI, Storage: s.storage, Logger: slog.Default(), MFAProviders: map[string]mfa.Provider{
 			"totp": mfa.NewTOTPProvider("test-issuer", nil),
 		}, Now: s.now, Connectors: s.connectors}
 
@@ -1787,7 +1787,7 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 	t.Run("SSO with MFA required on target client redirects to MFA", func(t *testing.T) {
 		s := newTestSessionServer(t)
 		s.consent.SkipApproval = true
-		s.mfa = &mfa.Manager{UI: s.UI, Storage: s.storage, Logger: slog.Default(), MFAProviders: map[string]mfa.Provider{
+		s.mfa = &mfa.Handler{UI: s.UI, Storage: s.storage, Logger: slog.Default(), MFAProviders: map[string]mfa.Provider{
 			"totp": mfa.NewTOTPProvider("test-issuer", nil),
 		}, Now: s.now, Connectors: s.connectors}
 
@@ -1818,7 +1818,7 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 	t.Run("SSO source without MFA target with MFA enforces MFA", func(t *testing.T) {
 		s := newTestSessionServer(t)
 		s.consent.SkipApproval = true
-		s.mfa = &mfa.Manager{UI: s.UI, Storage: s.storage, Logger: slog.Default(), MFAProviders: map[string]mfa.Provider{
+		s.mfa = &mfa.Handler{UI: s.UI, Storage: s.storage, Logger: slog.Default(), MFAProviders: map[string]mfa.Provider{
 			"totp": mfa.NewTOTPProvider("test-issuer", nil),
 		}, Now: s.now, Connectors: s.connectors}
 
