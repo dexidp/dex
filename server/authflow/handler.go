@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/dexidp/dex/server/connectors"
-	"github.com/dexidp/dex/server/consent"
-	"github.com/dexidp/dex/server/mfa"
 	"github.com/dexidp/dex/server/render"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
@@ -19,11 +17,10 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
-// Config is the login flow's configuration. The login handler authenticates the
-// user and owns the flow dispatcher (/continue), the central point every step
-// returns to. The dispatcher drives the shared step components — mfa, consent
-// and issue — which the server builds and injects here; the steps themselves
-// hold no reference to one another.
+// Config is the login flow's configuration. The login handler owns the authorize
+// endpoint (/auth), which both starts the flow (login) and ends it (issuance);
+// it holds no reference to the mfa or consent steps, which decide for themselves
+// and hand off by redirect.
 type Config struct {
 	IssuerURL              url.URL
 	Connectors             *connectors.Cache
@@ -40,14 +37,12 @@ type Config struct {
 	UI       *render.UI
 	Sessions *session.Manager
 	Issuer   *tokens.Issuer
-	MFA      *mfa.Handler
-	Consent  *consent.Handler
 }
 
 // Handler serves the interactive login flow (connector selection, connector and
-// password login, the callback) and the flow dispatcher that decides each next
-// step. The dispatcher references the step components; the steps only redirect
-// back to it.
+// password login, the callback) and the authorize endpoint's issuance. Once the
+// user is authenticated it redirects into the MFA gate; it holds no reference to
+// the mfa or consent steps.
 type Handler struct {
 	*render.UI
 
@@ -67,9 +62,6 @@ type Handler struct {
 	sessions *session.Manager
 	// issuer mints tokens for the authorization response (see response.go).
 	issuer *tokens.Issuer
-	// mfa and consent are the steps the dispatcher drives.
-	mfa     *mfa.Handler
-	consent *consent.Handler
 }
 
 // NewHandler builds the login-flow handler from its configuration.
@@ -89,14 +81,12 @@ func NewHandler(c Config) *Handler {
 		authRequestsValidFor:   c.AuthRequestsValidFor,
 		sessions:               c.Sessions,
 		issuer:                 c.Issuer,
-		mfa:                    c.MFA,
-		consent:                c.Consent,
 	}
 }
 
-// Mount registers the login routes. The /auth endpoint doubles as the flow
-// dispatcher (see continue.go). The step components (consent, mfa, logout) are
-// mounted separately by the server.
+// Mount registers the login routes. The /auth endpoint is both the entry
+// (login) and the exit (issuance, see response.go). The mfa, consent and logout
+// steps are mounted separately by the server.
 func (h *Handler) Mount(m router.Mux) {
 	m.HandleFunc("/auth", h.handleAuthorization)
 	m.HandleFunc("/auth/{connector}", h.handleConnectorLogin)

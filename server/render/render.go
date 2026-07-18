@@ -48,14 +48,23 @@ func (u *UI) BuildApprovalURL(authReq storage.AuthRequest) string {
 	return u.AbsPath("/approval") + "?" + v.Encode()
 }
 
-// BuildContinueURL builds an HMAC-protected URL that re-enters the authorize
-// endpoint to resume an in-progress request. The authorize endpoint is the flow
-// dispatcher: every step returns here so the next step (or issuance) is decided
-// in one place, mirroring hydra re-entering /oauth2/auth with a verifier.
-func (u *UI) BuildContinueURL(authReq storage.AuthRequest) string {
+// BuildMFAURL builds an HMAC-protected URL for the MFA gate, the first step
+// after login. The gate decides for itself whether MFA applies.
+func (u *UI) BuildMFAURL(authReq storage.AuthRequest) string {
 	v := url.Values{}
 	v.Set("req", authReq.ID)
-	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "continue"))
+	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "mfa"))
+	return u.AbsPath("/mfa/start") + "?" + v.Encode()
+}
+
+// BuildIssueURL builds an HMAC-protected URL that re-enters the authorize
+// endpoint to issue the response. Issuance is the authorize endpoint's job, so
+// the last interactive step redirects here to complete the flow — no separate
+// issue endpoint.
+func (u *UI) BuildIssueURL(authReq storage.AuthRequest) string {
+	v := url.Values{}
+	v.Set("req", authReq.ID)
+	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "issue"))
 	return u.AbsPath("/auth") + "?" + v.Encode()
 }
 

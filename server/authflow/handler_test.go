@@ -138,8 +138,6 @@ func newTestHandler(t *testing.T, updateConfig func(c *testFlowConfig)) (*httpte
 	tc.Config.UI = ui
 	tc.Config.Sessions = sessions
 	tc.Config.Issuer = issuer
-	tc.Config.MFA = mfaManager
-	tc.Config.Consent = consentManager
 
 	h := NewHandler(tc.Config)
 

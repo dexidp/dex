@@ -124,7 +124,7 @@ func (h *Handler) finishSessionLogin(ctx context.Context, r *http.Request, w htt
 		h.logger.ErrorContext(ctx, "session: failed to get auth request", "err", err)
 		return false
 	}
-	http.Redirect(w, r, h.BuildContinueURL(updated), http.StatusSeeOther)
+	http.Redirect(w, r, h.BuildMFAURL(updated), http.StatusSeeOther)
 	return true
 }
 

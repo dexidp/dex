@@ -10,6 +10,7 @@ import (
 
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/render"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/templates"
@@ -82,9 +83,9 @@ func (h *Handler) validateMFARequest(w http.ResponseWriter, r *http.Request) (*m
 		return nil, false
 	}
 
-	// Already satisfied — reconverge on the dispatcher instead of showing a factor.
+	// Already satisfied — move on to consent instead of showing a factor.
 	if authReq.MFAValidated {
-		http.Redirect(w, r, h.BuildContinueURL(authReq), http.StatusSeeOther)
+		http.Redirect(w, r, h.BuildApprovalURL(authReq), http.StatusSeeOther)
 		return nil, false
 	}
 
@@ -148,7 +149,7 @@ func (h *Handler) mfaPagePath(authenticatorID string) string {
 
 // CompleteStep checks for the next authenticator in the MFA chain and either
 // returns the URL for the next factor or marks MFA validated and returns the
-// flow dispatcher URL to reconverge on.
+// consent URL — the next step in the chain.
 func (h *Handler) CompleteStep(ctx context.Context, authReq storage.AuthRequest, authenticatorID string) (string, error) {
 	mfaChain, err := h.ChainForClient(ctx, authReq.ClientID, authReq.ConnectorID)
 	if err != nil {
@@ -176,7 +177,7 @@ func (h *Handler) CompleteStep(ctx context.Context, authReq storage.AuthRequest,
 		return "", fmt.Errorf("update auth request: %w", err)
 	}
 
-	return h.BuildContinueURL(authReq), nil
+	return h.BuildApprovalURL(authReq), nil
 }
 
 // BuildRedirectURL builds an HMAC-protected redirect URL for the given authenticator.
@@ -188,11 +189,62 @@ func (h *Handler) BuildRedirectURL(authReq storage.AuthRequest, authenticatorID 
 	return h.AbsPath(h.mfaPagePath(authenticatorID)) + "?" + v.Encode()
 }
 
-// Mount registers the MFA factor endpoints, only when at least one authenticator
-// is configured. The chain decision itself lives in the flow dispatcher, which
-// calls ChainForClient; MFA just serves the factors and returns to the
-// dispatcher. MFA is independent of sessions.
+// handleStart is the MFA gate: the first step after login. It decides for itself
+// whether the request needs MFA — sending the user to the first pending factor,
+// or on to consent when MFA is satisfied or not configured. Login routes every
+// request here, so the gate is always mounted even with no authenticators.
+func (h *Handler) handleStart(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	mac := r.FormValue("hmac")
+	if mac == "" {
+		h.RenderError(r, w, http.StatusUnauthorized, "Unauthorized request")
+		return
+	}
+	authReq, err := h.Storage.GetAuthRequest(ctx, r.FormValue("req"))
+	if err != nil {
+		if err == storage.ErrNotFound {
+			h.RenderError(r, w, http.StatusBadRequest, "User session error.")
+			return
+		}
+		h.Logger.ErrorContext(ctx, "failed to get auth request", "err", err)
+		h.RenderError(r, w, http.StatusInternalServerError, "Database error.")
+		return
+	}
+	if !authReq.LoggedIn {
+		h.Logger.ErrorContext(ctx, "MFA gate reached for auth request without an identity")
+		h.RenderError(r, w, http.StatusInternalServerError, "Login process not yet finalized.")
+		return
+	}
+	if !internal.VerifyHMAC(authReq.HMACKey, mac, authReq.ID, "mfa") {
+		h.RenderError(r, w, http.StatusUnauthorized, "Unauthorized request")
+		return
+	}
+
+	chain, err := h.ChainForClient(ctx, authReq.ClientID, authReq.ConnectorID)
+	if err != nil {
+		h.Logger.ErrorContext(ctx, "failed to determine MFA chain", "err", err)
+		h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+		return
+	}
+	if len(chain) > 0 && !authReq.MFAValidated {
+		// prompt=none forbids the MFA interaction.
+		if prompt, _ := oauth2.ParsePrompt(authReq.Prompt); prompt.None() {
+			h.RedirectAuthError(w, r, authReq, oauth2.InteractionRequired, "User interaction required")
+			return
+		}
+		http.Redirect(w, r, h.BuildRedirectURL(authReq, chain[0]), http.StatusSeeOther)
+		return
+	}
+
+	// MFA satisfied or not required — hand off to consent.
+	http.Redirect(w, r, h.BuildApprovalURL(authReq), http.StatusSeeOther)
+}
+
+// Mount registers the MFA gate and, when authenticators are configured, the
+// factor endpoints. MFA decides its own step and hands off to consent by
+// redirect; it is independent of sessions.
 func (h *Handler) Mount(mux router.Mux) {
+	mux.HandleFunc("/mfa/start", h.handleStart)
 	if len(h.MFAProviders) == 0 {
 		return
 	}

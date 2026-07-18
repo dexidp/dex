@@ -267,6 +267,21 @@ func (s *Server) newDiscoveryHandler() *discovery.Handler {
 	}
 }
 
+func (s *Server) newHomeHandler() *home.Handler {
+	h := &home.Handler{
+		IssuerURL:       s.issuerURL,
+		Storage:         s.storage,
+		Templates:       s.templates,
+		Logger:          s.logger,
+		SessionsEnabled: s.sessionConfig != nil,
+	}
+	if s.sessionConfig != nil {
+		h.CookieName = s.sessionConfig.CookieName
+		h.CookieEncryptionKey = s.sessionConfig.CookieEncryptionKey
+	}
+	return h
+}
+
 // Connectors is the server's connector cache. The gRPC API needs it to
 // invalidate the cache on connector CRUD.
 func (s *Server) Connectors() *connectors.Cache { return s.connectors }
@@ -403,57 +418,9 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	}
 	s.issuer = tokens.NewIssuer(s.storage, s.signer, s.issuerURL, s.idTokensValidFor, s.now, s.logger)
 	s.connectors = connectors.NewCache(s.storage, s.resolveConnector)
-	discoveryHandler := s.newDiscoveryHandler()
-	userInfoHandler := &userinfo.Handler{
-		Issuer: s.issuerURL.String(),
-		Signer: s.signer,
-		Logger: s.logger,
-	}
-	introspectHandler := &introspection.Handler{
-		Issuer:        s.issuerURL.String(),
-		Signer:        s.signer,
-		Storage:       s.storage,
-		Logger:        s.logger,
-		RefreshPolicy: s.refreshTokenPolicy,
-	}
-	deviceHandler := &device.Handler{
-		IssuerURL:        s.issuerURL,
-		Storage:          s.storage,
-		Templates:        s.templates,
-		Now:              s.now,
-		RequestsValidFor: s.deviceRequestsValidFor,
-		Logger:           s.logger,
-		Issuer:           s.issuer,
-		Connectors:       s.connectors,
-	}
-	homeHandler := &home.Handler{
-		IssuerURL:       s.issuerURL,
-		Storage:         s.storage,
-		Templates:       s.templates,
-		Logger:          s.logger,
-		SessionsEnabled: s.sessionConfig != nil,
-	}
-	if s.sessionConfig != nil {
-		homeHandler.CookieName = s.sessionConfig.CookieName
-		homeHandler.CookieEncryptionKey = s.sessionConfig.CookieEncryptionKey
-	}
-
-	tokenEndpoint := grants.NewEndpoint(grants.Config{
-		Issuer:              s.issuer,
-		Storage:             s.storage,
-		Connectors:          s.connectors,
-		Now:                 s.now,
-		Logger:              s.logger,
-		PasswordConnector:   s.passwordConnector,
-		RefreshPolicy:       s.refreshTokenPolicy,
-		SessionsEnabled:     s.sessionConfig != nil,
-		SupportedGrantTypes: s.supportedGrantTypes,
-	})
-
-	// ui and sessions are the shared browser infrastructure. The step components
-	// (mfa, consent, issue) hold no reference to one another — they redirect back
-	// to the login flow's dispatcher — but the dispatcher drives them, so they are
-	// built here and injected into the login handler below.
+	// ui and sessions are the shared browser infrastructure that every flow
+	// handler embeds; the handlers themselves hold no reference to one another and
+	// are constructed inline in the mount list below.
 	ui := &render.UI{
 		Templates: s.templates,
 		IssuerURL: s.issuerURL,
@@ -465,24 +432,6 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		Now:       s.now,
 		Logger:    s.logger,
 		IssuerURL: s.issuerURL,
-	}
-	mfaManager := &mfa.Handler{
-		UI:              ui,
-		Storage:         s.storage,
-		Templates:       s.templates,
-		Logger:          s.logger,
-		MFAProviders:    s.mfaProviders,
-		DefaultMFAChain: s.defaultMFAChain,
-		Now:             s.now,
-		Connectors:      s.connectors,
-	}
-	consentManager := &consent.Handler{
-		UI:           ui,
-		Storage:      s.storage,
-		Templates:    s.templates,
-		Logger:       s.logger,
-		Sessions:     sessions,
-		SkipApproval: s.skipApproval,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
@@ -627,12 +576,41 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	// abstraction, so this list is the only place they are wired in.
 	mux := routeMux{handle: handle, handleFunc: handleFunc, handleCORS: handleWithCORS, handlePrefix: handlePrefix}
 	for _, h := range []router.Handler{
-		tokenEndpoint,
-		discoveryHandler,
-		userInfoHandler,
-		introspectHandler,
-		deviceHandler,
-		homeHandler,
+		grants.NewEndpoint(grants.Config{
+			Issuer:              s.issuer,
+			Storage:             s.storage,
+			Connectors:          s.connectors,
+			Now:                 s.now,
+			Logger:              s.logger,
+			PasswordConnector:   s.passwordConnector,
+			RefreshPolicy:       s.refreshTokenPolicy,
+			SessionsEnabled:     s.sessionConfig != nil,
+			SupportedGrantTypes: s.supportedGrantTypes,
+		}),
+		s.newDiscoveryHandler(),
+		&userinfo.Handler{
+			Issuer: s.issuerURL.String(),
+			Signer: s.signer,
+			Logger: s.logger,
+		},
+		&introspection.Handler{
+			Issuer:        s.issuerURL.String(),
+			Signer:        s.signer,
+			Storage:       s.storage,
+			Logger:        s.logger,
+			RefreshPolicy: s.refreshTokenPolicy,
+		},
+		&device.Handler{
+			IssuerURL:        s.issuerURL,
+			Storage:          s.storage,
+			Templates:        s.templates,
+			Now:              s.now,
+			RequestsValidFor: s.deviceRequestsValidFor,
+			Logger:           s.logger,
+			Issuer:           s.issuer,
+			Connectors:       s.connectors,
+		},
+		s.newHomeHandler(),
 		authflow.NewHandler(authflow.Config{
 			IssuerURL:              s.issuerURL,
 			Connectors:             s.connectors,
@@ -648,11 +626,25 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			UI:                     ui,
 			Sessions:               sessions,
 			Issuer:                 s.issuer,
-			MFA:                    mfaManager,
-			Consent:                consentManager,
 		}),
-		mfaManager,
-		consentManager,
+		&mfa.Handler{
+			UI:              ui,
+			Storage:         s.storage,
+			Templates:       s.templates,
+			Logger:          s.logger,
+			MFAProviders:    s.mfaProviders,
+			DefaultMFAChain: s.defaultMFAChain,
+			Now:             s.now,
+			Connectors:      s.connectors,
+		},
+		&consent.Handler{
+			UI:           ui,
+			Storage:      s.storage,
+			Templates:    s.templates,
+			Logger:       s.logger,
+			Sessions:     sessions,
+			SkipApproval: s.skipApproval,
+		},
 		&logout.Handler{
 			UI:         ui,
 			Storage:    s.storage,

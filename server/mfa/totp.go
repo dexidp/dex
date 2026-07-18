@@ -218,8 +218,8 @@ func (h *Handler) handleTOTPVerify(w http.ResponseWriter, r *http.Request, ctx c
 			return
 		}
 
-		// CompleteStep returns the next factor URL or the dispatcher URL; the
-		// dispatcher decides what follows once MFA is complete.
+		// CompleteStep returns the next factor URL, or the consent URL once MFA is
+		// complete.
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 
 	default:

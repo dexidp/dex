@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/render"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
@@ -14,10 +15,11 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
-// Handler owns the consent step. The dispatcher routes here when the user must
-// approve the requested scopes; it shows the approval screen, records the
-// granted scopes, and redirects back to the dispatcher. It holds no reference to
-// the other flow steps. Satisfied is the skip decision the dispatcher consults.
+// Handler owns the consent step. Reached from the MFA gate, it decides for
+// itself whether consent is needed (Satisfied): if so it shows the approval
+// screen and records the granted scopes, otherwise it hands off to issuance.
+// Either way it moves the flow on by redirect and holds no reference to the
+// other flow steps.
 type Handler struct {
 	*render.UI
 
@@ -77,8 +79,17 @@ func (h *Handler) handleApproval(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		// The dispatcher only routes here when consent is required, so just show
-		// the approval screen.
+		// Consent already covered — go straight to issuance.
+		if h.Satisfied(ctx, &authReq) {
+			http.Redirect(w, r, h.BuildIssueURL(authReq), http.StatusSeeOther)
+			return
+		}
+		// Consent is required, but prompt=none forbids showing the screen.
+		if prompt, _ := oauth2.ParsePrompt(authReq.Prompt); prompt.None() {
+			h.RedirectAuthError(w, r, authReq, oauth2.InteractionRequired, "User interaction required")
+			return
+		}
+
 		client, err := h.Storage.GetClient(ctx, authReq.ClientID)
 		if err != nil {
 			h.Logger.ErrorContext(ctx, "Failed to get client", "client_id", authReq.ClientID, "err", err)
@@ -93,8 +104,8 @@ func (h *Handler) handleApproval(w http.ResponseWriter, r *http.Request) {
 			h.RenderError(r, w, http.StatusInternalServerError, "Approval rejected.")
 			return
 		}
-		// Persist user-approved scopes as consent for this client, then return to
-		// the dispatcher to complete the flow.
+		// Persist user-approved scopes as consent for this client, then hand off to
+		// issuance.
 		if h.Sessions.Enabled() {
 			if err := h.Storage.UpdateUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
 				if old.Consents == nil {
@@ -106,7 +117,7 @@ func (h *Handler) handleApproval(w http.ResponseWriter, r *http.Request) {
 				h.Logger.ErrorContext(ctx, "failed to update user identity consents", "err", err)
 			}
 		}
-		http.Redirect(w, r, h.BuildContinueURL(authReq), http.StatusSeeOther)
+		http.Redirect(w, r, h.BuildIssueURL(authReq), http.StatusSeeOther)
 	}
 }
 

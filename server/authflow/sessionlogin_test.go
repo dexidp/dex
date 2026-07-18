@@ -549,7 +549,7 @@ func TestTrySessionLogin(t *testing.T) {
 		ok := s.trySessionLogin(ctx, r, w, &authReq)
 		redirectURL := w.Header().Get("Location")
 		assert.True(t, ok)
-		assert.Contains(t, redirectURL, "/auth?", "session login hands off to the dispatcher")
+		assert.Contains(t, redirectURL, "/mfa/start", "session login hands off to the dispatcher")
 		assert.Contains(t, redirectURL, "req="+authReq.ID)
 	})
 
@@ -793,7 +793,7 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 		ok := s.trySessionLogin(ctx, r, w, &authReq)
 		redirectURL := w.Header().Get("Location")
 		require.True(t, ok)
-		assert.Contains(t, redirectURL, "/auth?", "session login hands off to the dispatcher")
+		assert.Contains(t, redirectURL, "/mfa/start", "session login hands off to the dispatcher")
 
 		// Verify AuthTime was set on the auth request.
 		updated, err := s.storage.GetAuthRequest(ctx, authReq.ID)
@@ -1424,7 +1424,7 @@ func TestFinishSessionLogin_MFA(t *testing.T) {
 		ok := s.trySessionLogin(ctx, r, w, &authReq)
 		redirectURL := w.Header().Get("Location")
 		require.True(t, ok)
-		assert.Contains(t, redirectURL, "/auth?", "should redirect to MFA page")
+		assert.Contains(t, redirectURL, "/mfa/start", "should redirect to MFA page")
 		assert.Contains(t, redirectURL, "req="+authReq.ID, "redirect should include auth request ID")
 
 		// MFAValidated should NOT be set.
@@ -1452,7 +1452,7 @@ func TestFinishSessionLogin_MFA(t *testing.T) {
 		ok := s.trySessionLogin(ctx, r, w, &authReq)
 		redirectURL := w.Header().Get("Location")
 		require.True(t, ok)
-		assert.Contains(t, redirectURL, "/auth?", "session login hands off to the dispatcher")
+		assert.Contains(t, redirectURL, "/mfa/start", "session login hands off to the dispatcher")
 	})
 }
 
@@ -1528,7 +1528,7 @@ func TestPromptNone(t *testing.T) {
 		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		redirectURL := w.Header().Get("Location")
 		require.True(t, ok, "session login should succeed")
-		assert.Contains(t, redirectURL, "/auth?", "session login hands off to the dispatcher")
+		assert.Contains(t, redirectURL, "/mfa/start", "session login hands off to the dispatcher")
 	})
 
 	t.Run("valid session without consent returns approval URL", func(t *testing.T) {
@@ -1580,7 +1580,7 @@ func TestPromptNone(t *testing.T) {
 		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		redirectURL := w.Header().Get("Location")
 		require.True(t, ok, "session login should succeed (user is authenticated)")
-		assert.Contains(t, redirectURL, "/auth?", "session login hands off to the dispatcher")
+		assert.Contains(t, redirectURL, "/mfa/start", "session login hands off to the dispatcher")
 	})
 
 	t.Run("no session returns false", func(t *testing.T) {
@@ -1634,7 +1634,7 @@ func TestPromptNone(t *testing.T) {
 		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		redirectURL := w.Header().Get("Location")
 		require.True(t, ok, "SSO silent login should succeed")
-		assert.Contains(t, redirectURL, "/auth?", "session login hands off to the dispatcher")
+		assert.Contains(t, redirectURL, "/mfa/start", "session login hands off to the dispatcher")
 
 		// Verify SSO created a new client state.
 		updated, err := s.storage.GetAuthSession(ctx, "user-1", "mock")
@@ -1667,7 +1667,7 @@ func TestPromptNone(t *testing.T) {
 		ok := s.trySessionLogin(ctx, r, w, &authReq)
 		redirectURL := w.Header().Get("Location")
 		require.True(t, ok)
-		assert.Contains(t, redirectURL, "/auth?", "prompt=none with MFA should redirect to MFA page")
+		assert.Contains(t, redirectURL, "/mfa/start", "prompt=none with MFA should redirect to MFA page")
 	})
 }
 
@@ -1694,7 +1694,7 @@ func TestPromptConsent(t *testing.T) {
 		ok := s.trySessionLogin(ctx, r, w, &authReq)
 		redirectURL := w.Header().Get("Location")
 		require.True(t, ok)
-		assert.Contains(t, redirectURL, "/auth?", "session login hands off to the dispatcher")
+		assert.Contains(t, redirectURL, "/mfa/start", "session login hands off to the dispatcher")
 	})
 
 	t.Run("login+consent parsed correctly", func(t *testing.T) {
@@ -1761,7 +1761,7 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		redirectURL := w.Header().Get("Location")
 		require.True(t, ok, "SSO login should succeed")
-		assert.Contains(t, redirectURL, "/auth?", "session login hands off to the dispatcher")
+		assert.Contains(t, redirectURL, "/mfa/start", "session login hands off to the dispatcher")
 	})
 
 	t.Run("SSO with consent for target skips approval", func(t *testing.T) {
@@ -1778,7 +1778,7 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		redirectURL := w.Header().Get("Location")
 		require.True(t, ok, "SSO login should succeed")
-		assert.Contains(t, redirectURL, "/auth?", "session login hands off to the dispatcher")
+		assert.Contains(t, redirectURL, "/mfa/start", "session login hands off to the dispatcher")
 	})
 
 	t.Run("SSO with MFA required on target client redirects to MFA", func(t *testing.T) {
@@ -1809,7 +1809,7 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		redirectURL := w.Header().Get("Location")
 		require.True(t, ok)
-		assert.Contains(t, redirectURL, "/auth?", "SSO to MFA-requiring client should redirect to MFA")
+		assert.Contains(t, redirectURL, "/mfa/start", "SSO to MFA-requiring client should redirect to MFA")
 	})
 
 	t.Run("SSO source without MFA target with MFA enforces MFA", func(t *testing.T) {
@@ -1866,7 +1866,7 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 		ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		redirectURL := w.Header().Get("Location")
 		require.True(t, ok)
-		assert.Contains(t, redirectURL, "/auth?",
+		assert.Contains(t, redirectURL, "/mfa/start",
 			"SSO from no-MFA source to MFA-requiring target must enforce MFA")
 	})
 }

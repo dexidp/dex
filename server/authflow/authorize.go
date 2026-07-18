@@ -31,10 +31,10 @@ func (h *Handler) grantTypeFromAuthRequest(r *http.Request) string {
 	return oauth2.GrantTypeAuthorizationCode
 }
 
-// handleAuthorization handles the OAuth2 auth endpoint. It is also the flow
-// dispatcher: a request carrying an auth-request id (req) is a step returning to
-// resume the flow, so it is dispatched rather than started anew. This mirrors
-// hydra re-entering /oauth2/auth with a login/consent verifier.
+// handleAuthorization handles the OAuth2 auth endpoint. It is both the entry and
+// the exit of the flow: a fresh request starts login, while a request carrying an
+// auth-request id (req) is the consent step returning to issue the response —
+// issuance is the authorize endpoint's own job.
 func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	// Extract the arguments
@@ -45,9 +45,9 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// A request with an auth-request id is a step reconverging on the dispatcher.
+	// A request with an auth-request id is the completed flow returning to issue.
 	if r.Form.Get("req") != "" {
-		h.handleContinue(w, r)
+		h.handleIssue(w, r)
 		return
 	}
 
