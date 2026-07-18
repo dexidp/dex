@@ -79,5 +79,5 @@ func (h *Handler) dispatch(w http.ResponseWriter, r *http.Request, authReq stora
 	}
 
 	// Fully authorized — issue the response inline.
-	h.issue.WriteResponse(w, r, authReq)
+	h.writeResponse(w, r, authReq)
 }

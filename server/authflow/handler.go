@@ -9,13 +9,13 @@ import (
 
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/consent"
-	"github.com/dexidp/dex/server/issue"
 	"github.com/dexidp/dex/server/mfa"
 	"github.com/dexidp/dex/server/render"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/templates"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -39,9 +39,9 @@ type Config struct {
 
 	UI       *render.UI
 	Sessions *session.Manager
+	Issuer   *tokens.Issuer
 	MFA      *mfa.Handler
 	Consent  *consent.Handler
-	Issue    *issue.Writer
 }
 
 // Handler serves the interactive login flow (connector selection, connector and
@@ -65,10 +65,11 @@ type Handler struct {
 
 	// sessions owns the session cookie, SSO lookup and auth-session CRUD.
 	sessions *session.Manager
-	// mfa, consent and issue are the steps the dispatcher drives.
+	// issuer mints tokens for the authorization response (see response.go).
+	issuer *tokens.Issuer
+	// mfa and consent are the steps the dispatcher drives.
 	mfa     *mfa.Handler
 	consent *consent.Handler
-	issue   *issue.Writer
 }
 
 // NewHandler builds the login-flow handler from its configuration.
@@ -87,9 +88,9 @@ func NewHandler(c Config) *Handler {
 		alwaysShowLogin:        c.AlwaysShowLogin,
 		authRequestsValidFor:   c.AuthRequestsValidFor,
 		sessions:               c.Sessions,
+		issuer:                 c.Issuer,
 		mfa:                    c.MFA,
 		consent:                c.Consent,
-		issue:                  c.Issue,
 	}
 }
 

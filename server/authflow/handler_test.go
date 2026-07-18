@@ -17,7 +17,6 @@ import (
 	"github.com/dexidp/dex/connector/mock"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/consent"
-	"github.com/dexidp/dex/server/issue"
 	"github.com/dexidp/dex/server/logout"
 	"github.com/dexidp/dex/server/mfa"
 	"github.com/dexidp/dex/server/render"
@@ -60,7 +59,6 @@ type testServer struct {
 	mux     http.Handler
 	mfa     *mfa.Handler
 	consent *consent.Handler
-	issue   *issue.Writer
 }
 
 func (ts *testServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -134,15 +132,14 @@ func newTestHandler(t *testing.T, updateConfig func(c *testFlowConfig)) (*httpte
 	ui := &render.UI{Templates: tmpls, IssuerURL: *issuerURL, Logger: logger}
 	sessions := &session.Manager{Storage: store, Config: tc.SessionConfig, Now: now, Logger: logger, IssuerURL: *issuerURL}
 	mfaManager := &mfa.Handler{UI: ui, Storage: store, Templates: tmpls, Logger: logger, MFAProviders: tc.MFAProviders, DefaultMFAChain: tc.DefaultMFAChain, Now: now, Connectors: conns}
-	issueWriter := &issue.Writer{UI: ui, Storage: store, Templates: tmpls, Logger: logger, Issuer: issuer, Sessions: sessions, Now: now}
 	consentManager := &consent.Handler{UI: ui, Storage: store, Templates: tmpls, Logger: logger, Sessions: sessions, SkipApproval: tc.SkipApproval}
 	logoutManager := &logout.Handler{UI: ui, Storage: store, Templates: tmpls, Logger: logger, Sessions: sessions, Connectors: conns, Issuer: issuer, Signer: sig, IssuerURL: *issuerURL}
 
 	tc.Config.UI = ui
 	tc.Config.Sessions = sessions
+	tc.Config.Issuer = issuer
 	tc.Config.MFA = mfaManager
 	tc.Config.Consent = consentManager
-	tc.Config.Issue = issueWriter
 
 	h := NewHandler(tc.Config)
 
@@ -162,7 +159,7 @@ func newTestHandler(t *testing.T, updateConfig func(c *testFlowConfig)) (*httpte
 		}))
 	}
 
-	return srv, &testServer{Handler: h, mux: router, mfa: mfaManager, consent: consentManager, issue: issueWriter}
+	return srv, &testServer{Handler: h, mux: router, mfa: mfaManager, consent: consentManager}
 }
 
 // testKey is a throwaway RSA key for the mock signer; the flow's unit tests

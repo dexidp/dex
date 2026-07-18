@@ -50,7 +50,6 @@ import (
 	"github.com/dexidp/dex/server/grants"
 	"github.com/dexidp/dex/server/home"
 	"github.com/dexidp/dex/server/introspection"
-	"github.com/dexidp/dex/server/issue"
 	"github.com/dexidp/dex/server/logout"
 	"github.com/dexidp/dex/server/mfa"
 	"github.com/dexidp/dex/server/oauth2"
@@ -477,15 +476,6 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		Now:             s.now,
 		Connectors:      s.connectors,
 	}
-	issueWriter := &issue.Writer{
-		UI:        ui,
-		Storage:   s.storage,
-		Templates: s.templates,
-		Logger:    s.logger,
-		Issuer:    s.issuer,
-		Sessions:  sessions,
-		Now:       s.now,
-	}
 	consentManager := &consent.Handler{
 		UI:           ui,
 		Storage:      s.storage,
@@ -657,9 +647,9 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			AuthRequestsValidFor:   s.authRequestsValidFor,
 			UI:                     ui,
 			Sessions:               sessions,
+			Issuer:                 s.issuer,
 			MFA:                    mfaManager,
 			Consent:                consentManager,
-			Issue:                  issueWriter,
 		}),
 		mfaManager,
 		consentManager,

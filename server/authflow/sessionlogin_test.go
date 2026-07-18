@@ -15,7 +15,6 @@ import (
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/consent"
 	"github.com/dexidp/dex/server/internal"
-	"github.com/dexidp/dex/server/issue"
 	"github.com/dexidp/dex/server/mfa"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/render"
@@ -33,7 +32,6 @@ type sessionTestServer struct {
 	*Handler
 	consent *consent.Handler
 	mfa     *mfa.Handler
-	issue   *issue.Writer
 }
 
 func newTestSessionServer(t *testing.T) *sessionTestServer {
@@ -59,7 +57,6 @@ func newTestSessionServer(t *testing.T) *sessionTestServer {
 	return &sessionTestServer{
 		Handler: h,
 		mfa:     &mfa.Handler{UI: h.UI, Storage: h.storage, Logger: slog.Default(), Now: h.now, Connectors: h.connectors},
-		issue:   &issue.Writer{UI: h.UI, Storage: h.storage, Logger: slog.Default(), Sessions: h.sessions, Now: h.now},
 		consent: &consent.Handler{UI: h.UI, Storage: h.storage, Logger: slog.Default(), Sessions: h.sessions},
 	}
 }
@@ -2169,6 +2166,5 @@ func TestRememberMeDefault(t *testing.T) {
 // issuer, for tests that exercise Manager behavior under a different config.
 func resetSessions(s *sessionTestServer, cfg *session.Config, issuer url.URL) {
 	s.sessions = &session.Manager{Storage: s.storage, Config: cfg, Now: s.now, Logger: slog.Default(), IssuerURL: issuer}
-	s.issue.Sessions = s.sessions
 	s.consent.Sessions = s.sessions
 }
