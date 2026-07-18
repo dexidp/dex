@@ -267,21 +267,6 @@ func (s *Server) newDiscoveryHandler() *discovery.Handler {
 	}
 }
 
-func (s *Server) newHomeHandler() *home.Handler {
-	h := &home.Handler{
-		IssuerURL:       s.issuerURL,
-		Storage:         s.storage,
-		Templates:       s.templates,
-		Logger:          s.logger,
-		SessionsEnabled: s.sessionConfig != nil,
-	}
-	if s.sessionConfig != nil {
-		h.CookieName = s.sessionConfig.CookieName
-		h.CookieEncryptionKey = s.sessionConfig.CookieEncryptionKey
-	}
-	return h
-}
-
 // Connectors is the server's connector cache. The gRPC API needs it to
 // invalidate the cache on connector CRUD.
 func (s *Server) Connectors() *connectors.Cache { return s.connectors }
@@ -610,7 +595,13 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			Issuer:           s.issuer,
 			Connectors:       s.connectors,
 		},
-		s.newHomeHandler(),
+		&home.Handler{
+			IssuerURL:     s.issuerURL,
+			Storage:       s.storage,
+			Templates:     s.templates,
+			Logger:        s.logger,
+			SessionConfig: s.sessionConfig,
+		},
 		authflow.NewHandler(authflow.Config{
 			IssuerURL:              s.issuerURL,
 			Connectors:             s.connectors,
