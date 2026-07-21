@@ -57,15 +57,17 @@ func (h *Handler) buildApprovedURL(authReq storage.AuthRequest) string {
 
 // Satisfied reports whether the approval screen can be skipped: the client did
 // not force it, and either approval is disabled server-wide or the user has
-// already consented to the requested scopes for this client.
-func (h *Handler) Satisfied(ctx context.Context, authReq *storage.AuthRequest) bool {
+// already consented to the requested scopes for this client. It is a package
+// function so the /auth dispatcher can decide consent from state without holding
+// the consent Handler.
+func Satisfied(ctx context.Context, store storage.Storage, skipApproval bool, authReq *storage.AuthRequest) bool {
 	if authReq.ForceApprovalPrompt {
 		return false
 	}
-	if h.SkipApproval {
+	if skipApproval {
 		return true
 	}
-	ui, err := h.Storage.GetUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID)
+	ui, err := store.GetUserIdentity(ctx, authReq.Claims.UserID, authReq.ConnectorID)
 	return err == nil && scopesCoveredByConsent(ui.Consents[authReq.ClientID], authReq.Scopes)
 }
 

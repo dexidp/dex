@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/server/connectors"
-	"github.com/dexidp/dex/server/consent"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/mfa"
 	"github.com/dexidp/dex/server/oauth2"
@@ -51,8 +50,6 @@ func newTestSessionServer(t *testing.T) *sessionTestServer {
 	}
 	h.Connectors = connectors.NewCache(h.Storage, testResolveConnector)
 	h.Sessions = &session.Manager{Storage: h.Storage, Config: sessionCfg, Now: h.Now, Logger: slog.Default(), IssuerURL: *issuerURL}
-	h.MFA = &mfa.Handler{IssuerURL: h.IssuerURL, Storage: h.Storage, Logger: slog.Default(), Now: h.Now, Connectors: h.Connectors}
-	h.Consent = &consent.Handler{IssuerURL: h.IssuerURL, Storage: h.Storage, Logger: slog.Default(), Sessions: h.Sessions}
 	return &sessionTestServer{Handler: h}
 }
 
@@ -517,7 +514,7 @@ func TestTrySessionLogin(t *testing.T) {
 
 	t.Run("successful login with skipApproval", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = true
+		s.SkipApproval = true
 		authReq := setupSessionLoginFixture(t, s)
 
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
@@ -529,7 +526,7 @@ func TestTrySessionLogin(t *testing.T) {
 
 	t.Run("successful login redirects to approval", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = false
+		s.SkipApproval = false
 		authReq := setupSessionLoginFixture(t, s)
 		authReq.ForceApprovalPrompt = true
 
@@ -550,7 +547,7 @@ func TestTrySessionLogin(t *testing.T) {
 
 	t.Run("skips approval when consent already given", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = false
+		s.SkipApproval = false
 		authReq := setupSessionLoginFixture(t, s)
 
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
@@ -632,7 +629,7 @@ func TestTrySessionLogin(t *testing.T) {
 
 	t.Run("updates session activity", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = true
+		s.SkipApproval = true
 		authReq := setupSessionLoginFixture(t, s)
 
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
@@ -769,7 +766,7 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 
 	t.Run("auth_time is set from UserIdentity.LastLogin", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = false
+		s.SkipApproval = false
 		now := s.Now()
 		lastLogin := now.Add(-10 * time.Minute)
 
@@ -809,7 +806,7 @@ func TestTrySessionLoginWithSession_IDTokenHint(t *testing.T) {
 
 	t.Run("hint matches session user - session login succeeds", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = true
+		s.SkipApproval = true
 		authReq := setupSessionLoginFixture(t, s)
 
 		session := s.Sessions.ValidAuthSession(ctx, httptest.NewRecorder(), sessionCookieRequest("user-1", "mock", "test-nonce"), &authReq)
@@ -827,7 +824,7 @@ func TestTrySessionLoginWithSession_IDTokenHint(t *testing.T) {
 
 	t.Run("hint does not match session user - session invalidated", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = true
+		s.SkipApproval = true
 		authReq := setupSessionLoginFixture(t, s)
 
 		session := s.Sessions.ValidAuthSession(ctx, httptest.NewRecorder(), sessionCookieRequest("user-1", "mock", "test-nonce"), &authReq)
@@ -848,7 +845,7 @@ func TestTrySessionLoginWithSession_IDTokenHint(t *testing.T) {
 
 	t.Run("hint with no session - trySessionLoginWithSession returns false", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = true
+		s.SkipApproval = true
 		authReq := setupSessionLoginFixture(t, s)
 
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -860,7 +857,7 @@ func TestTrySessionLoginWithSession_IDTokenHint(t *testing.T) {
 
 	t.Run("no hint - unchanged behavior", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = true
+		s.SkipApproval = true
 		authReq := setupSessionLoginFixture(t, s)
 
 		session := s.Sessions.ValidAuthSession(ctx, httptest.NewRecorder(), sessionCookieRequest("user-1", "mock", "test-nonce"), &authReq)
@@ -1107,7 +1104,7 @@ func TestTrySessionLogin_SSO(t *testing.T) {
 
 	t.Run("SSO login from sharing client", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = true
+		s.SkipApproval = true
 		now := s.Now()
 
 		// Create source client that shares with target
@@ -1182,7 +1179,7 @@ func TestTrySessionLogin_SSO(t *testing.T) {
 
 	t.Run("SSO derived state capped by source expiry", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = true
+		s.SkipApproval = true
 		now := s.Now()
 
 		require.NoError(t, s.Storage.CreateClient(ctx, storage.Client{
@@ -1256,7 +1253,7 @@ func TestTrySessionLogin_SSO(t *testing.T) {
 
 	t.Run("SSO derived state uses configured lifetime when source expires later", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = true
+		s.SkipApproval = true
 		now := s.Now()
 
 		require.NoError(t, s.Storage.CreateClient(ctx, storage.Client{
@@ -1384,8 +1381,8 @@ func TestFinishSessionLogin_MFA(t *testing.T) {
 	setupMFAFixture := func(t *testing.T, mfaProviders map[string]mfa.Provider, clientMFAChain []string) (*sessionTestServer, storage.AuthRequest) {
 		t.Helper()
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = true
-		s.MFA = &mfa.Handler{IssuerURL: s.IssuerURL, Storage: s.Storage, Logger: slog.Default(), MFAProviders: mfaProviders, Now: s.Now, Connectors: s.Connectors}
+		s.SkipApproval = true
+		s.MFAEnabled = len(mfaProviders) > 0
 
 		// Create connector in storage and register it in the connectors map.
 		require.NoError(t, s.Storage.CreateConnector(ctx, storage.Connector{
@@ -1509,7 +1506,7 @@ func TestPromptNone(t *testing.T) {
 
 	t.Run("valid session with consent issues code silently", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = false
+		s.SkipApproval = false
 		authReq := setupSessionLoginFixture(t, s)
 		// Fixture already sets up Consents: {"client-1": {"openid", "email"}}
 		// and authReq.Scopes = {"openid", "email"} — consent is satisfied.
@@ -1528,7 +1525,7 @@ func TestPromptNone(t *testing.T) {
 
 	t.Run("valid session without consent returns approval URL", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = false
+		s.SkipApproval = false
 		now := s.Now()
 
 		require.NoError(t, s.Storage.CreateAuthSession(ctx, storage.AuthSession{
@@ -1591,7 +1588,7 @@ func TestPromptNone(t *testing.T) {
 
 	t.Run("SSO available issues code silently", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = true
+		s.SkipApproval = true
 		now := s.Now()
 
 		require.NoError(t, s.Storage.CreateClient(ctx, storage.Client{
@@ -1641,10 +1638,8 @@ func TestPromptNone(t *testing.T) {
 		// This is the prompt=none + MFA case: finishSessionLogin returns MFA redirect URL.
 		// In handleConnectorLogin, this is a successful (ok=true) redirect, not oauth2.LoginRequired.
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = true
-		s.MFA = &mfa.Handler{IssuerURL: s.IssuerURL, Storage: s.Storage, Logger: slog.Default(), MFAProviders: map[string]mfa.Provider{
-			"totp": mfa.NewTOTPProvider("test-issuer", nil),
-		}, Now: s.Now, Connectors: s.Connectors}
+		s.SkipApproval = true
+		s.MFAEnabled = true
 
 		require.NoError(t, s.Storage.CreateConnector(ctx, storage.Connector{
 			ID: "mock", Type: "ldap", Name: "Mock", ResourceVersion: "1",
@@ -1673,7 +1668,7 @@ func TestPromptConsent(t *testing.T) {
 
 	t.Run("ForceApprovalPrompt overrides existing consent in session login", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = false
+		s.SkipApproval = false
 		authReq := setupSessionLoginFixture(t, s)
 
 		// Set ForceApprovalPrompt (set by prompt=consent in parseAuthorizationRequest).
@@ -1744,7 +1739,7 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 
 	t.Run("SSO without consent for target shows approval", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = false
+		s.SkipApproval = false
 		authReq := setupSSOFixture(t, s, nil) // No consent for client-b.
 
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
@@ -1761,7 +1756,7 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 
 	t.Run("SSO with consent for target skips approval", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = false
+		s.SkipApproval = false
 		authReq := setupSSOFixture(t, s, []string{"openid", "email"})
 
 		r := sessionCookieRequest("user-1", "mock", "test-nonce")
@@ -1778,10 +1773,8 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 
 	t.Run("SSO with MFA required on target client redirects to MFA", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = true
-		s.MFA = &mfa.Handler{IssuerURL: s.IssuerURL, Storage: s.Storage, Logger: slog.Default(), MFAProviders: map[string]mfa.Provider{
-			"totp": mfa.NewTOTPProvider("test-issuer", nil),
-		}, Now: s.Now, Connectors: s.Connectors}
+		s.SkipApproval = true
+		s.MFAEnabled = true
 
 		require.NoError(t, s.Storage.CreateConnector(ctx, storage.Connector{
 			ID: "mock", Type: "ldap", Name: "Mock", ResourceVersion: "1",
@@ -1809,10 +1802,8 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 
 	t.Run("SSO source without MFA target with MFA enforces MFA", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = true
-		s.MFA = &mfa.Handler{IssuerURL: s.IssuerURL, Storage: s.Storage, Logger: slog.Default(), MFAProviders: map[string]mfa.Provider{
-			"totp": mfa.NewTOTPProvider("test-issuer", nil),
-		}, Now: s.Now, Connectors: s.Connectors}
+		s.SkipApproval = true
+		s.MFAEnabled = true
 
 		require.NoError(t, s.Storage.CreateConnector(ctx, storage.Connector{
 			ID: "mock", Type: "ldap", Name: "Mock", ResourceVersion: "1",
@@ -1947,7 +1938,7 @@ func TestIdleExpiryExtension(t *testing.T) {
 
 	t.Run("finishSessionLogin extends IdleExpiry", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = true
+		s.SkipApproval = true
 		now := s.Now()
 
 		require.NoError(t, s.Storage.CreateAuthSession(ctx, storage.AuthSession{
@@ -2028,7 +2019,7 @@ func TestSSO_Unidirectional(t *testing.T) {
 
 	t.Run("A shares with B, login A request B succeeds", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = true
+		s.SkipApproval = true
 
 		require.NoError(t, s.Storage.CreateClient(ctx, storage.Client{
 			ID: "client-a", Secret: "s", Name: "A", SSOSharedWith: []string{"client-b"},
@@ -2048,7 +2039,7 @@ func TestSSO_Unidirectional(t *testing.T) {
 
 	t.Run("B does not share with A, login B request A fails", func(t *testing.T) {
 		s := newTestSessionServer(t)
-		s.Consent.SkipApproval = true
+		s.SkipApproval = true
 
 		require.NoError(t, s.Storage.CreateClient(ctx, storage.Client{
 			ID: "client-a", Secret: "s", Name: "A", SSOSharedWith: []string{"client-b"},
@@ -2074,7 +2065,7 @@ func TestSSO_TransitiveTrustChain(t *testing.T) {
 	ctx := t.Context()
 
 	s := newTestSessionServer(t)
-	s.Consent.SkipApproval = true
+	s.SkipApproval = true
 	now := s.Now()
 
 	require.NoError(t, s.Storage.CreateClient(ctx, storage.Client{
@@ -2161,5 +2152,4 @@ func TestRememberMeDefault(t *testing.T) {
 // issuer, for tests that exercise Manager behavior under a different config.
 func resetSessions(s *sessionTestServer, cfg *session.Config, issuer url.URL) {
 	s.Sessions = &session.Manager{Storage: s.Storage, Config: cfg, Now: s.Now, Logger: slog.Default(), IssuerURL: issuer}
-	s.Consent.Sessions = s.Sessions
 }

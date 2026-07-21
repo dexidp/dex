@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/dexidp/dex/server/connectors"
-	"github.com/dexidp/dex/server/consent"
-	"github.com/dexidp/dex/server/mfa"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/signer"
@@ -21,10 +19,10 @@ import (
 // Handler serves the interactive login flow (connector selection, connector and
 // password login, the callback) and the /auth dispatcher that decides each next
 // step and issues the response. The /auth endpoint is the flow dispatcher: it
-// starts login, then on each return decides the next step (MFA factor, consent
-// screen) or issues. It queries MFA and Consent for those decisions — like
-// hydra's authorize strategy holding its managers — but the steps only redirect
-// back to /auth, never to one another.
+// starts login, then on each return decides the next step (MFA, consent) or
+// issues. It decides those from persisted state and config alone — it holds no
+// reference to the MFA or consent handlers; each step only redirects back to
+// /auth, never to another step.
 type Handler struct {
 	IssuerURL              url.URL
 	Connectors             *connectors.Cache
@@ -42,9 +40,14 @@ type Handler struct {
 	Sessions *session.Manager
 	// Issuer mints tokens for the authorization response (see response.go).
 	Issuer *tokens.Issuer
-	// MFA and Consent answer the dispatcher's "is this step needed" decisions.
-	MFA     *mfa.Handler
-	Consent *consent.Handler
+
+	// MFAEnabled reports whether any authenticator is configured; DefaultMFAChain
+	// is the chain applied to clients that set none. Together they let the
+	// dispatcher gate MFA without the MFA handler — see mfaRequired.
+	MFAEnabled      bool
+	DefaultMFAChain []string
+	// SkipApproval disables the consent screen server-wide (see consent.Satisfied).
+	SkipApproval bool
 }
 
 // Mount registers the login routes. The /auth endpoint is both the entry

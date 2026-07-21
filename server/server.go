@@ -402,33 +402,17 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	}
 	s.issuer = tokens.NewIssuer(s.storage, s.signer, s.issuerURL, s.idTokensValidFor, s.now, s.logger)
 	s.connectors = connectors.NewCache(s.storage, s.resolveConnector)
-	// sessions is shared infrastructure. mfa and consent are held as vars because
-	// the /auth dispatcher queries them for its step decisions; they are also
-	// mounted (as handlers) below.
+	// sessions is shared infrastructure (session cookie, SSO, auth-session CRUD)
+	// referenced by the flow steps mounted below. The steps themselves hold no
+	// reference to one another; the /auth dispatcher decides MFA and consent from
+	// persisted state and config, so mfa and consent are mounted inline like the
+	// rest.
 	sessions := &session.Manager{
 		Storage:   s.storage,
 		Config:    s.sessionConfig,
 		Now:       s.now,
 		Logger:    s.logger,
 		IssuerURL: s.issuerURL,
-	}
-	mfaHandler := &mfa.Handler{
-		Storage:         s.storage,
-		Templates:       s.templates,
-		Logger:          s.logger,
-		IssuerURL:       s.issuerURL,
-		MFAProviders:    s.mfaProviders,
-		DefaultMFAChain: s.defaultMFAChain,
-		Now:             s.now,
-		Connectors:      s.connectors,
-	}
-	consentHandler := &consent.Handler{
-		Storage:      s.storage,
-		Templates:    s.templates,
-		Logger:       s.logger,
-		IssuerURL:    s.issuerURL,
-		Sessions:     sessions,
-		SkipApproval: s.skipApproval,
 	}
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
@@ -628,11 +612,28 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			AuthRequestsValidFor:   s.authRequestsValidFor,
 			Sessions:               sessions,
 			Issuer:                 s.issuer,
-			MFA:                    mfaHandler,
-			Consent:                consentHandler,
+			MFAEnabled:             len(s.mfaProviders) > 0,
+			DefaultMFAChain:        s.defaultMFAChain,
+			SkipApproval:           s.skipApproval,
 		},
-		mfaHandler,
-		consentHandler,
+		&mfa.Handler{
+			Storage:         s.storage,
+			Templates:       s.templates,
+			Logger:          s.logger,
+			IssuerURL:       s.issuerURL,
+			MFAProviders:    s.mfaProviders,
+			DefaultMFAChain: s.defaultMFAChain,
+			Now:             s.now,
+			Connectors:      s.connectors,
+		},
+		&consent.Handler{
+			Storage:      s.storage,
+			Templates:    s.templates,
+			Logger:       s.logger,
+			IssuerURL:    s.issuerURL,
+			Sessions:     sessions,
+			SkipApproval: s.skipApproval,
+		},
 		&logout.Handler{
 			Storage:    s.storage,
 			Templates:  s.templates,

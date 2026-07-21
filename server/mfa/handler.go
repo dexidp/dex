@@ -31,9 +31,9 @@ type mfaRequestContext struct {
 	authenticatorID string
 }
 
-// Handler owns the MFA domain: the authenticator chain (ChainForClient, which the
-// /auth dispatcher queries), the TOTP and WebAuthn factor endpoints, and the
-// challenge lifecycle. A completed factor returns to the dispatcher.
+// Handler owns the MFA domain: the /mfa entry the dispatcher hands off to, the
+// effective authenticator chain, the TOTP and WebAuthn factor endpoints, and the
+// challenge lifecycle. A completed factor returns to the /auth dispatcher.
 type Handler struct {
 	Storage         storage.Storage
 	Templates       *templates.Templates
@@ -105,7 +105,7 @@ func (h *Handler) validateMFARequest(w http.ResponseWriter, r *http.Request) (*m
 	}, true
 }
 
-func (h *Handler) ChainForClient(ctx context.Context, clientID, connectorID string) ([]string, error) {
+func (h *Handler) chainForClient(ctx context.Context, clientID, connectorID string) ([]string, error) {
 	if len(h.MFAProviders) == 0 {
 		return nil, nil
 	}
@@ -160,7 +160,7 @@ func (h *Handler) mfaPagePath(authenticatorID string) string {
 // returns the URL for the next factor or marks MFA validated and returns the
 // consent URL — the next step in the chain.
 func (h *Handler) CompleteStep(ctx context.Context, authReq storage.AuthRequest, authenticatorID string) (string, error) {
-	mfaChain, err := h.ChainForClient(ctx, authReq.ClientID, authReq.ConnectorID)
+	mfaChain, err := h.chainForClient(ctx, authReq.ClientID, authReq.ConnectorID)
 	if err != nil {
 		return "", fmt.Errorf("get MFA chain: %w", err)
 	}
@@ -175,22 +175,77 @@ func (h *Handler) CompleteStep(ctx context.Context, authReq storage.AuthRequest,
 	}
 
 	if nextAuthenticator != "" {
-		return h.BuildRedirectURL(authReq, nextAuthenticator), nil
+		return h.buildRedirectURL(authReq, nextAuthenticator), nil
 	}
 
 	// All authenticators completed — mark as validated.
-	if err := h.Storage.UpdateAuthRequest(ctx, authReq.ID, func(old storage.AuthRequest) (storage.AuthRequest, error) {
-		old.MFAValidated = true
-		return old, nil
-	}); err != nil {
+	if err := h.markValidated(ctx, authReq.ID); err != nil {
 		return "", fmt.Errorf("update auth request: %w", err)
 	}
 
 	return h.buildContinueURL(authReq), nil
 }
 
-// BuildRedirectURL builds an HMAC-protected redirect URL for the given authenticator.
-func (h *Handler) BuildRedirectURL(authReq storage.AuthRequest, authenticatorID string) string {
+// markValidated records that the auth request has satisfied MFA, so the /auth
+// dispatcher stops routing it back to the MFA entry.
+func (h *Handler) markValidated(ctx context.Context, authReqID string) error {
+	return h.Storage.UpdateAuthRequest(ctx, authReqID, func(old storage.AuthRequest) (storage.AuthRequest, error) {
+		old.MFAValidated = true
+		return old, nil
+	})
+}
+
+// handleMFA is the MFA entry point. The /auth dispatcher sends the user here
+// (with the "mfa" verifier) when the client requires MFA; MFA then makes the
+// decision the dispatcher cannot without its providers: resolve the effective
+// chain and send the user to the first pending factor, or — when the chain
+// resolves to nothing applicable — hand straight back to the dispatcher.
+func (h *Handler) handleMFA(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	authReq, err := h.Storage.GetAuthRequest(ctx, r.FormValue("req"))
+	if err != nil {
+		h.Logger.ErrorContext(ctx, "failed to get auth request", "err", err)
+		h.renderError(r, w, http.StatusInternalServerError, "Database error.")
+		return
+	}
+	if !authReq.LoggedIn {
+		h.Logger.ErrorContext(ctx, "auth request does not have an identity for MFA verification")
+		h.renderError(r, w, http.StatusInternalServerError, "Login process not yet finalized.")
+		return
+	}
+	if !internal.VerifyHMAC(authReq.HMACKey, r.FormValue("hmac"), authReq.ID, "mfa") {
+		h.renderError(r, w, http.StatusUnauthorized, "Unauthorized request.")
+		return
+	}
+
+	if authReq.MFAValidated {
+		http.Redirect(w, r, h.buildContinueURL(authReq), http.StatusSeeOther)
+		return
+	}
+
+	chain, err := h.chainForClient(ctx, authReq.ClientID, authReq.ConnectorID)
+	if err != nil {
+		h.Logger.ErrorContext(ctx, "failed to determine MFA chain", "err", err)
+		h.renderError(r, w, http.StatusInternalServerError, "Database error.")
+		return
+	}
+	if len(chain) == 0 {
+		// Nothing in the requested chain applies to this connector — record MFA as
+		// satisfied so the dispatcher stops routing back here, and continue.
+		if err := h.markValidated(ctx, authReq.ID); err != nil {
+			h.Logger.ErrorContext(ctx, "failed to mark MFA validated", "err", err)
+			h.renderError(r, w, http.StatusInternalServerError, "Database error.")
+			return
+		}
+		http.Redirect(w, r, h.buildContinueURL(authReq), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, h.buildRedirectURL(authReq, chain[0]), http.StatusSeeOther)
+}
+
+// buildRedirectURL builds an HMAC-protected redirect URL for the given authenticator.
+func (h *Handler) buildRedirectURL(authReq storage.AuthRequest, authenticatorID string) string {
 	v := url.Values{}
 	v.Set("req", authReq.ID)
 	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, authenticatorID))
@@ -214,6 +269,7 @@ func (h *Handler) Mount(mux router.Mux) {
 	if len(h.MFAProviders) == 0 {
 		return
 	}
+	mux.HandleFunc("/mfa", h.handleMFA)
 	mux.HandleFunc("/mfa/totp", h.handleTOTP)
 	mux.HandleFunc("/mfa/webauthn", h.handleWebAuthn)
 	mux.HandleFunc("/mfa/webauthn/register/begin", h.handleWebAuthnRegisterBegin)
