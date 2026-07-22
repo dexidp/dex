@@ -833,6 +833,42 @@ func TestProviderOverride(t *testing.T) {
 			t.Fatalf("unexpected token URL: %s, expected: %s\n", conn.provider.Endpoint().TokenURL, expToken)
 		}
 	})
+
+	t.Run("Override userinfo and device auth URLs", func(t *testing.T) {
+		// A second server whose userinfo endpoint returns a distinct subject,
+		// so we can prove the overridden endpoint (not the discovery default)
+		// is the one actually used.
+		overrideServer, err := setupServer(map[string]any{"sub": "override-sub"}, true)
+		if err != nil {
+			t.Fatal("failed to setup override server", err)
+		}
+		defer overrideServer.Close()
+
+		conn, err := newConnector(Config{
+			Issuer: testServer.URL,
+			Scopes: []string{"openid", "groups"},
+			ProviderDiscoveryOverrides: ProviderDiscoveryOverrides{
+				DeviceAuthURL: "/test-device",
+				UserInfoURL:   fmt.Sprintf("%s/userinfo", overrideServer.URL),
+			},
+		})
+		if err != nil {
+			t.Fatal("failed to create new connector", err)
+		}
+
+		expDevice := "/test-device"
+		if conn.provider.Endpoint().DeviceAuthURL != expDevice {
+			t.Fatalf("unexpected device auth URL: %s, expected: %s\n", conn.provider.Endpoint().DeviceAuthURL, expDevice)
+		}
+
+		userInfo, err := conn.provider.UserInfo(context.Background(), oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "sometoken"}))
+		if err != nil {
+			t.Fatal("failed to call UserInfo", err)
+		}
+		if userInfo.Subject != "override-sub" {
+			t.Fatalf("UserInfo did not use the overridden endpoint: got subject %q, expected %q", userInfo.Subject, "override-sub")
+		}
+	})
 }
 
 func setupServer(tok map[string]interface{}, idTokenDesired bool) (*httptest.Server, error) {
@@ -1019,7 +1055,7 @@ func TestLogoutURL(t *testing.T) {
 				},
 			}
 
-			got, err := conn.LogoutURL(context.Background(), nil, tc.postLogoutRedirectURI)
+			got, err := conn.LogoutURL(context.Background(), tc.postLogoutRedirectURI)
 			require.NoError(t, err)
 
 			if tc.wantEmpty {

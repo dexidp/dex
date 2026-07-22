@@ -44,6 +44,17 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	postLogoutRedirectURI := r.FormValue("post_logout_redirect_uri")
 	state := r.FormValue("state")
 
+	// When no id_token_hint is provided and this is a GET request,
+	// show a confirmation page instead of logging out immediately.
+	// This follows the OIDC spec recommendation and prevents CSRF via
+	// cross-site image/link requests (e.g. <img src="/logout">).
+	if idTokenHint == "" && r.Method == http.MethodGet {
+		if err := s.templates.Logout(r, w, "", false, true); err != nil {
+			s.logger.ErrorContext(ctx, "server template error", "err", err)
+		}
+		return
+	}
+
 	var userID, connectorID, clientID string
 
 	if idTokenHint != "" {
@@ -93,7 +104,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	// This allows logout without a hint when the user has an active session.
 	if userID == "" && connectorID == "" {
 		if cookie, err := r.Cookie(s.sessionConfig.CookieName); err == nil && cookie.Value != "" {
-			if uid, cid, nonce, err := parseSessionCookie(cookie.Value, s.sessionConfig.CookieEncryptionKey); err == nil {
+			if uid, cid, nonce, err := internal.ParseSessionCookie(cookie.Value, s.sessionConfig.CookieEncryptionKey); err == nil {
 				// Verify the session exists and nonce matches before trusting the cookie.
 				if session, err := s.storage.GetAuthSession(ctx, uid, cid); err == nil && subtle.ConstantTimeCompare([]byte(session.Nonce), []byte(nonce)) == 1 {
 					userID = uid
@@ -128,15 +139,14 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Revoke refresh tokens (does not touch the auth session or user identity).
-	var connectorData []byte
 	if userID != "" && connectorID != "" {
-		connectorData = s.revokeRefreshTokens(ctx, userID, connectorID)
+		s.issuer.Refresh.Revoke(ctx, userID, connectorID)
 	}
 
 	// Try upstream logout. This requires a live auth session to store the HMAC key
 	// and logout parameters. If the session doesn't exist (expired, no cookie, etc.)
 	// upstream logout is skipped — RP-Initiated Logout treats upstream SLO as best-effort.
-	if redirectURL, ok := s.tryUpstreamLogout(ctx, userID, connectorID, connectorData, postLogoutRedirectURI, state, clientID); ok {
+	if redirectURL, ok := s.tryUpstreamLogout(ctx, userID, connectorID, postLogoutRedirectURI, state, clientID); ok {
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 		return
 	}
@@ -165,7 +175,7 @@ func (s *Server) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, connectorID, nonce, err := parseSessionCookie(cookie.Value, s.sessionConfig.CookieEncryptionKey)
+	userID, connectorID, nonce, err := internal.ParseSessionCookie(cookie.Value, s.sessionConfig.CookieEncryptionKey)
 	if err != nil {
 		s.renderError(r, w, http.StatusBadRequest, "Invalid session cookie.")
 		return
@@ -193,7 +203,7 @@ func (s *Server) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 
 	// Let the connector validate the upstream logout response if it supports it.
 	if ls.ConnectorID != "" {
-		conn, err := s.getConnector(ctx, ls.ConnectorID)
+		conn, err := s.connectors.Get(ctx, ls.ConnectorID)
 		if err == nil {
 			if logoutConn, ok := conn.Connector.(connector.LogoutCallbackConnector); ok {
 				if err := logoutConn.HandleLogoutCallback(ctx, r); err != nil {
@@ -226,7 +236,7 @@ func (s *Server) finishLogout(w http.ResponseWriter, r *http.Request, postLogout
 		}
 	}
 
-	if err := s.templates.logout(r, w, backURL, loggedOut); err != nil {
+	if err := s.templates.Logout(r, w, backURL, loggedOut, false); err != nil {
 		s.logger.ErrorContext(r.Context(), "server template error", "err", err)
 	}
 }
@@ -235,12 +245,12 @@ func (s *Server) finishLogout(w http.ResponseWriter, r *http.Request, postLogout
 // It stores LogoutState in the auth session before redirecting so the callback can
 // read it back. Returns the redirect URL and true on success, or ("", false) if
 // upstream logout is not possible (no session, connector doesn't support it, etc.).
-func (s *Server) tryUpstreamLogout(ctx context.Context, userID, connectorID string, connectorData []byte, postLogoutRedirectURI, state, clientID string) (string, bool) {
+func (s *Server) tryUpstreamLogout(ctx context.Context, userID, connectorID, postLogoutRedirectURI, state, clientID string) (string, bool) {
 	if connectorID == "" {
 		return "", false
 	}
 
-	conn, err := s.getConnector(ctx, connectorID)
+	conn, err := s.connectors.Get(ctx, connectorID)
 	if err != nil {
 		return "", false
 	}
@@ -273,7 +283,7 @@ func (s *Server) tryUpstreamLogout(ctx context.Context, userID, connectorID stri
 	}
 
 	callbackURI := s.absURL("/logout/callback")
-	upstreamURL, err := logoutConn.LogoutURL(ctx, connectorData, callbackURI)
+	upstreamURL, err := logoutConn.LogoutURL(ctx, callbackURI)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "logout: upstream connector error", "err", err)
 		return "", false
@@ -304,11 +314,4 @@ func (s *Server) deleteAuthSession(ctx context.Context, userID, connectorID stri
 	}
 	s.logger.InfoContext(ctx, "logout successful", "user_id", userID, "connector_id", connectorID)
 	return true
-}
-
-// revokeRefreshTokens deletes all refresh tokens for the given user/connector
-// and clears the references in the offline session (but keeps the session object).
-// Returns the connector data from the offline session (for upstream logout).
-func (s *Server) revokeRefreshTokens(ctx context.Context, userID, connectorID string) []byte {
-	return revokeRefreshTokensFromStorage(ctx, s.storage, s.logger, userID, connectorID)
 }

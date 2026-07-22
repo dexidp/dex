@@ -17,41 +17,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
 )
-
-func TestGetClientID(t *testing.T) {
-	cid, err := getClientID(audience{}, "")
-	require.Equal(t, "", cid)
-	require.Equal(t, "no audience is set, could not find ClientID", err.Error())
-
-	cid, err = getClientID(audience{"a"}, "")
-	require.Equal(t, "a", cid)
-	require.NoError(t, err)
-
-	cid, err = getClientID(audience{"a", "b"}, "azp")
-	require.Equal(t, "azp", cid)
-	require.NoError(t, err)
-}
-
-func TestGetAudience(t *testing.T) {
-	aud := getAudience("client-id", []string{})
-	require.Equal(t, aud, audience{"client-id"})
-
-	aud = getAudience("client-id", []string{"ascope"})
-	require.Equal(t, aud, audience{"client-id"})
-
-	aud = getAudience("client-id", []string{"ascope", "audience:server:client_id:aa", "audience:server:client_id:bb"})
-	require.Equal(t, aud, audience{"aa", "bb", "client-id"})
-}
-
-func TestGetSubject(t *testing.T) {
-	sub, err := genSubject("foo", "bar")
-	require.Equal(t, "CgNmb28SA2Jhcg", sub)
-	require.NoError(t, err)
-}
 
 func TestParseAuthorizationRequest(t *testing.T) {
 	tests := []struct {
@@ -164,7 +135,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"response_type": "code id_token",
 				"scope":         "openid email profile",
 			},
-			expectedError: &redirectedAuthErr{Type: errUnsupportedResponseType},
+			expectedError: &redirectedAuthErr{Type: oauth2.UnsupportedResponseType},
 		},
 		{
 			name: "only token response type",
@@ -181,7 +152,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"response_type": "token",
 				"scope":         "openid email profile",
 			},
-			expectedError: &redirectedAuthErr{Type: errInvalidRequest},
+			expectedError: &redirectedAuthErr{Type: oauth2.InvalidRequest},
 		},
 		{
 			name: "choose connector_id",
@@ -233,7 +204,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"response_type": "code id_token",
 				"scope":         "openid email profile",
 			},
-			expectedError: &redirectedAuthErr{Type: errInvalidRequest},
+			expectedError: &redirectedAuthErr{Type: oauth2.InvalidRequest},
 		},
 		{
 			name: "PKCE code_challenge_method plain",
@@ -305,7 +276,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"code_challenge_method": "invalid_method",
 				"scope":                 "openid email profile",
 			},
-			expectedError: &redirectedAuthErr{Type: errInvalidRequest},
+			expectedError: &redirectedAuthErr{Type: oauth2.InvalidRequest},
 		},
 		{
 			name: "No response type",
@@ -323,7 +294,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"code_challenge_method": "plain",
 				"scope":                 "openid email profile",
 			},
-			expectedError: &redirectedAuthErr{Type: errInvalidRequest},
+			expectedError: &redirectedAuthErr{Type: oauth2.InvalidRequest},
 		},
 		{
 			name: "PKCE enforced, no code_challenge provided",
@@ -344,7 +315,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"response_type": "code",
 				"scope":         "openid email profile",
 			},
-			expectedError: &redirectedAuthErr{Type: errInvalidRequest},
+			expectedError: &redirectedAuthErr{Type: oauth2.InvalidRequest},
 		},
 		{
 			name: "PKCE enforced, code_challenge provided",
@@ -388,7 +359,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"code_challenge_method": "plain",
 				"scope":                 "openid email profile",
 			},
-			expectedError: &redirectedAuthErr{Type: errInvalidRequest},
+			expectedError: &redirectedAuthErr{Type: oauth2.InvalidRequest},
 		},
 		{
 			name: "PKCE only S256 allowed, S256 accepted",
@@ -468,23 +439,6 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-const (
-	// at_hash value and access_token returned by Google.
-	googleAccessTokenHash = "piwt8oCH-K2D9pXlaS1Y-w"
-	googleAccessToken     = "ya29.CjHSA1l5WUn8xZ6HanHFzzdHdbXm-14rxnC7JHch9eFIsZkQEGoWzaYG4o7k5f6BnPLj"
-	googleSigningAlg      = jose.RS256
-)
-
-func TestAccessTokenHash(t *testing.T) {
-	atHash, err := accessTokenHash(googleSigningAlg, googleAccessToken)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if atHash != googleAccessTokenHash {
-		t.Errorf("expected %q got %q", googleAccessTokenHash, atHash)
 	}
 }
 
@@ -770,8 +724,8 @@ func TestSignerKeySet(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			keySet := &signerKeySet{
-				signer: sig,
+			keySet := &signer.KeySet{
+				Signer: sig,
 			}
 
 			_, err = keySet.VerifySignature(t.Context(), jwt)
@@ -801,7 +755,7 @@ func TestSignerKeySetWithES256LocalSigner(t *testing.T) {
 	jwt, err := sig.Sign(ctx, []byte("payload"))
 	require.NoError(t, err)
 
-	keySet := &signerKeySet{signer: sig}
+	keySet := &signer.KeySet{Signer: sig}
 	payload, err := keySet.VerifySignature(ctx, jwt)
 	require.NoError(t, err)
 	require.Equal(t, []byte("payload"), payload)
@@ -821,7 +775,7 @@ func TestRedirectedAuthErrHandler(t *testing.T) {
 			name:        "valid redirect uri with error parameters",
 			redirectURI: "https://example.com/callback",
 			state:       "state123",
-			errType:     errInvalidRequest,
+			errType:     oauth2.InvalidRequest,
 			description: "Invalid request parameter",
 			wantStatus:  http.StatusSeeOther,
 			wantErr:     false,
@@ -830,7 +784,7 @@ func TestRedirectedAuthErrHandler(t *testing.T) {
 			name:        "valid redirect uri with query params",
 			redirectURI: "https://example.com/callback?existing=param&another=value",
 			state:       "state456",
-			errType:     errAccessDenied,
+			errType:     oauth2.AccessDenied,
 			description: "User denied access",
 			wantStatus:  http.StatusSeeOther,
 			wantErr:     false,
@@ -839,7 +793,7 @@ func TestRedirectedAuthErrHandler(t *testing.T) {
 			name:        "valid redirect uri without description",
 			redirectURI: "https://example.com/callback",
 			state:       "state789",
-			errType:     errServerError,
+			errType:     oauth2.ServerError,
 			description: "",
 			wantStatus:  http.StatusSeeOther,
 			wantErr:     false,
@@ -848,7 +802,7 @@ func TestRedirectedAuthErrHandler(t *testing.T) {
 			name:        "invalid redirect uri",
 			redirectURI: "not a valid url ://",
 			state:       "state",
-			errType:     errInvalidRequest,
+			errType:     oauth2.InvalidRequest,
 			description: "Test error",
 			wantStatus:  http.StatusBadRequest,
 			wantErr:     true,
@@ -947,7 +901,7 @@ func TestValidateIDTokenHint(t *testing.T) {
 	now := time.Now()
 
 	t.Run("valid hint (not expired)", func(t *testing.T) {
-		token := signTestIDToken(t, idTokenClaims{
+		token := signTestIDToken(t, tokens.IDTokenClaims{
 			Issuer:  "https://issuer.example.com",
 			Subject: "CgNmb28SA2Jhcg",
 			Expiry:  now.Add(1 * time.Hour).Unix(),
@@ -958,7 +912,7 @@ func TestValidateIDTokenHint(t *testing.T) {
 	})
 
 	t.Run("valid hint (expired)", func(t *testing.T) {
-		token := signTestIDToken(t, idTokenClaims{
+		token := signTestIDToken(t, tokens.IDTokenClaims{
 			Issuer:  "https://issuer.example.com",
 			Subject: "CgNmb28SA2Jhcg",
 			Expiry:  now.Add(-1 * time.Hour).Unix(),
@@ -972,7 +926,7 @@ func TestValidateIDTokenHint(t *testing.T) {
 		otherKey, err := rsa.GenerateKey(rand.Reader, 2048)
 		require.NoError(t, err)
 
-		payload, err := json.Marshal(idTokenClaims{
+		payload, err := json.Marshal(tokens.IDTokenClaims{
 			Issuer:  "https://issuer.example.com",
 			Subject: "CgNmb28SA2Jhcg",
 			Expiry:  now.Add(1 * time.Hour).Unix(),
@@ -991,7 +945,7 @@ func TestValidateIDTokenHint(t *testing.T) {
 	})
 
 	t.Run("wrong issuer", func(t *testing.T) {
-		token := signTestIDToken(t, idTokenClaims{
+		token := signTestIDToken(t, tokens.IDTokenClaims{
 			Issuer:  "https://wrong-issuer.example.com",
 			Subject: "CgNmb28SA2Jhcg",
 			Expiry:  now.Add(1 * time.Hour).Unix(),
@@ -1056,19 +1010,17 @@ func TestNewIDTokenUsesStoredAlgorithmUntilNextRotation(t *testing.T) {
 		idTokensValidFor: time.Hour,
 	}
 
+	s.issuer = tokens.NewIssuer(s.storage, s.signer, s.issuerURL, s.idTokensValidFor, s.now, s.logger)
+
 	accessToken := "test-access-token"
 	code := "test-auth-code"
-	idToken, _, err := s.newIDToken(
-		ctx,
-		"test-client",
-		storage.Claims{UserID: "1", Username: "jane"},
-		[]string{"openid"},
-		"nonce",
-		accessToken,
-		code,
-		"test",
-		time.Time{},
-	)
+	idToken, _, err := s.issuer.SignIDToken(ctx, tokens.Authorization{
+		Client:      storage.Client{ID: "test-client"},
+		Claims:      storage.Claims{UserID: "1", Username: "jane"},
+		Scopes:      []string{"openid"},
+		Nonce:       "nonce",
+		ConnectorID: "test",
+	}, accessToken, code)
 	require.NoError(t, err)
 
 	keys, err := sig.ValidationKeys(ctx)
@@ -1090,11 +1042,11 @@ func TestNewIDTokenUsesStoredAlgorithmUntilNextRotation(t *testing.T) {
 	err = json.Unmarshal(payload, &claims)
 	require.NoError(t, err)
 
-	wantAtHash, err := accessTokenHash(jose.RS256, accessToken)
+	wantAtHash, err := tokens.AccessTokenHash(jose.RS256, accessToken)
 	require.NoError(t, err)
 	require.Equal(t, wantAtHash, claims.AccessTokenHash)
 
-	wantCodeHash, err := accessTokenHash(jose.RS256, code)
+	wantCodeHash, err := tokens.AccessTokenHash(jose.RS256, code)
 	require.NoError(t, err)
 	require.Equal(t, wantCodeHash, claims.CodeHash)
 }
@@ -1145,6 +1097,8 @@ func TestNewIDTokenContainsJTI(t *testing.T) {
 		idTokensValidFor: time.Hour,
 	}
 
+	s.issuer = tokens.NewIssuer(s.storage, s.signer, s.issuerURL, s.idTokensValidFor, s.now, s.logger)
+
 	keys, err := sig.ValidationKeys(ctx)
 	require.NoError(t, err)
 	require.NotEmpty(t, keys)
@@ -1163,11 +1117,20 @@ func TestNewIDTokenContainsJTI(t *testing.T) {
 		return claims.JTI
 	}
 
-	token1, _, err := s.newIDToken(ctx, "client", storage.Claims{UserID: "1", Username: "alice"}, []string{"openid"}, "n1", "", "", "mock", time.Time{})
-	require.NoError(t, err)
-
-	token2, _, err := s.newIDToken(ctx, "client", storage.Claims{UserID: "1", Username: "alice"}, []string{"openid"}, "n2", "", "", "mock", time.Time{})
-	require.NoError(t, err)
+	mint := func(nonce string) string {
+		t.Helper()
+		token, _, err := s.issuer.SignIDToken(ctx, tokens.Authorization{
+			Client:      storage.Client{ID: "client"},
+			Claims:      storage.Claims{UserID: "1", Username: "alice"},
+			Scopes:      []string{"openid"},
+			Nonce:       nonce,
+			ConnectorID: "mock",
+		}, "", "")
+		require.NoError(t, err)
+		return token
+	}
+	token1 := mint("n1")
+	token2 := mint("n2")
 
 	jti1 := extractJTI(t, token1)
 	jti2 := extractJTI(t, token2)
@@ -1178,7 +1141,7 @@ func TestNewIDTokenContainsJTI(t *testing.T) {
 }
 
 func TestSessionMatchesHint(t *testing.T) {
-	// genSubject("foo", "bar") == "CgNmb28SA2Jhcg" (from TestGetSubject)
+	// tokens.GenSubject("foo", "bar") == "CgNmb28SA2Jhcg" (from TestGetSubject)
 	assert.True(t, sessionMatchesHint(&storage.AuthSession{UserID: "foo", ConnectorID: "bar"}, "CgNmb28SA2Jhcg"))
 	assert.False(t, sessionMatchesHint(&storage.AuthSession{UserID: "other", ConnectorID: "bar"}, "CgNmb28SA2Jhcg"))
 	assert.False(t, sessionMatchesHint(&storage.AuthSession{UserID: "foo", ConnectorID: "other"}, "CgNmb28SA2Jhcg"))
@@ -1201,7 +1164,7 @@ func TestParseAuthorizationRequest_IDTokenHint(t *testing.T) {
 		})
 		defer httpServer.Close()
 
-		token := signTestIDToken(t, idTokenClaims{
+		token := signTestIDToken(t, tokens.IDTokenClaims{
 			Issuer:  httpServer.URL,
 			Subject: "CgNmb28SA2Jhcg",
 			Expiry:  now.Add(1 * time.Hour).Unix(),
@@ -1244,7 +1207,7 @@ func TestParseAuthorizationRequest_IDTokenHint(t *testing.T) {
 		require.Error(t, err)
 		redirectErr, ok := err.(*redirectedAuthErr)
 		require.True(t, ok)
-		assert.Equal(t, errInvalidRequest, redirectErr.Type)
+		assert.Equal(t, oauth2.InvalidRequest, redirectErr.Type)
 	})
 
 	t.Run("no id_token_hint leaves subject empty", func(t *testing.T) {

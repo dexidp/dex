@@ -8,6 +8,8 @@ import (
 	"github.com/dexidp/dex/api/v2"
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/connector/mock"
+	"github.com/dexidp/dex/server/apiserver"
+	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/storage/memory"
 )
 
@@ -18,12 +20,12 @@ func TestConnectorCacheInvalidation(t *testing.T) {
 	s := memory.New(logger)
 
 	serv := &Server{
-		storage:    s,
-		logger:     logger,
-		connectors: make(map[string]Connector),
+		storage: s,
+		logger:  logger,
 	}
+	serv.connectors = connectors.NewCache(s, serv.resolveConnector)
 
-	apiServer := NewAPI(s, logger, "test", serv)
+	apiServer := apiserver.NewAPI(s, logger, "test", serv.connectors, serv.ConstructDiscovery)
 	ctx := context.Background()
 
 	connID := "mock-conn"
@@ -48,7 +50,7 @@ func TestConnectorCacheInvalidation(t *testing.T) {
 	}
 
 	// 2. Load it into server cache
-	c1, err := serv.getConnector(ctx, connID)
+	c1, err := serv.connectors.Get(ctx, connID)
 	if err != nil {
 		t.Fatalf("failed to get connector: %v", err)
 	}
@@ -85,7 +87,7 @@ func TestConnectorCacheInvalidation(t *testing.T) {
 	}
 
 	// 5. Load it again
-	c2, err := serv.getConnector(ctx, connID)
+	c2, err := serv.connectors.Get(ctx, connID)
 	if err != nil {
 		t.Fatalf("failed to get connector second time: %v", err)
 	}
@@ -119,7 +121,7 @@ func TestConnectorCacheInvalidation(t *testing.T) {
 	}
 
 	// 7. Load it again
-	c3, err := serv.getConnector(ctx, connID)
+	c3, err := serv.connectors.Get(ctx, connID)
 	if err != nil {
 		t.Fatalf("failed to get connector third time: %v", err)
 	}

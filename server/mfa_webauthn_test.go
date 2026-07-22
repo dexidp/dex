@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -256,7 +257,7 @@ func TestWebAuthnVerifyPageRender(t *testing.T) {
 	}))
 
 	// Generate HMAC for the request.
-	hmacVal := computeHMAC(hmacKey, authReq.ID, "webauthn-1")
+	hmacVal := internal.ComputeHMAC(hmacKey, authReq.ID, "webauthn-1")
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet,

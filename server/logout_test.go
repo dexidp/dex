@@ -12,6 +12,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/discovery"
+	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -47,7 +50,7 @@ func TestHandleLogoutPOST(t *testing.T) {
 	require.Contains(t, body, "No active session")
 }
 
-func TestHandleLogoutNoHint(t *testing.T) {
+func TestHandleLogoutNoHintGETShowsConfirmation(t *testing.T) {
 	httpServer, server := newTestServerWithSessions(t, nil)
 	defer httpServer.Close()
 
@@ -56,8 +59,39 @@ func TestHandleLogoutNoHint(t *testing.T) {
 	server.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
 	body := rr.Body.String()
-	require.Contains(t, body, "No active session")
+	require.Contains(t, body, "Do you want to log out?")
+	require.Contains(t, body, `method="post"`)
 	require.NotContains(t, body, "successfully logged out")
+}
+
+func TestHandleLogoutNoHintPOSTPerformsLogout(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	ctx := t.Context()
+	userID := "test-user"
+	connectorID := "mock"
+	nonce := "testnonce"
+
+	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
+		UserID: userID, ConnectorID: connectorID, Nonce: nonce,
+		CreatedAt: time.Now(), LastActivity: time.Now(),
+	}))
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/logout", nil)
+	req.AddCookie(&http.Cookie{
+		Name:  "dex_session",
+		Value: internal.SessionCookieValue(userID, connectorID, nonce, server.sessionConfig.CookieEncryptionKey),
+	})
+	server.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	require.Contains(t, rr.Body.String(), "successfully logged out")
+
+	// Session should be deleted.
+	_, err := server.storage.GetAuthSession(ctx, userID, connectorID)
+	require.ErrorIs(t, err, storage.ErrNotFound)
 }
 
 func TestHandleLogoutInvalidHint(t *testing.T) {
@@ -96,9 +130,13 @@ func TestHandleLogoutWithValidHint(t *testing.T) {
 		LastActivity: time.Now(),
 	}))
 
-	idToken, _, err := server.newIDToken(ctx, clientID, storage.Claims{
-		UserID: userID, Username: "testuser", Email: "test@example.com",
-	}, []string{"openid"}, "", "", "", connectorID, time.Now())
+	idToken, _, err := server.issuer.SignIDToken(ctx, tokens.Authorization{
+		Client:      storage.Client{ID: clientID},
+		Claims:      storage.Claims{UserID: userID, Username: "testuser", Email: "test@example.com"},
+		Scopes:      []string{"openid"},
+		ConnectorID: connectorID,
+		AuthTime:    time.Now(),
+	}, "", "")
 	require.NoError(t, err)
 
 	logoutURL := fmt.Sprintf("/logout?id_token_hint=%s&post_logout_redirect_uri=%s&state=mystate",
@@ -139,9 +177,13 @@ func TestHandleLogoutUnregisteredRedirectURI(t *testing.T) {
 		PostLogoutRedirectURIs: []string{"https://example.com/done"},
 	}))
 
-	idToken, _, err := server.newIDToken(ctx, clientID, storage.Claims{
-		UserID: "user1", Username: "testuser", Email: "test@example.com",
-	}, []string{"openid"}, "", "", "", "mock", time.Now())
+	idToken, _, err := server.issuer.SignIDToken(ctx, tokens.Authorization{
+		Client:      storage.Client{ID: clientID},
+		Claims:      storage.Claims{UserID: "user1", Username: "testuser", Email: "test@example.com"},
+		Scopes:      []string{"openid"},
+		ConnectorID: "mock",
+		AuthTime:    time.Now(),
+	}, "", "")
 	require.NoError(t, err)
 
 	logoutURL := fmt.Sprintf("/logout?id_token_hint=%s&post_logout_redirect_uri=%s",
@@ -156,8 +198,16 @@ func TestHandleLogoutRedirectURIWithoutHint(t *testing.T) {
 	httpServer, server := newTestServerWithSessions(t, nil)
 	defer httpServer.Close()
 
+	// GET without hint shows confirmation page regardless of other params.
 	rr := httptest.NewRecorder()
 	server.ServeHTTP(rr, httptest.NewRequest("GET", "/logout?post_logout_redirect_uri=https://example.com/done", nil))
+	require.Equal(t, http.StatusOK, rr.Code)
+	require.Contains(t, rr.Body.String(), "Do you want to log out?")
+
+	// POST without hint but with post_logout_redirect_uri returns 400
+	// because post_logout_redirect_uri requires client_id from id_token_hint.
+	rr = httptest.NewRecorder()
+	server.ServeHTTP(rr, httptest.NewRequest("POST", "/logout?post_logout_redirect_uri=https://example.com/done", nil))
 	require.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
@@ -197,9 +247,13 @@ func TestHandleLogoutRevokesRefreshTokens(t *testing.T) {
 		CreatedAt: time.Now(), LastActivity: time.Now(),
 	}))
 
-	idToken, _, err := server.newIDToken(ctx, clientID, storage.Claims{
-		UserID: userID, Username: "testuser", Email: "test@example.com",
-	}, []string{"openid"}, "", "", "", connectorID, time.Now())
+	idToken, _, err := server.issuer.SignIDToken(ctx, tokens.Authorization{
+		Client:      storage.Client{ID: clientID},
+		Claims:      storage.Claims{UserID: userID, Username: "testuser", Email: "test@example.com"},
+		Scopes:      []string{"openid"},
+		ConnectorID: connectorID,
+		AuthTime:    time.Now(),
+	}, "", "")
 	require.NoError(t, err)
 
 	logoutURL := fmt.Sprintf("/logout?id_token_hint=%s&post_logout_redirect_uri=%s",
@@ -238,9 +292,13 @@ func TestHandleLogoutRepeat(t *testing.T) {
 		CreatedAt: time.Now(), LastActivity: time.Now(),
 	}))
 
-	idToken, _, err := server.newIDToken(ctx, clientID, storage.Claims{
-		UserID: userID, Username: "testuser", Email: "test@example.com",
-	}, []string{"openid"}, "", "", "", connectorID, time.Now())
+	idToken, _, err := server.issuer.SignIDToken(ctx, tokens.Authorization{
+		Client:      storage.Client{ID: clientID},
+		Claims:      storage.Claims{UserID: userID, Username: "testuser", Email: "test@example.com"},
+		Scopes:      []string{"openid"},
+		ConnectorID: connectorID,
+		AuthTime:    time.Now(),
+	}, "", "")
 	require.NoError(t, err)
 
 	logoutURL := fmt.Sprintf("/logout?id_token_hint=%s&post_logout_redirect_uri=%s",
@@ -275,7 +333,7 @@ func TestDiscoveryWithSessions(t *testing.T) {
 	server.ServeHTTP(rr, httptest.NewRequest("GET", "/.well-known/openid-configuration", nil))
 	require.Equal(t, http.StatusOK, rr.Code)
 
-	var d discovery
+	var d discovery.Document
 	require.NoError(t, json.NewDecoder(rr.Result().Body).Decode(&d))
 	require.Equal(t, fmt.Sprintf("%s/logout", httpServer.URL), d.EndSession)
 }
@@ -288,7 +346,7 @@ func TestDiscoveryWithoutSessions(t *testing.T) {
 	server.ServeHTTP(rr, httptest.NewRequest("GET", "/.well-known/openid-configuration", nil))
 	require.Equal(t, http.StatusOK, rr.Code)
 
-	var d discovery
+	var d discovery.Document
 	require.NoError(t, json.NewDecoder(rr.Result().Body).Decode(&d))
 	require.Empty(t, d.EndSession)
 }
@@ -309,11 +367,12 @@ func TestHandleLogoutFromCookie(t *testing.T) {
 		CreatedAt: time.Now(), LastActivity: time.Now(),
 	}))
 
+	// POST performs logout (GET without hint shows confirmation).
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/logout", nil)
+	req := httptest.NewRequest("POST", "/logout", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  "dex_session",
-		Value: sessionCookieValue(userID, connectorID, nonce, server.sessionConfig.CookieEncryptionKey),
+		Value: internal.SessionCookieValue(userID, connectorID, nonce, server.sessionConfig.CookieEncryptionKey),
 	})
 	server.ServeHTTP(rr, req)
 
@@ -343,13 +402,13 @@ func TestLogoutCallbackWithExpiredSession(t *testing.T) {
 	req := httptest.NewRequest("GET", "/logout/callback", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  "dex_session",
-		Value: sessionCookieValue("user-1", "mock", "nonce", server.sessionConfig.CookieEncryptionKey),
+		Value: internal.SessionCookieValue("user-1", "mock", "nonce", server.sessionConfig.CookieEncryptionKey),
 	})
 	server.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
-func TestRevokeRefreshTokensReturnsConnectorData(t *testing.T) {
+func TestRevokeRefreshTokens(t *testing.T) {
 	httpServer, server := newTestServerWithSessions(t, nil)
 	defer httpServer.Close()
 
@@ -369,12 +428,12 @@ func TestRevokeRefreshTokensReturnsConnectorData(t *testing.T) {
 		Refresh: map[string]*storage.RefreshTokenRef{"client1": {ID: refreshID, ClientID: "client1"}},
 	}))
 
-	connData := server.revokeRefreshTokens(ctx, userID, connectorID)
-	require.Equal(t, expectedConnData, connData)
+	server.issuer.Refresh.Revoke(ctx, userID, connectorID)
 
 	_, err := server.storage.GetRefresh(ctx, refreshID)
 	require.ErrorIs(t, err, storage.ErrNotFound)
 
+	// Revocation clears the refresh references but keeps the session object.
 	os, err := server.storage.GetOfflineSessions(ctx, userID, connectorID)
 	require.NoError(t, err)
 	require.Empty(t, os.Refresh)

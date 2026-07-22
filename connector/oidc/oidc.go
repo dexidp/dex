@@ -136,13 +136,19 @@ type ProviderDiscoveryOverrides struct {
 	// JWKSURL provides a way to user overwrite the JWKS URL
 	// from the .well-known/openid-configuration jwks_uri
 	JWKSURL string `json:"jwksURL"`
+	// UserInfoURL provides a way to override the UserInfo URL
+	// from the .well-known/openid-configuration userinfo_endpoint
+	UserInfoURL string `json:"userInfoURL"`
+	// DeviceAuthURL provides a way to override the Device Authorization URL
+	// from the .well-known/openid-configuration device_authorization_endpoint
+	DeviceAuthURL string `json:"deviceAuthURL"`
 	// EndSessionURL provides a way to override the end_session_endpoint
 	// from the .well-known/openid-configuration
 	EndSessionURL string `json:"endSessionURL"`
 }
 
 func (o *ProviderDiscoveryOverrides) Empty() bool {
-	return o.TokenURL == "" && o.AuthURL == "" && o.JWKSURL == "" && o.EndSessionURL == ""
+	return o.TokenURL == "" && o.AuthURL == "" && o.JWKSURL == "" && o.UserInfoURL == "" && o.DeviceAuthURL == "" && o.EndSessionURL == ""
 }
 
 func getProvider(ctx context.Context, issuer string, overrides ProviderDiscoveryOverrides) (*oidc.Provider, error) {
@@ -185,6 +191,12 @@ func getProvider(ctx context.Context, issuer string, overrides ProviderDiscovery
 	}
 	if overrides.JWKSURL != "" {
 		config.JWKSURL = overrides.JWKSURL
+	}
+	if overrides.UserInfoURL != "" {
+		config.UserInfoURL = overrides.UserInfoURL
+	}
+	if overrides.DeviceAuthURL != "" {
+		config.DeviceAuthURL = overrides.DeviceAuthURL
 	}
 	return config.NewProvider(context.Background()), nil
 }
@@ -766,7 +778,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 // LogoutURL returns the upstream OIDC provider's end_session_endpoint URL.
 // Per the OIDC RP-Initiated Logout spec, the post_logout_redirect_uri parameter
 // tells the upstream where to redirect after logout.
-func (c *oidcConnector) LogoutURL(_ context.Context, _ []byte, postLogoutRedirectURI string) (string, error) {
+func (c *oidcConnector) LogoutURL(_ context.Context, postLogoutRedirectURI string) (string, error) {
 	if c.endSessionURL == "" {
 		return "", nil
 	}

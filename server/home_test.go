@@ -10,7 +10,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
 )
@@ -40,11 +43,11 @@ func newTestServerWithSessions(t *testing.T, updateConfig func(c *Config)) (*htt
 		HealthChecker:      gosundheit.New(),
 		SkipApprovalScreen: true,
 		AllowedGrantTypes: []string{
-			grantTypeAuthorizationCode,
-			grantTypeClientCredentials,
-			grantTypeRefreshToken,
-			grantTypeTokenExchange,
-			grantTypeDeviceCode,
+			oauth2.GrantTypeAuthorizationCode,
+			oauth2.GrantTypeClientCredentials,
+			oauth2.GrantTypeRefreshToken,
+			oauth2.GrantTypeTokenExchange,
+			oauth2.GrantTypeDeviceCode,
 		},
 		Signer: sig,
 		SessionConfig: &SessionConfig{
@@ -58,6 +61,10 @@ func newTestServerWithSessions(t *testing.T, updateConfig func(c *Config)) (*htt
 	}
 	s.URL = config.Issuer
 
+	if config.RefreshTokenPolicy == nil {
+		config.RefreshTokenPolicy = tokens.NewRefreshStrategy(true, 0, 0, 0, config.Now)
+	}
+
 	connector := storage.Connector{
 		ID:              "mock",
 		Type:            "mockCallback",
@@ -68,12 +75,6 @@ func newTestServerWithSessions(t *testing.T, updateConfig func(c *Config)) (*htt
 
 	server, err = newServer(ctx, config)
 	require.NoError(t, err)
-
-	if server.refreshTokenPolicy == nil {
-		server.refreshTokenPolicy, err = NewRefreshTokenPolicy(logger, false, "", "", "")
-		require.NoError(t, err)
-		server.refreshTokenPolicy.now = config.Now
-	}
 
 	return s, server
 }
@@ -141,7 +142,7 @@ func TestHomeLoggedIn(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  "dex_session",
-		Value: sessionCookieValue(userID, connectorID, nonce, nil),
+		Value: internal.SessionCookieValue(userID, connectorID, nonce, nil),
 	})
 
 	rr := httptest.NewRecorder()

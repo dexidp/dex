@@ -13,10 +13,8 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"slices"
 	"sort"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -46,7 +44,20 @@ import (
 	"github.com/dexidp/dex/connector/openshift"
 	"github.com/dexidp/dex/connector/saml"
 	"github.com/dexidp/dex/pkg/featureflags"
+	"github.com/dexidp/dex/server/connectors"
+	"github.com/dexidp/dex/server/device"
+	"github.com/dexidp/dex/server/discovery"
+	"github.com/dexidp/dex/server/grants"
+	"github.com/dexidp/dex/server/home"
+	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/introspection"
+	"github.com/dexidp/dex/server/oauth2"
+	"github.com/dexidp/dex/server/passwords"
+	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/signer"
+	"github.com/dexidp/dex/server/templates"
+	"github.com/dexidp/dex/server/tokens"
+	"github.com/dexidp/dex/server/userinfo"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/web"
 )
@@ -54,20 +65,6 @@ import (
 // LocalConnector is the local passwordDB connector which is an internal
 // connector maintained by the server.
 const LocalConnector = "local"
-
-// Connector is a connector with resource version metadata.
-type Connector struct {
-	Type            string
-	ResourceVersion string
-	Connector       connector.Connector
-	GrantTypes      []string
-}
-
-// GrantTypeAllowed checks if the given grant type is allowed for this connector.
-// If no grant types are configured, all are allowed.
-func GrantTypeAllowed(configuredTypes []string, grantType string) bool {
-	return len(configuredTypes) == 0 || slices.Contains(configuredTypes, grantType)
-}
 
 // Config holds the server's configuration options.
 //
@@ -111,7 +108,7 @@ type Config struct {
 	DeviceRequestsValidFor time.Duration // Defaults to 5 minutes
 
 	// Refresh token expiration settings
-	RefreshTokenPolicy *RefreshTokenPolicy
+	RefreshTokenPolicy *tokens.RefreshStrategy
 
 	// If set, the server will use this connector to handle password grants
 	PasswordConnector string
@@ -211,16 +208,14 @@ func value(val, defaultValue time.Duration) time.Duration {
 type Server struct {
 	issuerURL url.URL
 
-	// mutex for the connectors map.
-	mu sync.Mutex
-	// Map of connector IDs to connectors.
-	connectors map[string]Connector
+	// In-memory cache of opened connectors.
+	connectors *connectors.Cache
 
 	storage storage.Storage
 
 	mux http.Handler
 
-	templates *templates
+	templates *templates.Templates
 
 	// If enabled, don't prompt user for approval after logging in through connector.
 	skipApproval bool
@@ -243,16 +238,59 @@ type Server struct {
 	authRequestsValidFor   time.Duration
 	deviceRequestsValidFor time.Duration
 
-	refreshTokenPolicy *RefreshTokenPolicy
+	refreshTokenPolicy *tokens.RefreshStrategy
 
 	logger *slog.Logger
 
 	signer signer.Signer
 
+	// issuer turns an Authorization into a TokenSet.
+	issuer *tokens.Issuer
+
 	sessionConfig *SessionConfig
 
 	mfaProviders    map[string]MFAProvider
 	defaultMFAChain []string
+}
+
+// routeMux adapts the server's route-registration closures to router.Mux so
+// domain handlers can mount their own routes.
+type routeMux struct {
+	handle       func(string, http.Handler)
+	handleFunc   func(string, http.HandlerFunc)
+	handleCORS   func(string, http.HandlerFunc)
+	handlePrefix func(string, http.Handler)
+}
+
+func (m routeMux) Handle(p string, h http.Handler)         { m.handle(p, h) }
+func (m routeMux) HandleFunc(p string, h http.HandlerFunc) { m.handleFunc(p, h) }
+func (m routeMux) HandleCORS(p string, h http.HandlerFunc) { m.handleCORS(p, h) }
+func (m routeMux) HandlePrefix(p string, h http.Handler)   { m.handlePrefix(p, h) }
+
+// newDiscoveryHandler builds a discovery handler from the server's settings. It
+// is shared by the mounted handler and ConstructDiscovery.
+func (s *Server) newDiscoveryHandler() *discovery.Handler {
+	return &discovery.Handler{
+		Issuer:          s.issuerURL.String(),
+		AbsURL:          s.absURL,
+		RenderError:     s.renderError,
+		Signer:          s.signer,
+		Logger:          s.logger,
+		ResponseTypes:   s.supportedResponseTypes,
+		GrantTypes:      s.supportedGrantTypes,
+		PKCEMethods:     s.pkce.CodeChallengeMethodsSupported,
+		SessionsEnabled: s.sessionConfig != nil,
+	}
+}
+
+// Connectors is the server's connector cache. The gRPC API needs it to
+// invalidate the cache on connector CRUD.
+func (s *Server) Connectors() *connectors.Cache { return s.connectors }
+
+// ConstructDiscovery builds the OIDC discovery document. The gRPC API's
+// GetDiscovery uses it to return the same document served over HTTP.
+func (s *Server) ConstructDiscovery(ctx context.Context) discovery.Document {
+	return s.newDiscoveryHandler().Construct(ctx)
 }
 
 // NewServer constructs a server from the provided config.
@@ -271,18 +309,18 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	}
 
 	if len(c.SupportedResponseTypes) == 0 {
-		c.SupportedResponseTypes = []string{responseTypeCode}
+		c.SupportedResponseTypes = []string{oauth2.ResponseTypeCode}
 	}
 	if len(c.AllowedHeaders) == 0 {
 		c.AllowedHeaders = []string{"Authorization"}
 	}
 
 	supportedChallengeMethods := map[string]bool{
-		codeChallengeMethodS256:  true,
-		codeChallengeMethodPlain: true,
+		oauth2.PKCEMethodS256:  true,
+		oauth2.PKCEMethodPlain: true,
 	}
 	if len(c.PKCE.CodeChallengeMethodsSupported) == 0 {
-		c.PKCE.CodeChallengeMethodsSupported = []string{codeChallengeMethodS256, codeChallengeMethodPlain}
+		c.PKCE.CodeChallengeMethodsSupported = []string{oauth2.PKCEMethodS256, oauth2.PKCEMethodPlain}
 	}
 	for _, m := range c.PKCE.CodeChallengeMethodsSupported {
 		if !supportedChallengeMethods[m] {
@@ -291,21 +329,21 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	}
 
 	allSupportedGrants := map[string]bool{
-		grantTypeAuthorizationCode: true,
-		grantTypeRefreshToken:      true,
-		grantTypeDeviceCode:        true,
-		grantTypeTokenExchange:     true,
+		oauth2.GrantTypeAuthorizationCode: true,
+		oauth2.GrantTypeRefreshToken:      true,
+		oauth2.GrantTypeDeviceCode:        true,
+		oauth2.GrantTypeTokenExchange:     true,
 	}
 	supportedRes := make(map[string]bool)
 
 	for _, respType := range c.SupportedResponseTypes {
 		switch respType {
-		case responseTypeCode, responseTypeIDToken, responseTypeCodeIDToken:
+		case oauth2.ResponseTypeCode, oauth2.ResponseTypeIDToken, oauth2.ResponseTypeCodeIDToken:
 			// continue
-		case responseTypeToken, responseTypeCodeToken, responseTypeIDTokenToken, responseTypeCodeIDTokenToken:
+		case oauth2.ResponseTypeToken, oauth2.ResponseTypeCodeToken, oauth2.ResponseTypeIDTokenToken, oauth2.ResponseTypeCodeIDTokenToken:
 			// response_type=token is an implicit flow, let's add it to the discovery info
 			// https://datatracker.ietf.org/doc/html/rfc6749#section-4.2.1
-			allSupportedGrants[grantTypeImplicit] = true
+			allSupportedGrants[oauth2.GrantTypeImplicit] = true
 		default:
 			return nil, fmt.Errorf("unsupported response_type %q", respType)
 		}
@@ -313,10 +351,10 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	}
 
 	if c.PasswordConnector != "" {
-		allSupportedGrants[grantTypePassword] = true
+		allSupportedGrants[oauth2.GrantTypePassword] = true
 	}
 
-	allSupportedGrants[grantTypeClientCredentials] = true
+	allSupportedGrants[oauth2.GrantTypeClientCredentials] = true
 
 	var supportedGrants []string
 	if len(c.AllowedGrantTypes) > 0 {
@@ -339,16 +377,16 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		webFS = c.Web.WebFS
 	}
 
-	web := webConfig{
-		webFS:     webFS,
-		logoURL:   c.Web.LogoURL,
-		issuerURL: c.Issuer,
-		issuer:    c.Web.Issuer,
-		theme:     c.Web.Theme,
-		extra:     c.Web.Extra,
+	web := templates.Config{
+		WebFS:     webFS,
+		LogoURL:   c.Web.LogoURL,
+		IssuerURL: c.Issuer,
+		Issuer:    c.Web.Issuer,
+		Theme:     c.Web.Theme,
+		Extra:     c.Web.Extra,
 	}
 
-	static, theme, robots, tmpls, err := loadWebConfig(web)
+	static, theme, robots, tmpls, err := templates.LoadWebConfig(web)
 	if err != nil {
 		return nil, fmt.Errorf("server: failed to load web static: %v", err)
 	}
@@ -360,7 +398,6 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 
 	s := &Server{
 		issuerURL:              *issuerURL,
-		connectors:             make(map[string]Connector),
 		storage:                newKeyCacher(c.Storage, now),
 		supportedResponseTypes: supportedRes,
 		supportedGrantTypes:    supportedGrants,
@@ -380,6 +417,54 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		mfaProviders:           c.MFAProviders,
 		defaultMFAChain:        c.DefaultMFAChain,
 	}
+	s.issuer = tokens.NewIssuer(s.storage, s.signer, s.issuerURL, s.idTokensValidFor, s.now, s.logger)
+	s.connectors = connectors.NewCache(s.storage, s.resolveConnector)
+	discoveryHandler := s.newDiscoveryHandler()
+	userInfoHandler := &userinfo.Handler{
+		Issuer: s.issuerURL.String(),
+		Signer: s.signer,
+		Logger: s.logger,
+	}
+	introspectHandler := &introspection.Handler{
+		Issuer:        s.issuerURL.String(),
+		Signer:        s.signer,
+		Storage:       s.storage,
+		Logger:        s.logger,
+		RefreshPolicy: s.refreshTokenPolicy,
+	}
+	deviceHandler := &device.Handler{
+		IssuerURL:        s.issuerURL,
+		Storage:          s.storage,
+		Templates:        s.templates,
+		Now:              s.now,
+		RequestsValidFor: s.deviceRequestsValidFor,
+		Logger:           s.logger,
+		Issuer:           s.issuer,
+		Connectors:       s.connectors,
+	}
+	homeHandler := &home.Handler{
+		IssuerURL:       s.issuerURL,
+		Storage:         s.storage,
+		Templates:       s.templates,
+		Logger:          s.logger,
+		SessionsEnabled: s.sessionConfig != nil,
+	}
+	if s.sessionConfig != nil {
+		homeHandler.CookieName = s.sessionConfig.CookieName
+		homeHandler.CookieEncryptionKey = s.sessionConfig.CookieEncryptionKey
+	}
+
+	tokenEndpoint := grants.NewEndpoint(grants.Config{
+		Issuer:              s.issuer,
+		Storage:             s.storage,
+		Connectors:          s.connectors,
+		Now:                 s.now,
+		Logger:              s.logger,
+		PasswordConnector:   s.passwordConnector,
+		RefreshPolicy:       s.refreshTokenPolicy,
+		SessionsEnabled:     s.sessionConfig != nil,
+		SupportedGrantTypes: s.supportedGrantTypes,
+	})
 
 	// Retrieves connector objects in backend storage. This list includes the static connectors
 	// defined in the ConfigMap and dynamic connectors retrieved from the storage.
@@ -388,7 +473,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		return nil, fmt.Errorf("server: failed to list connector objects from storage: %v", err)
 	}
 
-	if len(storageConnectors) == 0 && len(s.connectors) == 0 {
+	if len(storageConnectors) == 0 && s.connectors.Len() == 0 {
 		return nil, errors.New("server: no connectors specified")
 	}
 
@@ -519,27 +604,17 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	}
 	r.NotFoundHandler = http.NotFoundHandler()
 
-	discoveryHandler, err := s.discoveryHandler(ctx)
-	if err != nil {
-		return nil, err
+	// Self-contained domains mount their own routes through the router.Mux
+	// abstraction, so this list is the only place they are wired in.
+	mux := routeMux{handle: handle, handleFunc: handleFunc, handleCORS: handleWithCORS, handlePrefix: handlePrefix}
+	for _, h := range []router.Handler{tokenEndpoint, discoveryHandler, userInfoHandler, introspectHandler, deviceHandler, homeHandler} {
+		h.Mount(mux)
 	}
-	handleWithCORS("/.well-known/openid-configuration", discoveryHandler)
-	handleWithCORS("/", s.handleHome)
 
 	// TODO(ericchiang): rate limit certain paths based on IP.
-	handleWithCORS("/token", s.handleToken)
-	handleWithCORS("/keys", s.handlePublicKeys)
-	handleWithCORS("/userinfo", s.handleUserInfo)
-	handleWithCORS("/token/introspect", s.handleIntrospect)
 	handleFunc("/auth", s.handleAuthorization)
 	handleFunc("/auth/{connector}", s.handleConnectorLogin)
 	handleFunc("/auth/{connector}/login", s.handlePasswordLogin)
-	handleFunc("/device", s.handleDeviceExchange)
-	handleFunc("/device/auth/verify_code", s.verifyUserCode)
-	handleFunc("/device/code", s.handleDeviceCode)
-	// TODO(nabokihms): "/device/token" endpoint is deprecated, consider using /token endpoint instead
-	handleFunc("/device/token", s.handleDeviceTokenDeprecated)
-	handleFunc(deviceCallbackURI, s.handleDeviceCallback)
 	handleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
 		// Strip the X-Remote-* headers to prevent security issues on
 		// misconfigured authproxy connector setups.
@@ -640,7 +715,7 @@ func (db passwordDB) Login(ctx context.Context, s connector.Scopes, email, passw
 	}
 	// This check prevents dex users from logging in using static passwords
 	// configured with hash costs that are too high or low.
-	if err := checkCost(p.Hash); err != nil {
+	if err := passwords.CheckCost(p.Hash); err != nil {
 		return connector.Identity{}, false, err
 	}
 	if err := bcrypt.CompareHashAndPassword(p.Hash, []byte(password)); err != nil {
@@ -794,72 +869,30 @@ func openConnector(logger *slog.Logger, conn storage.Connector) (connector.Conne
 	return c, nil
 }
 
-// OpenConnector updates server connector map with specified connector object.
-func (s *Server) OpenConnector(conn storage.Connector) (Connector, error) {
-	var c connector.Connector
-
+// resolveConnector builds the underlying connector implementation for a stored
+// connector: the built-in local password DB, or a configured connector.
+func (s *Server) resolveConnector(conn storage.Connector) (connector.Connector, error) {
 	if conn.Type == LocalConnector {
-		c = newPasswordDB(s.storage)
-	} else {
-		var err error
-		c, err = openConnector(s.logger, conn)
-		if err != nil {
-			return Connector{}, fmt.Errorf("failed to open connector: %v", err)
-		}
+		return newPasswordDB(s.storage), nil
 	}
-
-	connector := Connector{
-		Type:            conn.Type,
-		ResourceVersion: conn.ResourceVersion,
-		Connector:       c,
-		GrantTypes:      conn.GrantTypes,
-	}
-	s.mu.Lock()
-	s.connectors[conn.ID] = connector
-	s.mu.Unlock()
-
-	return connector, nil
+	return openConnector(s.logger, conn)
 }
 
-// CloseConnector removes the connector from the server's in-memory map.
+// OpenConnector opens the given connector and records it in the in-memory cache.
+func (s *Server) OpenConnector(conn storage.Connector) (connectors.Connector, error) {
+	return s.connectors.Open(conn)
+}
+
+// CloseConnector removes the connector from the in-memory cache.
 func (s *Server) CloseConnector(id string) {
-	s.mu.Lock()
-	delete(s.connectors, id)
-	s.mu.Unlock()
-}
-
-// getConnector retrieves the connector object with the given id from the storage
-// and updates the connector list for server if necessary.
-func (s *Server) getConnector(ctx context.Context, id string) (Connector, error) {
-	storageConnector, err := s.storage.GetConnector(ctx, id)
-	if err != nil {
-		return Connector{}, fmt.Errorf("failed to get connector object from storage: %v", err)
-	}
-
-	var conn Connector
-	var ok bool
-	s.mu.Lock()
-	conn, ok = s.connectors[id]
-	s.mu.Unlock()
-
-	if !ok || storageConnector.ResourceVersion != conn.ResourceVersion {
-		// Connector object does not exist in server connectors map or
-		// has been updated in the storage. Need to get latest.
-		conn, err := s.OpenConnector(storageConnector)
-		if err != nil {
-			return Connector{}, fmt.Errorf("failed to open connector: %v", err)
-		}
-		return conn, nil
-	}
-
-	return conn, nil
+	s.connectors.Close(id)
 }
 
 // buildApprovalURL builds an HMAC-protected approval URL.
 func (s *Server) buildApprovalURL(authReq storage.AuthRequest) string {
 	v := url.Values{}
 	v.Set("req", authReq.ID)
-	v.Set("hmac", computeHMAC(authReq.HMACKey, authReq.ID, ""))
+	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, ""))
 	return s.absPath("/approval") + "?" + v.Encode()
 }
 

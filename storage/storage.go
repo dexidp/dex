@@ -394,6 +394,11 @@ type MFASecret struct {
 	Secret          string    `json:"secret"`
 	Confirmed       bool      `json:"confirmed"`
 	CreatedAt       time.Time `json:"createdAt"`
+
+	// LastUsedCounter is the TOTP time-step counter of the most recently accepted
+	// code. Codes whose counter is <= this value are rejected to make each code
+	// single-use (replay protection). Zero means no code has been accepted yet.
+	LastUsedCounter int64 `json:"lastUsedCounter,omitempty"`
 }
 
 // WebAuthnCredential stores a registered WebAuthn credential for a user.
@@ -430,6 +435,12 @@ type ClientAuthState struct {
 	ExpiresAt         time.Time
 	LastActivity      time.Time
 	LastTokenIssuedAt time.Time
+
+	// ViaSSO is true when this state was derived from another client's session
+	// via ssoSharedWith rather than a direct authentication. SSO-derived states
+	// are not eligible as SSO sources themselves, which keeps sharing
+	// unidirectional and prevents transitive A->B->C chains.
+	ViaSSO bool
 }
 
 // LogoutState holds RP parameters saved in the auth session during logout.

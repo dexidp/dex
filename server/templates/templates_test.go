@@ -1,0 +1,72 @@
+package templates
+
+import "testing"
+
+func TestRelativeURL(t *testing.T) {
+	tests := []struct {
+		name       string
+		serverPath string
+		reqPath    string
+		assetPath  string
+		expected   string
+	}{
+		{
+			name:       "server-root-req-one-level-asset-two-level",
+			serverPath: "/",
+			reqPath:    "/auth",
+			assetPath:  "/theme/main.css",
+			expected:   "theme/main.css",
+		},
+		{
+			name:       "server-one-level-req-one-level-asset-two-level",
+			serverPath: "/dex",
+			reqPath:    "/dex/auth",
+			assetPath:  "/theme/main.css",
+			expected:   "theme/main.css",
+		},
+		{
+			name:       "server-root-req-two-level-asset-three-level",
+			serverPath: "/dex",
+			reqPath:    "/dex/auth/connector",
+			assetPath:  "assets/css/main.css",
+			expected:   "../assets/css/main.css",
+		},
+		{
+			name:       "server-root-page",
+			serverPath: "/dex",
+			reqPath:    "/dex",
+			assetPath:  "static/main.css",
+			expected:   "dex/static/main.css",
+		},
+		{
+			name:       "server-root-page-nested",
+			serverPath: "/dex/idp",
+			reqPath:    "/dex/idp",
+			assetPath:  "theme/styles.css",
+			expected:   "dex/idp/theme/styles.css",
+		},
+		{
+			name:       "server-root-no-subpath",
+			serverPath: "/",
+			reqPath:    "/",
+			assetPath:  "static/main.css",
+			expected:   "static/main.css",
+		},
+		{
+			name:       "external-url",
+			serverPath: "/dex",
+			reqPath:    "/dex/auth/connector",
+			assetPath:  "https://kubernetes.io/images/favicon.png",
+			expected:   "https://kubernetes.io/images/favicon.png",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := relativeURL(test.serverPath, test.reqPath, test.assetPath)
+			if actual != test.expected {
+				t.Fatalf("Got '%s'. Expected '%s'", actual, test.expected)
+			}
+		})
+	}
+}

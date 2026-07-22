@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/dexidp/dex/api/v2"
+	"github.com/dexidp/dex/server/apiserver"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
@@ -41,7 +42,7 @@ func newAPI(t *testing.T, s storage.Storage, logger *slog.Logger) *apiClient {
 	}
 
 	serv := grpc.NewServer()
-	api.RegisterDexServer(serv, NewAPI(s, logger, "test", nil))
+	api.RegisterDexServer(serv, apiserver.NewAPI(s, logger, "test", nil, nil))
 	go serv.Serve(l)
 
 	// NewClient will retry automatically if the serv.Serve() goroutine
@@ -168,59 +169,6 @@ func TestPassword(t *testing.T) {
 
 	if _, err := client.DeletePassword(ctx, &deleteReq); err != nil {
 		t.Fatalf("Unable to delete password: %v", err)
-	}
-}
-
-// Ensures checkCost returns expected values
-func TestCheckCost(t *testing.T) {
-	logger := newLogger(t)
-	s := memory.New(logger)
-
-	client := newAPI(t, s, logger)
-	defer client.Close()
-
-	tests := []struct {
-		name      string
-		inputHash []byte
-
-		wantErr bool
-	}{
-		{
-			name: "valid cost",
-			// bcrypt hash of the value "test1" with cost 12 (default)
-			inputHash: []byte("$2a$12$M2Ot95Qty1MuQdubh1acWOiYadJDzeVg3ve4n5b.dgcgPdjCseKx2"),
-		},
-		{
-			name:      "invalid hash",
-			inputHash: []byte(""),
-			wantErr:   true,
-		},
-		{
-			name: "cost below default",
-			// bcrypt hash of the value "test1" with cost 4
-			inputHash: []byte("$2a$04$8bSTbuVCLpKzaqB3BmgI7edDigG5tIQKkjYUu/mEO9gQgIkw9m7eG"),
-			wantErr:   true,
-		},
-		{
-			name: "cost above recommendation",
-			// bcrypt hash of the value "test1" with cost 17
-			inputHash: []byte("$2a$17$tWuZkTxtSmRyWZAGWVHQE.7npdl.TgP8adjzLJD.SyjpFznKBftPe"),
-			wantErr:   true,
-		},
-	}
-
-	for _, tc := range tests {
-		if err := checkCost(tc.inputHash); err != nil {
-			if !tc.wantErr {
-				t.Errorf("%s: %s", tc.name, err)
-			}
-			continue
-		}
-
-		if tc.wantErr {
-			t.Errorf("%s: expected err", tc.name)
-			continue
-		}
 	}
 }
 

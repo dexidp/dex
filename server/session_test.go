@@ -12,6 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/connectors"
+	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/oauth2"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
 )
@@ -23,7 +27,7 @@ func newTestSessionServer(t *testing.T) *Server {
 	issuerURL, err := url.Parse("https://example.com/dex")
 	require.NoError(t, err)
 
-	return &Server{
+	s := &Server{
 		storage: memory.New(nil),
 		logger:  slog.Default(),
 		now:     func() time.Time { return now },
@@ -34,6 +38,8 @@ func newTestSessionServer(t *testing.T) *Server {
 		},
 		issuerURL: *issuerURL,
 	}
+	s.connectors = connectors.NewCache(s.storage, s.resolveConnector)
+	return s
 }
 
 func TestSetSessionCookie(t *testing.T) {
@@ -47,7 +53,7 @@ func TestSetSessionCookie(t *testing.T) {
 
 	c := cookies[0]
 	assert.Equal(t, "dex_session", c.Name)
-	assert.Equal(t, sessionCookieValue("user1", "conn1", "nonce123", nil), c.Value)
+	assert.Equal(t, internal.SessionCookieValue("user1", "conn1", "nonce123", nil), c.Value)
 	assert.Equal(t, "/dex", c.Path)
 	assert.True(t, c.HttpOnly)
 	assert.True(t, c.Secure)
@@ -93,8 +99,8 @@ func TestSessionCookieValueRoundtrip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			value := sessionCookieValue(tt.userID, tt.connectorID, tt.nonce, nil)
-			gotUser, gotConn, gotNonce, err := parseSessionCookie(value, nil)
+			value := internal.SessionCookieValue(tt.userID, tt.connectorID, tt.nonce, nil)
+			gotUser, gotConn, gotNonce, err := internal.ParseSessionCookie(value, nil)
 			require.NoError(t, err)
 			assert.Equal(t, tt.userID, gotUser)
 			assert.Equal(t, tt.connectorID, gotConn)
@@ -106,13 +112,13 @@ func TestSessionCookieValueRoundtrip(t *testing.T) {
 func TestSessionCookieValueEncryptedRoundtrip(t *testing.T) {
 	key := []byte("0123456789abcdef") // 16 bytes = AES-128
 
-	value := sessionCookieValue("user1", "ldap", "nonce1", key)
+	value := internal.SessionCookieValue("user1", "ldap", "nonce1", key)
 	// Encrypted value must differ from unencrypted.
-	unencrypted := sessionCookieValue("user1", "ldap", "nonce1", nil)
+	unencrypted := internal.SessionCookieValue("user1", "ldap", "nonce1", nil)
 	assert.NotEqual(t, unencrypted, value)
 
 	// Must decrypt correctly.
-	gotUser, gotConn, gotNonce, err := parseSessionCookie(value, key)
+	gotUser, gotConn, gotNonce, err := internal.ParseSessionCookie(value, key)
 	require.NoError(t, err)
 	assert.Equal(t, "user1", gotUser)
 	assert.Equal(t, "ldap", gotConn)
@@ -121,21 +127,21 @@ func TestSessionCookieValueEncryptedRoundtrip(t *testing.T) {
 	// Wrong key must fail.
 	wrongKey := []byte("abcdef0123456789")
 	//nolint:dogsled // only for tests
-	_, _, _, err = parseSessionCookie(value, wrongKey)
+	_, _, _, err = internal.ParseSessionCookie(value, wrongKey)
 	assert.Error(t, err)
 
 	// No key must fail (encrypted value isn't valid protobuf).
 	//nolint:dogsled // only for tests
-	_, _, _, err = parseSessionCookie(value, nil)
+	_, _, _, err = internal.ParseSessionCookie(value, nil)
 	assert.Error(t, err)
 }
 
 func TestParseSessionCookie_Invalid(t *testing.T) {
 	//nolint:dogsled // only for tests
-	_, _, _, err := parseSessionCookie("invalid", nil)
+	_, _, _, err := internal.ParseSessionCookie("invalid", nil)
 	assert.Error(t, err)
 	//nolint:dogsled // only for tests
-	_, _, _, err = parseSessionCookie("a.b", nil)
+	_, _, _, err = internal.ParseSessionCookie("a.b", nil)
 	assert.Error(t, err)
 }
 
@@ -169,7 +175,7 @@ func TestGetValidAuthSession(t *testing.T) {
 	t.Run("session not found", func(t *testing.T) {
 		s := newTestSessionServer(t)
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("nouser", "noconn", "nonce", nil)})
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: internal.SessionCookieValue("nouser", "noconn", "nonce", nil)})
 		w := httptest.NewRecorder()
 		assert.Nil(t, s.getValidAuthSession(ctx, w, r, authReq))
 		// Cookie should be cleared.
@@ -196,7 +202,7 @@ func TestGetValidAuthSession(t *testing.T) {
 		require.NoError(t, s.storage.CreateAuthSession(ctx, session))
 
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user1", "conn1", nonce, nil)})
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: internal.SessionCookieValue("user1", "conn1", nonce, nil)})
 
 		result := s.getValidAuthSession(ctx, httptest.NewRecorder(), r, authReq)
 		require.NotNil(t, result)
@@ -224,7 +230,7 @@ func TestGetValidAuthSession(t *testing.T) {
 		require.NoError(t, s.storage.CreateAuthSession(ctx, session))
 
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user1", "ldap", nonce, nil)})
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: internal.SessionCookieValue("user1", "ldap", nonce, nil)})
 
 		githubReq := &storage.AuthRequest{ConnectorID: "github"}
 		assert.Nil(t, s.getValidAuthSession(ctx, httptest.NewRecorder(), r, githubReq))
@@ -249,7 +255,7 @@ func TestGetValidAuthSession(t *testing.T) {
 		require.NoError(t, s.storage.CreateAuthSession(ctx, session))
 
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user2", "conn2", "wrong-nonce", nil)})
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: internal.SessionCookieValue("user2", "conn2", "wrong-nonce", nil)})
 
 		conn2Req := &storage.AuthRequest{ConnectorID: "conn2"}
 		w := httptest.NewRecorder()
@@ -277,7 +283,7 @@ func TestGetValidAuthSession(t *testing.T) {
 		require.NoError(t, s.storage.CreateAuthSession(ctx, session))
 
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user3", "conn3", nonce, nil)})
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: internal.SessionCookieValue("user3", "conn3", nonce, nil)})
 
 		conn3Req := &storage.AuthRequest{ConnectorID: "conn3"}
 		w := httptest.NewRecorder()
@@ -309,7 +315,7 @@ func TestGetValidAuthSession(t *testing.T) {
 		require.NoError(t, s.storage.CreateAuthSession(ctx, session))
 
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user4", "conn4", nonce, nil)})
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: internal.SessionCookieValue("user4", "conn4", nonce, nil)})
 
 		conn4Req := &storage.AuthRequest{ConnectorID: "conn4"}
 		w := httptest.NewRecorder()
@@ -344,7 +350,7 @@ func TestCreateOrUpdateAuthSession(t *testing.T) {
 		cookies := w.Result().Cookies()
 		require.Len(t, cookies, 1)
 
-		userID, connectorID, nonce, err := parseSessionCookie(cookies[0].Value, nil)
+		userID, connectorID, nonce, err := internal.ParseSessionCookie(cookies[0].Value, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "user-1", userID)
 		assert.Equal(t, "mock", connectorID)
@@ -400,7 +406,7 @@ func TestCreateOrUpdateAuthSession(t *testing.T) {
 		// Cookie should be set with existing nonce.
 		cookies := w.Result().Cookies()
 		require.Len(t, cookies, 1)
-		_, _, gotNonce, err := parseSessionCookie(cookies[0].Value, nil)
+		_, _, gotNonce, err := internal.ParseSessionCookie(cookies[0].Value, nil)
 		require.NoError(t, err)
 		assert.Equal(t, nonce, gotNonce)
 
@@ -478,7 +484,7 @@ func setupSessionLoginFixture(t *testing.T, s *Server) storage.AuthRequest {
 
 func sessionCookieRequest(userID, connectorID, nonce string) *http.Request {
 	r := httptest.NewRequest(http.MethodGet, "/", nil)
-	r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue(userID, connectorID, nonce, nil)})
+	r.AddCookie(&http.Cookie{Name: "dex_session", Value: internal.SessionCookieValue(userID, connectorID, nonce, nil)})
 	return r
 }
 
@@ -691,7 +697,7 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 		authReq.MaxAge = -1 // not specified
 
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user-1", "mock", "test-nonce", nil)})
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: internal.SessionCookieValue("user-1", "mock", "test-nonce", nil)})
 		w := httptest.NewRecorder()
 
 		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
@@ -707,7 +713,7 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 		authReq.MaxAge = 3600
 
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user-1", "mock", "test-nonce", nil)})
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: internal.SessionCookieValue("user-1", "mock", "test-nonce", nil)})
 		w := httptest.NewRecorder()
 
 		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
@@ -723,7 +729,7 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 		authReq.MaxAge = 3600
 
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user-1", "mock", "test-nonce", nil)})
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: internal.SessionCookieValue("user-1", "mock", "test-nonce", nil)})
 		w := httptest.NewRecorder()
 
 		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
@@ -739,7 +745,7 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 		authReq.MaxAge = 0
 
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user-1", "mock", "test-nonce", nil)})
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: internal.SessionCookieValue("user-1", "mock", "test-nonce", nil)})
 		w := httptest.NewRecorder()
 
 		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
@@ -761,7 +767,7 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 		}))
 
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		r.AddCookie(&http.Cookie{Name: "dex_session", Value: sessionCookieValue("user-1", "mock", "test-nonce", nil)})
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: internal.SessionCookieValue("user-1", "mock", "test-nonce", nil)})
 		w := httptest.NewRecorder()
 
 		redirectURL, ok := s.trySessionLogin(ctx, r, w, &authReq)
@@ -778,11 +784,11 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 func TestTrySessionLoginWithSession_IDTokenHint(t *testing.T) {
 	ctx := t.Context()
 
-	// genSubject("user-1", "mock") produces a deterministic subject string.
-	hintSubjectForUser1Mock, err := genSubject("user-1", "mock")
+	// tokens.GenSubject("user-1", "mock") produces a deterministic subject string.
+	hintSubjectForUser1Mock, err := tokens.GenSubject("user-1", "mock")
 	require.NoError(t, err)
 
-	hintSubjectOther, err := genSubject("other-user", "mock")
+	hintSubjectOther, err := tokens.GenSubject("other-user", "mock")
 	require.NoError(t, err)
 
 	t.Run("hint matches session user - session login succeeds", func(t *testing.T) {
@@ -1372,11 +1378,7 @@ func TestFinishSessionLogin_MFA(t *testing.T) {
 			Name:            "Mock LDAP",
 			ResourceVersion: "1",
 		}))
-		s.mu.Lock()
-		s.connectors = map[string]Connector{
-			"mock": {Type: "ldap", ResourceVersion: "1"},
-		}
-		s.mu.Unlock()
+		s.connectors.Set("mock", connectors.Connector{Type: "ldap", ResourceVersion: "1"})
 
 		// Create client with MFA chain.
 		require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
@@ -1551,7 +1553,7 @@ func TestPromptNone(t *testing.T) {
 		require.NotNil(t, session)
 
 		// In handleConnectorLogin, a non-empty redirectURL with prompt=none
-		// triggers errInteractionRequired ("Consent required").
+		// triggers oauth2.InteractionRequired ("Consent required").
 		redirectURL, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		require.True(t, ok, "session login should succeed (user is authenticated)")
 		assert.Contains(t, redirectURL, "/approval", "should return approval URL when consent is missing")
@@ -1563,7 +1565,7 @@ func TestPromptNone(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/", nil) // No cookie.
 		w := httptest.NewRecorder()
 
-		// In handleConnectorLogin, this triggers errLoginRequired.
+		// In handleConnectorLogin, this triggers oauth2.LoginRequired.
 		_, ok := s.trySessionLogin(ctx, r, w, &authReq)
 		assert.False(t, ok, "should fail without session")
 	})
@@ -1617,7 +1619,7 @@ func TestPromptNone(t *testing.T) {
 
 	t.Run("MFA required returns redirect not silent", func(t *testing.T) {
 		// This is the prompt=none + MFA case: finishSessionLogin returns MFA redirect URL.
-		// In handleConnectorLogin, this is a successful (ok=true) redirect, not errLoginRequired.
+		// In handleConnectorLogin, this is a successful (ok=true) redirect, not oauth2.LoginRequired.
 		s := newTestSessionServer(t)
 		s.skipApproval = true
 		s.mfaProviders = map[string]MFAProvider{
@@ -1627,9 +1629,7 @@ func TestPromptNone(t *testing.T) {
 		require.NoError(t, s.storage.CreateConnector(ctx, storage.Connector{
 			ID: "mock", Type: "ldap", Name: "Mock", ResourceVersion: "1",
 		}))
-		s.mu.Lock()
-		s.connectors = map[string]Connector{"mock": {Type: "ldap", ResourceVersion: "1"}}
-		s.mu.Unlock()
+		s.connectors.Set("mock", connectors.Connector{Type: "ldap", ResourceVersion: "1"})
 		require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
 			ID: "client-1", Secret: "secret", Name: "Test", MFAChain: []string{"totp"},
 		}))
@@ -1671,7 +1671,7 @@ func TestPromptConsent(t *testing.T) {
 	})
 
 	t.Run("login+consent parsed correctly", func(t *testing.T) {
-		prompt, err := ParsePrompt("login consent")
+		prompt, err := oauth2.ParsePrompt("login consent")
 		require.NoError(t, err)
 		assert.True(t, prompt.Login(), "login flag should be set")
 		assert.True(t, prompt.Consent(), "consent flag should be set")
@@ -1762,9 +1762,7 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 		require.NoError(t, s.storage.CreateConnector(ctx, storage.Connector{
 			ID: "mock", Type: "ldap", Name: "Mock", ResourceVersion: "1",
 		}))
-		s.mu.Lock()
-		s.connectors = map[string]Connector{"mock": {Type: "ldap", ResourceVersion: "1"}}
-		s.mu.Unlock()
+		s.connectors.Set("mock", connectors.Connector{Type: "ldap", ResourceVersion: "1"})
 
 		// client-b requires MFA.
 		require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
@@ -1794,9 +1792,7 @@ func TestSSO_ConsentAndMFA(t *testing.T) {
 		require.NoError(t, s.storage.CreateConnector(ctx, storage.Connector{
 			ID: "mock", Type: "ldap", Name: "Mock", ResourceVersion: "1",
 		}))
-		s.mu.Lock()
-		s.connectors = map[string]Connector{"mock": {Type: "ldap", ResourceVersion: "1"}}
-		s.mu.Unlock()
+		s.connectors.Set("mock", connectors.Connector{Type: "ldap", ResourceVersion: "1"})
 
 		// client-a has NO MFA, client-b requires MFA.
 		require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
@@ -2043,6 +2039,73 @@ func TestSSO_Unidirectional(t *testing.T) {
 		_, ok := s.trySessionLoginWithSession(ctx, r, w, &authReq, session)
 		assert.False(t, ok, "B→A SSO should fail because B does not share with A")
 	})
+}
+
+// TestSSO_TransitiveTrustChain verifies SSO sharing does not chain: A shares
+// only with B and B shares only with C (A never shares with C), so a user
+// authenticated only to A must not be SSO'd into C via B.
+func TestSSO_TransitiveTrustChain(t *testing.T) {
+	ctx := t.Context()
+
+	s := newTestSessionServer(t)
+	s.skipApproval = true
+	now := s.now()
+
+	require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+		ID: "client-a", Secret: "s", Name: "A", SSOSharedWith: []string{"client-b"},
+	}))
+	require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+		ID: "client-b", Secret: "s", Name: "B", SSOSharedWith: []string{"client-c"},
+	}))
+	require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+		ID: "client-c", Secret: "s", Name: "C", SSOSharedWith: []string{},
+	}))
+
+	// User authenticated only to A.
+	require.NoError(t, s.storage.CreateAuthSession(ctx, storage.AuthSession{
+		UserID: "user-1", ConnectorID: "mock", Nonce: "test-nonce",
+		ClientStates: map[string]*storage.ClientAuthState{
+			"client-a": {Active: true, ExpiresAt: now.Add(24 * time.Hour), LastActivity: now.Add(-1 * time.Minute)},
+		},
+		CreatedAt: now.Add(-30 * time.Minute), LastActivity: now.Add(-1 * time.Minute),
+		AbsoluteExpiry: now.Add(24 * time.Hour), IdleExpiry: now.Add(59 * time.Minute),
+	}))
+	require.NoError(t, s.storage.CreateUserIdentity(ctx, storage.UserIdentity{
+		UserID: "user-1", ConnectorID: "mock",
+		Claims:    storage.Claims{UserID: "user-1", Username: "testuser", Email: "test@example.com"},
+		Consents:  map[string][]string{},
+		CreatedAt: now.Add(-1 * time.Hour), LastLogin: now.Add(-30 * time.Minute),
+	}))
+
+	tryLogin := func(target string) bool {
+		req := storage.AuthRequest{
+			ID: storage.NewID(), ClientID: target, ConnectorID: "mock",
+			Scopes: []string{"openid"}, RedirectURI: "http://localhost/callback",
+			MaxAge: -1, HMACKey: storage.NewHMACKey(crypto.SHA256), Expiry: now.Add(10 * time.Minute),
+		}
+		require.NoError(t, s.storage.CreateAuthRequest(ctx, req))
+		r := sessionCookieRequest("user-1", "mock", "test-nonce")
+		w := httptest.NewRecorder()
+		session := s.getValidAuthSession(ctx, w, r, &req)
+		require.NotNil(t, session)
+		_, ok := s.trySessionLoginWithSession(ctx, r, w, &req, session)
+		return ok
+	}
+
+	// Hop 1: A→B succeeds and records an SSO-derived state for B.
+	require.True(t, tryLogin("client-b"), "A→B SSO should succeed")
+
+	// The derived B state must be marked ViaSSO, which is what makes it ineligible
+	// as a source below — assert it directly so a regression localizes here.
+	sess, err := s.storage.GetAuthSession(ctx, "user-1", "mock")
+	require.NoError(t, err)
+	require.NotNil(t, sess.ClientStates["client-b"])
+	assert.True(t, sess.ClientStates["client-b"].ViaSSO, "B's SSO-derived state must be marked ViaSSO")
+
+	// Hop 2: C has no eligible SSO source — A does not share with C and B's state
+	// is SSO-derived. Pin the exact invariant, then the login outcome.
+	assert.Nil(t, s.findSSOSession(ctx, &sess, "client-c"), "no eligible SSO source for C")
+	assert.False(t, tryLogin("client-c"), "transitive A→B→C SSO must be denied")
 }
 
 // TestRememberMeDefault tests that the rememberMeDefault helper

@@ -3,29 +3,20 @@ package server
 import (
 	"context"
 	"crypto"
-	"crypto/sha256"
-	"crypto/sha512"
-	"encoding/base64"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"hash"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/go-jose/go-jose/v4"
-	"github.com/google/uuid"
 
-	"github.com/dexidp/dex/connector"
-	"github.com/dexidp/dex/server/internal"
+	conns "github.com/dexidp/dex/server/connectors"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -102,118 +93,6 @@ func (err *redirectedAuthErr) Handler() http.Handler {
 	return http.HandlerFunc(hf)
 }
 
-func tokenErr(w http.ResponseWriter, typ, description string, statusCode int) error {
-	data := struct {
-		Error       string `json:"error"`
-		Description string `json:"error_description,omitempty"`
-	}{typ, description}
-	body, err := json.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("failed to marshal token error response: %v", err)
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
-	w.WriteHeader(statusCode)
-	w.Write(body)
-	return nil
-}
-
-const (
-	errInvalidRequest          = "invalid_request"
-	errUnauthorizedClient      = "unauthorized_client"
-	errAccessDenied            = "access_denied"
-	errUnsupportedResponseType = "unsupported_response_type"
-	errRequestNotSupported     = "request_not_supported"
-	errInvalidScope            = "invalid_scope"
-	errServerError             = "server_error"
-	errTemporarilyUnavailable  = "temporarily_unavailable"
-	errUnsupportedGrantType    = "unsupported_grant_type"
-	errInvalidGrant            = "invalid_grant"
-	errInvalidClient           = "invalid_client"
-	errInactiveToken           = "inactive_token"
-	errLoginRequired           = "login_required"
-	errInteractionRequired     = "interaction_required"
-	errConsentRequired         = "consent_required"
-)
-
-const (
-	scopeOfflineAccess     = "offline_access" // Request a refresh token.
-	scopeOpenID            = "openid"
-	scopeGroups            = "groups"
-	scopeEmail             = "email"
-	scopeProfile           = "profile"
-	scopeFederatedID       = "federated:id"
-	scopeCrossClientPrefix = "audience:server:client_id:"
-)
-
-const (
-	deviceCallbackURI = "/device/callback"
-)
-
-const (
-	redirectURIOOB = "urn:ietf:wg:oauth:2.0:oob"
-)
-
-const (
-	grantTypeAuthorizationCode = "authorization_code"
-	grantTypeRefreshToken      = "refresh_token"
-	grantTypeImplicit          = "implicit"
-	grantTypePassword          = "password"
-	grantTypeDeviceCode        = "urn:ietf:params:oauth:grant-type:device_code"
-	grantTypeTokenExchange     = "urn:ietf:params:oauth:grant-type:token-exchange"
-	grantTypeClientCredentials = "client_credentials"
-)
-
-// ConnectorGrantTypes is the set of grant types that can be restricted per connector.
-var ConnectorGrantTypes = map[string]bool{
-	grantTypeAuthorizationCode: true,
-	grantTypeRefreshToken:      true,
-	grantTypeImplicit:          true,
-	grantTypePassword:          true,
-	grantTypeDeviceCode:        true,
-	grantTypeTokenExchange:     true,
-}
-
-const (
-	// https://www.rfc-editor.org/rfc/rfc8693.html#section-3
-	tokenTypeAccess  = "urn:ietf:params:oauth:token-type:access_token"
-	tokenTypeRefresh = "urn:ietf:params:oauth:token-type:refresh_token"
-	tokenTypeID      = "urn:ietf:params:oauth:token-type:id_token"
-	tokenTypeSAML1   = "urn:ietf:params:oauth:token-type:saml1"
-	tokenTypeSAML2   = "urn:ietf:params:oauth:token-type:saml2"
-	tokenTypeJWT     = "urn:ietf:params:oauth:token-type:jwt"
-)
-
-const (
-	responseTypeCode             = "code"                // "Regular" flow
-	responseTypeToken            = "token"               // Implicit flow for frontend apps.
-	responseTypeIDToken          = "id_token"            // ID Token in url fragment
-	responseTypeCodeToken        = "code token"          // "Regular" flow + Implicit flow
-	responseTypeCodeIDToken      = "code id_token"       // "Regular" flow + ID Token
-	responseTypeIDTokenToken     = "id_token token"      // ID Token + Implicit flow
-	responseTypeCodeIDTokenToken = "code id_token token" // "Regular" flow + ID Token + Implicit flow
-)
-
-const (
-	deviceTokenPending  = "authorization_pending"
-	deviceTokenComplete = "complete"
-	deviceTokenSlowDown = "slow_down"
-	deviceTokenExpired  = "expired_token"
-)
-
-func parseScopes(scopes []string) connector.Scopes {
-	var s connector.Scopes
-	for _, scope := range scopes {
-		switch scope {
-		case scopeOfflineAccess:
-			s.OfflineAccess = true
-		case scopeGroups:
-			s.Groups = true
-		}
-	}
-	return s
-}
-
 // The hash algorithm for the at_hash is determined by the signing
 // algorithm used for the id_token. From the spec:
 //
@@ -222,235 +101,15 @@ func parseScopes(scopes []string) connector.Scopes {
 //	hash the access_token value with SHA-256
 //
 // https://openid.net/specs/openid-connect-core-1_0.html#ImplicitIDToken
-var hashForSigAlg = map[jose.SignatureAlgorithm]func() hash.Hash{
-	jose.RS256: sha256.New,
-	jose.RS384: sha512.New384,
-	jose.RS512: sha512.New,
-	jose.ES256: sha256.New,
-	jose.ES384: sha512.New384,
-	jose.ES512: sha512.New,
-}
-
-// Compute an at_hash from a raw access token and a signature algorithm
-//
-// See: https://openid.net/specs/openid-connect-core-1_0.html#ImplicitIDToken
-func accessTokenHash(alg jose.SignatureAlgorithm, accessToken string) (string, error) {
-	newHash, ok := hashForSigAlg[alg]
-	if !ok {
-		return "", fmt.Errorf("unsupported signature algorithm: %s", alg)
-	}
-
-	hashFunc := newHash()
-	if _, err := io.WriteString(hashFunc, accessToken); err != nil {
-		return "", fmt.Errorf("computing hash: %v", err)
-	}
-	sum := hashFunc.Sum(nil)
-	return base64.RawURLEncoding.EncodeToString(sum[:len(sum)/2]), nil
-}
-
-type audience []string
-
-func (a audience) contains(aud string) bool {
-	for _, e := range a {
-		if aud == e {
-			return true
-		}
-	}
-	return false
-}
-
-func (a audience) MarshalJSON() ([]byte, error) {
-	if len(a) == 1 {
-		return json.Marshal(a[0])
-	}
-	return json.Marshal([]string(a))
-}
-
-type idTokenClaims struct {
-	Issuer           string   `json:"iss"`
-	Subject          string   `json:"sub"`
-	Audience         audience `json:"aud"`
-	Expiry           int64    `json:"exp"`
-	IssuedAt         int64    `json:"iat"`
-	JWTID            string   `json:"jti,omitempty"`
-	AuthorizingParty string   `json:"azp,omitempty"`
-	Nonce            string   `json:"nonce,omitempty"`
-	AuthTime         int64    `json:"auth_time,omitempty"`
-
-	AccessTokenHash string `json:"at_hash,omitempty"`
-	CodeHash        string `json:"c_hash,omitempty"`
-
-	Email         string `json:"email,omitempty"`
-	EmailVerified *bool  `json:"email_verified,omitempty"`
-
-	Groups []string `json:"groups,omitempty"`
-
-	Name              string `json:"name,omitempty"`
-	PreferredUsername string `json:"preferred_username,omitempty"`
-
-	FederatedIDClaims *federatedIDClaims `json:"federated_claims,omitempty"`
-}
-
-type federatedIDClaims struct {
-	ConnectorID string `json:"connector_id,omitempty"`
-	UserID      string `json:"user_id,omitempty"`
-}
-
-func (s *Server) newAccessToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, connID string, authTime time.Time) (accessToken string, expiry time.Time, err error) {
-	return s.newIDToken(ctx, clientID, claims, scopes, nonce, storage.NewID(), "", connID, authTime)
-}
-
-func getClientID(aud audience, azp string) (string, error) {
-	switch len(aud) {
-	case 0:
-		return "", fmt.Errorf("no audience is set, could not find ClientID")
-	case 1:
-		return aud[0], nil
-	default:
-		return azp, nil
-	}
-}
-
-func getAudience(clientID string, scopes []string) audience {
-	var aud audience
-
-	for _, scope := range scopes {
-		if peerID, ok := parseCrossClientScope(scope); ok {
-			aud = append(aud, peerID)
-		}
-	}
-
-	if len(aud) == 0 {
-		// Client didn't ask for cross client audience. Set the current
-		// client as the audience.
-		aud = audience{clientID}
-		// Client asked for cross client audience:
-		// if the current client was not requested explicitly
-	} else if !aud.contains(clientID) {
-		// by default it becomes one of entries in Audience
-		aud = append(aud, clientID)
-	}
-
-	return aud
-}
-
-func genSubject(userID string, connID string) (string, error) {
-	sub := &internal.IDTokenSubject{
-		UserId: userID,
-		ConnId: connID,
-	}
-
-	return internal.Marshal(sub)
-}
-
-func (s *Server) newIDToken(ctx context.Context, clientID string, claims storage.Claims, scopes []string, nonce, accessToken, code, connID string, authTime time.Time) (idToken string, expiry time.Time, err error) {
-	issuedAt := s.now()
-	expiry = issuedAt.Add(s.idTokensValidFor)
-
-	subjectString, err := genSubject(claims.UserID, connID)
-	if err != nil {
-		s.logger.ErrorContext(ctx, "failed to marshal offline session ID", "err", err)
-		return "", expiry, fmt.Errorf("failed to marshal offline session ID: %v", err)
-	}
-
-	tok := idTokenClaims{
-		Issuer:   s.issuerURL.String(),
-		Subject:  subjectString,
-		Nonce:    nonce,
-		Expiry:   expiry.Unix(),
-		IssuedAt: issuedAt.Unix(),
-		JWTID:    uuid.New().String(),
-	}
-
-	// Include auth_time when sessions are enabled and the value is available.
-	if !authTime.IsZero() {
-		tok.AuthTime = authTime.Unix()
-	}
-
-	// Determine signing algorithm from signer
-	signingAlg, err := s.signer.Algorithm(ctx)
-	if err != nil {
-		s.logger.ErrorContext(ctx, "failed to get signing algorithm", "err", err)
-		return "", expiry, fmt.Errorf("failed to get signing algorithm: %v", err)
-	}
-
-	if accessToken != "" {
-		atHash, err := accessTokenHash(signingAlg, accessToken)
-		if err != nil {
-			s.logger.ErrorContext(ctx, "error computing at_hash", "err", err)
-			return "", expiry, fmt.Errorf("error computing at_hash: %v", err)
-		}
-		tok.AccessTokenHash = atHash
-	}
-
-	if code != "" {
-		cHash, err := accessTokenHash(signingAlg, code)
-		if err != nil {
-			s.logger.ErrorContext(ctx, "error computing c_hash", "err", err)
-			return "", expiry, fmt.Errorf("error computing c_hash: #{err}")
-		}
-		tok.CodeHash = cHash
-	}
-
-	for _, scope := range scopes {
-		switch {
-		case scope == scopeEmail:
-			tok.Email = claims.Email
-			tok.EmailVerified = &claims.EmailVerified
-		case scope == scopeGroups:
-			tok.Groups = claims.Groups
-		case scope == scopeProfile:
-			tok.Name = claims.Username
-			tok.PreferredUsername = claims.PreferredUsername
-		case scope == scopeFederatedID:
-			tok.FederatedIDClaims = &federatedIDClaims{
-				ConnectorID: connID,
-				UserID:      claims.UserID,
-			}
-		default:
-			peerID, ok := parseCrossClientScope(scope)
-			if !ok {
-				// Ignore unknown scopes. These are already validated during the
-				// initial auth request.
-				continue
-			}
-			isTrusted, err := s.validateCrossClientTrust(ctx, clientID, peerID)
-			if err != nil {
-				return "", expiry, err
-			}
-			if !isTrusted {
-				// TODO(ericchiang): propagate this error to the client.
-				return "", expiry, fmt.Errorf("peer (%s) does not trust client", peerID)
-			}
-		}
-	}
-
-	tok.Audience = getAudience(clientID, scopes)
-	if len(tok.Audience) > 1 {
-		// The current client becomes the authorizing party.
-		tok.AuthorizingParty = clientID
-	}
-
-	payload, err := json.Marshal(tok)
-	if err != nil {
-		return "", expiry, fmt.Errorf("could not serialize claims: %v", err)
-	}
-
-	if idToken, err = s.signer.Sign(ctx, payload); err != nil {
-		return "", expiry, fmt.Errorf("failed to sign payload: %v", err)
-	}
-	return idToken, expiry, nil
-}
-
 // validateIDTokenHint verifies the signature and issuer of an id_token_hint.
 // Expired tokens are accepted per OIDC Core 1.0 §3.1.2.1.
 // Returns the verified token so callers can extract Subject, Audience, etc.
 func (s *Server) validateIDTokenHint(ctx context.Context, hint string) (*oidc.IDToken, error) {
-	verifier := oidc.NewVerifier(s.issuerURL.String(), &signerKeySet{s.signer}, &oidc.Config{
+	verifier := oidc.NewVerifier(s.issuerURL.String(), &signer.KeySet{Signer: s.signer}, &oidc.Config{
 		SkipExpiryCheck: true,
 		// SkipClientIDCheck is set because the hint may originate from any client that
 		// Dex issued a token to — the caller does not know the expected audience in advance.
-		// The signature verification via signerKeySet already guarantees the token was
+		// The signature verification via signer.KeySet already guarantees the token was
 		// issued by this server, which is sufficient for a hint.
 		// Dex does the client id check later in the scope of the session validation.
 		SkipClientIDCheck: true,
@@ -465,7 +124,7 @@ func sessionMatchesHint(session *storage.AuthSession, hintSubject string) bool {
 	if session == nil {
 		return false
 	}
-	encoded, err := genSubject(session.UserID, session.ConnectorID)
+	encoded, err := tokens.GenSubject(session.UserID, session.ConnectorID)
 	if err != nil {
 		return false
 	}
@@ -480,10 +139,9 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		return nil, "", newDisplayedErr(http.StatusBadRequest, "Failed to parse request.")
 	}
 	q := r.Form
-	redirectURI, err := url.QueryUnescape(q.Get("redirect_uri"))
-	if err != nil {
-		return nil, "", newDisplayedErr(http.StatusBadRequest, "No redirect_uri provided.")
-	}
+	// r.ParseForm already URL-decodes query values once; decoding redirect_uri a
+	// second time created a normalization differential with the token endpoint.
+	redirectURI := q.Get("redirect_uri")
 
 	clientID := q.Get("client_id")
 	state := q.Get("state")
@@ -497,7 +155,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	codeChallengeMethod := q.Get("code_challenge_method")
 
 	if codeChallengeMethod == "" {
-		codeChallengeMethod = codeChallengeMethodPlain
+		codeChallengeMethod = oauth2.PKCEMethodPlain
 	}
 
 	client, err := s.storage.GetClient(ctx, clientID)
@@ -514,8 +172,8 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		s.logger.ErrorContext(r.Context(), "unregistered redirect_uri", "redirect_uri", redirectURI, "client_id", clientID)
 		return nil, "", newDisplayedErr(http.StatusBadRequest, "Unregistered redirect_uri.")
 	}
-	if redirectURI == deviceCallbackURI && client.Public {
-		redirectURI = s.absPath(deviceCallbackURI)
+	if redirectURI == oauth2.DeviceCallbackURI && client.Public {
+		redirectURI = s.absPath(oauth2.DeviceCallbackURI)
 	}
 
 	// From here on out, we want to redirect back to the client with an error.
@@ -527,30 +185,30 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		connectors, err := s.storage.ListConnectors(ctx)
 		if err != nil {
 			s.logger.ErrorContext(r.Context(), "failed to list connectors", "err", err)
-			return nil, "", newRedirectedErr(errServerError, "Unable to retrieve connectors")
+			return nil, "", newRedirectedErr(oauth2.ServerError, "Unable to retrieve connectors")
 		}
 		if !validateConnectorID(connectors, connectorID) {
-			return nil, "", newRedirectedErr(errInvalidRequest, "Invalid ConnectorID")
+			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Invalid ConnectorID")
 		}
-		if !isConnectorAllowed(client.AllowedConnectors, connectorID) {
-			return nil, "", newRedirectedErr(errInvalidRequest, "Connector not allowed for this client")
+		if !conns.ConnectorAllowed(client.AllowedConnectors, connectorID) {
+			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Connector not allowed for this client")
 		}
 	}
 
 	// dex doesn't support request parameter and must return request_not_supported error
 	// https://openid.net/specs/openid-connect-core-1_0.html#6.1
 	if q.Get("request") != "" {
-		return nil, "", newRedirectedErr(errRequestNotSupported, "Server does not support request parameter.")
+		return nil, "", newRedirectedErr(oauth2.RequestNotSupported, "Server does not support request parameter.")
 	}
 
 	if codeChallenge != "" && !slices.Contains(s.pkce.CodeChallengeMethodsSupported, codeChallengeMethod) {
-		return nil, "", newRedirectedErr(errInvalidRequest, "Unsupported PKCE challenge method (%q).", codeChallengeMethod)
+		return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Unsupported PKCE challenge method (%q).", codeChallengeMethod)
 	}
 
 	// Enforce PKCE if configured.
 	// https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-12#section-4.1.1
 	if s.pkce.Enforce && codeChallenge == "" {
-		return nil, "", newRedirectedErr(errInvalidRequest, "PKCE is required. The code_challenge parameter must be provided.")
+		return nil, "", newRedirectedErr(oauth2.InvalidRequest, "PKCE is required. The code_challenge parameter must be provided.")
 	}
 
 	var (
@@ -560,19 +218,19 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	hasOpenIDScope := false
 	for _, scope := range scopes {
 		switch scope {
-		case scopeOpenID:
+		case tokens.ScopeOpenID:
 			hasOpenIDScope = true
-		case scopeOfflineAccess, scopeEmail, scopeProfile, scopeGroups, scopeFederatedID:
+		case tokens.ScopeOfflineAccess, tokens.ScopeEmail, tokens.ScopeProfile, tokens.ScopeGroups, tokens.ScopeFederatedID:
 		default:
-			peerID, ok := parseCrossClientScope(scope)
+			peerID, ok := tokens.ParseCrossClientScope(scope)
 			if !ok {
 				unrecognized = append(unrecognized, scope)
 				continue
 			}
 
-			isTrusted, err := s.validateCrossClientTrust(r.Context(), clientID, peerID)
+			isTrusted, err := tokens.CrossClientTrusted(r.Context(), s.storage, clientID, peerID)
 			if err != nil {
-				return nil, "", newRedirectedErr(errServerError, "Internal server error.")
+				return nil, "", newRedirectedErr(oauth2.ServerError, "Internal server error.")
 			}
 			if !isTrusted {
 				invalidScopes = append(invalidScopes, scope)
@@ -580,13 +238,13 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		}
 	}
 	if !hasOpenIDScope {
-		return nil, "", newRedirectedErr(errInvalidScope, `Missing required scope(s) ["openid"].`)
+		return nil, "", newRedirectedErr(oauth2.InvalidScope, `Missing required scope(s) ["openid"].`)
 	}
 	if len(unrecognized) > 0 {
-		return nil, "", newRedirectedErr(errInvalidScope, "Unrecognized scope(s) %q", unrecognized)
+		return nil, "", newRedirectedErr(oauth2.InvalidScope, "Unrecognized scope(s) %q", unrecognized)
 	}
 	if len(invalidScopes) > 0 {
-		return nil, "", newRedirectedErr(errInvalidScope, "Client can't request scope(s) %q", invalidScopes)
+		return nil, "", newRedirectedErr(oauth2.InvalidScope, "Client can't request scope(s) %q", invalidScopes)
 	}
 
 	var rt struct {
@@ -597,30 +255,30 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 
 	for _, responseType := range responseTypes {
 		switch responseType {
-		case responseTypeCode:
+		case oauth2.ResponseTypeCode:
 			rt.code = true
-		case responseTypeIDToken:
+		case oauth2.ResponseTypeIDToken:
 			rt.idToken = true
-		case responseTypeToken:
+		case oauth2.ResponseTypeToken:
 			rt.token = true
 		default:
-			return nil, "", newRedirectedErr(errInvalidRequest, "Invalid response type %q", responseType)
+			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Invalid response type %q", responseType)
 		}
 
 		if !s.supportedResponseTypes[responseType] {
-			return nil, "", newRedirectedErr(errUnsupportedResponseType, "Unsupported response type %q", responseType)
+			return nil, "", newRedirectedErr(oauth2.UnsupportedResponseType, "Unsupported response type %q", responseType)
 		}
 	}
 
 	if len(responseTypes) == 0 {
-		return nil, "", newRedirectedErr(errInvalidRequest, "No response_type provided")
+		return nil, "", newRedirectedErr(oauth2.InvalidRequest, "No response_type provided")
 	}
 
 	if rt.token && !rt.code && !rt.idToken {
 		// "token" can't be provided by its own.
 		//
 		// https://openid.net/specs/openid-connect-core-1_0.html#Authentication
-		return nil, "", newRedirectedErr(errInvalidRequest, "Response type 'token' must be provided with type 'id_token' and/or 'code'")
+		return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Response type 'token' must be provided with type 'id_token' and/or 'code'")
 	}
 	if !rt.code {
 		// Either "id_token token" or "id_token" has been provided which implies the
@@ -628,18 +286,18 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 		//
 		// https://openid.net/specs/openid-connect-core-1_0.html#ImplicitAuthRequest
 		if nonce == "" {
-			return nil, "", newRedirectedErr(errInvalidRequest, "Response type 'token' requires a 'nonce' value.")
+			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Response type 'token' requires a 'nonce' value.")
 		}
 	}
 	if rt.token {
-		if redirectURI == redirectURIOOB {
-			return nil, "", newRedirectedErr(errInvalidRequest, "Cannot use response type 'token' with redirect_uri '%s'.", redirectURIOOB)
+		if redirectURI == oauth2.RedirectURIOOB {
+			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Cannot use response type 'token' with redirect_uri '%s'.", oauth2.RedirectURIOOB)
 		}
 	}
 
-	prompt, err := ParsePrompt(q.Get("prompt"))
+	prompt, err := oauth2.ParsePrompt(q.Get("prompt"))
 	if err != nil {
-		return nil, "", newRedirectedErr(errInvalidRequest, "Invalid prompt parameter: %v", err)
+		return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Invalid prompt parameter: %v", err)
 	}
 
 	// Parse max_age: -1 means not specified.
@@ -647,7 +305,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	if maxAgeStr := q.Get("max_age"); maxAgeStr != "" {
 		v, err := strconv.Atoi(maxAgeStr)
 		if err != nil || v < 0 {
-			return nil, "", newRedirectedErr(errInvalidRequest, "Invalid max_age value %q", maxAgeStr)
+			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Invalid max_age value %q", maxAgeStr)
 		}
 		maxAge = v
 	}
@@ -660,7 +318,7 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	if hint := q.Get("id_token_hint"); hint != "" {
 		idToken, err := s.validateIDTokenHint(ctx, hint)
 		if err != nil {
-			return nil, "", newRedirectedErr(errInvalidRequest, "Invalid id_token_hint.")
+			return nil, "", newRedirectedErr(oauth2.InvalidRequest, "Invalid id_token_hint.")
 		}
 		idTokenHintSubject = idToken.Subject
 	}
@@ -685,33 +343,6 @@ func (s *Server) parseAuthorizationRequest(r *http.Request) (*storage.AuthReques
 	}, idTokenHintSubject, nil
 }
 
-func parseCrossClientScope(scope string) (peerID string, ok bool) {
-	if ok = strings.HasPrefix(scope, scopeCrossClientPrefix); ok {
-		peerID = scope[len(scopeCrossClientPrefix):]
-	}
-	return
-}
-
-func (s *Server) validateCrossClientTrust(ctx context.Context, clientID, peerID string) (trusted bool, err error) {
-	if peerID == clientID {
-		return true, nil
-	}
-	peer, err := s.storage.GetClient(ctx, peerID)
-	if err != nil {
-		if err != storage.ErrNotFound {
-			s.logger.ErrorContext(ctx, "failed to get client", "err", err)
-			return false, err
-		}
-		return false, nil
-	}
-	for _, id := range peer.TrustedPeers {
-		if id == clientID {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
 func validateRedirectURI(client storage.Client, redirectURI string) bool {
 	// Allow named RedirectURIs for both public and non-public clients.
 	// This is required make PKCE-enabled web apps work, when configured as public clients.
@@ -726,7 +357,7 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 		return false
 	}
 
-	if redirectURI == redirectURIOOB || redirectURI == deviceCallbackURI {
+	if redirectURI == oauth2.RedirectURIOOB || redirectURI == oauth2.DeviceCallbackURI {
 		return true
 	}
 
@@ -762,37 +393,4 @@ func validateConnectorID(connectors []storage.Connector, connectorID string) boo
 		}
 	}
 	return false
-}
-
-// signerKeySet implements the oidc.KeySet interface backed by the Dex signer
-type signerKeySet struct {
-	signer signer.Signer
-}
-
-func (s *signerKeySet) VerifySignature(ctx context.Context, jwt string) (payload []byte, err error) {
-	jws, err := jose.ParseSigned(jwt, []jose.SignatureAlgorithm{jose.RS256, jose.RS384, jose.RS512, jose.ES256, jose.ES384, jose.ES512})
-	if err != nil {
-		return nil, err
-	}
-
-	keyID := ""
-	for _, sig := range jws.Signatures {
-		keyID = sig.Header.KeyID
-		break
-	}
-
-	keys, err := s.signer.ValidationKeys(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, key := range keys {
-		if keyID == "" || key.KeyID == keyID {
-			if payload, err := jws.Verify(key); err == nil {
-				return payload, nil
-			}
-		}
-	}
-
-	return nil, errors.New("failed to verify id token signature")
 }
