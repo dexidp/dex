@@ -256,16 +256,20 @@ type Server struct {
 // routeMux adapts the server's route-registration closures to router.Mux so
 // domain handlers can mount their own routes.
 type routeMux struct {
-	handle       func(string, http.Handler)
-	handleFunc   func(string, http.HandlerFunc)
-	handleCORS   func(string, http.HandlerFunc)
+	handle       func(string, http.Handler, ...string)
+	handleFunc   func(string, http.HandlerFunc, ...string)
+	handleCORS   func(string, http.HandlerFunc, ...string)
 	handlePrefix func(string, http.Handler)
 }
 
-func (m routeMux) Handle(p string, h http.Handler)         { m.handle(p, h) }
-func (m routeMux) HandleFunc(p string, h http.HandlerFunc) { m.handleFunc(p, h) }
-func (m routeMux) HandleCORS(p string, h http.HandlerFunc) { m.handleCORS(p, h) }
-func (m routeMux) HandlePrefix(p string, h http.Handler)   { m.handlePrefix(p, h) }
+func (m routeMux) Handle(p string, h http.Handler, methods ...string) { m.handle(p, h, methods...) }
+func (m routeMux) HandleFunc(p string, h http.HandlerFunc, methods ...string) {
+	m.handleFunc(p, h, methods...)
+}
+func (m routeMux) HandleCORS(p string, h http.HandlerFunc, methods ...string) {
+	m.handleCORS(p, h, methods...)
+}
+func (m routeMux) HandlePrefix(p string, h http.Handler) { m.handlePrefix(p, h) }
 
 // newDiscoveryHandler builds a discovery handler from the server's settings. It
 // is shared by the mounted handler and ConstructDiscovery.
@@ -581,28 +585,46 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	}
 
 	r := mux.NewRouter().SkipClean(true).UseEncodedPath()
-	handle := func(p string, h http.Handler) {
-		r.Handle(path.Join(issuerURL.Path, p), handlerWithHeaders(p, h))
+	handle := func(p string, h http.Handler, methods ...string) {
+		route := r.Handle(path.Join(issuerURL.Path, p), handlerWithHeaders(p, h))
+		if len(methods) > 0 {
+			route.Methods(methods...)
+		}
 	}
-	handleFunc := func(p string, h http.HandlerFunc) {
-		handle(p, h)
+	handleFunc := func(p string, h http.HandlerFunc, methods ...string) {
+		handle(p, h, methods...)
 	}
 	handlePrefix := func(p string, h http.Handler) {
 		prefix := path.Join(issuerURL.Path, p)
 		r.PathPrefix(prefix).Handler(http.StripPrefix(prefix, h))
 	}
-	handleWithCORS := func(p string, h http.HandlerFunc) {
+	handleWithCORS := func(p string, h http.HandlerFunc, methods ...string) {
 		var handler http.Handler = h
+		routeMethods := methods
 		if len(c.AllowedOrigins) > 0 {
 			cors := handlers.CORS(
 				handlers.AllowedOrigins(c.AllowedOrigins),
 				handlers.AllowedHeaders(c.AllowedHeaders),
 			)
 			handler = cors(handler)
+			// CORS preflight requests use OPTIONS; allow it through to the CORS
+			// middleware so it can answer them instead of the 405 handler.
+			if len(methods) > 0 {
+				routeMethods = append(append([]string{}, methods...), http.MethodOptions)
+			}
 		}
-		r.Handle(path.Join(issuerURL.Path, p), handlerWithHeaders(p, handler))
+		route := r.Handle(path.Join(issuerURL.Path, p), handlerWithHeaders(p, handler))
+		if len(routeMethods) > 0 {
+			route.Methods(routeMethods...)
+		}
 	}
 	r.NotFoundHandler = http.NotFoundHandler()
+	// A route whose path matches but whose method does not yields a uniform 405,
+	// so handlers no longer guard the method themselves. It runs through
+	// handlerWithHeaders so configured response headers still apply.
+	r.MethodNotAllowedHandler = handlerWithHeaders("method_not_allowed", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.renderError(r, w, http.StatusMethodNotAllowed, ErrMsgMethodNotAllowed)
+	}))
 
 	// Self-contained domains mount their own routes through the router.Mux
 	// abstraction, so this list is the only place they are wired in.

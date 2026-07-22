@@ -56,10 +56,10 @@ type Handler struct {
 
 // Mount registers the device authorization routes.
 func (h *Handler) Mount(m router.Mux) {
-	m.HandleFunc("/device", h.handleDeviceExchange)
-	m.HandleFunc("/device/auth/verify_code", h.verifyUserCode)
-	m.HandleFunc("/device/code", h.handleDeviceCode)
-	m.HandleFunc(oauth2.DeviceCallbackURI, h.handleDeviceCallback)
+	m.HandleFunc("/device", h.handleDeviceExchange, http.MethodGet)
+	m.HandleFunc("/device/auth/verify_code", h.verifyUserCode, http.MethodPost)
+	m.HandleFunc("/device/code", h.handleDeviceCode, http.MethodPost)
+	m.HandleFunc(oauth2.DeviceCallbackURI, h.handleDeviceCallback, http.MethodGet)
 }
 
 // deviceFlowError is a failed step in the flow. A non-empty OAuth2 code makes the
@@ -99,11 +99,6 @@ func (h *Handler) getDeviceVerificationURI() string {
 
 // handleDeviceExchange serves the /device user-code entry page.
 func (h *Handler) handleDeviceExchange(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		h.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist.")
-		return
-	}
-
 	// If "user_code" is set, pre-populate the user code field. If "invalid" is
 	// set, show a message that the code was invalid or expired.
 	userCode := r.URL.Query().Get("user_code")
@@ -214,12 +209,6 @@ func (h *Handler) createDeviceAuthorization(ctx context.Context, req deviceCodeR
 }
 
 func (h *Handler) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		h.renderError(r, w, http.StatusBadRequest, "Invalid device code request type")
-		h.writeError(w, oauth2.InvalidRequest, "", http.StatusBadRequest)
-		return
-	}
-
 	req, ferr := h.parseDeviceCodeRequest(r)
 	if ferr != nil {
 		h.writeFlowError(r, w, ferr)
@@ -244,10 +233,6 @@ func writeDeviceCodeResponse(w http.ResponseWriter, resp *DeviceCodeResponse) {
 }
 
 func (h *Handler) verifyUserCode(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		h.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist.")
-		return
-	}
 	ctx := r.Context()
 
 	if err := r.ParseForm(); err != nil {
@@ -293,12 +278,6 @@ func (h *Handler) verifyUserCode(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		h.Logger.ErrorContext(r.Context(), "unsupported method in device callback", "method", r.Method)
-		h.renderError(r, w, http.StatusBadRequest, "Method not allowed.")
-		return
-	}
-
 	clientName, ferr := h.completeDeviceAuthorization(w, r)
 	if ferr != nil {
 		h.writeFlowError(r, w, ferr)
