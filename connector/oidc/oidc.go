@@ -676,9 +676,12 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 			vs, found = claims[groupsKey].([]interface{})
 		}
 
-		// Fallback when claims[groupsKey] is a string instead of an array of strings.
+		// Fallback when claims[groupsKey] is a string instead of an array of
+		// strings. Fold it into the array path so groupsFilter (and the other
+		// per-group handling below) applies uniformly.
 		if g, b := claims[groupsKey].(string); b {
-			groups = []string{g}
+			vs = []interface{}{g}
+			found = true
 		}
 
 		if found {
