@@ -162,7 +162,7 @@ type Handler struct {
 
 // Mount registers the introspection route.
 func (h *Handler) Mount(m router.Mux) {
-	m.HandleCORS("/token/introspect", h.handle)
+	m.HandleCORS("/token/introspect", h.handle, http.MethodPost)
 }
 
 func (h *Handler) guessTokenType(ctx context.Context, token string) (TokenTypeEnum, error) {
@@ -187,9 +187,7 @@ func (h *Handler) guessTokenType(ctx context.Context, token string) (TokenTypeEn
 }
 
 func (h *Handler) getTokenFromRequest(r *http.Request) (string, TokenTypeEnum, error) {
-	if r.Method != "POST" {
-		return "", 0, newIntrospectBadRequestError(fmt.Sprintf("HTTP method is \"%s\", expected \"POST\".", r.Method))
-	} else if err := r.ParseForm(); err != nil {
+	if err := r.ParseForm(); err != nil {
 		return "", 0, newIntrospectBadRequestError("Unable to parse HTTP body, make sure to send a properly formatted form request body.")
 	} else if len(r.PostForm) == 0 {
 		return "", 0, newIntrospectBadRequestError("The POST body can not be empty.")

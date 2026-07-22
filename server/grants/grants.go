@@ -196,7 +196,7 @@ func (e *Endpoint) register(supported []string, gs ...Grant) {
 
 // Mount registers the token route.
 func (e *Endpoint) Mount(m router.Mux) {
-	m.HandleCORS("/token", e.handleToken)
+	m.HandleCORS("/token", e.handleToken, http.MethodPost)
 }
 
 // handleToken serves /token: it validates the request shape and dispatches to the
@@ -204,10 +204,6 @@ func (e *Endpoint) Mount(m router.Mux) {
 func (e *Endpoint) handleToken(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
-	if r.Method != http.MethodPost {
-		e.writeError(ctx, w, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "method not allowed", Status: http.StatusBadRequest})
-		return
-	}
 	if err := r.ParseForm(); err != nil {
 		e.logger.ErrorContext(ctx, "could not parse request body", "err", err)
 		e.writeError(ctx, w, &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusBadRequest})

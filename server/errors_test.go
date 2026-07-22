@@ -204,8 +204,9 @@ func TestDeviceCallbackMethodError(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	bodyStr := string(body)
 
-	// Should not expose the method name in error
-	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	// The router now rejects the wrong method with the shared 405 handler, which
+	// must not expose the method name in the error.
+	require.Equal(t, http.StatusMethodNotAllowed, resp.StatusCode)
 	require.NotContains(t, bodyStr, "PUT")
 	require.NotContains(t, bodyStr, "method not implemented")
 }

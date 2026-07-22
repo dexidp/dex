@@ -40,12 +40,15 @@ func TestHandleDeviceCode(t *testing.T) {
 			expectedContentType:  "application/json",
 		},
 		{
-			testName:             "Invalid request Type (GET)",
+			// The router restricts /device/code to POST, so a GET is rejected
+			// with the shared 405 handler before reaching the handler. That
+			// handler renders the HTML error page, which sets no content type.
+			testName:             "Method not allowed (GET)",
 			clientID:             "test",
 			requestType:          "GET",
 			scopes:               []string{"openid", "profile", "email"},
-			expectedResponseCode: http.StatusBadRequest,
-			expectedContentType:  "application/json",
+			expectedResponseCode: http.StatusMethodNotAllowed,
+			expectedContentType:  "",
 		},
 		{
 			testName:             "New Code with valid PKCE",

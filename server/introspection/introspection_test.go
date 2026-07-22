@@ -102,14 +102,9 @@ func TestGetTokenFromRequestSuccess(t *testing.T) {
 func TestGetTokenFromRequestFailure(t *testing.T) {
 	h := testHandler(t)
 
-	_, _, err := h.getTokenFromRequest(httptest.NewRequest(http.MethodGet, "https://test.tech/token/introspect", nil))
-	require.ErrorIs(t, err, &introspectionError{
-		typ:  oauth2.InvalidRequest,
-		desc: "HTTP method is \"GET\", expected \"POST\".",
-		code: http.StatusBadRequest,
-	})
-
-	_, _, err = h.getTokenFromRequest(httptest.NewRequest(http.MethodPost, "https://test.tech/token/introspect", nil))
+	// The method is now enforced at the router level (POST only), so
+	// getTokenFromRequest no longer checks it; only body validation remains.
+	_, _, err := h.getTokenFromRequest(httptest.NewRequest(http.MethodPost, "https://test.tech/token/introspect", nil))
 	require.ErrorIs(t, err, &introspectionError{
 		typ:  oauth2.InvalidRequest,
 		desc: "The POST body can not be empty.",
