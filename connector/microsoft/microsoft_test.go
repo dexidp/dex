@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"sync/atomic"
 	"testing"
 
 	"github.com/dexidp/dex/connector"
@@ -187,13 +188,13 @@ func TestUserNotInRequiredGroupFromGraphAPI(t *testing.T) {
 // newGetByIdsBatchServer starts a test server simulating the Graph API's
 // /directoryObjects/getByIds endpoint, which rejects requests with more than
 // 1000 IDs — the same error Graph returns in production.
-func newGetByIdsBatchServer(batchCalls *int) *httptest.Server {
+func newGetByIdsBatchServer(batchCalls *atomic.Int32) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1.0/directoryObjects/getByIds" {
 			http.NotFound(w, r)
 			return
 		}
-		*batchCalls++
+		batchCalls.Add(1)
 
 		var body struct {
 			IDs   []string `json:"ids"`
@@ -229,7 +230,7 @@ func TestGetGroupNamesBatchLimit(t *testing.T) {
 		ids[i] = fmt.Sprintf("group-id-%d", i)
 	}
 
-	batchCalls := 0
+	var batchCalls atomic.Int32
 	s := newGetByIdsBatchServer(&batchCalls)
 	defer s.Close()
 
@@ -242,8 +243,8 @@ func TestGetGroupNamesBatchLimit(t *testing.T) {
 		t.Errorf("got %d names, want %d", len(names), totalGroups)
 	}
 	// ceil(1500 / 1000) = 2 batches
-	if batchCalls != 2 {
-		t.Errorf("expected 2 batch calls, got %d", batchCalls)
+	if batchCalls.Load() != 2 {
+		t.Errorf("expected 2 batch calls, got %d", batchCalls.Load())
 	}
 }
 
@@ -259,7 +260,7 @@ func TestGetGroupNamesSingleRequestByDefault(t *testing.T) {
 		ids[i] = fmt.Sprintf("group-id-%d", i)
 	}
 
-	batchCalls := 0
+	var batchCalls atomic.Int32
 	s := newGetByIdsBatchServer(&batchCalls)
 	defer s.Close()
 
@@ -268,8 +269,8 @@ func TestGetGroupNamesSingleRequestByDefault(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for >1000 groups when BatchGroupLookups is disabled, got nil")
 	}
-	if batchCalls != 1 {
-		t.Errorf("expected exactly 1 request, got %d", batchCalls)
+	if batchCalls.Load() != 1 {
+		t.Errorf("expected exactly 1 request, got %d", batchCalls.Load())
 	}
 }
 
