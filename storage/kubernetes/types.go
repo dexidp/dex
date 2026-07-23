@@ -803,6 +803,8 @@ type Connector struct {
 	Config []byte `json:"config,omitempty"`
 	// GrantTypes is a list of grant types that this connector is allowed to be used with.
 	GrantTypes []string `json:"grantTypes,omitempty"`
+	// Expiry holds per-connector overrides for token lifetimes.
+	Expiry *storage.ConnectorExpiry `json:"expiry,omitempty"`
 }
 
 func (cli *client) fromStorageConnector(c storage.Connector) Connector {
@@ -820,6 +822,7 @@ func (cli *client) fromStorageConnector(c storage.Connector) Connector {
 		Name:       c.Name,
 		Config:     c.Config,
 		GrantTypes: c.GrantTypes,
+		Expiry:     c.Expiry,
 	}
 }
 
@@ -831,6 +834,7 @@ func toStorageConnector(c Connector) storage.Connector {
 		ResourceVersion: c.ObjectMeta.ResourceVersion,
 		Config:          c.Config,
 		GrantTypes:      c.GrantTypes,
+		Expiry:          c.Expiry,
 	}
 }
 

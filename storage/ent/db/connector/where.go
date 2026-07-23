@@ -327,6 +327,16 @@ func GrantTypesNotNil() predicate.Connector {
 	return predicate.Connector(sql.FieldNotNull(FieldGrantTypes))
 }
 
+// ExpiryIsNil applies the IsNil predicate on the "expiry" field.
+func ExpiryIsNil() predicate.Connector {
+	return predicate.Connector(sql.FieldIsNull(FieldExpiry))
+}
+
+// ExpiryNotNil applies the NotNil predicate on the "expiry" field.
+func ExpiryNotNil() predicate.Connector {
+	return predicate.Connector(sql.FieldNotNull(FieldExpiry))
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.Connector) predicate.Connector {
 	return predicate.Connector(sql.AndPredicates(predicates...))

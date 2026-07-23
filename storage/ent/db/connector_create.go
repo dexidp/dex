@@ -9,6 +9,7 @@ import (
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/db/connector"
 )
 
@@ -46,6 +47,12 @@ func (_c *ConnectorCreate) SetConfig(v []byte) *ConnectorCreate {
 // SetGrantTypes sets the "grant_types" field.
 func (_c *ConnectorCreate) SetGrantTypes(v []string) *ConnectorCreate {
 	_c.mutation.SetGrantTypes(v)
+	return _c
+}
+
+// SetExpiry sets the "expiry" field.
+func (_c *ConnectorCreate) SetExpiry(v *storage.ConnectorExpiry) *ConnectorCreate {
+	_c.mutation.SetExpiry(v)
 	return _c
 }
 
@@ -170,6 +177,10 @@ func (_c *ConnectorCreate) createSpec() (*Connector, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.GrantTypes(); ok {
 		_spec.SetField(connector.FieldGrantTypes, field.TypeJSON, value)
 		_node.GrantTypes = value
+	}
+	if value, ok := _c.mutation.Expiry(); ok {
+		_spec.SetField(connector.FieldExpiry, field.TypeJSON, value)
+		_node.Expiry = value
 	}
 	return _node, _spec
 }

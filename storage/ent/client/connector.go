@@ -8,15 +8,17 @@ import (
 
 // CreateConnector saves a connector into the database.
 func (d *Database) CreateConnector(ctx context.Context, connector storage.Connector) error {
-	_, err := d.client.Connector.Create().
+	create := d.client.Connector.Create().
 		SetID(connector.ID).
 		SetName(connector.Name).
 		SetType(connector.Type).
 		SetResourceVersion(connector.ResourceVersion).
 		SetConfig(connector.Config).
-		SetGrantTypes(connector.GrantTypes).
-		Save(ctx)
-	if err != nil {
+		SetGrantTypes(connector.GrantTypes)
+	if connector.Expiry != nil {
+		create = create.SetExpiry(connector.Expiry)
+	}
+	if _, err := create.Save(ctx); err != nil {
 		return convertDBError("create connector: %w", err)
 	}
 	return nil
@@ -71,14 +73,18 @@ func (d *Database) UpdateConnector(ctx context.Context, id string, updater func(
 		return rollback(tx, "update connector updating: %w", err)
 	}
 
-	_, err = tx.Connector.UpdateOneID(newConnector.ID).
+	update := tx.Connector.UpdateOneID(newConnector.ID).
 		SetName(newConnector.Name).
 		SetType(newConnector.Type).
 		SetResourceVersion(newConnector.ResourceVersion).
 		SetConfig(newConnector.Config).
-		SetGrantTypes(newConnector.GrantTypes).
-		Save(ctx)
-	if err != nil {
+		SetGrantTypes(newConnector.GrantTypes)
+	if newConnector.Expiry == nil {
+		update = update.ClearExpiry()
+	} else {
+		update = update.SetExpiry(newConnector.Expiry)
+	}
+	if _, err = update.Save(ctx); err != nil {
 		return rollback(tx, "update connector uploading: %w", err)
 	}
 

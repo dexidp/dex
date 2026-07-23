@@ -11,6 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
+	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/db/connector"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
 )
@@ -91,6 +92,18 @@ func (_u *ConnectorUpdate) AppendGrantTypes(v []string) *ConnectorUpdate {
 // ClearGrantTypes clears the value of the "grant_types" field.
 func (_u *ConnectorUpdate) ClearGrantTypes() *ConnectorUpdate {
 	_u.mutation.ClearGrantTypes()
+	return _u
+}
+
+// SetExpiry sets the "expiry" field.
+func (_u *ConnectorUpdate) SetExpiry(v *storage.ConnectorExpiry) *ConnectorUpdate {
+	_u.mutation.SetExpiry(v)
+	return _u
+}
+
+// ClearExpiry clears the value of the "expiry" field.
+func (_u *ConnectorUpdate) ClearExpiry() *ConnectorUpdate {
+	_u.mutation.ClearExpiry()
 	return _u
 }
 
@@ -176,6 +189,12 @@ func (_u *ConnectorUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if _u.mutation.GrantTypesCleared() {
 		_spec.ClearField(connector.FieldGrantTypes, field.TypeJSON)
 	}
+	if value, ok := _u.mutation.Expiry(); ok {
+		_spec.SetField(connector.FieldExpiry, field.TypeJSON, value)
+	}
+	if _u.mutation.ExpiryCleared() {
+		_spec.ClearField(connector.FieldExpiry, field.TypeJSON)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{connector.Label}
@@ -259,6 +278,18 @@ func (_u *ConnectorUpdateOne) AppendGrantTypes(v []string) *ConnectorUpdateOne {
 // ClearGrantTypes clears the value of the "grant_types" field.
 func (_u *ConnectorUpdateOne) ClearGrantTypes() *ConnectorUpdateOne {
 	_u.mutation.ClearGrantTypes()
+	return _u
+}
+
+// SetExpiry sets the "expiry" field.
+func (_u *ConnectorUpdateOne) SetExpiry(v *storage.ConnectorExpiry) *ConnectorUpdateOne {
+	_u.mutation.SetExpiry(v)
+	return _u
+}
+
+// ClearExpiry clears the value of the "expiry" field.
+func (_u *ConnectorUpdateOne) ClearExpiry() *ConnectorUpdateOne {
+	_u.mutation.ClearExpiry()
 	return _u
 }
 
@@ -373,6 +404,12 @@ func (_u *ConnectorUpdateOne) sqlSave(ctx context.Context) (_node *Connector, er
 	}
 	if _u.mutation.GrantTypesCleared() {
 		_spec.ClearField(connector.FieldGrantTypes, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.Expiry(); ok {
+		_spec.SetField(connector.FieldExpiry, field.TypeJSON, value)
+	}
+	if _u.mutation.ExpiryCleared() {
+		_spec.ClearField(connector.FieldExpiry, field.TypeJSON)
 	}
 	_node = &Connector{config: _u.config}
 	_spec.Assign = _node.assignValues

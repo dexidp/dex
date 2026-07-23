@@ -22,11 +22,11 @@ var (
 
 // LookupRefreshToken validates a refresh token against storage: it exists,
 // belongs to clientID when one is given, has not been claimed twice, and has not
-// expired per strategy. It returns one of the Err* sentinels for a rejected
-// token, or a wrapped storage error for infrastructure failures. Both the
-// refresh grant and token introspection use it, so the validation lives in one
-// place.
-func LookupRefreshToken(ctx context.Context, s storage.Storage, strategy *RefreshStrategy, logger *slog.Logger, clientID *string, token *internal.RefreshToken) (*storage.RefreshToken, error) {
+// expired per the expiry policy of the connector it was issued through. It
+// returns one of the Err* sentinels for a rejected token, or a wrapped storage
+// error for infrastructure failures. Both the refresh grant and token
+// introspection use it, so the validation lives in one place.
+func LookupRefreshToken(ctx context.Context, s storage.Storage, expiry *Expiry, logger *slog.Logger, clientID *string, token *internal.RefreshToken) (*storage.RefreshToken, error) {
 	refresh, err := s.GetRefresh(ctx, token.RefreshId)
 	if err != nil {
 		if err != storage.ErrNotFound {
@@ -35,6 +35,7 @@ func LookupRefreshToken(ctx context.Context, s storage.Storage, strategy *Refres
 		}
 		return nil, ErrRefreshTokenInvalid
 	}
+	strategy := expiry.RefreshStrategy(refresh.ConnectorID)
 
 	// Only check the client when one was provided (introspection does not).
 	// https://datatracker.ietf.org/doc/html/rfc6749#section-5.2
