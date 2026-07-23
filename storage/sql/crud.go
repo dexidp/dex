@@ -1243,11 +1243,11 @@ func scanConnector(s scanner) (c storage.Connector, err error) {
 		}
 	}
 	if len(expiry) > 0 {
-		var e storage.ConnectorExpiry
-		if err := json.Unmarshal(expiry, &e); err != nil {
+		// Unmarshal into the pointer so the JSON literal null maps to a nil
+		// override, matching SQL NULL and the other storage backends.
+		if err := json.Unmarshal(expiry, &c.Expiry); err != nil {
 			return c, fmt.Errorf("unmarshal connector expiry: %v", err)
 		}
-		c.Expiry = &e
 	}
 	return c, nil
 }
