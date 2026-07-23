@@ -1,12 +1,83 @@
 package mfa
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
+
+func TestWebAuthnHandlersMissingHMAC(t *testing.T) {
+	provider, err := NewWebAuthnProvider("Test", "", nil, "", "", "http://127.0.0.1", nil)
+	require.NoError(t, err)
+
+	_, router, _ := newTestHandler(t, map[string]Provider{"webauthn-1": provider}, []string{"webauthn-1"})
+
+	endpoints := []string{
+		"/mfa/webauthn/register/begin",
+		"/mfa/webauthn/register/finish",
+		"/mfa/webauthn/login/begin",
+		"/mfa/webauthn/login/finish",
+	}
+
+	for _, ep := range endpoints {
+		t.Run(ep, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, ep, nil))
+			// Should fail with unauthorized (no hmac).
+			require.Equal(t, http.StatusUnauthorized, rr.Code)
+		})
+	}
+}
+
+func TestWebAuthnVerifyPageRender(t *testing.T) {
+	provider, err := NewWebAuthnProvider("Test", "", nil, "", "", "http://127.0.0.1", nil)
+	require.NoError(t, err)
+
+	_, router, store := newTestHandler(t, map[string]Provider{"webauthn-1": provider}, []string{"webauthn-1"})
+
+	ctx := t.Context()
+	hmacKey := randomHMACKey(t)
+	authReq := storage.AuthRequest{
+		ID:          "test-webauthn-verify",
+		ClientID:    "example-app",
+		Expiry:      time.Now().Add(time.Hour),
+		HMACKey:     hmacKey,
+		LoggedIn:    true,
+		Claims:      storage.Claims{UserID: "user-1", Email: "user@example.com"},
+		ConnectorID: "mock",
+	}
+	require.NoError(t, store.CreateAuthRequest(ctx, authReq))
+
+	// Create user identity without WebAuthn credentials (enrollment mode).
+	require.NoError(t, store.CreateUserIdentity(ctx, storage.UserIdentity{
+		UserID:              "user-1",
+		ConnectorID:         "mock",
+		Claims:              authReq.Claims,
+		Consents:            map[string][]string{},
+		MFASecrets:          map[string]*storage.MFASecret{},
+		WebAuthnCredentials: map[string][]storage.WebAuthnCredential{},
+		CreatedAt:           time.Now(),
+		LastLogin:           time.Now(),
+	}))
+
+	hmacVal := internal.ComputeHMAC(hmacKey, authReq.ID, "webauthn-1")
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet,
+		"/mfa/webauthn?req="+authReq.ID+"&hmac="+hmacVal+"&authenticator=webauthn-1", nil)
+	router.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	body := rr.Body.String()
+	require.Contains(t, body, "Register security key")
+	require.Contains(t, body, "startWebAuthn")
+}
 
 func TestBuildWebAuthnUserDropsCloneWarning(t *testing.T) {
 	identity := storage.UserIdentity{

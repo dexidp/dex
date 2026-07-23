@@ -56,9 +56,6 @@ func (m testMux) HandlePrefix(p string, h http.Handler) {
 type testServer struct {
 	*Handler
 	mux http.Handler
-	// mfa is the step handler the server mounts separately; a few tests drive it
-	// directly. The dispatcher holds no such reference in production.
-	mfa *mfa.Handler
 }
 
 func (ts *testServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -158,7 +155,7 @@ func newTestHandler(t *testing.T, updateConfig func(c *testFlowConfig)) (*httpte
 		}))
 	}
 
-	return srv, &testServer{Handler: h, mux: router, mfa: mfaManager}
+	return srv, &testServer{Handler: h, mux: router}
 }
 
 // testKey is a throwaway RSA key for the mock signer; the flow's unit tests
