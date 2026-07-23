@@ -1,4 +1,4 @@
-package server
+package authflow
 
 // Safe error messages for user-facing responses.
 // These messages are intentionally generic to avoid leaking internal details.

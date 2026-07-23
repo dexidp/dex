@@ -12,6 +12,7 @@ import (
 
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
+	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -91,7 +92,7 @@ func TestHandleAuthorizationConnectorGrantTypeFiltering(t *testing.T) {
 			rr := httptest.NewRecorder()
 			reqURL := fmt.Sprintf("%s/auth?response_type=%s&client_id=test&redirect_uri=http://example.com/callback&scope=openid", httpServer.URL, tc.responseType)
 			req := httptest.NewRequest(http.MethodGet, reqURL, nil)
-			s.handleAuthorization(rr, req)
+			s.ServeHTTP(rr, req)
 
 			require.Equal(t, tc.wantCode, rr.Code)
 			if tc.wantRedirectContains != "" {
@@ -107,7 +108,7 @@ func TestHandleAuthorizationConnectorGrantTypeFiltering(t *testing.T) {
 func TestHandleAuthorizationInvalidRequestWithSessions(t *testing.T) {
 	ctx := t.Context()
 	httpServer, s := newTestServerMultipleConnectors(t, func(c *Config) {
-		c.SessionConfig = &SessionConfig{
+		c.SessionConfig = &session.Config{
 			CookieName:        "dex_session",
 			AbsoluteLifetime:  24 * time.Hour,
 			ValidIfNotUsedFor: 1 * time.Hour,
@@ -123,7 +124,7 @@ func TestHandleAuthorizationInvalidRequestWithSessions(t *testing.T) {
 	rr := httptest.NewRecorder()
 	reqURL := fmt.Sprintf("%s/auth?response_type=code&client_id=test&redirect_uri=http://evil.com/callback&scope=openid", httpServer.URL)
 	req := httptest.NewRequest(http.MethodGet, reqURL, nil)
-	s.handleAuthorization(rr, req)
+	s.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusBadRequest, rr.Code)
 }
@@ -186,7 +187,7 @@ func TestHandleAuthorizationWithNoMatchingConnectors(t *testing.T) {
 func TestHandleAuthorizationSessionSkipsConnectorSelection(t *testing.T) {
 	ctx := t.Context()
 
-	sessionConfig := &SessionConfig{
+	sessionConfig := &session.Config{
 		CookieName:        "dex_session",
 		AbsoluteLifetime:  24 * time.Hour,
 		ValidIfNotUsedFor: 1 * time.Hour,
@@ -348,11 +349,11 @@ func TestHandleAuthorizationWithoutAllowedConnectors(t *testing.T) {
 func TestBackLinkIncludesPromptSelectAccount(t *testing.T) {
 	ctx := t.Context()
 
-	httpServer, s := newTestServerMultipleConnectors(t, nil)
+	httpServer, s := newTestServerMultipleConnectors(t, func(c *Config) {
+		// select_account prompt only works with the sessions feature flag enabled.
+		c.SessionConfig = &session.Config{}
+	})
 	defer httpServer.Close()
-
-	// select_account prompt only works with the sessions feature flag enabled.
-	s.sessionConfig = &SessionConfig{}
 
 	// Add a password connector so handleConnectorLogin passes the backlink via redirect.
 	pwConn := storage.Connector{
