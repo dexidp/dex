@@ -48,12 +48,12 @@ func (h *Handler) handleConnectorCallback(w http.ResponseWriter, r *http.Request
 
 	connID, err := url.PathUnescape(mux.Vars(r)["connector"])
 	if err != nil {
-		h.Logger.ErrorContext(r.Context(), "failed to get connector", "connector_id", authReq.ConnectorID, "err", err)
-		h.renderError(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
+		h.Logger.ErrorContext(r.Context(), "failed to parse connector", "err", err)
+		h.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist.")
 		return
 	} else if connID != "" && connID != authReq.ConnectorID {
 		h.Logger.ErrorContext(r.Context(), "connector mismatch: callback triggered for different connector than authentication start", "authentication_start_connector_id", authReq.ConnectorID, "connector_id", connID)
-		h.renderError(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
+		h.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist.")
 		return
 	}
 

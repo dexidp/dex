@@ -43,7 +43,7 @@ func (h *Handler) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	} else if connID != "" && connID != authReq.ConnectorID {
 		h.Logger.ErrorContext(r.Context(), "connector mismatch: password login triggered for different connector from authentication start", "start_connector_id", authReq.ConnectorID, "password_connector_id", connID)
-		h.renderError(r, w, http.StatusInternalServerError, "Requested resource does not exist.")
+		h.renderError(r, w, http.StatusBadRequest, "Requested resource does not exist.")
 		return
 	}
 

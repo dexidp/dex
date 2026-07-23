@@ -129,5 +129,3 @@ func (h *Handler) finishSessionLogin(ctx context.Context, r *http.Request, w htt
 	http.Redirect(w, r, h.buildContinueURL(updated), http.StatusSeeOther)
 	return true
 }
-
-// updateSessionTokenIssuedAt updates the session's LastTokenIssuedAt for the given client.
