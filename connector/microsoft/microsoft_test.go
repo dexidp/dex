@@ -239,8 +239,12 @@ func TestGetGroupNamesBatchLimit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("getGroupNames returned error: %v", err)
 	}
-	if len(names) != totalGroups {
-		t.Errorf("got %d names, want %d", len(names), totalGroups)
+	expected := make([]string, totalGroups)
+	for i, id := range ids {
+		expected[i] = "name-for-" + id
+	}
+	if !reflect.DeepEqual(names, expected) {
+		t.Errorf("got %d names %v, want %d names matching input IDs", len(names), names, totalGroups)
 	}
 	// ceil(1500 / 1000) = 2 batches
 	if batchCalls.Load() != 2 {
