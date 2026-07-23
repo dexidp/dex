@@ -85,6 +85,16 @@ func TestBuildExpiryCeilings(t *testing.T) {
 	}
 }
 
+func TestBuildExpiryCeilingsRejectsNonPositiveIDTokens(t *testing.T) {
+	// A ceiling of 0 means "no ceiling", so a non-positive lifetime must be
+	// rejected instead of silently disabling per-connector validation.
+	for _, d := range []time.Duration{0, -time.Hour} {
+		_, err := buildExpiryCeilings(d, RefreshToken{})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "must be positive")
+	}
+}
+
 func TestToStorageConnectorCarriesExpiry(t *testing.T) {
 	disable := true
 	sc, err := ToStorageConnector(Connector{

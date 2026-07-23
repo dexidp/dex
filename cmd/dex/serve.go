@@ -855,6 +855,12 @@ func parseSessionConfig(s *Sessions) (*session.Config, error) {
 // to validate per-connector overrides. The server uses these for both static
 // YAML connectors at startup and dynamic API writes at runtime.
 func buildExpiryCeilings(globalIDTokens time.Duration, globalRefresh RefreshToken) (tokens.ExpiryCeilings, error) {
+	// A ceiling of 0 means "no ceiling", so a non-positive lifetime would
+	// silently disable per-connector idTokens validation. The server would
+	// fall back to 24h anyway, so such a value never means what it says.
+	if globalIDTokens <= 0 {
+		return tokens.ExpiryCeilings{}, fmt.Errorf("expiry.idTokens must be positive, got %s", globalIDTokens)
+	}
 	c := tokens.ExpiryCeilings{
 		IDTokens:                globalIDTokens,
 		RefreshRotationDisabled: globalRefresh.DisableRotation,
