@@ -48,6 +48,7 @@ type Expiry struct {
 	refreshStrategy  *RefreshStrategy
 	ceilings         ExpiryCeilings
 	refreshDefaults  RefreshTokenDefaults
+	now              func() time.Time
 
 	mu        sync.Mutex
 	overrides map[string]ConnectorExpiryOverride
@@ -55,13 +56,16 @@ type Expiry struct {
 
 // NewExpiry returns a registry that resolves to the given global values until
 // per-connector overrides are installed. ceilings bound how loose an override
-// may be; defaults seed override fields left unset.
-func NewExpiry(idTokensValidFor time.Duration, refresh *RefreshStrategy, ceilings ExpiryCeilings, defaults RefreshTokenDefaults) *Expiry {
+// may be; defaults seed override fields left unset. now is the clock installed
+// into override refresh strategies, defaulting to time.Now when nil; pass the
+// same clock the global strategy uses so both age tokens identically.
+func NewExpiry(idTokensValidFor time.Duration, refresh *RefreshStrategy, ceilings ExpiryCeilings, defaults RefreshTokenDefaults, now func() time.Time) *Expiry {
 	return &Expiry{
 		idTokensValidFor: idTokensValidFor,
 		refreshStrategy:  refresh,
 		ceilings:         ceilings,
 		refreshDefaults:  defaults,
+		now:              now,
 		overrides:        map[string]ConnectorExpiryOverride{},
 	}
 }
@@ -105,7 +109,7 @@ func (e *Expiry) Upsert(connID string, ce *storage.ConnectorExpiry) error {
 	if err := validateConnectorExpiry(ce, e.ceilings); err != nil {
 		return err
 	}
-	override, err := buildConnectorExpiryOverride(ce, e.refreshDefaults)
+	override, err := buildConnectorExpiryOverride(ce, e.refreshDefaults, e.now)
 	if err != nil {
 		return err
 	}
@@ -184,8 +188,8 @@ func checkCeiling(field, value string, ceiling time.Duration, zeroDisables bool)
 // buildConnectorExpiryOverride parses a (pre-validated) storage.ConnectorExpiry
 // into a ConnectorExpiryOverride. Unset string fields inherit from the global
 // refresh defaults so the resulting RefreshStrategy carries the correct
-// effective values.
-func buildConnectorExpiryOverride(e *storage.ConnectorExpiry, defaults RefreshTokenDefaults) (ConnectorExpiryOverride, error) {
+// effective values, and now becomes the strategy's clock.
+func buildConnectorExpiryOverride(e *storage.ConnectorExpiry, defaults RefreshTokenDefaults, now func() time.Time) (ConnectorExpiryOverride, error) {
 	var override ConnectorExpiryOverride
 	if e == nil {
 		return override, nil
@@ -217,6 +221,7 @@ func buildConnectorExpiryOverride(e *storage.ConnectorExpiry, defaults RefreshTo
 		defaultTo(rt.ValidIfNotUsedFor, defaults.ValidIfNotUsedFor),
 		defaultTo(rt.AbsoluteLifetime, defaults.AbsoluteLifetime),
 		defaultTo(rt.ReuseInterval, defaults.ReuseInterval),
+		now,
 	)
 	if err != nil {
 		return override, fmt.Errorf("refresh token policy: %v", err)

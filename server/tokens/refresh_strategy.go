@@ -34,8 +34,9 @@ func NewRefreshStrategy(rotate bool, absoluteLifetime, validIfNotUsedFor, reuseI
 }
 
 // NewRefreshTokenPolicy parses the refresh-token configuration into a rotation
-// strategy — the config-reading adapter over NewRefreshStrategy.
-func NewRefreshTokenPolicy(logger *slog.Logger, rotation bool, validIfNotUsedFor, absoluteLifetime, reuseInterval string) (*RefreshStrategy, error) {
+// strategy — the config-reading adapter over NewRefreshStrategy. now defaults
+// to time.Now when nil.
+func NewRefreshTokenPolicy(logger *slog.Logger, rotation bool, validIfNotUsedFor, absoluteLifetime, reuseInterval string, now func() time.Time) (*RefreshStrategy, error) {
 	var validDur, absoluteDur, reuseDur time.Duration
 	var err error
 
@@ -65,7 +66,7 @@ func NewRefreshTokenPolicy(logger *slog.Logger, rotation bool, validIfNotUsedFor
 
 	rotate := !rotation
 	logger.Info("config refresh tokens rotation", "enabled", rotate)
-	return NewRefreshStrategy(rotate, absoluteDur, validDur, reuseDur, time.Now), nil
+	return NewRefreshStrategy(rotate, absoluteDur, validDur, reuseDur, now), nil
 }
 
 // RotationEnabled reports whether refresh tokens are rotated on use.

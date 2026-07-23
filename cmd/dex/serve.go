@@ -417,6 +417,7 @@ func runServe(options serveOptions) error {
 		c.Expiry.RefreshTokens.ValidIfNotUsedFor,
 		c.Expiry.RefreshTokens.AbsoluteLifetime,
 		c.Expiry.RefreshTokens.ReuseInterval,
+		nil, // time.Now
 	)
 	if err != nil {
 		return fmt.Errorf("invalid refresh token expiration policy config: %v", err)
