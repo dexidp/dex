@@ -500,7 +500,7 @@ func TestCreateConnectorExpiryHierarchy(t *testing.T) {
 	logger := newLogger(t)
 	s := memory.New(logger)
 
-	expiry := tokens.NewExpiry(time.Hour, nil, tokens.ExpiryCeilings{IDTokens: time.Hour}, tokens.RefreshTokenDefaults{})
+	expiry := tokens.NewExpiry(time.Hour, nil, tokens.ExpiryCeilings{IDTokens: time.Hour}, tokens.RefreshTokenDefaults{}, nil)
 	client := newAPIWithExpiry(t, s, logger, expiry)
 	defer client.Close()
 

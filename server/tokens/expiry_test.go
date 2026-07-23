@@ -118,7 +118,7 @@ func TestBuildConnectorExpiryOverride(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := buildConnectorExpiryOverride(tc.expiry, tc.defaults)
+			got, err := buildConnectorExpiryOverride(tc.expiry, tc.defaults, nil)
 			require.NoError(t, err)
 			require.Equal(t, tc.wantIDTokens, got.IDTokensValidFor)
 			if !tc.wantStrategy {
@@ -132,7 +132,7 @@ func TestBuildConnectorExpiryOverride(t *testing.T) {
 }
 
 func TestExpiryIDTokensValidFor(t *testing.T) {
-	e := NewExpiry(time.Hour, nil, ExpiryCeilings{}, RefreshTokenDefaults{})
+	e := NewExpiry(time.Hour, nil, ExpiryCeilings{}, RefreshTokenDefaults{}, nil)
 	require.NoError(t, e.Upsert("shortlived", &storage.ConnectorExpiry{IDTokens: "5m"}))
 	require.NoError(t, e.Upsert("refreshonly", &storage.ConnectorExpiry{
 		RefreshTokens: &storage.ConnectorRefreshExpiry{AbsoluteLifetime: "1h"},
@@ -149,7 +149,7 @@ func TestExpiryIDTokensValidFor(t *testing.T) {
 func TestExpiryRefreshStrategy(t *testing.T) {
 	global := NewRefreshStrategy(true, 0, 0, 0, nil)
 
-	e := NewExpiry(time.Hour, global, ExpiryCeilings{}, RefreshTokenDefaults{})
+	e := NewExpiry(time.Hour, global, ExpiryCeilings{}, RefreshTokenDefaults{}, nil)
 	require.NoError(t, e.Upsert("custom", &storage.ConnectorExpiry{
 		RefreshTokens: &storage.ConnectorRefreshExpiry{AbsoluteLifetime: "1h"},
 	}))
@@ -165,7 +165,7 @@ func TestExpiryRefreshStrategy(t *testing.T) {
 }
 
 func TestExpiryUpsert(t *testing.T) {
-	e := NewExpiry(time.Hour, nil, ExpiryCeilings{IDTokens: time.Hour}, RefreshTokenDefaults{})
+	e := NewExpiry(time.Hour, nil, ExpiryCeilings{IDTokens: time.Hour}, RefreshTokenDefaults{}, nil)
 
 	// Accept a tighter override.
 	require.NoError(t, e.Upsert("c1", &storage.ConnectorExpiry{IDTokens: "5m"}))
@@ -180,4 +180,21 @@ func TestExpiryUpsert(t *testing.T) {
 	// Clearing the override via nil reverts to the global.
 	require.NoError(t, e.Upsert("c1", nil))
 	require.Equal(t, time.Hour, e.IDTokensValidFor("c1"))
+}
+
+func TestExpiryOverrideUsesInjectedClock(t *testing.T) {
+	// t0 is far in the future so a strategy running on wall time instead of
+	// the injected clock gives the opposite answer.
+	t0 := time.Date(2050, 1, 1, 0, 0, 0, 0, time.UTC)
+	now := func() time.Time { return t0.Add(2 * time.Minute) }
+
+	e := NewExpiry(time.Hour, nil, ExpiryCeilings{}, RefreshTokenDefaults{}, now)
+	require.NoError(t, e.Upsert("c", &storage.ConnectorExpiry{
+		RefreshTokens: &storage.ConnectorRefreshExpiry{ValidIfNotUsedFor: "1m"},
+	}))
+
+	s := e.RefreshStrategy("c")
+	assert.True(t, s.ExpiredBecauseUnused(t0),
+		"override strategy must age tokens on the injected clock")
+	assert.False(t, s.ExpiredBecauseUnused(t0.Add(90*time.Second)))
 }

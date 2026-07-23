@@ -416,7 +416,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		mfaProviders:           c.MFAProviders,
 		defaultMFAChain:        c.DefaultMFAChain,
 	}
-	s.expiry = tokens.NewExpiry(s.idTokensValidFor, s.refreshTokenPolicy, c.ExpiryCeilings, c.GlobalRefreshDefaults)
+	s.expiry = tokens.NewExpiry(s.idTokensValidFor, s.refreshTokenPolicy, c.ExpiryCeilings, c.GlobalRefreshDefaults, s.now)
 	s.issuer = tokens.NewIssuer(s.storage, s.signer, s.issuerURL, s.expiry, s.now, s.logger)
 	s.connectors = connectors.NewCache(s.storage, s.resolveConnector)
 	// sessions is shared infrastructure (session cookie, SSO, auth-session CRUD)
