@@ -196,10 +196,11 @@ web:
 # connectors: []
 #
 # Per-connector expiry overrides. Any field left unset inherits the top-level
-# `expiry` configuration. Overrides must be at least as strict as the global
-# value: a duration that exceeds its global counterpart, or `disableRotation:
-# true` while rotation is enabled globally, is rejected at config load. Global
-# values left unset impose no ceiling on the corresponding override.
+# `expiry` configuration. Overrides must be at least as strict as the effective
+# global value: a duration that exceeds its global counterpart, or
+# `disableRotation: true` while rotation is enabled globally, is rejected at
+# config load. `idTokens` is always capped by the effective global value (24h
+# when unset); refresh-token fields left unset globally impose no ceiling.
 # connectors:
 # - type: oidc
 #   id: partner
