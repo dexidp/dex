@@ -20,8 +20,9 @@ const apiVersion = 4
 
 // NewAPI returns a server which implements the gRPC API interface. It takes only
 // the narrow dependencies it needs — the connector cache to invalidate on
-// connector CRUD, and a discovery-document builder — rather than the whole Server.
-func NewAPI(s storage.Storage, logger *slog.Logger, version string, conns *connectors.Cache, discovery func(context.Context) discovery.Document) api.DexServer {
+// connector CRUD, a discovery-document builder, and the expiry registry to keep
+// per-connector overrides live — rather than the whole Server.
+func NewAPI(s storage.Storage, logger *slog.Logger, version string, conns *connectors.Cache, discovery func(context.Context) discovery.Document, expiry *tokens.Expiry) api.DexServer {
 	apiLogger := logger.With("component", "api")
 	return dexAPI{
 		s:          s,
@@ -29,6 +30,7 @@ func NewAPI(s storage.Storage, logger *slog.Logger, version string, conns *conne
 		version:    version,
 		connectors: conns,
 		discovery:  discovery,
+		expiry:     expiry,
 		refresh:    tokens.NewRefreshStore(s, time.Now, apiLogger),
 	}
 }
@@ -41,6 +43,7 @@ type dexAPI struct {
 	version    string
 	connectors *connectors.Cache
 	discovery  func(context.Context) discovery.Document
+	expiry     *tokens.Expiry
 	refresh    *tokens.RefreshStore
 }
 

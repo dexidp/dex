@@ -194,6 +194,26 @@ web:
 # For LDAP nested group resolution, set groupSearch.userMatchers[].recursionGroupAttr
 # in the connector config. See: https://dexidp.io/docs/connectors/ldap/
 # connectors: []
+#
+# Per-connector expiry overrides. Any field left unset inherits the top-level
+# `expiry` configuration. Overrides must be at least as strict as the global
+# value: a duration that exceeds its global counterpart, or `disableRotation:
+# true` while rotation is enabled globally, is rejected at config load. Global
+# values left unset impose no ceiling on the corresponding override.
+# connectors:
+# - type: oidc
+#   id: partner
+#   name: Partner SSO
+#   expiry:
+#     idTokens: "15m"
+#     refreshTokens:
+#       absoluteLifetime: "24h"
+#       validIfNotUsedFor: "1h"
+#   config:
+#     issuer: https://accounts.partner.example
+#     clientID: ...
+#     clientSecret: ...
+#     redirectURI: https://dex.example/callback
 
 # Enable the password database.
 #

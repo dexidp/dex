@@ -109,6 +109,7 @@ func toStorageConnector(c *db.Connector) storage.Connector {
 		Name:       c.Name,
 		Config:     c.Config,
 		GrantTypes: c.GrantTypes,
+		Expiry:     c.Expiry,
 	}
 }
 
