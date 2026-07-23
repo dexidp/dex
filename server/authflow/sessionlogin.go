@@ -13,8 +13,10 @@ func (h *Handler) trySessionLogin(ctx context.Context, r *http.Request, w http.R
 	return h.trySessionLoginWithSession(ctx, r, w, authReq, session)
 }
 
-// clientSharesSessionWith checks if sourceClient shares its session with targetClientID.
-// SSO sharing is unidirectional: source sharing with target does NOT mean target shares with source.
+// trySessionLoginWithSession completes the login from an existing session: a
+// direct session for the client, or, failing that, an SSO session shared by
+// another client. SSO sharing is unidirectional — a source sharing with a target
+// does not mean the target shares back. Returns false when no session applies.
 func (h *Handler) trySessionLoginWithSession(ctx context.Context, r *http.Request, w http.ResponseWriter, authReq *storage.AuthRequest, session *storage.AuthSession) bool {
 	if session == nil {
 		return false

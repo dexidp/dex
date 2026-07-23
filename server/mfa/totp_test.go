@@ -45,7 +45,3 @@ func TestValidateTOTPCode(t *testing.T) {
 	require.True(t, ok)
 	require.Greater(t, nextCounter, counter)
 }
-
-// TestBuildWebAuthnUserDropsCloneWarning verifies the stored CloneWarning flag
-// is not fed back into the credential, so a credential that once tripped clone
-// detection is not permanently locked out (go-webauthn never clears the flag).

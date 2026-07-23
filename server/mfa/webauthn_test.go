@@ -28,9 +28,9 @@ func TestBuildWebAuthnUserDropsCloneWarning(t *testing.T) {
 	require.False(t, creds[0].Authenticator.CloneWarning, "stored CloneWarning must not be loaded back")
 }
 
-// TestFinalizeLoginBlockedAccount verifies that login finalization is refused
-// while the user identity's BlockedUntil is in the future, and proceeds once it
-// has elapsed.
+// TestNewWebAuthnProvider verifies provider construction: the relying-party ID
+// and origin are derived from the issuer URL, and invalid configurations are
+// rejected.
 func TestNewWebAuthnProvider(t *testing.T) {
 	tests := []struct {
 		name        string

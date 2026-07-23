@@ -1,21 +1,20 @@
-// Package authflow implements dex's interactive browser-facing authorization
+// Package authflow implements dex's interactive, browser-facing authorization
 // flow: the /auth authorization endpoint, connector and password login, the
-// session (SSO) shortcut, MFA (TOTP and WebAuthn), the consent/approval screen,
-// and RP-initiated logout.
+// session (SSO) shortcut, and the connector callback.
 //
-// The flow is a state machine over a storage.AuthRequest. Every endpoint does
-// its step and then hands control to advance (nextstep.go) — the single place
-// that reads nextAuthStep and dispatches: redirect to the next MFA factor or the
-// consent screen, or issue the code. Handlers never pick the next hop or build
-// its URL themselves.
+// The flow is a state machine over a storage.AuthRequest. /auth is the
+// dispatcher (dispatch.go): it parses the request, starts login, and on each
+// return decides the next step from persisted state — hand off to MFA, to the
+// consent screen, or issue the response (response.go). Steps never route to one
+// another; each returns to /auth carrying an HMAC verifier that proves the
+// transition ("continue" after login or a factor, "approved" after consent).
 //
-//	/auth               parse the request (request.go); pick a connector or reuse a session
-//	/auth/{c}, .../login connector or password login -> finalizeLogin -> advance
-//	/callback           connector callback -> finalizeLogin -> advance
-//	/mfa/*              verify a factor, then back to /approval
-//	/approval           consent, then advance -> issue the response (response.go)
+//	/auth                parse the request; pick a connector, reuse a session, or dispatch the next step
+//	/auth/{c}, .../login connector or password login -> finalizeLogin -> /auth
+//	/callback            connector callback -> finalizeLogin -> /auth
 //
-// The leaf domains live in sub-packages: session (cookie, SSO, auth-session
-// CRUD), mfa (authenticator chain, TOTP/WebAuthn), and web (error rendering and
-// issuer URLs).
+// The MFA, consent and logout steps live in sibling packages (server/mfa,
+// server/consent, server/logout); they mount their own routes (/mfa, /approval,
+// /logout), and the dispatcher sends users there and back. Shared session state
+// lives in server/session (cookie, SSO, auth-session CRUD).
 package authflow

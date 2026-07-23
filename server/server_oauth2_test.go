@@ -188,7 +188,7 @@ func TestNewIDTokenUsesStoredAlgorithmUntilNextRotation(t *testing.T) {
 		idTokensValidFor: time.Hour,
 	}
 
-	s.issuer = tokens.NewIssuer(s.storage, s.signer, s.issuerURL, s.idTokensValidFor, s.now, s.logger)
+	s.issuer = tokens.NewIssuer(store, s.signer, s.issuerURL, s.idTokensValidFor, s.now, s.logger)
 
 	accessToken := "test-access-token"
 	code := "test-auth-code"
@@ -275,7 +275,7 @@ func TestNewIDTokenContainsJTI(t *testing.T) {
 		idTokensValidFor: time.Hour,
 	}
 
-	s.issuer = tokens.NewIssuer(s.storage, s.signer, s.issuerURL, s.idTokensValidFor, s.now, s.logger)
+	s.issuer = tokens.NewIssuer(store, s.signer, s.issuerURL, s.idTokensValidFor, s.now, s.logger)
 
 	keys, err := sig.ValidationKeys(ctx)
 	require.NoError(t, err)

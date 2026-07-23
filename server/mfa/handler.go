@@ -24,7 +24,8 @@ type Provider interface {
 	EnabledForConnectorType(connectorType string) bool
 }
 
-// TOTPProvider implements TOTP-based multi-factor authentication.
+// mfaRequestContext carries the state a factor endpoint resolves once from the
+// request (the auth request, the user identity, the authenticator being run).
 type mfaRequestContext struct {
 	authReq         storage.AuthRequest
 	identity        storage.UserIdentity

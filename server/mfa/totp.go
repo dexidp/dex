@@ -263,7 +263,3 @@ func generateTOTPQRCode(keyURL string) (string, error) {
 
 	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
 }
-
-// ChainForClient returns the MFA chain for a client filtered by connector type,
-// falling back to the server's defaultMFAChain if the client has none.
-// Returns nil if no MFA is configured/applicable.
