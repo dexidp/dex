@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
@@ -182,13 +183,13 @@ func TestNewIDTokenUsesStoredAlgorithmUntilNextRotation(t *testing.T) {
 
 	s := &Server{
 		signer:           sig,
-		issuerURL:        *issuerURL,
+		issuerURL:        oauth2.IssuerURL{URL: *issuerURL},
 		logger:           logger,
 		now:              func() time.Time { return now },
 		idTokensValidFor: time.Hour,
 	}
 
-	s.issuer = tokens.NewIssuer(store, s.signer, s.issuerURL, s.idTokensValidFor, s.now, s.logger)
+	s.issuer = tokens.NewIssuer(store, s.signer, s.issuerURL.URL, s.idTokensValidFor, s.now, s.logger)
 
 	accessToken := "test-access-token"
 	code := "test-auth-code"
@@ -269,13 +270,13 @@ func TestNewIDTokenContainsJTI(t *testing.T) {
 
 	s := &Server{
 		signer:           sig,
-		issuerURL:        *issuerURL,
+		issuerURL:        oauth2.IssuerURL{URL: *issuerURL},
 		logger:           logger,
 		now:              func() time.Time { return now },
 		idTokensValidFor: time.Hour,
 	}
 
-	s.issuer = tokens.NewIssuer(store, s.signer, s.issuerURL, s.idTokensValidFor, s.now, s.logger)
+	s.issuer = tokens.NewIssuer(store, s.signer, s.issuerURL.URL, s.idTokensValidFor, s.now, s.logger)
 
 	keys, err := sig.ValidationKeys(ctx)
 	require.NoError(t, err)

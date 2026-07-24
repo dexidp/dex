@@ -1652,7 +1652,7 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 				// Add the Clients to the test server
 				client := storage.Client{
 					ID:           clientID,
-					RedirectURIs: []string{s.absPath(oauth2.DeviceCallbackURI)},
+					RedirectURIs: []string{s.issuerURL.AbsPath(oauth2.DeviceCallbackURI)},
 					Public:       true,
 				}
 				if err := s.storage.CreateClient(ctx, client); err != nil {
@@ -1763,7 +1763,7 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 					ClientSecret: client.Secret,
 					Endpoint:     p.Endpoint(),
 					Scopes:       requestedScopes,
-					RedirectURL:  s.absURL(oauth2.DeviceCallbackURI),
+					RedirectURL:  s.issuerURL.AbsURL(oauth2.DeviceCallbackURI),
 				}
 				if len(tc.scopes) != 0 {
 					oauth2Config.Scopes = tc.scopes
@@ -1832,7 +1832,7 @@ func TestServerSupportedGrants(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			_, srv := newTestServer(t, tc.config)
-			require.Equal(t, tc.resGrants, srv.supportedGrantTypes)
+			require.Equal(t, tc.resGrants, srv.discovery.GrantTypes)
 		})
 	}
 }

@@ -215,7 +215,7 @@ func (h *Handler) parseAuthorizationRequest(r *http.Request) (*storage.AuthReque
 		return nil, "", newDisplayedErr(http.StatusBadRequest, "Unregistered redirect_uri.")
 	}
 	if redirectURI == oauth2.DeviceCallbackURI && client.Public {
-		redirectURI = h.absPath(oauth2.DeviceCallbackURI)
+		redirectURI = h.IssuerURL.AbsPath(oauth2.DeviceCallbackURI)
 	}
 
 	// From here on out, we want to redirect back to the client with an error.

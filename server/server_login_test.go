@@ -98,7 +98,7 @@ func TestFinalizeLoginCreatesUserIdentity(t *testing.T) {
 		Config:          []byte(`{"username": "foo", "password": "password"}`),
 	}
 	require.NoError(t, s.storage.CreateConnector(ctx, sc))
-	_, err := s.OpenConnector(sc)
+	_, err := s.connectors.Open(sc)
 	require.NoError(t, err)
 
 	authReq := storage.AuthRequest{
@@ -148,7 +148,7 @@ func TestFinalizeLoginUpdatesUserIdentity(t *testing.T) {
 		Config:          []byte(`{"username": "foo", "password": "password"}`),
 	}
 	require.NoError(t, s.storage.CreateConnector(ctx, sc))
-	_, err := s.OpenConnector(sc)
+	_, err := s.connectors.Open(sc)
 	require.NoError(t, err)
 
 	// Pre-create UserIdentity with old data
@@ -211,7 +211,7 @@ func TestFinalizeLoginSkipsUserIdentityWhenDisabled(t *testing.T) {
 		Config:          []byte(`{"username": "foo", "password": "password"}`),
 	}
 	require.NoError(t, s.storage.CreateConnector(ctx, sc))
-	_, err := s.OpenConnector(sc)
+	_, err := s.connectors.Open(sc)
 	require.NoError(t, err)
 
 	authReq := storage.AuthRequest{
@@ -354,7 +354,7 @@ func TestHandlePasswordLoginWithSkipApproval(t *testing.T) {
 			if err := s.storage.CreateConnector(ctx, sc); err != nil {
 				t.Fatalf("create connector: %v", err)
 			}
-			if _, err := s.OpenConnector(sc); err != nil {
+			if _, err := s.connectors.Open(sc); err != nil {
 				t.Fatalf("open connector: %v", err)
 			}
 			if err := s.storage.CreateAuthRequest(ctx, tc.authReq); err != nil {
@@ -541,7 +541,7 @@ func TestHandlePasswordLogin_SPNEGOShortCircuit(t *testing.T) {
 		Config:          []byte("{\"username\": \"foo\", \"password\": \"password\"}"),
 	}
 	require.NoError(t, s.storage.CreateConnector(ctx, sc))
-	_, err := s.OpenConnector(sc)
+	_, err := s.connectors.Open(sc)
 	require.NoError(t, err)
 
 	// Prepare auth request
@@ -611,7 +611,7 @@ func TestHandlePasswordLogin_SPNEGOError(t *testing.T) {
 		Config:          []byte("{\"username\": \"foo\", \"password\": \"password\"}"),
 	}
 	require.NoError(t, s.storage.CreateConnector(ctx, sc))
-	_, err := s.OpenConnector(sc)
+	_, err := s.connectors.Open(sc)
 	require.NoError(t, err)
 
 	// Prepare auth request

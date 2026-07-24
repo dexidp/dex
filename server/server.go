@@ -189,7 +189,7 @@ func value(val, defaultValue time.Duration) time.Duration {
 
 // Server is the top level object.
 type Server struct {
-	issuerURL url.URL
+	issuerURL oauth2.IssuerURL
 
 	// In-memory cache of opened connectors.
 	connectors *connectors.Cache
@@ -209,12 +209,6 @@ type Server struct {
 	// Used for password grant
 	passwordConnector string
 
-	supportedResponseTypes map[string]bool
-
-	supportedGrantTypes []string
-
-	pkce authflow.PKCEConfig
-
 	now func() time.Time
 
 	idTokensValidFor       time.Duration
@@ -229,6 +223,10 @@ type Server struct {
 
 	// issuer turns an Authorization into a TokenSet.
 	issuer *tokens.Issuer
+
+	// discovery is built once from config and shared by the mounted HTTP handler
+	// and the gRPC API's ConstructDiscovery.
+	discovery *discovery.Handler
 
 	sessionConfig *session.Config
 
@@ -252,28 +250,15 @@ func (m routeMux) HandlePrefix(p string, h http.Handler)   { m.handlePrefix(p, h
 
 // newDiscoveryHandler builds a discovery handler from the server's settings. It
 // is shared by the mounted handler and ConstructDiscovery.
-func (s *Server) newDiscoveryHandler() *discovery.Handler {
-	return &discovery.Handler{
-		Issuer:          s.issuerURL.String(),
-		AbsURL:          s.absURL,
-		RenderError:     s.renderError,
-		Signer:          s.signer,
-		Logger:          s.logger,
-		ResponseTypes:   s.supportedResponseTypes,
-		GrantTypes:      s.supportedGrantTypes,
-		PKCEMethods:     s.pkce.CodeChallengeMethodsSupported,
-		SessionsEnabled: s.sessionConfig != nil,
-	}
-}
-
 // Connectors is the server's connector cache. The gRPC API needs it to
 // invalidate the cache on connector CRUD.
 func (s *Server) Connectors() *connectors.Cache { return s.connectors }
 
 // ConstructDiscovery builds the OIDC discovery document. The gRPC API's
-// GetDiscovery uses it to return the same document served over HTTP.
+// GetDiscovery uses it to return the same document served over HTTP, from the
+// same handler mounted for HTTP.
 func (s *Server) ConstructDiscovery(ctx context.Context) discovery.Document {
-	return s.newDiscoveryHandler().Construct(ctx)
+	return s.discovery.Construct(ctx)
 }
 
 // NewServer constructs a server from the provided config.
@@ -380,11 +365,8 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	}
 
 	s := &Server{
-		issuerURL:              *issuerURL,
+		issuerURL:              oauth2.IssuerURL{URL: *issuerURL},
 		storage:                newKeyCacher(c.Storage, now),
-		supportedResponseTypes: supportedRes,
-		supportedGrantTypes:    supportedGrants,
-		pkce:                   c.PKCE,
 		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
 		authRequestsValidFor:   value(c.AuthRequestsValidFor, 24*time.Hour),
 		deviceRequestsValidFor: value(c.DeviceRequestsValidFor, 5*time.Minute),
@@ -400,8 +382,21 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		mfaProviders:           c.MFAProviders,
 		defaultMFAChain:        c.DefaultMFAChain,
 	}
-	s.issuer = tokens.NewIssuer(s.storage, s.signer, s.issuerURL, s.idTokensValidFor, s.now, s.logger)
+	s.issuer = tokens.NewIssuer(s.storage, s.signer, s.issuerURL.URL, s.idTokensValidFor, s.now, s.logger)
 	s.connectors = connectors.NewCache(s.storage, s.resolveConnector)
+	// Build the discovery handler once from config; both the mounted HTTP route
+	// and the gRPC API's ConstructDiscovery serve this same handler.
+	s.discovery = &discovery.Handler{
+		Issuer:          s.issuerURL.String(),
+		AbsURL:          s.issuerURL.AbsURL,
+		RenderError:     s.renderError,
+		Signer:          s.signer,
+		Logger:          s.logger,
+		ResponseTypes:   supportedRes,
+		GrantTypes:      supportedGrants,
+		PKCEMethods:     c.PKCE.CodeChallengeMethodsSupported,
+		SessionsEnabled: s.sessionConfig != nil,
+	}
 	// sessions is shared infrastructure (session cookie, SSO, auth-session CRUD)
 	// referenced by the flow steps mounted below. The steps themselves hold no
 	// reference to one another; the /auth dispatcher decides MFA and consent from
@@ -428,7 +423,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 
 	var failedCount int
 	for _, conn := range storageConnectors {
-		if _, err := s.OpenConnector(conn); err != nil {
+		if _, err := s.connectors.Open(conn); err != nil {
 			failedCount++
 			if c.ContinueOnConnectorFailure {
 				s.logger.Error("server: Failed to open connector", "id", conn.ID, "err", err)
@@ -557,7 +552,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	// abstraction, so this list is the only place they are wired in.
 	mux := routeMux{handle: handle, handleFunc: handleFunc, handleCORS: handleWithCORS, handlePrefix: handlePrefix}
 	for _, h := range []router.Handler{
-		s.newDiscoveryHandler(),
+		s.discovery,
 		&grants.Handler{
 			Issuer:              s.issuer,
 			Storage:             s.storage,
@@ -567,7 +562,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			PasswordConnector:   s.passwordConnector,
 			RefreshPolicy:       s.refreshTokenPolicy,
 			SessionsEnabled:     s.sessionConfig != nil,
-			SupportedGrantTypes: s.supportedGrantTypes,
+			SupportedGrantTypes: supportedGrants,
 		},
 		&userinfo.Handler{
 			Issuer: s.issuerURL.String(),
@@ -607,8 +602,8 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			Now:                    s.now,
 			Logger:                 s.logger,
 			AlwaysShowLogin:        s.alwaysShowLogin,
-			SupportedResponseTypes: s.supportedResponseTypes,
-			PKCE:                   s.pkce,
+			SupportedResponseTypes: supportedRes,
+			PKCE:                   c.PKCE,
 			AuthRequestsValidFor:   s.authRequestsValidFor,
 			Sessions:               sessions,
 			Issuer:                 s.issuer,
@@ -671,19 +666,6 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mux.ServeHTTP(w, r)
-}
-
-func (s *Server) absPath(pathItems ...string) string {
-	paths := make([]string, len(pathItems)+1)
-	paths[0] = s.issuerURL.Path
-	copy(paths[1:], pathItems)
-	return path.Join(paths...)
-}
-
-func (s *Server) absURL(pathItems ...string) string {
-	u := s.issuerURL
-	u.Path = s.absPath(pathItems...)
-	return u.String()
 }
 
 func newPasswordDB(s storage.Storage) interface {
@@ -882,16 +864,6 @@ func (s *Server) resolveConnector(conn storage.Connector) (connector.Connector, 
 		return newPasswordDB(s.storage), nil
 	}
 	return openConnector(s.logger, conn)
-}
-
-// OpenConnector opens the given connector and records it in the in-memory cache.
-func (s *Server) OpenConnector(conn storage.Connector) (connectors.Connector, error) {
-	return s.connectors.Open(conn)
-}
-
-// CloseConnector removes the connector from the in-memory cache.
-func (s *Server) CloseConnector(id string) {
-	s.connectors.Close(id)
 }
 
 // renderError renders a user-facing error page for the non-flow endpoints the

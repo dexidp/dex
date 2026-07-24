@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"path"
 
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/templates"
@@ -23,7 +23,7 @@ type Handler struct {
 	Storage      storage.Storage
 	Templates    *templates.Templates
 	Logger       *slog.Logger
-	IssuerURL    url.URL
+	IssuerURL    oauth2.IssuerURL
 	Sessions     *session.Manager
 	SkipApproval bool
 }
@@ -33,11 +33,6 @@ func (h *Handler) renderError(r *http.Request, w http.ResponseWriter, status int
 	if err := h.Templates.Err(r, w, status, description); err != nil {
 		h.Logger.ErrorContext(r.Context(), "server template error", "err", err)
 	}
-}
-
-// absPath returns the issuer path joined with the given path items.
-func (h *Handler) absPath(pathItems ...string) string {
-	return path.Join(append([]string{h.IssuerURL.Path}, pathItems...)...)
 }
 
 // Mount registers the consent endpoint.
@@ -52,7 +47,7 @@ func (h *Handler) buildApprovedURL(authReq storage.AuthRequest) string {
 	v := url.Values{}
 	v.Set("req", authReq.ID)
 	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "approved"))
-	return h.absPath("/auth") + "?" + v.Encode()
+	return h.IssuerURL.AbsPath("/auth") + "?" + v.Encode()
 }
 
 // Satisfied reports whether the approval screen can be skipped: the client did

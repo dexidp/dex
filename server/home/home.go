@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
-	"path"
 
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/templates"
@@ -19,7 +18,7 @@ import (
 // is available it renders the rich page (with logged-in details); otherwise it
 // falls back to a minimal inline page.
 type Handler struct {
-	IssuerURL url.URL
+	IssuerURL oauth2.IssuerURL
 	Storage   storage.Storage
 	Templates *templates.Templates
 	Logger    *slog.Logger
@@ -47,12 +46,9 @@ func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	logoutURL := h.IssuerURL
-	logoutURL.Path = path.Join(logoutURL.Path, "/logout")
-
 	data := templates.HomeData{
 		DiscoveryURL: h.IssuerURL.JoinPath(".well-known", "openid-configuration").String(),
-		LogoutURL:    logoutURL.String(),
+		LogoutURL:    h.IssuerURL.AbsURL("/logout"),
 	}
 
 	// ValidSession enforces the nonce AND absolute/idle expiry (clearing an
