@@ -154,16 +154,53 @@ func TestDeviceCallback(t *testing.T) {
 			expectedResponseCode: http.StatusBadRequest,
 		},
 		{
-			testName:     "Bad Device Request Client",
+			// The device request names a different client than the auth code was
+			// minted for: the client/redirect binding must reject it (cross-client
+			// auth code injection guard) before any client lookup.
+			testName:     "Cross-client auth code injection",
 			values:       baseFormValues,
 			testAuthCode: baseAuthCode,
 			testDeviceRequest: storage.DeviceRequest{
 				UserCode:   "XXXX-XXXX",
 				DeviceCode: "devicecode",
+				ClientID:   "otherclient",
 				Scopes:     []string{"openid", "profile", "email"},
 				Expiry:     now().Add(5 * time.Minute),
 			},
-			expectedResponseCode: http.StatusUnauthorized,
+			expectedResponseCode: http.StatusBadRequest,
+		},
+		{
+			// Same client, but the code was minted for a non-device-callback
+			// redirect: the redirect binding must reject it.
+			testName: "Auth code from a different redirect",
+			values:   baseFormValues,
+			testAuthCode: storage.AuthCode{
+				ID:          "somecode",
+				ClientID:    "testclient",
+				RedirectURI: "https://example.com/callback",
+				Scopes:      []string{"openid", "profile", "email"},
+				ConnectorID: "mock",
+				Expiry:      now().Add(5 * time.Minute),
+			},
+			testDeviceRequest:    baseDeviceRequest,
+			expectedResponseCode: http.StatusBadRequest,
+		},
+		{
+			// The redirect path is not the device callback; only the query string
+			// ends with "/device/callback". Matching on the raw string would be
+			// spoofed here, so the path is what must be checked.
+			testName: "Auth code redirect spoofed via query string",
+			values:   baseFormValues,
+			testAuthCode: storage.AuthCode{
+				ID:          "somecode",
+				ClientID:    "testclient",
+				RedirectURI: "https://example.com/callback?next=/device/callback",
+				Scopes:      []string{"openid", "profile", "email"},
+				ConnectorID: "mock",
+				Expiry:      now().Add(5 * time.Minute),
+			},
+			testDeviceRequest:    baseDeviceRequest,
+			expectedResponseCode: http.StatusBadRequest,
 		},
 		{
 			testName:     "Bad Device Request Secret",
@@ -172,6 +209,7 @@ func TestDeviceCallback(t *testing.T) {
 			testDeviceRequest: storage.DeviceRequest{
 				UserCode:     "XXXX-XXXX",
 				DeviceCode:   "devicecode",
+				ClientID:     "testclient",
 				ClientSecret: "foobar",
 				Scopes:       []string{"openid", "profile", "email"},
 				Expiry:       now().Add(5 * time.Minute),
