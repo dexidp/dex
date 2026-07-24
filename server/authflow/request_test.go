@@ -774,7 +774,7 @@ func TestValidateIDTokenHint(t *testing.T) {
 
 	s := &Handler{
 		Signer:    sig,
-		IssuerURL: *issuerURL,
+		IssuerURL: oauth2.IssuerURL{URL: *issuerURL},
 		Logger:    slog.Default(),
 	}
 

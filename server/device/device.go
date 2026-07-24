@@ -41,7 +41,7 @@ type DeviceCodeResponse struct {
 
 // Handler serves the browser side of the device authorization grant.
 type Handler struct {
-	IssuerURL        url.URL
+	IssuerURL        oauth2.IssuerURL
 	Storage          storage.Storage
 	Templates        *templates.Templates
 	Now              func() time.Time
@@ -95,7 +95,7 @@ func (h *Handler) renderError(r *http.Request, w http.ResponseWriter, status int
 }
 
 func (h *Handler) getDeviceVerificationURI() string {
-	return path.Join(h.IssuerURL.Path, "/device/auth/verify_code")
+	return h.IssuerURL.AbsPath("/device/auth/verify_code")
 }
 
 // handleDeviceExchange serves the /device user-code entry page.
@@ -290,7 +290,7 @@ func (h *Handler) verifyUserCode(w http.ResponseWriter, r *http.Request) {
 	// stored device request.
 	q.Set("state", deviceRequest.UserCode)
 	q.Set("response_type", "code")
-	q.Set("redirect_uri", path.Join(h.IssuerURL.Path, oauth2.DeviceCallbackURI))
+	q.Set("redirect_uri", h.IssuerURL.AbsPath(oauth2.DeviceCallbackURI))
 	q.Set("scope", strings.Join(deviceRequest.Scopes, " "))
 	u.RawQuery = q.Encode()
 

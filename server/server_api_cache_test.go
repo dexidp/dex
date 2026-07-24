@@ -23,9 +23,11 @@ func TestConnectorCacheInvalidation(t *testing.T) {
 		storage: s,
 		logger:  logger,
 	}
-	serv.connectors = connectors.NewCache(s, serv.resolveConnector)
+	serv.connectors = connectors.NewCache(s, connectors.Resolver(s, logger, ConnectorsConfig))
 
-	apiServer := apiserver.NewAPI(s, logger, "test", serv.connectors, serv.ConstructDiscovery)
+	// This test exercises connector-cache invalidation, not discovery, so no
+	// discovery handler is wired (GetDiscovery guards against nil).
+	apiServer := apiserver.NewAPI(s, logger, "test", serv.connectors, nil)
 	ctx := context.Background()
 
 	connID := "mock-conn"

@@ -6,11 +6,11 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"path"
 	"time"
 
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/storage"
@@ -39,7 +39,7 @@ type Handler struct {
 	Storage         storage.Storage
 	Templates       *templates.Templates
 	Logger          *slog.Logger
-	IssuerURL       url.URL
+	IssuerURL       oauth2.IssuerURL
 	MFAProviders    map[string]Provider
 	DefaultMFAChain []string
 	Now             func() time.Time
@@ -51,11 +51,6 @@ func (h *Handler) renderError(r *http.Request, w http.ResponseWriter, status int
 	if err := h.Templates.Err(r, w, status, description); err != nil {
 		h.Logger.ErrorContext(r.Context(), "server template error", "err", err)
 	}
-}
-
-// absPath returns the issuer path joined with the given path items.
-func (h *Handler) absPath(pathItems ...string) string {
-	return path.Join(append([]string{h.IssuerURL.Path}, pathItems...)...)
 }
 
 func (h *Handler) validateMFARequest(w http.ResponseWriter, r *http.Request) (*mfaRequestContext, bool) {
@@ -251,7 +246,7 @@ func (h *Handler) buildRedirectURL(authReq storage.AuthRequest, authenticatorID 
 	v.Set("req", authReq.ID)
 	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, authenticatorID))
 	v.Set("authenticator", authenticatorID)
-	return h.absPath(h.mfaPagePath(authenticatorID)) + "?" + v.Encode()
+	return h.IssuerURL.AbsPath(h.mfaPagePath(authenticatorID)) + "?" + v.Encode()
 }
 
 // buildContinueURL builds the HMAC-protected URL that returns to the authorize
@@ -260,7 +255,7 @@ func (h *Handler) buildContinueURL(authReq storage.AuthRequest) string {
 	v := url.Values{}
 	v.Set("req", authReq.ID)
 	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "continue"))
-	return h.absPath("/auth") + "?" + v.Encode()
+	return h.IssuerURL.AbsPath("/auth") + "?" + v.Encode()
 }
 
 // Mount registers the MFA factor endpoints, only when at least one authenticator

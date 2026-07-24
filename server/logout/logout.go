@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"path"
 	"slices"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -15,6 +14,7 @@ import (
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/signer"
@@ -34,7 +34,7 @@ type Handler struct {
 	Connectors *connectors.Cache
 	Issuer     *tokens.Issuer
 	Signer     signer.Signer
-	IssuerURL  url.URL
+	IssuerURL  oauth2.IssuerURL
 }
 
 // renderError renders a user-facing HTML error page.
@@ -42,13 +42,6 @@ func (h *Handler) renderError(r *http.Request, w http.ResponseWriter, status int
 	if err := h.Templates.Err(r, w, status, description); err != nil {
 		h.Logger.ErrorContext(r.Context(), "server template error", "err", err)
 	}
-}
-
-// absURL returns the absolute issuer URL for the given path items.
-func (h *Handler) absURL(pathItems ...string) string {
-	u := h.IssuerURL
-	u.Path = path.Join(append([]string{h.IssuerURL.Path}, pathItems...)...)
-	return u.String()
 }
 
 // Mount registers the logout endpoints. Logout requires an active session, so it
@@ -322,7 +315,7 @@ func (h *Handler) tryUpstreamLogout(ctx context.Context, userID, connectorID, po
 		return "", false
 	}
 
-	callbackURI := h.absURL("/logout/callback")
+	callbackURI := h.IssuerURL.AbsURL("/logout/callback")
 	upstreamURL, err := logoutConn.LogoutURL(ctx, callbackURI)
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "logout: upstream connector error", "err", err)

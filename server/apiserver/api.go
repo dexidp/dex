@@ -20,15 +20,16 @@ const apiVersion = 4
 
 // NewAPI returns a server which implements the gRPC API interface. It takes only
 // the narrow dependencies it needs — the connector cache to invalidate on
-// connector CRUD, and a discovery-document builder — rather than the whole Server.
-func NewAPI(s storage.Storage, logger *slog.Logger, version string, conns *connectors.Cache, discovery func(context.Context) discovery.Document) api.DexServer {
+// connector CRUD, and the discovery handler to serve the same document as HTTP —
+// rather than the whole Server.
+func NewAPI(s storage.Storage, logger *slog.Logger, version string, conns *connectors.Cache, disc *discovery.Handler) api.DexServer {
 	apiLogger := logger.With("component", "api")
 	return dexAPI{
 		s:          s,
 		logger:     apiLogger,
 		version:    version,
 		connectors: conns,
-		discovery:  discovery,
+		discovery:  disc,
 		refresh:    tokens.NewRefreshStore(s, time.Now, apiLogger),
 	}
 }
@@ -40,7 +41,7 @@ type dexAPI struct {
 	logger     *slog.Logger
 	version    string
 	connectors *connectors.Cache
-	discovery  func(context.Context) discovery.Document
+	discovery  *discovery.Handler
 	refresh    *tokens.RefreshStore
 }
 
@@ -52,7 +53,10 @@ func (d dexAPI) GetVersion(ctx context.Context, req *api.VersionReq) (*api.Versi
 }
 
 func (d dexAPI) GetDiscovery(ctx context.Context, req *api.DiscoveryReq) (*api.DiscoveryResp, error) {
-	discoveryDoc := d.discovery(ctx)
+	if d.discovery == nil {
+		return nil, fmt.Errorf("discovery is not configured")
+	}
+	discoveryDoc := d.discovery.Construct(ctx)
 	data, err := json.Marshal(discoveryDoc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal discovery data: %v", err)

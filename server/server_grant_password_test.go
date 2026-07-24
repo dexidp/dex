@@ -122,7 +122,7 @@ func TestHandlePassword_LocalPasswordDBClaims(t *testing.T) {
 		ResourceVersion: "1",
 	}
 	require.NoError(t, s.storage.CreateConnector(ctx, localConn))
-	_, err := s.OpenConnector(localConn)
+	_, err := s.connectors.Open(localConn)
 	require.NoError(t, err)
 
 	// Create a user in the password DB with groups and preferred_username.
