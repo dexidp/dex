@@ -4,8 +4,9 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/dexidp/dex/server/oauth2"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexidp/dex/server/oauth2"
 )
 
 func TestGetDeviceVerificationURI(t *testing.T) {

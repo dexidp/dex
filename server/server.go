@@ -12,13 +12,11 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
-	"path"
 	"sort"
 	"sync/atomic"
 	"time"
 
 	gosundheit "github.com/AppsFlyer/go-sundheit"
-	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -54,7 +52,6 @@ import (
 	"github.com/dexidp/dex/server/mfa"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/passwords"
-	"github.com/dexidp/dex/server/reqctx"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/signer"
@@ -212,63 +209,6 @@ type Server struct {
 	sessionConfig *session.Config
 }
 
-// routeMux implements router.Mux over a gorilla mux.Router: every route is
-// prefixed with the issuer path and wrapped with the common response headers,
-// request-id/real-ip context, and instrumentation; HandleCORS additionally adds
-// CORS for the public endpoints. instrument and realIP are the server's
-// (prometheus- and config-bound) closures.
-type routeMux struct {
-	router       *mux.Router
-	issuerPath   string
-	headers      http.Header
-	realIPHeader string
-	instrument   func(string, http.Handler) http.HandlerFunc
-	realIP       func(*http.Request) (string, error)
-	corsOrigins  []string
-	corsHeaders  []string
-}
-
-// wrap applies the common response headers, request-id/real-ip context, and
-// instrumentation to a handler.
-func (m routeMux) wrap(name string, h http.Handler) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		for k, v := range m.headers {
-			w.Header()[k] = v
-		}
-		// Context values are used for logging purposes with the log/slog logger.
-		rCtx := reqctx.WithRequestID(r.Context())
-		if m.realIPHeader != "" {
-			if realIP, err := m.realIP(r); err == nil {
-				rCtx = reqctx.WithRemoteIP(rCtx, realIP)
-			}
-		}
-		m.instrument(name, h)(w, r.WithContext(rCtx))
-	}
-}
-
-func (m routeMux) Handle(p string, h http.Handler) {
-	m.router.Handle(path.Join(m.issuerPath, p), m.wrap(p, h))
-}
-
-func (m routeMux) HandleFunc(p string, h http.HandlerFunc) { m.Handle(p, h) }
-
-func (m routeMux) HandlePrefix(p string, h http.Handler) {
-	prefix := path.Join(m.issuerPath, p)
-	m.router.PathPrefix(prefix).Handler(http.StripPrefix(prefix, h))
-}
-
-func (m routeMux) HandleCORS(p string, h http.HandlerFunc) {
-	var handler http.Handler = h
-	if len(m.corsOrigins) > 0 {
-		cors := handlers.CORS(
-			handlers.AllowedOrigins(m.corsOrigins),
-			handlers.AllowedHeaders(m.corsHeaders),
-		)
-		handler = cors(handler)
-	}
-	m.Handle(p, handler)
-}
-
 // Connectors is the server's connector cache. The gRPC API needs it to
 // invalidate the cache on connector CRUD.
 func (s *Server) Connectors() *connectors.Cache { return s.connectors }
@@ -395,7 +335,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	s.issuer = tokens.NewIssuer(s.storage, c.Signer, s.issuerURL.URL, idTokensValidFor, now, s.logger)
 	s.connectors = connectors.NewCache(s.storage, s.resolveConnector)
 	// Build the discovery handler once from config; both the mounted HTTP route
-	// and the gRPC API's ConstructDiscovery serve this same handler.
+	// and the gRPC API (via Discovery) serve this same handler.
 	s.discovery = &discovery.Handler{
 		Issuer:          s.issuerURL.String(),
 		AbsURL:          s.issuerURL.AbsURL,
@@ -516,18 +456,17 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	r.NotFoundHandler = http.NotFoundHandler()
 
 	// Self-contained domains mount their own routes through the router.Mux
-	// abstraction; this routeMux is the only implementation and the only place
-	// they are wired in.
-	routes := routeMux{
-		router:       r,
-		issuerPath:   issuerURL.Path,
-		headers:      c.Headers,
-		realIPHeader: c.RealIPHeader,
-		instrument:   instrumentHandler,
-		realIP:       parseRealIP,
-		corsOrigins:  c.AllowedOrigins,
-		corsHeaders:  c.AllowedHeaders,
-	}
+	// abstraction; this is the only place they are wired in.
+	routes := router.New(router.Config{
+		Router:       r,
+		IssuerPath:   issuerURL.Path,
+		Headers:      c.Headers,
+		RealIPHeader: c.RealIPHeader,
+		Instrument:   instrumentHandler,
+		RealIP:       parseRealIP,
+		CORSOrigins:  c.AllowedOrigins,
+		CORSHeaders:  c.AllowedHeaders,
+	})
 	for _, h := range []router.Handler{
 		s.discovery,
 		&grants.Handler{
@@ -620,7 +559,6 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		h.Mount(routes)
 	}
 
-	// TODO(ericchiang): rate limit certain paths based on IP.
 	routes.Handle("/healthz", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !c.HealthChecker.IsHealthy() {
 			s.renderError(r, w, http.StatusInternalServerError, "Health check failed.")

@@ -53,6 +53,9 @@ func (d dexAPI) GetVersion(ctx context.Context, req *api.VersionReq) (*api.Versi
 }
 
 func (d dexAPI) GetDiscovery(ctx context.Context, req *api.DiscoveryReq) (*api.DiscoveryResp, error) {
+	if d.discovery == nil {
+		return nil, fmt.Errorf("discovery is not configured")
+	}
 	discoveryDoc := d.discovery.Construct(ctx)
 	data, err := json.Marshal(discoveryDoc)
 	if err != nil {
