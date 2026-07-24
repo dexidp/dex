@@ -170,6 +170,39 @@ func TestDeviceCallback(t *testing.T) {
 			expectedResponseCode: http.StatusBadRequest,
 		},
 		{
+			// Same client, but the code was minted for a non-device-callback
+			// redirect: the redirect binding must reject it.
+			testName: "Auth code from a different redirect",
+			values:   baseFormValues,
+			testAuthCode: storage.AuthCode{
+				ID:          "somecode",
+				ClientID:    "testclient",
+				RedirectURI: "https://example.com/callback",
+				Scopes:      []string{"openid", "profile", "email"},
+				ConnectorID: "mock",
+				Expiry:      now().Add(5 * time.Minute),
+			},
+			testDeviceRequest:    baseDeviceRequest,
+			expectedResponseCode: http.StatusBadRequest,
+		},
+		{
+			// The redirect path is not the device callback; only the query string
+			// ends with "/device/callback". Matching on the raw string would be
+			// spoofed here, so the path is what must be checked.
+			testName: "Auth code redirect spoofed via query string",
+			values:   baseFormValues,
+			testAuthCode: storage.AuthCode{
+				ID:          "somecode",
+				ClientID:    "testclient",
+				RedirectURI: "https://example.com/callback?next=/device/callback",
+				Scopes:      []string{"openid", "profile", "email"},
+				ConnectorID: "mock",
+				Expiry:      now().Add(5 * time.Minute),
+			},
+			testDeviceRequest:    baseDeviceRequest,
+			expectedResponseCode: http.StatusBadRequest,
+		},
+		{
 			testName:     "Bad Device Request Secret",
 			values:       baseFormValues,
 			testAuthCode: baseAuthCode,

@@ -362,9 +362,12 @@ func (h *Handler) completeDeviceAuthorization(w http.ResponseWriter, r *http.Req
 	// grant enforces the same client/redirect binding (see grants/authcode.go); the
 	// device callback must not skip it, or a code minted for one client could be
 	// redeemed against another client's device request (cross-client token theft).
-	// The redirect is matched by suffix, mirroring how the auth flow recognizes the
-	// device callback, so an issuer path prefix does not matter.
-	if authCode.ClientID != deviceReq.ClientID || !strings.HasSuffix(authCode.RedirectURI, oauth2.DeviceCallbackURI) {
+	// The redirect is matched on its path suffix, mirroring how the auth flow
+	// recognizes the device callback, so an issuer path prefix does not matter; the
+	// path (not the raw string) is checked so a "/device/callback" in the query can
+	// not spoof it.
+	redirectURL, err := url.Parse(authCode.RedirectURI)
+	if authCode.ClientID != deviceReq.ClientID || err != nil || !strings.HasSuffix(redirectURL.Path, oauth2.DeviceCallbackURI) {
 		h.Logger.ErrorContext(ctx, "device callback: auth code does not match the device request",
 			"auth_code_client_id", authCode.ClientID, "device_client_id", deviceReq.ClientID)
 		return "", &deviceFlowError{status: http.StatusBadRequest, message: "Invalid or expired auth code."}
