@@ -18,6 +18,10 @@ func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq
 		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APIConnectorsCRUD.Name)
 	}
 
+	if req.Connector == nil {
+		return nil, errors.New("no connector supplied")
+	}
+
 	if req.Connector.Id == "" {
 		return nil, errors.New("no id supplied")
 	}

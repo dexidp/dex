@@ -2,6 +2,7 @@ package device
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -361,7 +362,9 @@ func (h *Handler) completeDeviceAuthorization(w http.ResponseWriter, r *http.Req
 		}
 		return "", &deviceFlowError{status: http.StatusUnauthorized, code: oauth2.InvalidClient, message: "Invalid client credentials."}
 	}
-	if client.Secret != deviceReq.ClientSecret {
+	// Constant-time comparison of the client secret, matching grants.go's client
+	// authentication, so the compare does not leak the secret via timing.
+	if subtle.ConstantTimeCompare([]byte(client.Secret), []byte(deviceReq.ClientSecret)) != 1 {
 		return "", &deviceFlowError{status: http.StatusUnauthorized, code: oauth2.InvalidClient, message: "Invalid client credentials."}
 	}
 
