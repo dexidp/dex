@@ -145,6 +145,7 @@ expiry:
   idTokens: "25h"
   authRequests: "25h"
   deviceRequests: "10m"
+  garbageCollectionFrequency: "1h"
 
 logger:
   level: "debug"
@@ -247,10 +248,11 @@ additionalFeatures: [
 			},
 		},
 		Expiry: Expiry{
-			SigningKeys:    "7h",
-			IDTokens:       "25h",
-			AuthRequests:   "25h",
-			DeviceRequests: "10m",
+			SigningKeys:                "7h",
+			IDTokens:                   "25h",
+			AuthRequests:               "25h",
+			DeviceRequests:             "10m",
+			GarbageCollectionFrequency: "1h",
 		},
 		Logger: Logger{
 			Level:  slog.LevelDebug,
