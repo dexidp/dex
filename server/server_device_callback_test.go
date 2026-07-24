@@ -154,16 +154,20 @@ func TestDeviceCallback(t *testing.T) {
 			expectedResponseCode: http.StatusBadRequest,
 		},
 		{
-			testName:     "Bad Device Request Client",
+			// The device request names a different client than the auth code was
+			// minted for: the client/redirect binding must reject it (cross-client
+			// auth code injection guard) before any client lookup.
+			testName:     "Cross-client auth code injection",
 			values:       baseFormValues,
 			testAuthCode: baseAuthCode,
 			testDeviceRequest: storage.DeviceRequest{
 				UserCode:   "XXXX-XXXX",
 				DeviceCode: "devicecode",
+				ClientID:   "otherclient",
 				Scopes:     []string{"openid", "profile", "email"},
 				Expiry:     now().Add(5 * time.Minute),
 			},
-			expectedResponseCode: http.StatusUnauthorized,
+			expectedResponseCode: http.StatusBadRequest,
 		},
 		{
 			testName:     "Bad Device Request Secret",
@@ -172,6 +176,7 @@ func TestDeviceCallback(t *testing.T) {
 			testDeviceRequest: storage.DeviceRequest{
 				UserCode:     "XXXX-XXXX",
 				DeviceCode:   "devicecode",
+				ClientID:     "testclient",
 				ClientSecret: "foobar",
 				Scopes:       []string{"openid", "profile", "email"},
 				Expiry:       now().Add(5 * time.Minute),
