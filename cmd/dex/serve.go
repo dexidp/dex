@@ -591,6 +591,18 @@ func runServe(options serveOptions) error {
 	if c.GRPC.Addr != "" {
 		logger.Info("listening on", "server", "grpc", "address", c.GRPC.Addr)
 
+		if c.GRPC.TLSClientCA == "" {
+			// The gRPC API grants full administrative access (client secret reads,
+			// password/connector/identity CRUD). Its only built-in caller
+			// authentication is mutual TLS via grpc.tlsClientCA; without it, anyone
+			// who can reach the port controls the identity provider. This is a valid
+			// setup only when a trusted front-facing service authenticates callers.
+			logger.Warn("grpc: API server has no client certificate authentication (grpc.tlsClientCA is unset); "+
+				"it exposes full administrative access. Ensure the port is only reachable by an authenticated, trusted service, "+
+				"or set grpc.tlsClientCA to require mutual TLS.",
+				"tls", c.GRPC.TLSCert != "")
+		}
+
 		grpcListener, err := net.Listen("tcp", c.GRPC.Addr)
 		if err != nil {
 			return fmt.Errorf("listening (grpc) on %s: %w", c.GRPC.Addr, err)

@@ -22,7 +22,7 @@ func (h *Handler) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	backLink := r.URL.Query().Get("back")
+	backLink := sanitizeBackLink(r.URL.Query().Get("back"))
 
 	authReq, err := h.Storage.GetAuthRequest(ctx, authID)
 	if err != nil {
@@ -129,6 +129,29 @@ func (h *Handler) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 	default:
 		h.renderError(r, w, http.StatusBadRequest, "Unsupported request method.")
 	}
+}
+
+// sanitizeBackLink permits only a same-origin absolute path as the "Select
+// another login method" target. The legitimate value is always a rooted path
+// built from the issuer path (see login.go), so anything that could redirect
+// off-origin — an absolute URL, a scheme-relative "//host" or "/\host" that
+// browsers treat as protocol-relative, or a value that fails to parse — is
+// dropped rather than rendered as a link (open-redirect prevention).
+func sanitizeBackLink(back string) string {
+	if back == "" {
+		return ""
+	}
+	u, err := url.Parse(back)
+	if err != nil || u.IsAbs() || u.Host != "" {
+		return ""
+	}
+	if back[0] != '/' {
+		return ""
+	}
+	if len(back) >= 2 && (back[1] == '/' || back[1] == '\\') {
+		return ""
+	}
+	return back
 }
 
 // Check for username prompt override from connector. Defaults to "Username".

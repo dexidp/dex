@@ -592,11 +592,11 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			Connectors:       s.connectors,
 		},
 		&home.Handler{
-			IssuerURL:     s.issuerURL,
-			Storage:       s.storage,
-			Templates:     s.templates,
-			Logger:        s.logger,
-			SessionConfig: s.sessionConfig,
+			IssuerURL: s.issuerURL,
+			Storage:   s.storage,
+			Templates: s.templates,
+			Logger:    s.logger,
+			Sessions:  sessions,
 		},
 		&authflow.Handler{
 			IssuerURL:              s.issuerURL,

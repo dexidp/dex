@@ -323,13 +323,20 @@ func (m *Manager) UpdateTokenIssuedAt(r *http.Request, clientID string) {
 		return
 	}
 
-	userID, connectorID, _, err := internal.ParseSessionCookie(cookie.Value, m.Config.CookieEncryptionKey)
+	userID, connectorID, nonce, err := internal.ParseSessionCookie(cookie.Value, m.Config.CookieEncryptionKey)
 	if err != nil {
 		return
 	}
 
 	now := m.Now()
 	_ = m.Storage.UpdateAuthSession(r.Context(), userID, connectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
+		// Verify the cookie's nonce against the stored session, as every other
+		// session-trusting path does: a stale cookie for a superseded session
+		// must not refresh the current session's idle timeout. Abort the update
+		// (leaving the session untouched) on mismatch.
+		if subtle.ConstantTimeCompare([]byte(old.Nonce), []byte(nonce)) != 1 {
+			return old, errors.New("session nonce mismatch")
+		}
 		old.LastActivity = now
 		old.IdleExpiry = now.Add(m.Config.ValidIfNotUsedFor)
 		if cs, ok := old.ClientStates[clientID]; ok {
