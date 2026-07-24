@@ -23,7 +23,7 @@ func TestConnectorCacheInvalidation(t *testing.T) {
 		storage: s,
 		logger:  logger,
 	}
-	serv.connectors = connectors.NewCache(s, serv.resolveConnector)
+	serv.connectors = connectors.NewCache(s, connectorResolver(s, logger))
 
 	// This test exercises connector-cache invalidation, not discovery, so no
 	// discovery handler is wired (GetDiscovery guards against nil).
