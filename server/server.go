@@ -203,17 +203,9 @@ type Server struct {
 	// If enabled, don't prompt user for approval after logging in through connector.
 	skipApproval bool
 
-	// If enabled, show the connector selection screen even if there's only one
-	alwaysShowLogin bool
-
-	// Used for password grant
-	passwordConnector string
-
 	now func() time.Time
 
-	idTokensValidFor       time.Duration
-	authRequestsValidFor   time.Duration
-	deviceRequestsValidFor time.Duration
+	idTokensValidFor time.Duration
 
 	refreshTokenPolicy *tokens.RefreshStrategy
 
@@ -225,41 +217,77 @@ type Server struct {
 	issuer *tokens.Issuer
 
 	// discovery is built once from config and shared by the mounted HTTP handler
-	// and the gRPC API's ConstructDiscovery.
+	// and the gRPC API's Discovery accessor.
 	discovery *discovery.Handler
 
 	sessionConfig *session.Config
-
-	mfaProviders    map[string]mfa.Provider
-	defaultMFAChain []string
 }
 
-// routeMux adapts the server's route-registration closures to router.Mux so
-// domain handlers can mount their own routes.
+// routeMux implements router.Mux over a gorilla mux.Router: every route is
+// prefixed with the issuer path and wrapped with the common response headers,
+// request-id/real-ip context, and instrumentation; HandleCORS additionally adds
+// CORS for the public endpoints. instrument and realIP are the server's
+// (prometheus- and config-bound) closures.
 type routeMux struct {
-	handle       func(string, http.Handler)
-	handleFunc   func(string, http.HandlerFunc)
-	handleCORS   func(string, http.HandlerFunc)
-	handlePrefix func(string, http.Handler)
+	router       *mux.Router
+	issuerPath   string
+	headers      http.Header
+	realIPHeader string
+	instrument   func(string, http.Handler) http.HandlerFunc
+	realIP       func(*http.Request) (string, error)
+	corsOrigins  []string
+	corsHeaders  []string
 }
 
-func (m routeMux) Handle(p string, h http.Handler)         { m.handle(p, h) }
-func (m routeMux) HandleFunc(p string, h http.HandlerFunc) { m.handleFunc(p, h) }
-func (m routeMux) HandleCORS(p string, h http.HandlerFunc) { m.handleCORS(p, h) }
-func (m routeMux) HandlePrefix(p string, h http.Handler)   { m.handlePrefix(p, h) }
+// wrap applies the common response headers, request-id/real-ip context, and
+// instrumentation to a handler.
+func (m routeMux) wrap(name string, h http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		for k, v := range m.headers {
+			w.Header()[k] = v
+		}
+		// Context values are used for logging purposes with the log/slog logger.
+		rCtx := reqctx.WithRequestID(r.Context())
+		if m.realIPHeader != "" {
+			if realIP, err := m.realIP(r); err == nil {
+				rCtx = reqctx.WithRemoteIP(rCtx, realIP)
+			}
+		}
+		m.instrument(name, h)(w, r.WithContext(rCtx))
+	}
+}
 
-// newDiscoveryHandler builds a discovery handler from the server's settings. It
-// is shared by the mounted handler and ConstructDiscovery.
+func (m routeMux) Handle(p string, h http.Handler) {
+	m.router.Handle(path.Join(m.issuerPath, p), m.wrap(p, h))
+}
+
+func (m routeMux) HandleFunc(p string, h http.HandlerFunc) { m.Handle(p, h) }
+
+func (m routeMux) HandlePrefix(p string, h http.Handler) {
+	prefix := path.Join(m.issuerPath, p)
+	m.router.PathPrefix(prefix).Handler(http.StripPrefix(prefix, h))
+}
+
+func (m routeMux) HandleCORS(p string, h http.HandlerFunc) {
+	var handler http.Handler = h
+	if len(m.corsOrigins) > 0 {
+		cors := handlers.CORS(
+			handlers.AllowedOrigins(m.corsOrigins),
+			handlers.AllowedHeaders(m.corsHeaders),
+		)
+		handler = cors(handler)
+	}
+	m.Handle(p, handler)
+}
+
 // Connectors is the server's connector cache. The gRPC API needs it to
 // invalidate the cache on connector CRUD.
 func (s *Server) Connectors() *connectors.Cache { return s.connectors }
 
-// ConstructDiscovery builds the OIDC discovery document. The gRPC API's
-// GetDiscovery uses it to return the same document served over HTTP, from the
-// same handler mounted for HTTP.
-func (s *Server) ConstructDiscovery(ctx context.Context) discovery.Document {
-	return s.discovery.Construct(ctx)
-}
+// Discovery is the handler that builds the OIDC discovery document. The gRPC
+// API serves the same handler that is mounted for HTTP, so both return an
+// identical document.
+func (s *Server) Discovery() *discovery.Handler { return s.discovery }
 
 // NewServer constructs a server from the provided config.
 func NewServer(ctx context.Context, c Config) (*Server, error) {
@@ -364,23 +392,20 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		now = time.Now
 	}
 
+	authRequestsValidFor := value(c.AuthRequestsValidFor, 24*time.Hour)
+	deviceRequestsValidFor := value(c.DeviceRequestsValidFor, 5*time.Minute)
+
 	s := &Server{
-		issuerURL:              oauth2.IssuerURL{URL: *issuerURL},
-		storage:                newKeyCacher(c.Storage, now),
-		idTokensValidFor:       value(c.IDTokensValidFor, 24*time.Hour),
-		authRequestsValidFor:   value(c.AuthRequestsValidFor, 24*time.Hour),
-		deviceRequestsValidFor: value(c.DeviceRequestsValidFor, 5*time.Minute),
-		refreshTokenPolicy:     c.RefreshTokenPolicy,
-		skipApproval:           c.SkipApprovalScreen,
-		alwaysShowLogin:        c.AlwaysShowLoginScreen,
-		now:                    now,
-		templates:              tmpls,
-		passwordConnector:      c.PasswordConnector,
-		logger:                 c.Logger,
-		signer:                 c.Signer,
-		sessionConfig:          c.SessionConfig,
-		mfaProviders:           c.MFAProviders,
-		defaultMFAChain:        c.DefaultMFAChain,
+		issuerURL:          oauth2.IssuerURL{URL: *issuerURL},
+		storage:            newKeyCacher(c.Storage, now),
+		idTokensValidFor:   value(c.IDTokensValidFor, 24*time.Hour),
+		refreshTokenPolicy: c.RefreshTokenPolicy,
+		skipApproval:       c.SkipApprovalScreen,
+		now:                now,
+		templates:          tmpls,
+		logger:             c.Logger,
+		signer:             c.Signer,
+		sessionConfig:      c.SessionConfig,
 	}
 	s.issuer = tokens.NewIssuer(s.storage, s.signer, s.issuerURL.URL, s.idTokensValidFor, s.now, s.logger)
 	s.connectors = connectors.NewCache(s.storage, s.resolveConnector)
@@ -502,55 +527,22 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		return remoteAddr, nil
 	}
 
-	handlerWithHeaders := func(handlerName string, handler http.Handler) http.HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) {
-			for k, v := range c.Headers {
-				w.Header()[k] = v
-			}
-
-			// Context values are used for logging purposes with the log/slog logger.
-			rCtx := r.Context()
-			rCtx = reqctx.WithRequestID(rCtx)
-
-			if c.RealIPHeader != "" {
-				realIP, err := parseRealIP(r)
-				if err == nil {
-					rCtx = reqctx.WithRemoteIP(rCtx, realIP)
-				}
-			}
-
-			r = r.WithContext(rCtx)
-			instrumentHandler(handlerName, handler)(w, r)
-		}
-	}
-
 	r := mux.NewRouter().SkipClean(true).UseEncodedPath()
-	handle := func(p string, h http.Handler) {
-		r.Handle(path.Join(issuerURL.Path, p), handlerWithHeaders(p, h))
-	}
-	handleFunc := func(p string, h http.HandlerFunc) {
-		handle(p, h)
-	}
-	handlePrefix := func(p string, h http.Handler) {
-		prefix := path.Join(issuerURL.Path, p)
-		r.PathPrefix(prefix).Handler(http.StripPrefix(prefix, h))
-	}
-	handleWithCORS := func(p string, h http.HandlerFunc) {
-		var handler http.Handler = h
-		if len(c.AllowedOrigins) > 0 {
-			cors := handlers.CORS(
-				handlers.AllowedOrigins(c.AllowedOrigins),
-				handlers.AllowedHeaders(c.AllowedHeaders),
-			)
-			handler = cors(handler)
-		}
-		r.Handle(path.Join(issuerURL.Path, p), handlerWithHeaders(p, handler))
-	}
 	r.NotFoundHandler = http.NotFoundHandler()
 
 	// Self-contained domains mount their own routes through the router.Mux
-	// abstraction, so this list is the only place they are wired in.
-	mux := routeMux{handle: handle, handleFunc: handleFunc, handleCORS: handleWithCORS, handlePrefix: handlePrefix}
+	// abstraction; this routeMux is the only implementation and the only place
+	// they are wired in.
+	routes := routeMux{
+		router:       r,
+		issuerPath:   issuerURL.Path,
+		headers:      c.Headers,
+		realIPHeader: c.RealIPHeader,
+		instrument:   instrumentHandler,
+		realIP:       parseRealIP,
+		corsOrigins:  c.AllowedOrigins,
+		corsHeaders:  c.AllowedHeaders,
+	}
 	for _, h := range []router.Handler{
 		s.discovery,
 		&grants.Handler{
@@ -559,7 +551,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			Connectors:          s.connectors,
 			Now:                 s.now,
 			Logger:              s.logger,
-			PasswordConnector:   s.passwordConnector,
+			PasswordConnector:   c.PasswordConnector,
 			RefreshPolicy:       s.refreshTokenPolicy,
 			SessionsEnabled:     s.sessionConfig != nil,
 			SupportedGrantTypes: supportedGrants,
@@ -581,7 +573,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			Storage:          s.storage,
 			Templates:        s.templates,
 			Now:              s.now,
-			RequestsValidFor: s.deviceRequestsValidFor,
+			RequestsValidFor: deviceRequestsValidFor,
 			Logger:           s.logger,
 			Issuer:           s.issuer,
 			Connectors:       s.connectors,
@@ -601,14 +593,14 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			Signer:                 s.signer,
 			Now:                    s.now,
 			Logger:                 s.logger,
-			AlwaysShowLogin:        s.alwaysShowLogin,
+			AlwaysShowLogin:        c.AlwaysShowLoginScreen,
 			SupportedResponseTypes: supportedRes,
 			PKCE:                   c.PKCE,
-			AuthRequestsValidFor:   s.authRequestsValidFor,
+			AuthRequestsValidFor:   authRequestsValidFor,
 			Sessions:               sessions,
 			Issuer:                 s.issuer,
-			MFAEnabled:             len(s.mfaProviders) > 0,
-			DefaultMFAChain:        s.defaultMFAChain,
+			MFAEnabled:             len(c.MFAProviders) > 0,
+			DefaultMFAChain:        c.DefaultMFAChain,
 			SkipApproval:           s.skipApproval,
 		},
 		&mfa.Handler{
@@ -616,8 +608,8 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			Templates:       s.templates,
 			Logger:          s.logger,
 			IssuerURL:       s.issuerURL,
-			MFAProviders:    s.mfaProviders,
-			DefaultMFAChain: s.defaultMFAChain,
+			MFAProviders:    c.MFAProviders,
+			DefaultMFAChain: c.DefaultMFAChain,
 			Now:             s.now,
 			Connectors:      s.connectors,
 		},
@@ -640,11 +632,11 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			IssuerURL:  s.issuerURL,
 		},
 	} {
-		h.Mount(mux)
+		h.Mount(routes)
 	}
 
 	// TODO(ericchiang): rate limit certain paths based on IP.
-	handle("/healthz", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	routes.Handle("/healthz", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !c.HealthChecker.IsHealthy() {
 			s.renderError(r, w, http.StatusInternalServerError, "Health check failed.")
 			return
@@ -652,9 +644,9 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		fmt.Fprintf(w, "Health check passed")
 	}))
 
-	handlePrefix("/static", static)
-	handlePrefix("/theme", theme)
-	handleFunc("/robots.txt", robots)
+	routes.HandlePrefix("/static", static)
+	routes.HandlePrefix("/theme", theme)
+	routes.HandleFunc("/robots.txt", robots)
 
 	s.mux = r
 
