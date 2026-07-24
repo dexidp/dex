@@ -173,6 +173,7 @@ func newTestServerMultipleConnectors(t *testing.T, updateConfig func(c *Config))
 		Logger:             logger,
 		PrometheusRegistry: prometheus.NewRegistry(),
 		Signer:             sig,
+		SkipApprovalScreen: true, // Don't prompt for approval, just immediately redirect with code.
 	}
 	if updateConfig != nil {
 		updateConfig(&config)
@@ -210,7 +211,6 @@ func newTestServerMultipleConnectors(t *testing.T, updateConfig func(c *Config))
 	if server, err = newServer(ctx, config); err != nil {
 		t.Fatal(err)
 	}
-	server.skipApproval = true // Don't prompt for approval, just immediately redirect with code.
 	return s, server
 }
 

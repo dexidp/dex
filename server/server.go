@@ -200,18 +200,7 @@ type Server struct {
 
 	templates *templates.Templates
 
-	// If enabled, don't prompt user for approval after logging in through connector.
-	skipApproval bool
-
-	now func() time.Time
-
-	idTokensValidFor time.Duration
-
-	refreshTokenPolicy *tokens.RefreshStrategy
-
 	logger *slog.Logger
-
-	signer signer.Signer
 
 	// issuer turns an Authorization into a TokenSet.
 	issuer *tokens.Issuer
@@ -394,20 +383,16 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 
 	authRequestsValidFor := value(c.AuthRequestsValidFor, 24*time.Hour)
 	deviceRequestsValidFor := value(c.DeviceRequestsValidFor, 5*time.Minute)
+	idTokensValidFor := value(c.IDTokensValidFor, 24*time.Hour)
 
 	s := &Server{
-		issuerURL:          oauth2.IssuerURL{URL: *issuerURL},
-		storage:            newKeyCacher(c.Storage, now),
-		idTokensValidFor:   value(c.IDTokensValidFor, 24*time.Hour),
-		refreshTokenPolicy: c.RefreshTokenPolicy,
-		skipApproval:       c.SkipApprovalScreen,
-		now:                now,
-		templates:          tmpls,
-		logger:             c.Logger,
-		signer:             c.Signer,
-		sessionConfig:      c.SessionConfig,
+		issuerURL:     oauth2.IssuerURL{URL: *issuerURL},
+		storage:       newKeyCacher(c.Storage, now),
+		templates:     tmpls,
+		logger:        c.Logger,
+		sessionConfig: c.SessionConfig,
 	}
-	s.issuer = tokens.NewIssuer(s.storage, s.signer, s.issuerURL.URL, s.idTokensValidFor, s.now, s.logger)
+	s.issuer = tokens.NewIssuer(s.storage, c.Signer, s.issuerURL.URL, idTokensValidFor, now, s.logger)
 	s.connectors = connectors.NewCache(s.storage, s.resolveConnector)
 	// Build the discovery handler once from config; both the mounted HTTP route
 	// and the gRPC API's ConstructDiscovery serve this same handler.
@@ -415,7 +400,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		Issuer:          s.issuerURL.String(),
 		AbsURL:          s.issuerURL.AbsURL,
 		RenderError:     s.renderError,
-		Signer:          s.signer,
+		Signer:          c.Signer,
 		Logger:          s.logger,
 		ResponseTypes:   supportedRes,
 		GrantTypes:      supportedGrants,
@@ -430,7 +415,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	sessions := &session.Manager{
 		Storage:   s.storage,
 		Config:    s.sessionConfig,
-		Now:       s.now,
+		Now:       now,
 		Logger:    s.logger,
 		IssuerURL: s.issuerURL,
 	}
@@ -549,30 +534,30 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			Issuer:              s.issuer,
 			Storage:             s.storage,
 			Connectors:          s.connectors,
-			Now:                 s.now,
+			Now:                 now,
 			Logger:              s.logger,
 			PasswordConnector:   c.PasswordConnector,
-			RefreshPolicy:       s.refreshTokenPolicy,
+			RefreshPolicy:       c.RefreshTokenPolicy,
 			SessionsEnabled:     s.sessionConfig != nil,
 			SupportedGrantTypes: supportedGrants,
 		},
 		&userinfo.Handler{
 			Issuer: s.issuerURL.String(),
-			Signer: s.signer,
+			Signer: c.Signer,
 			Logger: s.logger,
 		},
 		&introspection.Handler{
 			Issuer:        s.issuerURL.String(),
-			Signer:        s.signer,
+			Signer:        c.Signer,
 			Storage:       s.storage,
 			Logger:        s.logger,
-			RefreshPolicy: s.refreshTokenPolicy,
+			RefreshPolicy: c.RefreshTokenPolicy,
 		},
 		&device.Handler{
 			IssuerURL:        s.issuerURL,
 			Storage:          s.storage,
 			Templates:        s.templates,
-			Now:              s.now,
+			Now:              now,
 			RequestsValidFor: deviceRequestsValidFor,
 			Logger:           s.logger,
 			Issuer:           s.issuer,
@@ -590,8 +575,8 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			Connectors:             s.connectors,
 			Storage:                s.storage,
 			Templates:              s.templates,
-			Signer:                 s.signer,
-			Now:                    s.now,
+			Signer:                 c.Signer,
+			Now:                    now,
 			Logger:                 s.logger,
 			AlwaysShowLogin:        c.AlwaysShowLoginScreen,
 			SupportedResponseTypes: supportedRes,
@@ -601,7 +586,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			Issuer:                 s.issuer,
 			MFAEnabled:             len(c.MFAProviders) > 0,
 			DefaultMFAChain:        c.DefaultMFAChain,
-			SkipApproval:           s.skipApproval,
+			SkipApproval:           c.SkipApprovalScreen,
 		},
 		&mfa.Handler{
 			Storage:         s.storage,
@@ -610,7 +595,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			IssuerURL:       s.issuerURL,
 			MFAProviders:    c.MFAProviders,
 			DefaultMFAChain: c.DefaultMFAChain,
-			Now:             s.now,
+			Now:             now,
 			Connectors:      s.connectors,
 		},
 		&consent.Handler{
@@ -619,7 +604,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			Logger:       s.logger,
 			IssuerURL:    s.issuerURL,
 			Sessions:     sessions,
-			SkipApproval: s.skipApproval,
+			SkipApproval: c.SkipApprovalScreen,
 		},
 		&logout.Handler{
 			Storage:    s.storage,
@@ -628,7 +613,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			Sessions:   sessions,
 			Connectors: s.connectors,
 			Issuer:     s.issuer,
-			Signer:     s.signer,
+			Signer:     c.Signer,
 			IssuerURL:  s.issuerURL,
 		},
 	} {
@@ -650,7 +635,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 
 	s.mux = r
 
-	s.signer.Start(ctx)
+	c.Signer.Start(ctx)
 	s.startGarbageCollection(ctx, value(c.GCFrequency, 5*time.Minute), now)
 
 	return s, nil

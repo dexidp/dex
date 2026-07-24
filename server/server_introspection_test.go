@@ -207,7 +207,7 @@ func TestHandleIntrospect(t *testing.T) {
 		{
 			testName:           "Refresh Token: active",
 			token:              activeRefreshToken,
-			response:           toJSON(getIntrospectionValue(s.issuerURL.URL, t0, t0.Add(s.refreshTokenPolicy.AbsoluteLifetime()), "refresh_token")),
+			response:           toJSON(getIntrospectionValue(s.issuerURL.URL, t0, t0.Add(refreshTokenPolicy.AbsoluteLifetime()), "refresh_token")),
 			responseStatusCode: 200,
 		},
 		{

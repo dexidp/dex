@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
@@ -181,19 +180,11 @@ func TestNewIDTokenUsesStoredAlgorithmUntilNextRotation(t *testing.T) {
 	issuerURL, err := url.Parse("https://issuer.example.com")
 	require.NoError(t, err)
 
-	s := &Server{
-		signer:           sig,
-		issuerURL:        oauth2.IssuerURL{URL: *issuerURL},
-		logger:           logger,
-		now:              func() time.Time { return now },
-		idTokensValidFor: time.Hour,
-	}
-
-	s.issuer = tokens.NewIssuer(store, s.signer, s.issuerURL.URL, s.idTokensValidFor, s.now, s.logger)
+	issuer := tokens.NewIssuer(store, sig, *issuerURL, time.Hour, func() time.Time { return now }, logger)
 
 	accessToken := "test-access-token"
 	code := "test-auth-code"
-	idToken, _, err := s.issuer.SignIDToken(ctx, tokens.Authorization{
+	idToken, _, err := issuer.SignIDToken(ctx, tokens.Authorization{
 		Client:      storage.Client{ID: "test-client"},
 		Claims:      storage.Claims{UserID: "1", Username: "jane"},
 		Scopes:      []string{"openid"},
@@ -268,15 +259,7 @@ func TestNewIDTokenContainsJTI(t *testing.T) {
 	issuerURL, err := url.Parse("https://issuer.example.com")
 	require.NoError(t, err)
 
-	s := &Server{
-		signer:           sig,
-		issuerURL:        oauth2.IssuerURL{URL: *issuerURL},
-		logger:           logger,
-		now:              func() time.Time { return now },
-		idTokensValidFor: time.Hour,
-	}
-
-	s.issuer = tokens.NewIssuer(store, s.signer, s.issuerURL.URL, s.idTokensValidFor, s.now, s.logger)
+	issuer := tokens.NewIssuer(store, sig, *issuerURL, time.Hour, func() time.Time { return now }, logger)
 
 	keys, err := sig.ValidationKeys(ctx)
 	require.NoError(t, err)
@@ -298,7 +281,7 @@ func TestNewIDTokenContainsJTI(t *testing.T) {
 
 	mint := func(nonce string) string {
 		t.Helper()
-		token, _, err := s.issuer.SignIDToken(ctx, tokens.Authorization{
+		token, _, err := issuer.SignIDToken(ctx, tokens.Authorization{
 			Client:      storage.Client{ID: "client"},
 			Claims:      storage.Claims{UserID: "1", Username: "alice"},
 			Scopes:      []string{"openid"},
