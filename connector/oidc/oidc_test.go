@@ -470,6 +470,25 @@ func TestHandleCallback(t *testing.T) {
 			},
 		},
 		{
+			// A groups claim delivered as a single string must still be run
+			// through the configured groupsFilter, like the array form.
+			name:               "filterGroupClaimsString",
+			userIDKey:          "", // not configured
+			userNameKey:        "", // not configured
+			groupsRegex:        `^.*\d$`,
+			expectUserID:       "subvalue",
+			expectUserName:     "namevalue",
+			expectGroups:       nil,
+			expectedEmailField: "emailvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"groups":         "groupA",
+				"email":          "emailvalue",
+				"email_verified": true,
+			},
+		},
+		{
 			name:               "filterGroupClaimsMap",
 			userIDKey:          "", // not configured
 			userNameKey:        "", // not configured
