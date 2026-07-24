@@ -393,6 +393,91 @@ func TestGCEWorkloadIdentity(t *testing.T) {
 	}
 }
 
+func TestExtractServiceAccountEmail(t *testing.T) {
+	cases := []struct {
+		name        string
+		url         string
+		expected    string
+		expectedErr string
+	}{
+		{
+			name:     "valid URL",
+			url:      "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/sa@my-project.iam.gserviceaccount.com:generateAccessToken",
+			expected: "sa@my-project.iam.gserviceaccount.com",
+		},
+		{
+			name:        "empty URL",
+			url:         "",
+			expectedErr: "service_account_impersonation_url is empty",
+		},
+		{
+			name:        "URL without serviceAccounts segment",
+			url:         "https://iamcredentials.googleapis.com/v1/projects/-/something/else",
+			expectedErr: "unable to extract service account email",
+		},
+		{
+			name:     "URL without generateAccessToken suffix",
+			url:      "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/sa@proj.iam.gserviceaccount.com",
+			expected: "sa@proj.iam.gserviceaccount.com",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			email, err := extractServiceAccountEmail(tc.url)
+			if tc.expectedErr != "" {
+				assert.ErrorContains(t, err, tc.expectedErr)
+			} else {
+				assert.Nil(t, err)
+				assert.Equal(t, tc.expected, email)
+			}
+		})
+	}
+}
+
+func tempExternalAccountCredential(impersonationURL string) (string, error) {
+	fd, err := os.CreateTemp("", "google_external_account_cred")
+	if err != nil {
+		return "", err
+	}
+	defer fd.Close()
+	err = json.NewEncoder(fd).Encode(map[string]interface{}{
+		"type":                              "external_account",
+		"audience":                          "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/provider",
+		"subject_token_type":                "urn:ietf:params:aws:token-type:aws4_request",
+		"service_account_impersonation_url": impersonationURL,
+		"token_url":                         "https://sts.googleapis.com/v1/token",
+		"credential_source": map[string]interface{}{
+			"environment_id":                 "aws1",
+			"region_url":                     "http://169.254.169.254/latest/meta-data/placement/availability-zone",
+			"url":                            "http://169.254.169.254/latest/meta-data/iam/security-credentials",
+			"regional_cred_verification_url": "https://sts.{region}.amazonaws.com?Action=GetCallerIdentity&Version=2011-06-15",
+		},
+	})
+	return fd.Name(), err
+}
+
+func TestOpenWithExternalAccount(t *testing.T) {
+	ts := testSetup()
+	defer ts.Close()
+
+	impersonationURL := "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/sa@my-project.iam.gserviceaccount.com:generateAccessToken"
+	externalAccountFilePath, err := tempExternalAccountCredential(impersonationURL)
+	assert.Nil(t, err)
+	defer os.Remove(externalAccountFilePath)
+
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", externalAccountFilePath)
+	conn, err := newConnector(&Config{
+		ClientID:           "testClient",
+		ClientSecret:       "testSecret",
+		RedirectURI:        ts.URL + "/callback",
+		Scopes:             []string{"openid", "groups"},
+		DomainToAdminEmail: map[string]string{"*": "admin@example.com"},
+	})
+	assert.Nil(t, err)
+	assert.NotNil(t, conn)
+}
+
 func TestPromptTypeConfig(t *testing.T) {
 	promptTypeLogin := "login"
 	cases := []struct {
