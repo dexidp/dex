@@ -309,7 +309,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		sessionConfig: c.SessionConfig,
 	}
 	s.issuer = tokens.NewIssuer(s.storage, c.Signer, s.issuerURL.URL, idTokensValidFor, now, s.logger)
-	s.connectors = connectors.NewCache(s.storage, connectorResolver(s.storage, s.logger))
+	s.connectors = connectors.NewCache(s.storage, connectors.Resolver(s.storage, s.logger, ConnectorsConfig))
 	// Build the discovery handler once from config; both the mounted HTTP route
 	// and the gRPC API (via Discovery) serve this same handler.
 	s.discovery = &discovery.Handler{

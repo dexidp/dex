@@ -33,6 +33,7 @@ import (
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/connector/mock"
 	"github.com/dexidp/dex/pkg/featureflags"
+	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/device"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/session"
@@ -1298,7 +1299,7 @@ func TestPasswordDB(t *testing.T) {
 
 	logger := newLogger(t)
 	s := memory.New(logger)
-	conn := newPasswordDB(s)
+	conn := connectors.NewPasswordDB(s)
 
 	pw := "hi"
 
@@ -1388,7 +1389,7 @@ func TestPasswordDB(t *testing.T) {
 func TestPasswordDBUsernamePrompt(t *testing.T) {
 	logger := newLogger(t)
 	s := memory.New(logger)
-	conn := newPasswordDB(s)
+	conn := connectors.NewPasswordDB(s)
 
 	expected := "Email Address"
 	if actual := conn.Prompt(); actual != expected {
