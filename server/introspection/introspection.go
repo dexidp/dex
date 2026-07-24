@@ -153,11 +153,11 @@ func newIntrospectBadRequestError(desc string) *introspectionError {
 // Handler serves the OAuth2 token introspection endpoint. It validates refresh
 // tokens with tokens.LookupRefreshToken, the same lookup the refresh grant uses.
 type Handler struct {
-	Issuer        string
-	Signer        signer.Signer
-	Storage       storage.Storage
-	Logger        *slog.Logger
-	RefreshPolicy *tokens.RefreshStrategy
+	Issuer  string
+	Signer  signer.Signer
+	Storage storage.Storage
+	Logger  *slog.Logger
+	Expiry  *tokens.Expiry
 }
 
 // Mount registers the introspection route.
@@ -226,7 +226,7 @@ func (h *Handler) introspectRefreshToken(ctx context.Context, token string) (*In
 		rToken = &internal.RefreshToken{RefreshId: token, Token: ""}
 	}
 
-	refresh, err := tokens.LookupRefreshToken(ctx, h.Storage, h.RefreshPolicy, h.Logger, nil, rToken)
+	refresh, err := tokens.LookupRefreshToken(ctx, h.Storage, h.Expiry, h.Logger, nil, rToken)
 	if err != nil {
 		// A rejected token (unknown, revoked or expired) is reported as inactive;
 		// only an infrastructure failure is a server error.
@@ -250,7 +250,7 @@ func (h *Handler) introspectRefreshToken(ctx context.Context, token string) (*In
 		ClientID:  refresh.ClientID,
 		IssuedAt:  refresh.CreatedAt.Unix(),
 		NotBefore: refresh.CreatedAt.Unix(),
-		Expiry:    refresh.CreatedAt.Add(h.RefreshPolicy.AbsoluteLifetime()).Unix(),
+		Expiry:    refresh.CreatedAt.Add(h.Expiry.RefreshStrategy(refresh.ConnectorID).AbsoluteLifetime()).Unix(),
 		Subject:   subjectString,
 		Username:  refresh.Claims.PreferredUsername,
 		// Refresh-token introspection does not resolve scopes, so the audience is

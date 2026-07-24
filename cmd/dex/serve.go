@@ -417,12 +417,25 @@ func runServe(options serveOptions) error {
 		c.Expiry.RefreshTokens.ValidIfNotUsedFor,
 		c.Expiry.RefreshTokens.AbsoluteLifetime,
 		c.Expiry.RefreshTokens.ReuseInterval,
+		nil, // time.Now
 	)
 	if err != nil {
 		return fmt.Errorf("invalid refresh token expiration policy config: %v", err)
 	}
 
 	serverConfig.RefreshTokenPolicy = refreshTokenPolicy
+
+	ceilings, err := buildExpiryCeilings(idTokensValidFor, c.Expiry.RefreshTokens)
+	if err != nil {
+		return fmt.Errorf("invalid global expiry config: %v", err)
+	}
+	serverConfig.ExpiryCeilings = ceilings
+	serverConfig.GlobalRefreshDefaults = tokens.RefreshTokenDefaults{
+		DisableRotation:   c.Expiry.RefreshTokens.DisableRotation,
+		ValidIfNotUsedFor: c.Expiry.RefreshTokens.ValidIfNotUsedFor,
+		AbsoluteLifetime:  c.Expiry.RefreshTokens.AbsoluteLifetime,
+		ReuseInterval:     c.Expiry.RefreshTokens.ReuseInterval,
+	}
 
 	if featureflags.SessionsEnabled.Enabled() {
 		sessionConfig, err := parseSessionConfig(c.Sessions)
@@ -609,7 +622,7 @@ func runServe(options serveOptions) error {
 		}
 
 		grpcSrv := grpc.NewServer(grpcOptions...)
-		api.RegisterDexServer(grpcSrv, apiserver.NewAPI(serverConfig.Storage, logger, version, serv.Connectors(), serv.ConstructDiscovery))
+		api.RegisterDexServer(grpcSrv, apiserver.NewAPI(serverConfig.Storage, logger, version, serv.Connectors(), serv.ConstructDiscovery, serv.Expiry()))
 
 		grpcMetrics.InitializeMetrics(grpcSrv)
 		if c.GRPC.Reflection {
@@ -848,6 +861,41 @@ func parseSessionConfig(s *Sessions) (*session.Config, error) {
 		return nil, fmt.Errorf("ssoSharedWithDefault must be \"none\" or \"all\", got %q", sc.SSOSharedWithDefault)
 	}
 	return sc, nil
+}
+
+// buildExpiryCeilings parses the global expiry config into the ceilings used
+// to validate per-connector overrides. The server uses these for both static
+// YAML connectors at startup and dynamic API writes at runtime.
+func buildExpiryCeilings(globalIDTokens time.Duration, globalRefresh RefreshToken) (tokens.ExpiryCeilings, error) {
+	// A ceiling of 0 means "no ceiling", so a non-positive lifetime would
+	// silently disable per-connector idTokens validation. The server would
+	// fall back to 24h anyway, so such a value never means what it says.
+	if globalIDTokens <= 0 {
+		return tokens.ExpiryCeilings{}, fmt.Errorf("expiry.idTokens must be positive, got %s", globalIDTokens)
+	}
+	c := tokens.ExpiryCeilings{
+		IDTokens:                globalIDTokens,
+		RefreshRotationDisabled: globalRefresh.DisableRotation,
+	}
+	for _, f := range []struct {
+		name  string
+		value string
+		dst   *time.Duration
+	}{
+		{"expiry.refreshTokens.absoluteLifetime", globalRefresh.AbsoluteLifetime, &c.RefreshAbsoluteLifetime},
+		{"expiry.refreshTokens.validIfNotUsedFor", globalRefresh.ValidIfNotUsedFor, &c.RefreshValidIfNotUsedFor},
+		{"expiry.refreshTokens.reuseInterval", globalRefresh.ReuseInterval, &c.RefreshReuseInterval},
+	} {
+		if f.value == "" {
+			continue
+		}
+		d, err := time.ParseDuration(f.value)
+		if err != nil {
+			return c, fmt.Errorf("parse %s: %v", f.name, err)
+		}
+		*f.dst = d
+	}
+	return c, nil
 }
 
 func buildMFAProviders(authenticators []MFAAuthenticator, issuerURL string, logger *slog.Logger) map[string]mfa.Provider {

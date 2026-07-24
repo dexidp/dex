@@ -25,7 +25,7 @@ func TestConnectorCacheInvalidation(t *testing.T) {
 	}
 	serv.connectors = connectors.NewCache(s, serv.resolveConnector)
 
-	apiServer := apiserver.NewAPI(s, logger, "test", serv.connectors, serv.ConstructDiscovery)
+	apiServer := apiserver.NewAPI(s, logger, "test", serv.connectors, serv.ConstructDiscovery, nil)
 	ctx := context.Background()
 
 	connID := "mock-conn"

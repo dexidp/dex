@@ -467,4 +467,9 @@ var migrations = []migration{
 				add column sso_shared_with bytea;`,
 		},
 	},
+	{
+		stmts: []string{
+			`alter table connector add column expiry bytea;`,
+		},
+	},
 }

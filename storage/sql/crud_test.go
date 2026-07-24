@@ -56,3 +56,29 @@ func TestEncoder(t *testing.T) {
 		t.Errorf("wanted %q got %q", want, got)
 	}
 }
+
+func TestScanConnectorNullExpiry(t *testing.T) {
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	if _, err := db.Exec(`create table connector ( id text, type text, name text, resource_version text, config blob, grant_types blob, expiry blob );`); err != nil {
+		t.Fatal(err)
+	}
+	// Dex always writes SQL NULL for an unset override, but an out-of-band
+	// writer can leave the JSON literal null; both must scan to a nil Expiry.
+	if _, err := db.Exec(`insert into connector values ('a', 'oidc', 'A', '1', '{}', '[]', null), ('b', 'oidc', 'B', '1', '{}', '[]', 'null');`); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"a", "b"} {
+		c, err := scanConnector(db.QueryRow(`select id, type, name, resource_version, config, grant_types, expiry from connector where id = ?;`, id))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c.Expiry != nil {
+			t.Errorf("connector %q: want nil expiry, got %+v", id, c.Expiry)
+		}
+	}
+}

@@ -23,7 +23,7 @@ import (
 type refresh struct {
 	storage         storage.Storage
 	issuer          *tokens.Issuer
-	policy          *tokens.RefreshStrategy
+	expiry          *tokens.Expiry
 	sessionsEnabled bool
 	now             func() time.Time
 	logger          *slog.Logger
@@ -54,7 +54,7 @@ func (g *refresh) ConnectorID(ctx context.Context, req *Request, client storage.
 		return "", oerr
 	}
 
-	refreshToken, err := tokens.LookupRefreshToken(ctx, g.storage, g.policy, g.logger, &client.ID, token)
+	refreshToken, err := tokens.LookupRefreshToken(ctx, g.storage, g.expiry, g.logger, &client.ID, token)
 	if err != nil {
 		return "", refreshLookupError(err)
 	}
@@ -105,7 +105,7 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 		return g.refreshWithConnector(ctx, conn, connectorData, scopes, tokens.IdentityFromClaims(refreshToken.Claims))
 	}
 
-	rawNewToken, ident, err := g.issuer.Refresh.Rotate(ctx, refreshToken, req.refreshID, g.policy, freshIdentity)
+	rawNewToken, ident, err := g.issuer.Refresh.Rotate(ctx, refreshToken, req.refreshID, g.expiry.RefreshStrategy(refreshToken.ConnectorID), freshIdentity)
 	if err != nil {
 		g.logger.ErrorContext(ctx, "failed to rotate refresh token", "err", err)
 		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}

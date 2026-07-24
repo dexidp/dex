@@ -46,7 +46,7 @@ func testAccessToken(t *testing.T) string {
 	issURL, err := url.Parse(testIssuer)
 	require.NoError(t, err)
 
-	issuer := tokens.NewIssuer(memory.New(logger), sig, *issURL, time.Hour, time.Now, logger)
+	issuer := tokens.NewIssuer(memory.New(logger), sig, *issURL, tokens.NewExpiry(time.Hour, nil, tokens.ExpiryCeilings{}, tokens.RefreshTokenDefaults{}, nil), time.Now, logger)
 	token, _, err := issuer.SignIDToken(ctx, tokens.Authorization{
 		Client:      storage.Client{ID: "test"},
 		Claims:      storage.Claims{UserID: "1", Username: "jane"},

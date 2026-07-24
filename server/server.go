@@ -113,6 +113,14 @@ type Config struct {
 	// Refresh token expiration settings
 	RefreshTokenPolicy *tokens.RefreshStrategy
 
+	// ExpiryCeilings define the upper bounds against which per-connector
+	// expiry overrides are validated. A zero duration means "no ceiling".
+	ExpiryCeilings tokens.ExpiryCeilings
+
+	// GlobalRefreshDefaults provide the inheritance roots for per-connector
+	// refresh-token overrides that leave fields unset.
+	GlobalRefreshDefaults tokens.RefreshTokenDefaults
+
 	// If set, the server will use this connector to handle password grants
 	PasswordConnector string
 
@@ -223,6 +231,10 @@ type Server struct {
 
 	refreshTokenPolicy *tokens.RefreshStrategy
 
+	// expiry resolves effective token lifetimes, including the per-connector
+	// overrides installed at startup and through the gRPC API.
+	expiry *tokens.Expiry
+
 	logger *slog.Logger
 
 	signer signer.Signer
@@ -269,6 +281,10 @@ func (s *Server) newDiscoveryHandler() *discovery.Handler {
 // Connectors is the server's connector cache. The gRPC API needs it to
 // invalidate the cache on connector CRUD.
 func (s *Server) Connectors() *connectors.Cache { return s.connectors }
+
+// Expiry is the server's token-lifetime registry. The gRPC API needs it to
+// validate and install per-connector expiry overrides on connector CRUD.
+func (s *Server) Expiry() *tokens.Expiry { return s.expiry }
 
 // ConstructDiscovery builds the OIDC discovery document. The gRPC API's
 // GetDiscovery uses it to return the same document served over HTTP.
@@ -400,7 +416,8 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		mfaProviders:           c.MFAProviders,
 		defaultMFAChain:        c.DefaultMFAChain,
 	}
-	s.issuer = tokens.NewIssuer(s.storage, s.signer, s.issuerURL, s.idTokensValidFor, s.now, s.logger)
+	s.expiry = tokens.NewExpiry(s.idTokensValidFor, s.refreshTokenPolicy, c.ExpiryCeilings, c.GlobalRefreshDefaults, s.now)
+	s.issuer = tokens.NewIssuer(s.storage, s.signer, s.issuerURL, s.expiry, s.now, s.logger)
 	s.connectors = connectors.NewCache(s.storage, s.resolveConnector)
 	// sessions is shared infrastructure (session cookie, SSO, auth-session CRUD)
 	// referenced by the flow steps mounted below. The steps themselves hold no
@@ -428,6 +445,17 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 
 	var failedCount int
 	for _, conn := range storageConnectors {
+		if err := s.expiry.Upsert(conn.ID, conn.Expiry); err != nil {
+			failedCount++
+			if c.ContinueOnConnectorFailure {
+				s.logger.Error("server: invalid connector expiry", "id", conn.ID, "err", err)
+				continue
+			}
+			return nil, fmt.Errorf("server: invalid connector expiry for %s: %v", conn.ID, err)
+		}
+		if conn.Expiry != nil {
+			s.logger.Info("server: connector expiry override installed", "id", conn.ID)
+		}
 		if _, err := s.OpenConnector(conn); err != nil {
 			failedCount++
 			if c.ContinueOnConnectorFailure {
@@ -565,7 +593,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			Now:                 s.now,
 			Logger:              s.logger,
 			PasswordConnector:   s.passwordConnector,
-			RefreshPolicy:       s.refreshTokenPolicy,
+			Expiry:              s.expiry,
 			SessionsEnabled:     s.sessionConfig != nil,
 			SupportedGrantTypes: s.supportedGrantTypes,
 		},
@@ -575,11 +603,11 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			Logger: s.logger,
 		},
 		&introspection.Handler{
-			Issuer:        s.issuerURL.String(),
-			Signer:        s.signer,
-			Storage:       s.storage,
-			Logger:        s.logger,
-			RefreshPolicy: s.refreshTokenPolicy,
+			Issuer:  s.issuerURL.String(),
+			Signer:  s.signer,
+			Storage: s.storage,
+			Logger:  s.logger,
+			Expiry:  s.expiry,
 		},
 		&device.Handler{
 			IssuerURL:        s.issuerURL,

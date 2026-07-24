@@ -18,27 +18,28 @@ import (
 // tokens (SignAccessToken/SignIDToken) and owns a RefreshStore for refresh-token
 // persistence. The low-level cryptographic signer is an injected dependency.
 type Issuer struct {
-	storage          storage.Storage
-	signer           signer.Signer
-	issuerURL        url.URL
-	idTokensValidFor time.Duration
-	now              func() time.Time
-	logger           *slog.Logger
+	storage   storage.Storage
+	signer    signer.Signer
+	issuerURL url.URL
+	expiry    *Expiry
+	now       func() time.Time
+	logger    *slog.Logger
 
 	// Refresh persists and rotates refresh tokens.
 	Refresh *RefreshStore
 }
 
-// NewIssuer wires an issuer from the shared dependencies.
-func NewIssuer(storage storage.Storage, sig signer.Signer, issuerURL url.URL, idTokensValidFor time.Duration, now func() time.Time, logger *slog.Logger) *Issuer {
+// NewIssuer wires an issuer from the shared dependencies. expiry resolves the
+// (possibly per-connector) lifetime of the tokens it mints.
+func NewIssuer(storage storage.Storage, sig signer.Signer, issuerURL url.URL, expiry *Expiry, now func() time.Time, logger *slog.Logger) *Issuer {
 	return &Issuer{
-		storage:          storage,
-		signer:           sig,
-		issuerURL:        issuerURL,
-		idTokensValidFor: idTokensValidFor,
-		now:              now,
-		logger:           logger,
-		Refresh:          NewRefreshStore(storage, now, logger),
+		storage:   storage,
+		signer:    sig,
+		issuerURL: issuerURL,
+		expiry:    expiry,
+		now:       now,
+		logger:    logger,
+		Refresh:   NewRefreshStore(storage, now, logger),
 	}
 }
 
@@ -93,7 +94,7 @@ func (i *Issuer) SignAccessToken(ctx context.Context, auth Authorization) (strin
 // at_hash/c_hash.
 func (i *Issuer) SignIDToken(ctx context.Context, auth Authorization, accessToken, code string) (string, time.Time, error) {
 	issuedAt := i.now()
-	expiry := issuedAt.Add(i.idTokensValidFor)
+	expiry := issuedAt.Add(i.expiry.IDTokensValidFor(auth.ConnectorID))
 
 	subjectString, err := GenSubject(auth.Claims.UserID, auth.ConnectorID)
 	if err != nil {

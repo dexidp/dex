@@ -103,7 +103,7 @@ func newTestHandler(t *testing.T, updateConfig func(c *testFlowConfig)) (*httpte
 
 	now := func() time.Time { return time.Now() }
 	conns := connectors.NewCache(store, testResolveConnector)
-	issuer := tokens.NewIssuer(store, sig, *issuerURL, 24*time.Hour, now, logger)
+	issuer := tokens.NewIssuer(store, sig, *issuerURL, tokens.NewExpiry(24*time.Hour, nil, tokens.ExpiryCeilings{}, tokens.RefreshTokenDefaults{}, now), now, logger)
 
 	tc := testFlowConfig{
 		Handler: Handler{

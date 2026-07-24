@@ -156,7 +156,7 @@ type Handler struct {
 	Now                 func() time.Time
 	Logger              *slog.Logger
 	PasswordConnector   string
-	RefreshPolicy       *tokens.RefreshStrategy
+	Expiry              *tokens.Expiry
 	SessionsEnabled     bool
 	SupportedGrantTypes []string
 
@@ -181,7 +181,7 @@ func (h *Handler) Mount(m router.Mux) {
 		&password{issuer: h.Issuer, logger: h.Logger, connectorID: h.PasswordConnector},
 		&tokenExchange{issuer: h.Issuer, logger: h.Logger},
 		&authorizationCode{issuer: h.Issuer, storage: h.Storage, connectors: h.Connectors, now: h.Now, logger: h.Logger},
-		&refresh{storage: h.Storage, issuer: h.Issuer, policy: h.RefreshPolicy, sessionsEnabled: h.SessionsEnabled, now: h.Now, logger: h.Logger},
+		&refresh{storage: h.Storage, issuer: h.Issuer, expiry: h.Expiry, sessionsEnabled: h.SessionsEnabled, now: h.Now, logger: h.Logger},
 		&deviceCode{storage: h.Storage, now: h.Now, logger: h.Logger},
 	)
 	m.HandleCORS("/token", h.handleToken)

@@ -18,6 +18,11 @@ import (
 
 func newTestIssuer(t *testing.T) (*Issuer, storage.Storage) {
 	t.Helper()
+	return newTestIssuerWithExpiry(t, NewExpiry(time.Hour, nil, ExpiryCeilings{}, RefreshTokenDefaults{}, nil), time.Now)
+}
+
+func newTestIssuerWithExpiry(t *testing.T, expiry *Expiry, now func() time.Time) (*Issuer, storage.Storage) {
+	t.Helper()
 	logger := slog.New(slog.DiscardHandler)
 	store := memory.New(logger)
 
@@ -29,7 +34,7 @@ func newTestIssuer(t *testing.T) (*Issuer, storage.Storage) {
 	issuerURL, err := url.Parse("https://issuer.example.com")
 	require.NoError(t, err)
 
-	return NewIssuer(store, sig, *issuerURL, time.Hour, time.Now, logger), store
+	return NewIssuer(store, sig, *issuerURL, expiry, now, logger), store
 }
 
 func testAuthorization() Authorization {
@@ -73,4 +78,27 @@ func TestIssuerIssue(t *testing.T) {
 	require.NotEmpty(t, ts2.AccessToken)
 	require.NotEmpty(t, ts2.IDToken)
 	require.Empty(t, ts2.RefreshToken)
+}
+
+func TestSignIDTokenUsesConnectorExpiryOverride(t *testing.T) {
+	ctx := t.Context()
+	now := time.Now().UTC()
+
+	expiry := NewExpiry(time.Hour, nil, ExpiryCeilings{IDTokens: time.Hour}, RefreshTokenDefaults{}, nil)
+	require.NoError(t, expiry.Upsert("short", &storage.ConnectorExpiry{IDTokens: "5m"}))
+
+	iss, _ := newTestIssuerWithExpiry(t, expiry, func() time.Time { return now })
+
+	auth := testAuthorization()
+	auth.ConnectorID = "short"
+	_, expiryShort, err := iss.SignIDToken(ctx, auth, "", "")
+	require.NoError(t, err)
+	require.Equal(t, now.Add(5*time.Minute), expiryShort.UTC(),
+		"per-connector override must apply")
+
+	auth.ConnectorID = "unknown"
+	_, expiryGlobal, err := iss.SignIDToken(ctx, auth, "", "")
+	require.NoError(t, err)
+	require.Equal(t, now.Add(time.Hour), expiryGlobal.UTC(),
+		"unknown connector must fall back to global")
 }
