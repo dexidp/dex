@@ -205,6 +205,24 @@ func TestParseAuthorizationRequest(t *testing.T) {
 			expectedError: &displayedAuthErr{Status: http.StatusBadRequest},
 		},
 		{
+			name: "regexp url with malicious uri",
+			clients: []storage.Client{
+				{
+					ID:                              "bar",
+					InsecureAllowRegexpRedirectURIs: true,
+					RedirectURIs:                    []string{`https://pr-(\d+).example.com`},
+				},
+			},
+			supportedResponseTypes: []string{"code", "id_token", "token"},
+			queryParams: map[string]string{
+				"client_id":     "bar",
+				"redirect_uri":  "https://pr-1010.example.com.attacker.xyz",
+				"response_type": "code",
+				"scope":         "openid email profile",
+			},
+			expectedError: &displayedAuthErr{Status: http.StatusBadRequest},
+		},
+		{
 			name: "wildcard url",
 			clients: []storage.Client{
 				{
