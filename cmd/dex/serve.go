@@ -245,7 +245,7 @@ func runServe(options serveOptions) error {
 			}
 			if client.InsecureAllowRegexpRedirectURIs {
 				for _, uri := range client.RedirectURIs {
-					if client.InsecureAllowWildcardRedirectURIs && strings.Contains(uri, ".*") {
+					if !client.InsecureAllowWildcardRedirectURIs && strings.Contains(uri, ".*") {
 						return fmt.Errorf("invalid config: InsecureAllowWildcardRedirectURIs is required when using \".*\"")
 					}
 
