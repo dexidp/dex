@@ -1,4 +1,4 @@
-package server
+package apiserver
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"github.com/dexidp/dex/api/v2"
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/connector/mock"
-	"github.com/dexidp/dex/server/apiserver"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/storage/memory"
 )
@@ -19,15 +18,15 @@ func TestConnectorCacheInvalidation(t *testing.T) {
 	logger := newLogger(t)
 	s := memory.New(logger)
 
-	serv := &Server{
-		storage: s,
-		logger:  logger,
-	}
-	serv.connectors = connectors.NewCache(s, connectors.Resolver(s, logger, ConnectorsConfig))
+	// Only the connector type this test creates needs to resolve; the config map
+	// is injected, so the API's tests need none of dex's real connectors.
+	conns := connectors.NewCache(s, connectors.Resolver(s, logger, map[string]func() connectors.ConnectorConfig{
+		"mockPassword": func() connectors.ConnectorConfig { return new(mock.PasswordConfig) },
+	}))
 
 	// This test exercises connector-cache invalidation, not discovery, so no
 	// discovery handler is wired (GetDiscovery guards against nil).
-	apiServer := apiserver.NewAPI(s, logger, "test", serv.connectors, nil)
+	apiServer := NewAPI(s, logger, "test", conns, nil)
 	ctx := context.Background()
 
 	connID := "mock-conn"
@@ -52,7 +51,7 @@ func TestConnectorCacheInvalidation(t *testing.T) {
 	}
 
 	// 2. Load it into server cache
-	c1, err := serv.connectors.Get(ctx, connID)
+	c1, err := conns.Get(ctx, connID)
 	if err != nil {
 		t.Fatalf("failed to get connector: %v", err)
 	}
@@ -89,7 +88,7 @@ func TestConnectorCacheInvalidation(t *testing.T) {
 	}
 
 	// 5. Load it again
-	c2, err := serv.connectors.Get(ctx, connID)
+	c2, err := conns.Get(ctx, connID)
 	if err != nil {
 		t.Fatalf("failed to get connector second time: %v", err)
 	}
@@ -123,7 +122,7 @@ func TestConnectorCacheInvalidation(t *testing.T) {
 	}
 
 	// 7. Load it again
-	c3, err := serv.connectors.Get(ctx, connID)
+	c3, err := conns.Get(ctx, connID)
 	if err != nil {
 		t.Fatalf("failed to get connector third time: %v", err)
 	}
