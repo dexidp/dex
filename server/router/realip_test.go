@@ -81,6 +81,46 @@ func TestParseRealIP(t *testing.T) {
 			headerVal:  "203.0.113.9",
 			want:       "203.0.113.9",
 		},
+		{
+			// The whole header used to go to netip.ParseAddr, so any chain was
+			// unparseable and the header was dropped for the peer address.
+			name:       "chain through one trusted proxy",
+			trusted:    []string{"10.0.0.0/8"},
+			remoteAddr: "10.1.2.3:1234",
+			headerVal:  "203.0.113.9, 10.1.2.3",
+			want:       "203.0.113.9",
+		},
+		{
+			name:       "chain through several trusted proxies",
+			trusted:    []string{"10.0.0.0/8", "192.168.0.0/16"},
+			remoteAddr: "10.1.2.3:1234",
+			headerVal:  "203.0.113.9, 192.168.1.1, 10.9.9.9",
+			want:       "203.0.113.9",
+		},
+		{
+			// The client prepended a hop of its own. Everything left of the first
+			// untrusted hop is its invention, so the untrusted hop is the client.
+			name:       "client-spoofed hops left of the real client",
+			trusted:    []string{"10.0.0.0/8"},
+			remoteAddr: "10.1.2.3:1234",
+			headerVal:  "1.2.3.4, 198.51.100.7, 10.1.2.3",
+			want:       "198.51.100.7",
+		},
+		{
+			// Nothing left of a malformed hop can be attributed to a proxy.
+			name:       "malformed hop breaks the chain",
+			trusted:    []string{"10.0.0.0/8"},
+			remoteAddr: "10.1.2.3:1234",
+			headerVal:  "203.0.113.9, garbage, 10.1.2.3",
+			want:       "10.1.2.3",
+		},
+		{
+			name:       "every hop is a trusted proxy",
+			trusted:    []string{"10.0.0.0/8"},
+			remoteAddr: "10.1.2.3:1234",
+			headerVal:  "10.9.9.9, 10.1.2.3",
+			want:       "10.1.2.3",
+		},
 	}
 
 	for _, tc := range tests {
