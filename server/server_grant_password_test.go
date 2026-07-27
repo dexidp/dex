@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -117,12 +118,12 @@ func TestHandlePassword_LocalPasswordDBClaims(t *testing.T) {
 	// Enable local connector.
 	localConn := storage.Connector{
 		ID:              "local",
-		Type:            LocalConnector,
+		Type:            connectors.LocalConnector,
 		Name:            "Email",
 		ResourceVersion: "1",
 	}
 	require.NoError(t, s.storage.CreateConnector(ctx, localConn))
-	_, err := s.OpenConnector(localConn)
+	_, err := s.connectors.Open(localConn)
 	require.NoError(t, err)
 
 	// Create a user in the password DB with groups and preferred_username.

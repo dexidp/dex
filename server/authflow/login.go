@@ -149,7 +149,7 @@ func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			backLinkParams.Set("prompt", "select_account")
 		}
 		backLinkURL := url.URL{
-			Path:     h.absPath("/auth"),
+			Path:     h.IssuerURL.AbsPath("/auth"),
 			RawQuery: backLinkParams.Encode(),
 		}
 		backLink = backLinkURL.String()
@@ -162,7 +162,7 @@ func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			// Use the auth request ID as the "state" token.
 			//
 			// TODO(ericchiang): Is this appropriate or should we also be using a nonce?
-			callbackURL, connData, err := conn.LoginURL(scopes, h.absURL("/callback"), authReq.ID)
+			callbackURL, connData, err := conn.LoginURL(scopes, h.IssuerURL.AbsURL("/callback"), authReq.ID)
 			if err != nil {
 				h.Logger.ErrorContext(r.Context(), "connector returned error when creating callback", "connector_id", connID, "err", err)
 				h.renderError(r, w, http.StatusInternalServerError, "Login error.")
@@ -183,7 +183,7 @@ func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, callbackURL, http.StatusFound)
 		case connector.PasswordConnector:
 			loginURL := url.URL{
-				Path: h.absPath("/auth", connID, "login"),
+				Path: h.IssuerURL.AbsPath("/auth", connID, "login"),
 			}
 			q := loginURL.Query()
 			q.Set("state", authReq.ID)

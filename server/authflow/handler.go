@@ -3,11 +3,11 @@ package authflow
 import (
 	"log/slog"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
 	"github.com/dexidp/dex/server/connectors"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/signer"
@@ -24,7 +24,7 @@ import (
 // reference to the MFA or consent handlers; each step only redirects back to
 // /auth, never to another step.
 type Handler struct {
-	IssuerURL              url.URL
+	IssuerURL              oauth2.IssuerURL
 	Connectors             *connectors.Cache
 	Storage                storage.Storage
 	Templates              *templates.Templates

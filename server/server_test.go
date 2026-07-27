@@ -33,6 +33,7 @@ import (
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/connector/mock"
 	"github.com/dexidp/dex/pkg/featureflags"
+	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/device"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/session"
@@ -173,6 +174,7 @@ func newTestServerMultipleConnectors(t *testing.T, updateConfig func(c *Config))
 		Logger:             logger,
 		PrometheusRegistry: prometheus.NewRegistry(),
 		Signer:             sig,
+		SkipApprovalScreen: true, // Don't prompt for approval, just immediately redirect with code.
 	}
 	if updateConfig != nil {
 		updateConfig(&config)
@@ -210,7 +212,6 @@ func newTestServerMultipleConnectors(t *testing.T, updateConfig func(c *Config))
 	if server, err = newServer(ctx, config); err != nil {
 		t.Fatal(err)
 	}
-	server.skipApproval = true // Don't prompt for approval, just immediately redirect with code.
 	return s, server
 }
 
@@ -1298,7 +1299,7 @@ func TestPasswordDB(t *testing.T) {
 
 	logger := newLogger(t)
 	s := memory.New(logger)
-	conn := newPasswordDB(s)
+	conn := connectors.NewPasswordDB(s)
 
 	pw := "hi"
 
@@ -1388,7 +1389,7 @@ func TestPasswordDB(t *testing.T) {
 func TestPasswordDBUsernamePrompt(t *testing.T) {
 	logger := newLogger(t)
 	s := memory.New(logger)
-	conn := newPasswordDB(s)
+	conn := connectors.NewPasswordDB(s)
 
 	expected := "Email Address"
 	if actual := conn.Prompt(); actual != expected {
@@ -1652,7 +1653,7 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 				// Add the Clients to the test server
 				client := storage.Client{
 					ID:           clientID,
-					RedirectURIs: []string{s.absPath(oauth2.DeviceCallbackURI)},
+					RedirectURIs: []string{s.issuerURL.AbsPath(oauth2.DeviceCallbackURI)},
 					Public:       true,
 				}
 				if err := s.storage.CreateClient(ctx, client); err != nil {
@@ -1763,7 +1764,7 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 					ClientSecret: client.Secret,
 					Endpoint:     p.Endpoint(),
 					Scopes:       requestedScopes,
-					RedirectURL:  s.absURL(oauth2.DeviceCallbackURI),
+					RedirectURL:  s.issuerURL.AbsURL(oauth2.DeviceCallbackURI),
 				}
 				if len(tc.scopes) != 0 {
 					oauth2Config.Scopes = tc.scopes
@@ -1832,7 +1833,7 @@ func TestServerSupportedGrants(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			_, srv := newTestServer(t, tc.config)
-			require.Equal(t, tc.resGrants, srv.supportedGrantTypes)
+			require.Equal(t, tc.resGrants, srv.discovery.GrantTypes)
 		})
 	}
 }

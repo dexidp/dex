@@ -364,7 +364,7 @@ func TestBackLinkIncludesPromptSelectAccount(t *testing.T) {
 		Config:          []byte(`{"username": "foo", "password": "bar"}`),
 	}
 	require.NoError(t, s.storage.CreateConnector(ctx, pwConn))
-	_, err := s.OpenConnector(pwConn)
+	_, err := s.connectors.Open(pwConn)
 	require.NoError(t, err)
 
 	client := storage.Client{

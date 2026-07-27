@@ -279,9 +279,9 @@ func runServe(options serveOptions) error {
 
 	if c.EnablePasswordDB {
 		storageConnectors = append(storageConnectors, storage.Connector{
-			ID:   server.LocalConnector,
+			ID:   connectors.LocalConnector,
 			Name: "Email",
-			Type: server.LocalConnector,
+			Type: connectors.LocalConnector,
 		})
 		logger.Info("config connector: local passwords enabled")
 	}
@@ -609,7 +609,7 @@ func runServe(options serveOptions) error {
 		}
 
 		grpcSrv := grpc.NewServer(grpcOptions...)
-		api.RegisterDexServer(grpcSrv, apiserver.NewAPI(serverConfig.Storage, logger, version, serv.Connectors(), serv.ConstructDiscovery))
+		api.RegisterDexServer(grpcSrv, apiserver.NewAPI(serverConfig.Storage, logger, version, serv.Connectors(), serv.Discovery()))
 
 		grpcMetrics.InitializeMetrics(grpcSrv)
 		if c.GRPC.Reflection {

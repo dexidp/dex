@@ -16,6 +16,7 @@ import (
 	"github.com/dexidp/dex/connector/mock"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
@@ -67,7 +68,7 @@ func newTestHandler(t *testing.T, providers map[string]Provider, defaultChain []
 		Storage:         store,
 		Templates:       tmpls,
 		Logger:          logger,
-		IssuerURL:       *issuerURL,
+		IssuerURL:       oauth2.IssuerURL{URL: *issuerURL},
 		MFAProviders:    providers,
 		DefaultMFAChain: defaultChain,
 		Now:             time.Now,

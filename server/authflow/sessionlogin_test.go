@@ -46,10 +46,10 @@ func newTestSessionServer(t *testing.T) *sessionTestServer {
 		Storage:   memory.New(nil),
 		Now:       func() time.Time { return now },
 		Logger:    slog.Default(),
-		IssuerURL: *issuerURL,
+		IssuerURL: oauth2.IssuerURL{URL: *issuerURL},
 	}
 	h.Connectors = connectors.NewCache(h.Storage, testResolveConnector)
-	h.Sessions = &session.Manager{Storage: h.Storage, Config: sessionCfg, Now: h.Now, Logger: slog.Default(), IssuerURL: *issuerURL}
+	h.Sessions = &session.Manager{Storage: h.Storage, Config: sessionCfg, Now: h.Now, Logger: slog.Default(), IssuerURL: oauth2.IssuerURL{URL: *issuerURL}}
 	return &sessionTestServer{Handler: h}
 }
 
@@ -2151,5 +2151,5 @@ func TestRememberMeDefault(t *testing.T) {
 // resetSessions rebuilds the Handler's session manager with the given config and
 // issuer, for tests that exercise Manager behavior under a different config.
 func resetSessions(s *sessionTestServer, cfg *session.Config, issuer url.URL) {
-	s.Sessions = &session.Manager{Storage: s.Storage, Config: cfg, Now: s.Now, Logger: slog.Default(), IssuerURL: issuer}
+	s.Sessions = &session.Manager{Storage: s.Storage, Config: cfg, Now: s.Now, Logger: slog.Default(), IssuerURL: oauth2.IssuerURL{URL: issuer}}
 }

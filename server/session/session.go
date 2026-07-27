@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/reqctx"
 	"github.com/dexidp/dex/storage"
 )
@@ -33,7 +33,7 @@ type Manager struct {
 	Config    *Config
 	Now       func() time.Time
 	Logger    *slog.Logger
-	IssuerURL url.URL
+	IssuerURL oauth2.IssuerURL
 }
 
 // Enabled reports whether sessions are configured.

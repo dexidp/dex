@@ -94,7 +94,7 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	if connectorID != "" {
 		for _, c := range connectors {
 			if c.ID == connectorID {
-				connURL.Path = h.absPath("/auth", url.PathEscape(c.ID))
+				connURL.Path = h.IssuerURL.AbsPath("/auth", url.PathEscape(c.ID))
 				http.Redirect(w, r, connURL.String(), http.StatusFound)
 				return
 			}
@@ -104,7 +104,7 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(connectors) == 1 && !h.AlwaysShowLogin {
-		connURL.Path = h.absPath("/auth", url.PathEscape(connectors[0].ID))
+		connURL.Path = h.IssuerURL.AbsPath("/auth", url.PathEscape(connectors[0].ID))
 		http.Redirect(w, r, connURL.String(), http.StatusFound)
 		return
 	}
@@ -140,7 +140,7 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 					if c.ID != session.ConnectorID {
 						continue
 					}
-					connURL.Path = h.absPath("/auth", url.PathEscape(session.ConnectorID))
+					connURL.Path = h.IssuerURL.AbsPath("/auth", url.PathEscape(session.ConnectorID))
 					http.Redirect(w, r, connURL.String(), http.StatusFound)
 					return
 				}
@@ -155,7 +155,7 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 
 	connectorInfos := make([]templates.ConnectorInfo, 0, len(connectors))
 	for _, conn := range connectors {
-		connURL.Path = h.absPath("/auth", url.PathEscape(conn.ID))
+		connURL.Path = h.IssuerURL.AbsPath("/auth", url.PathEscape(conn.ID))
 		connectorInfos = append(connectorInfos, templates.ConnectorInfo{
 			ID:   conn.ID,
 			Name: conn.Name,
