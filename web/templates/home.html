@@ -4,7 +4,13 @@
   {{ if .LoggedIn }}
   <div class="dex-identity">
     {{ if .Username }}<h2 class="dex-identity__name">{{ .Username }}</h2>{{ end }}
-    {{ if .Email }}<div class="dex-identity__email">{{ .Email }}</div>{{ end }}
+    {{ if .Email }}
+    <div class="dex-identity__email">
+      <span class="dex-mono">{{ .Email }}</span>
+      {{ if .EmailVerified }}<span class="dex-identity__state">· verified</span>
+      {{ else }}<span class="dex-identity__state dex-identity__state--warn">· not verified</span>{{ end }}
+    </div>
+    {{ end }}
   </div>
 
   <dl class="dex-facts">
@@ -12,12 +18,6 @@
     <div class="dex-fact">
       <dt>Signed in with</dt>
       <dd>{{ .ConnectorName }}</dd>
-    </div>
-    {{ end }}
-    {{ if .Email }}
-    <div class="dex-fact">
-      <dt>Email verified</dt>
-      <dd>{{ if .EmailVerified }}yes{{ else }}no{{ end }}</dd>
     </div>
     {{ end }}
     {{ if .LastLoginEpoch }}

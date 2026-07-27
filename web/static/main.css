@@ -190,11 +190,23 @@ body {
 
 .dex-identity__email {
   color: var(--dex-home-muted);
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   font-size: 13px;
   line-height: 1.5;
   margin-top: 3px;
   overflow-wrap: anywhere;
+}
+
+/* Whether the connector vouched for the address belongs next to the address,
+ * not in a row of its own further down. It stays in the body face while the
+ * address is monospace: it is a remark about the value, not part of it. */
+.dex-identity__state {
+  white-space: nowrap;
+}
+
+/* An address nobody verified is the case worth noticing, so it is the one that
+ * gets full contrast. */
+.dex-identity__state--warn {
+  color: var(--dex-home-fg);
 }
 
 .dex-fact__count {
@@ -337,15 +349,18 @@ body {
   padding-top: 16px;
 }
 
+/* Underlined and in the accent colour from the start: as grey unadorned text it
+ * did not read as something you could click, which is the only thing this line
+ * is there for. */
 .dex-home__link {
-  color: var(--dex-home-muted);
-  font-size: 12px;
-  text-decoration: none;
+  color: var(--dex-home-accent);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .dex-home__link:hover {
-  color: var(--dex-home-accent);
-  text-decoration: underline;
+  text-decoration-thickness: 2px;
 }
 
 @media (max-width: 420px) {
