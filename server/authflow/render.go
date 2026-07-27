@@ -2,11 +2,11 @@ package authflow
 
 import (
 	"net/http"
+
+	"github.com/dexidp/dex/server/templates"
 )
 
 // renderError renders a user-facing HTML error page.
 func (h *Handler) renderError(r *http.Request, w http.ResponseWriter, status int, description string) {
-	if err := h.Templates.Err(r, w, status, description); err != nil {
-		h.Logger.ErrorContext(r.Context(), "server template error", "err", err)
-	}
+	templates.RenderError(h.Templates, h.Logger, r, w, status, description)
 }

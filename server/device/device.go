@@ -89,9 +89,7 @@ func (h *Handler) writeError(w http.ResponseWriter, typ, description string, sta
 
 // renderError renders an HTML error page.
 func (h *Handler) renderError(r *http.Request, w http.ResponseWriter, status int, description string) {
-	if err := h.Templates.Err(r, w, status, description); err != nil {
-		h.Logger.ErrorContext(r.Context(), "server template error", "err", err)
-	}
+	templates.RenderError(h.Templates, h.Logger, r, w, status, description)
 }
 
 func (h *Handler) getDeviceVerificationURI() string {

@@ -584,7 +584,5 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 // renderError renders a user-facing error page for the non-flow endpoints the
 // server still serves directly (e.g. /healthz).
 func (s *Server) renderError(r *http.Request, w http.ResponseWriter, status int, description string) {
-	if err := s.templates.Err(r, w, status, description); err != nil {
-		s.logger.ErrorContext(r.Context(), "server template error", "err", err)
-	}
+	templates.RenderError(s.templates, s.logger, r, w, status, description)
 }
