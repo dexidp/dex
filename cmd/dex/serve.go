@@ -552,25 +552,29 @@ func runServe(options serveOptions) error {
 		if c.Web.TLSMaxVersion != "" {
 			tlsMaxVersion = allowedTLSVersions[c.Web.TLSMaxVersion]
 		}
-		allowedTLSCiphers := allowedTLSCiphers
+		cipherSuites := allowedTLSCiphers
 		if len(c.Web.AllowedTLSCiphers) > 0 {
 			ciphers, err := parseCipherSuites(c.Web.AllowedTLSCiphers)
 			if err != nil {
 				return fmt.Errorf("invalid TLS cipher suites: %w", err)
 			}
-			allowedTLSCiphers = ciphers
+			cipherSuites = ciphers
 		}
-		var CurvePreferences []tls.CurveID
+		curvePreferences := []tls.CurveID(nil)
 		if len(c.Web.AllowedCurvePreferences) > 0 {
-			CurvePreferences = c.Web.AllowedCurvePreferences
+			curves, err := parseCurvePreferences(c.Web.AllowedCurvePreferences)
+			if err != nil {
+				return fmt.Errorf("invalid TLS curve preferences: %w", err)
+			}
+			curvePreferences = curves
 		}
 
 		baseTLSConfig := &tls.Config{
 			MinVersion:               uint16(tlsMinVersion),
 			MaxVersion:               uint16(tlsMaxVersion),
-			CipherSuites:             allowedTLSCiphers,
+			CipherSuites:             cipherSuites,
 			PreferServerCipherSuites: true,
-			CurvePreferences:         CurvePreferences,
+			CurvePreferences:         curvePreferences,
 		}
 
 		tlsConfig, err := newTLSReloader(logger, c.Web.TLSCert, c.Web.TLSKey, "", baseTLSConfig)
