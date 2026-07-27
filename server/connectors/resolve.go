@@ -43,8 +43,7 @@ func openConnector(logger *slog.Logger, configs map[string]func() ConnectorConfi
 
 	connConfig := f()
 	if len(conn.Config) != 0 {
-		data := []byte(string(conn.Config))
-		if err := json.Unmarshal(data, connConfig); err != nil {
+		if err := json.Unmarshal(conn.Config, connConfig); err != nil {
 			return c, fmt.Errorf("parse connector config: %v", err)
 		}
 	}

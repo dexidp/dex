@@ -67,7 +67,7 @@ func (m mountMux) wrap(name string, h http.Handler) http.HandlerFunc {
 		}
 		// Context values are used for logging purposes with the log/slog logger.
 		rCtx := reqctx.WithRequestID(r.Context())
-		if m.c.RealIPHeader != "" {
+		if m.c.RealIPHeader != "" && m.c.RealIP != nil {
 			if realIP, err := m.c.RealIP(r); err == nil {
 				rCtx = reqctx.WithRemoteIP(rCtx, realIP)
 			}
