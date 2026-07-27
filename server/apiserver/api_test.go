@@ -1,4 +1,4 @@
-package server
+package apiserver
 
 import (
 	"bytes"
@@ -13,7 +13,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/dexidp/dex/api/v2"
-	"github.com/dexidp/dex/server/apiserver"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
@@ -42,7 +41,7 @@ func newAPI(t *testing.T, s storage.Storage, logger *slog.Logger) *apiClient {
 	}
 
 	serv := grpc.NewServer()
-	api.RegisterDexServer(serv, apiserver.NewAPI(s, logger, "test", nil, nil))
+	api.RegisterDexServer(serv, NewAPI(s, logger, "test", nil, nil))
 	go serv.Serve(l)
 
 	// NewClient will retry automatically if the serv.Serve() goroutine

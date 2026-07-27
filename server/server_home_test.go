@@ -6,79 +6,11 @@ import (
 	"testing"
 	"time"
 
-	gosundheit "github.com/AppsFlyer/go-sundheit"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/server/internal"
-	"github.com/dexidp/dex/server/oauth2"
-	"github.com/dexidp/dex/server/session"
-	"github.com/dexidp/dex/server/signer"
-	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
-	"github.com/dexidp/dex/storage/memory"
 )
-
-func newTestServerWithSessions(t *testing.T, updateConfig func(c *Config)) (*httptest.Server, *Server) {
-	t.Helper()
-
-	var server *Server
-	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		server.ServeHTTP(w, r)
-	}))
-
-	logger := newLogger(t)
-	ctx := t.Context()
-
-	sig, err := signer.NewMockSigner(testKey)
-	require.NoError(t, err)
-
-	config := Config{
-		Issuer:  s.URL,
-		Storage: memory.New(logger),
-		Web: WebConfig{
-			Dir: "../web",
-		},
-		Logger:             logger,
-		PrometheusRegistry: prometheus.NewRegistry(),
-		HealthChecker:      gosundheit.New(),
-		SkipApprovalScreen: true,
-		AllowedGrantTypes: []string{
-			oauth2.GrantTypeAuthorizationCode,
-			oauth2.GrantTypeClientCredentials,
-			oauth2.GrantTypeRefreshToken,
-			oauth2.GrantTypeTokenExchange,
-			oauth2.GrantTypeDeviceCode,
-		},
-		Signer: sig,
-		SessionConfig: &session.Config{
-			CookieName:        "dex_session",
-			AbsoluteLifetime:  24 * time.Hour,
-			ValidIfNotUsedFor: 1 * time.Hour,
-		},
-	}
-	if updateConfig != nil {
-		updateConfig(&config)
-	}
-	s.URL = config.Issuer
-
-	if config.RefreshTokenPolicy == nil {
-		config.RefreshTokenPolicy = tokens.NewRefreshStrategy(true, 0, 0, 0, config.Now)
-	}
-
-	connector := storage.Connector{
-		ID:              "mock",
-		Type:            "mockCallback",
-		Name:            "Mock",
-		ResourceVersion: "1",
-	}
-	require.NoError(t, config.Storage.CreateConnector(ctx, connector))
-
-	server, err = newServer(ctx, config)
-	require.NoError(t, err)
-
-	return s, server
-}
 
 func TestHomeNoSessions(t *testing.T) {
 	httpServer, server := newTestServer(t, nil)
@@ -143,7 +75,7 @@ func TestHomeLoggedIn(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  "dex_session",
-		Value: internal.SessionCookieValue(userID, connectorID, nonce, nil),
+		Value: internal.SessionCookieValue(userID, connectorID, nonce, testSessionKey),
 	})
 
 	rr := httptest.NewRecorder()

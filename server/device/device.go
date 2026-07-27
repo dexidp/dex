@@ -82,16 +82,12 @@ func (h *Handler) writeFlowError(r *http.Request, w http.ResponseWriter, e *devi
 
 // writeError writes a JSON OAuth2 error response.
 func (h *Handler) writeError(w http.ResponseWriter, typ, description string, statusCode int) {
-	if err := oauth2.WriteError(w, typ, description, statusCode); err != nil {
-		h.Logger.Error("device error response", "err", err)
-	}
+	oauth2.WriteErrorResponse(h.Logger, w, typ, description, statusCode)
 }
 
 // renderError renders an HTML error page.
 func (h *Handler) renderError(r *http.Request, w http.ResponseWriter, status int, description string) {
-	if err := h.Templates.Err(r, w, status, description); err != nil {
-		h.Logger.ErrorContext(r.Context(), "server template error", "err", err)
-	}
+	templates.RenderError(h.Templates, h.Logger, r, w, status, description)
 }
 
 func (h *Handler) getDeviceVerificationURI() string {
@@ -169,7 +165,7 @@ func (h *Handler) createDeviceAuthorization(ctx context.Context, req deviceCodeR
 
 	deviceCode := storage.NewDeviceCode()
 	userCode := storage.NewUserCode()
-	expireTime := time.Now().Add(h.RequestsValidFor)
+	expireTime := h.Now().Add(h.RequestsValidFor)
 
 	if err := h.Storage.CreateDeviceRequest(ctx, storage.DeviceRequest{
 		UserCode:     userCode,

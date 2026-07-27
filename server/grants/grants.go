@@ -373,9 +373,7 @@ func (h *Handler) writeError(ctx context.Context, w http.ResponseWriter, err err
 		h.Logger.ErrorContext(ctx, "token request failed", "err", err)
 		oerr = &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
 	}
-	if werr := oauth2.WriteError(w, oerr.Type, oerr.Description, oerr.Status); werr != nil {
-		h.Logger.ErrorContext(ctx, "failed to write token error response", "err", werr)
-	}
+	oauth2.WriteErrorResponse(h.Logger, w, oerr.Type, oerr.Description, oerr.Status)
 }
 
 // issue mints the standard token response — the single mint every standard grant

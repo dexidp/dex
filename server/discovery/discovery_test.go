@@ -5,12 +5,13 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"log/slog"
-	"strings"
+	"net/url"
 	"testing"
 
 	jose "github.com/go-jose/go-jose/v4"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
 )
 
@@ -21,9 +22,11 @@ func testHandler(t *testing.T, sessionsEnabled bool) *Handler {
 	sig, err := signer.NewMockSigner(key)
 	require.NoError(t, err)
 
+	u, err := url.Parse("https://dex.example.com")
+	require.NoError(t, err)
+
 	return &Handler{
-		Issuer:          "https://dex.example.com",
-		AbsURL:          func(p ...string) string { return "https://dex.example.com" + strings.Join(p, "") },
+		IssuerURL:       oauth2.IssuerURL{URL: *u},
 		Signer:          sig,
 		Logger:          slog.New(slog.DiscardHandler),
 		ResponseTypes:   map[string]bool{"id_token": true, "code": true},

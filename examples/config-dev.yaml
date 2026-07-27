@@ -58,6 +58,8 @@ web:
   #   X-XSS-Protection: "1; mode=block"
   #   Content-Security-Policy: "default-src 'self'"
   #   Strict-Transport-Security: "max-age=31536000; includeSubDomains"
+  # The header is read only for requests arriving from one of trustedProxies;
+  # without them any client could spoof it, so it is ignored.
   # clientRemoteIP:
   #   header: X-Forwarded-For
   #   trustedProxies:

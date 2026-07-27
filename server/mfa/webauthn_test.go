@@ -66,7 +66,7 @@ func TestWebAuthnVerifyPageRender(t *testing.T) {
 		LastLogin:           time.Now(),
 	}))
 
-	hmacVal := internal.ComputeHMAC(hmacKey, authReq.ID, "webauthn-1")
+	hmacVal := internal.SignStep(authReq, internal.Authenticator("webauthn-1"))
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet,

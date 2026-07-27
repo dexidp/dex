@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"io"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"path"
@@ -428,6 +429,15 @@ func (t *Templates) OOB(r *http.Request, w http.ResponseWriter, code string) err
 		ReqPath string
 	}{code, r.URL.Path}
 	return renderTemplate(w, t.oobTmpl, data)
+}
+
+// RenderError renders the user-facing error page and reports a template failure
+// to the logger. Every domain handler's renderError delegates here, so the
+// error page and the way a failed render is reported stay in one place.
+func RenderError(t *Templates, logger *slog.Logger, r *http.Request, w http.ResponseWriter, status int, description string) {
+	if err := t.Err(r, w, status, description); err != nil {
+		logger.ErrorContext(r.Context(), "server template error", "err", err)
+	}
 }
 
 func (t *Templates) Err(r *http.Request, w http.ResponseWriter, errCode int, errMsg string) error {

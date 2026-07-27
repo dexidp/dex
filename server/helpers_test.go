@@ -2,18 +2,32 @@ package server
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
+	gosundheit "github.com/AppsFlyer/go-sundheit"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server/connectors"
+	"github.com/dexidp/dex/server/oauth2"
+	"github.com/dexidp/dex/server/session"
+	"github.com/dexidp/dex/server/signer"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/memory"
 )
+
+func newLogger(t *testing.T) *slog.Logger {
+	return slog.New(slog.NewTextHandler(t.Output(), &slog.HandlerOptions{Level: slog.LevelDebug}))
+}
 
 func boolPtr(v bool) *bool {
 	return &v
@@ -190,4 +204,127 @@ func (m *mockSAMLRefreshConnector) HandlePOST(s connector.Scopes, samlResponse, 
 
 func (m *mockSAMLRefreshConnector) Refresh(ctx context.Context, s connector.Scopes, ident connector.Identity) (connector.Identity, error) {
 	return m.refreshIdentity, nil
+}
+
+// testSessionKey is the AES key the test servers encrypt session cookies with.
+// Tests that forge a session cookie sign it with this key rather than reading
+// the key back off the server they are exercising.
+var testSessionKey = []byte("0123456789abcdef0123456789abcdef")
+
+// mockConnector is the connector every test server serves.
+func mockConnector(id string) storage.Connector {
+	return storage.Connector{
+		ID:              id,
+		Type:            "mockCallback",
+		Name:            "Mock",
+		ResourceVersion: "1",
+	}
+}
+
+// testSessionConfig is the session config the test servers run with.
+func testSessionConfig() *session.Config {
+	return &session.Config{
+		CookieName:          "dex_session",
+		CookieEncryptionKey: testSessionKey,
+		AbsoluteLifetime:    24 * time.Hour,
+		ValidIfNotUsedFor:   time.Hour,
+	}
+}
+
+// newTestServerWith builds a server serving conns, behind an httptest.Server
+// that dispatches to it. updateConfig adjusts the shared default config before
+// the server is built; the caller-facing constructors below are thin wrappers
+// that differ only in the connectors and the grant types they enable.
+func newTestServerWith(t *testing.T, conns []storage.Connector, updateConfig func(c *Config)) (*httptest.Server, *Server) {
+	t.Helper()
+
+	var server *Server
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server.ServeHTTP(w, r)
+	}))
+
+	logger := newLogger(t)
+	ctx := t.Context()
+
+	sig, err := signer.NewMockSigner(testKey)
+	require.NoError(t, err, "failed to create mock signer")
+
+	config := Config{
+		Issuer:  s.URL,
+		Storage: memory.New(logger),
+		Web: WebConfig{
+			Dir: "../web",
+		},
+		Logger:             logger,
+		PrometheusRegistry: prometheus.NewRegistry(),
+		HealthChecker:      gosundheit.New(),
+		SkipApprovalScreen: true, // Don't prompt for approval, just immediately redirect with code.
+		Signer:             sig,
+	}
+	if updateConfig != nil {
+		updateConfig(&config)
+	}
+	s.URL = config.Issuer
+
+	// Default rotation policy, set before the server is built so the token
+	// endpoint captures it.
+	if config.RefreshTokenPolicy == nil {
+		config.RefreshTokenPolicy = tokens.NewRefreshStrategy(true, 0, 0, 0, config.Now)
+	}
+
+	// Mirror cmd: the session config is present iff the sessions feature flag is on.
+	if featureflags.SessionsEnabled.Enabled() && config.SessionConfig == nil {
+		config.SessionConfig = testSessionConfig()
+	}
+
+	for _, conn := range conns {
+		require.NoError(t, config.Storage.CreateConnector(ctx, conn), "create connector")
+	}
+
+	server, err = newServer(ctx, config)
+	require.NoError(t, err)
+
+	return s, server
+}
+
+// newTestServer serves one mock connector with every implemented grant enabled.
+func newTestServer(t *testing.T, updateConfig func(c *Config)) (*httptest.Server, *Server) {
+	return newTestServerWith(t, []storage.Connector{mockConnector("mock")}, func(c *Config) {
+		c.AllowedGrantTypes = []string{ // all implemented types
+			oauth2.GrantTypeDeviceCode,
+			oauth2.GrantTypeAuthorizationCode,
+			oauth2.GrantTypeClientCredentials,
+			oauth2.GrantTypeRefreshToken,
+			oauth2.GrantTypeTokenExchange,
+			oauth2.GrantTypeImplicit,
+			oauth2.GrantTypePassword,
+		}
+		if updateConfig != nil {
+			updateConfig(c)
+		}
+	})
+}
+
+// newTestServerMultipleConnectors serves two mock connectors, for the paths that
+// depend on the connector selection screen.
+func newTestServerMultipleConnectors(t *testing.T, updateConfig func(c *Config)) (*httptest.Server, *Server) {
+	return newTestServerWith(t, []storage.Connector{mockConnector("mock"), mockConnector("mock2")}, updateConfig)
+}
+
+// newTestServerWithSessions serves one mock connector with sessions always on,
+// regardless of the feature flag.
+func newTestServerWithSessions(t *testing.T, updateConfig func(c *Config)) (*httptest.Server, *Server) {
+	return newTestServerWith(t, []storage.Connector{mockConnector("mock")}, func(c *Config) {
+		c.AllowedGrantTypes = []string{
+			oauth2.GrantTypeAuthorizationCode,
+			oauth2.GrantTypeClientCredentials,
+			oauth2.GrantTypeRefreshToken,
+			oauth2.GrantTypeTokenExchange,
+			oauth2.GrantTypeDeviceCode,
+		}
+		c.SessionConfig = testSessionConfig()
+		if updateConfig != nil {
+			updateConfig(c)
+		}
+	})
 }
