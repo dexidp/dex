@@ -54,8 +54,6 @@ type Server struct {
 	// discovery is built once from config and shared by the mounted HTTP handler
 	// and the gRPC API's Discovery accessor.
 	discovery *discovery.Handler
-
-	sessionConfig *session.Config
 }
 
 // Connectors is the server's connector cache. The gRPC API needs it to
@@ -79,11 +77,10 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	}
 
 	s := &Server{
-		issuerURL:     rc.issuerURL,
-		storage:       newKeyCacher(c.Storage, rc.now),
-		templates:     rc.templates,
-		logger:        c.Logger,
-		sessionConfig: c.SessionConfig,
+		issuerURL: rc.issuerURL,
+		storage:   newKeyCacher(c.Storage, rc.now),
+		templates: rc.templates,
+		logger:    c.Logger,
 	}
 	s.issuer = tokens.NewIssuer(s.storage, c.Signer, s.issuerURL.URL, rc.idTokensValidFor, rc.now, s.logger)
 	s.connectors = connectors.NewCache(s.storage, connectors.Resolver(s.storage, s.logger, ConnectorsConfig))
@@ -97,7 +94,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		ResponseTypes:   rc.responseTypes,
 		GrantTypes:      rc.grantTypes,
 		PKCEMethods:     c.PKCE.CodeChallengeMethodsSupported,
-		SessionsEnabled: s.sessionConfig != nil,
+		SessionsEnabled: c.SessionConfig != nil,
 	}
 
 	if err := s.openConnectors(ctx, c); err != nil {
@@ -208,7 +205,7 @@ func (s *Server) mount(routes router.Mux, c Config, rc resolvedConfig) {
 	// rest.
 	sessions := &session.Manager{
 		Storage:   s.storage,
-		Config:    s.sessionConfig,
+		Config:    c.SessionConfig,
 		Now:       rc.now,
 		Logger:    s.logger,
 		IssuerURL: s.issuerURL,
@@ -224,7 +221,7 @@ func (s *Server) mount(routes router.Mux, c Config, rc resolvedConfig) {
 			Logger:              s.logger,
 			PasswordConnector:   c.PasswordConnector,
 			RefreshPolicy:       c.RefreshTokenPolicy,
-			SessionsEnabled:     s.sessionConfig != nil,
+			SessionsEnabled:     c.SessionConfig != nil,
 			SupportedGrantTypes: rc.grantTypes,
 		},
 		&userinfo.Handler{
