@@ -185,7 +185,7 @@ func (h *Handler) issueAccessToken(ctx context.Context, w http.ResponseWriter, r
 	})
 	if err != nil {
 		h.Logger.ErrorContext(r.Context(), "failed to create new access token", "err", err)
-		h.tokenErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
+		h.writeError(w, oauth2.ServerError, "", http.StatusInternalServerError)
 		return false
 	}
 	resp.accessToken = accessToken
@@ -209,7 +209,7 @@ func (h *Handler) issueIDToken(ctx context.Context, w http.ResponseWriter, r *ht
 	}, resp.accessToken, resp.code.ID)
 	if err != nil {
 		h.Logger.ErrorContext(r.Context(), "failed to create ID token", "err", err)
-		h.tokenErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
+		h.writeError(w, oauth2.ServerError, "", http.StatusInternalServerError)
 		return false
 	}
 	resp.idToken = idToken
@@ -217,9 +217,7 @@ func (h *Handler) issueIDToken(ctx context.Context, w http.ResponseWriter, r *ht
 	return true
 }
 
-// tokenErrHelper writes an OAuth2 error response for the token-bearing flows.
-func (h *Handler) tokenErrHelper(w http.ResponseWriter, typ string, description string, statusCode int) {
-	if err := oauth2.WriteError(w, typ, description, statusCode); err != nil {
-		h.Logger.Error("token error response", "err", err)
-	}
+// writeError writes an OAuth2 error response for the token-bearing flows.
+func (h *Handler) writeError(w http.ResponseWriter, typ string, description string, statusCode int) {
+	oauth2.WriteErrorResponse(h.Logger, w, typ, description, statusCode)
 }

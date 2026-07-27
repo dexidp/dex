@@ -82,9 +82,7 @@ func (h *Handler) writeFlowError(r *http.Request, w http.ResponseWriter, e *devi
 
 // writeError writes a JSON OAuth2 error response.
 func (h *Handler) writeError(w http.ResponseWriter, typ, description string, statusCode int) {
-	if err := oauth2.WriteError(w, typ, description, statusCode); err != nil {
-		h.Logger.Error("device error response", "err", err)
-	}
+	oauth2.WriteErrorResponse(h.Logger, w, typ, description, statusCode)
 }
 
 // renderError renders an HTML error page.

@@ -333,10 +333,10 @@ func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		if intErr, ok := err.(*introspectionError); ok {
-			h.introspectErrHelper(w, intErr.typ, intErr.desc, intErr.code)
+			h.writeError(w, intErr.typ, intErr.desc, intErr.code)
 		} else {
 			h.Logger.ErrorContext(ctx, "an unknown error occurred", "err", err.Error())
-			h.introspectErrHelper(w, oauth2.ServerError, "An unknown error occurred", http.StatusInternalServerError)
+			h.writeError(w, oauth2.ServerError, "An unknown error occurred", http.StatusInternalServerError)
 		}
 
 		return
@@ -345,7 +345,7 @@ func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 	rawJSON, jsonErr := json.Marshal(introspect)
 	if jsonErr != nil {
 		h.Logger.ErrorContext(ctx, "failed to marshal introspection response", "err", jsonErr)
-		h.introspectErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
+		h.writeError(w, oauth2.ServerError, "", http.StatusInternalServerError)
 		return
 	}
 
@@ -353,15 +353,14 @@ func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 	w.Write(rawJSON)
 }
 
-func (h *Handler) introspectErrHelper(w http.ResponseWriter, typ, description string, statusCode int) {
+// writeError writes an OAuth2 error response. An inactive token is not an
+// error to the caller: RFC 7662 answers it with a 200 and active=false.
+func (h *Handler) writeError(w http.ResponseWriter, typ, description string, statusCode int) {
 	if typ == oauth2.InactiveToken {
 		introspectInactiveErr(w)
 		return
 	}
-
-	if err := oauth2.WriteError(w, typ, description, statusCode); err != nil {
-		h.Logger.Error("introspect error response", "err", err)
-	}
+	oauth2.WriteErrorResponse(h.Logger, w, typ, description, statusCode)
 }
 
 func introspectInactiveErr(w http.ResponseWriter) {

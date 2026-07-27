@@ -3,6 +3,7 @@ package oauth2
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 )
@@ -26,6 +27,15 @@ func (e *Error) Error() string {
 // Errorf builds an *Error with a formatted description.
 func Errorf(typ string, status int, format string, args ...any) *Error {
 	return &Error{Type: typ, Description: fmt.Sprintf(format, args...), Status: status}
+}
+
+// WriteErrorResponse writes an OAuth2 error response, reporting a failure to
+// write it to the logger. Endpoints that answer in JSON call this rather than
+// each deciding how to handle a write failure.
+func WriteErrorResponse(logger *slog.Logger, w http.ResponseWriter, typ, description string, statusCode int) {
+	if err := WriteError(w, typ, description, statusCode); err != nil {
+		logger.Error("failed to write oauth2 error response", "err", err)
+	}
 }
 
 // WriteError writes an OAuth2 error response: a JSON body with the error code
