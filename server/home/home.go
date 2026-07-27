@@ -56,6 +56,7 @@ func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 		data.LoggedIn = true
 		data.IPAddress = session.IPAddress
 		data.UserAgent = session.UserAgent
+		data.SessionExpiresEpoch = sessionExpiry(session)
 		h.populateData(ctx, &data, session.UserID, session.ConnectorID)
 	}
 
@@ -63,6 +64,20 @@ func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 		h.Logger.ErrorContext(ctx, "failed to render home template", "err", err)
 		h.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 	}
+}
+
+// sessionExpiry reports when the session ends: the earlier of its absolute
+// lifetime and its idle timeout, since whichever comes first logs the user out.
+// It returns 0 when neither is set, which drops the row from the page.
+func sessionExpiry(s *storage.AuthSession) int64 {
+	expiry := s.AbsoluteExpiry
+	if expiry.IsZero() || (!s.IdleExpiry.IsZero() && s.IdleExpiry.Before(expiry)) {
+		expiry = s.IdleExpiry
+	}
+	if expiry.IsZero() {
+		return 0
+	}
+	return expiry.Unix()
 }
 
 func (h *Handler) handleInline(w http.ResponseWriter, r *http.Request) {

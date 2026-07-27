@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 
@@ -55,6 +56,12 @@ func (m *Manager) RememberMeDefault() *bool {
 func remoteIP(r *http.Request) string {
 	if ip, ok := r.Context().Value(reqctx.RequestKeyRemoteIP).(string); ok && ip != "" {
 		return ip
+	}
+	// RemoteAddr carries the ephemeral source port, which is noise in an audit
+	// record: it identifies the connection, not the client. The resolver behind
+	// the context value already strips it, so strip it here too.
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
 	}
 	return r.RemoteAddr
 }

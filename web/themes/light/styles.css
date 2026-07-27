@@ -127,3 +127,12 @@
   width: 260px;
   margin: 4px auto;
 }
+
+/* Palette the shared stylesheet reads for the home page. */
+.theme-body {
+  --dex-fg: #1a1a1a;
+  --dex-fg-muted: #6b7280;
+  --dex-border: #e8eaed;
+  --dex-surface-subtle: #f4f5f7;
+  --dex-accent: #4a90d9;
+}

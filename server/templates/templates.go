@@ -378,18 +378,33 @@ func (t *Templates) TOTPVerify(r *http.Request, w http.ResponseWriter, postURL, 
 }
 
 type HomeData struct {
-	LoggedIn       bool
-	Username       string
-	Email          string
-	EmailVerified  bool
-	Groups         []string
-	ConnectorName  string
-	LastLoginEpoch int64
-	IPAddress      string
-	UserAgent      string
-	LogoutURL      string
-	DiscoveryURL   string
-	ReqPath        string
+	LoggedIn      bool
+	Username      string
+	Email         string
+	EmailVerified bool
+	Groups        []string
+	ConnectorName string
+	// LastLoginEpoch and SessionExpiresEpoch are Unix seconds, rendered as local
+	// time by the page's script. Zero means the row is omitted.
+	LastLoginEpoch      int64
+	SessionExpiresEpoch int64
+	IPAddress           string
+	UserAgent           string
+	LogoutURL           string
+	DiscoveryURL        string
+	ReqPath             string
+}
+
+// Initial is the first letter of the display name, for the identity avatar.
+// Empty when there is no name to take it from.
+func (d HomeData) Initial() string {
+	for _, r := range d.Username {
+		return strings.ToUpper(string(r))
+	}
+	for _, r := range d.Email {
+		return strings.ToUpper(string(r))
+	}
+	return ""
 }
 
 // HasHome reports whether the home template was loaded.

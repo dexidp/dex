@@ -23,7 +23,7 @@ func TestHomeNoSessions(t *testing.T) {
 	body := rr.Body.String()
 	require.Contains(t, body, "Dex IdP")
 	require.Contains(t, body, "Discovery")
-	require.NotContains(t, body, "Logout")
+	require.NotContains(t, body, "/logout")
 }
 
 func TestHomeNotLoggedIn(t *testing.T) {
@@ -35,9 +35,9 @@ func TestHomeNotLoggedIn(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code)
 
 	body := rr.Body.String()
-	require.Contains(t, body, "Discovery")
-	require.Contains(t, body, "Not logged in")
-	require.NotContains(t, body, "Logout")
+	require.Contains(t, body, ".well-known/openid-configuration")
+	require.Contains(t, body, "Not signed in")
+	require.NotContains(t, body, "/logout")
 }
 
 func TestHomeLoggedIn(t *testing.T) {
@@ -83,14 +83,15 @@ func TestHomeLoggedIn(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code)
 
 	body := rr.Body.String()
-	require.Contains(t, body, "Logout")
 	require.Contains(t, body, "/logout")
 	require.Contains(t, body, "testuser")
 	require.Contains(t, body, "test@example.com")
 	require.Contains(t, body, "Mock")
+	// Groups are listed outright rather than hidden behind a disclosure.
 	require.Contains(t, body, "admins")
-	require.Contains(t, body, "Discovery")
-	require.NotContains(t, body, "Not logged in")
+	require.Contains(t, body, "devs")
+	require.Contains(t, body, ".well-known/openid-configuration")
+	require.NotContains(t, body, "Not signed in")
 }
 
 func TestHomeInvalidCookie(t *testing.T) {
@@ -108,7 +109,7 @@ func TestHomeInvalidCookie(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code)
 
 	body := rr.Body.String()
-	require.NotContains(t, body, "Logout")
-	require.Contains(t, body, "Not logged in")
-	require.Contains(t, body, "Discovery")
+	require.NotContains(t, body, "/logout")
+	require.Contains(t, body, "Not signed in")
+	require.Contains(t, body, ".well-known/openid-configuration")
 }

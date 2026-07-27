@@ -146,85 +146,6 @@ body {
   text-align: left;
 }
 
-.dex-info-table {
-  margin: 12px auto;
-  text-align: left;
-  max-width: 300px;
-}
-
-.dex-info-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px solid #eee;
-  font-size: 13px;
-}
-
-.dex-info-row:last-child {
-  border-bottom: none;
-}
-
-.dex-info-label {
-  color: #888;
-  font-weight: 500;
-}
-
-.dex-info-value {
-  color: #333;
-  text-align: right;
-  word-break: break-word;
-  min-width: 0;
-  max-width: 200px;
-}
-
-.dex-info-details {
-  color: #333;
-  font-size: 13px;
-  min-width: 0;
-  max-width: 200px;
-  text-align: right;
-}
-
-.dex-info-details summary {
-  cursor: pointer;
-  list-style: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: #4A90D9;
-}
-
-.dex-info-details summary:hover {
-  text-decoration: underline;
-}
-
-.dex-info-details summary::-webkit-details-marker {
-  display: none;
-}
-
-.dex-info-details summary::after {
-  content: " \25B8";
-  color: #aaa;
-}
-
-.dex-info-details[open] summary::after {
-  content: " \25BE";
-}
-
-.dex-info-details[open] > :not(summary) {
-  text-align: left;
-}
-
-.dex-info-details[open] summary {
-  margin-bottom: 4px;
-}
-
-.dex-info-details .dex-info-details__list {
-  margin: 0;
-  padding-left: 16px;
-  line-height: 1.8;
-}
-
 .dex-error-box {
   background-color: #e5383b;
   border-radius: 6px;
@@ -234,4 +155,207 @@ body {
   margin: 20px auto;
   max-width: 320px;
   padding: 8px 12px;
+}
+
+/* Home page.
+ *
+ * Colours come from custom properties so a theme can restyle the page by
+ * setting a handful of values. The fallbacks are the light-theme values, so a
+ * custom theme that defines none of them still renders exactly as before. */
+.dex-home {
+  --dex-home-fg: var(--dex-fg, #1a1a1a);
+  --dex-home-muted: var(--dex-fg-muted, #6b7280);
+  --dex-home-border: var(--dex-border, #e8eaed);
+  --dex-home-subtle: var(--dex-surface-subtle, #f4f5f7);
+  --dex-home-accent: var(--dex-accent, #4a90d9);
+
+  color: var(--dex-home-fg);
+  text-align: left;
+}
+
+.dex-identity {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  min-width: 0;
+}
+
+.dex-identity__avatar {
+  align-items: center;
+  background-color: var(--dex-home-subtle);
+  border: 1px solid var(--dex-home-border);
+  border-radius: 50%;
+  color: var(--dex-home-muted);
+  display: flex;
+  flex: 0 0 auto;
+  font-size: 18px;
+  font-weight: 600;
+  height: 44px;
+  justify-content: center;
+  width: 44px;
+}
+
+.dex-identity__text {
+  min-width: 0;
+}
+
+.dex-identity__name {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.dex-identity__email {
+  color: var(--dex-home-muted);
+  font-size: 13px;
+  line-height: 1.5;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+.dex-badge {
+  border: 1px solid var(--dex-home-border);
+  border-radius: 999px;
+  color: var(--dex-home-muted);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  margin-left: 6px;
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+
+.dex-field {
+  margin-top: 20px;
+}
+
+.dex-field__label {
+  color: var(--dex-home-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.dex-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dex-chip {
+  background-color: var(--dex-home-subtle);
+  border: 1px solid var(--dex-home-border);
+  border-radius: 6px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  padding: 3px 9px;
+}
+
+.dex-useragent {
+  color: var(--dex-home-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* Facts are label/value pairs. They stack on narrow viewports so a long value
+ * never has to share a line with its label. */
+.dex-facts {
+  border-top: 1px solid var(--dex-home-border);
+  margin: 20px 0 0;
+  padding: 0;
+}
+
+.dex-fact {
+  border-bottom: 1px solid var(--dex-home-border);
+  display: flex;
+  font-size: 13px;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 9px 0;
+}
+
+.dex-fact dt {
+  color: var(--dex-home-muted);
+  flex: 0 0 auto;
+}
+
+.dex-fact dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.dex-home__actions {
+  margin-top: 24px;
+}
+
+.dex-btn--outline {
+  background-color: transparent;
+  border: 1px solid var(--dex-home-border);
+  color: var(--dex-home-fg);
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 9px 16px;
+  text-align: center;
+  text-decoration: none;
+  width: 100%;
+}
+
+.dex-btn--outline:hover {
+  background-color: var(--dex-home-subtle);
+}
+
+.dex-home__empty {
+  padding: 8px 0 4px;
+  text-align: center;
+}
+
+.dex-home__empty-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.dex-home__empty-text {
+  color: var(--dex-home-muted);
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 6px auto 0;
+  max-width: 34ch;
+}
+
+.dex-home__footer {
+  border-top: 1px solid var(--dex-home-border);
+  margin-top: 24px;
+  padding-top: 16px;
+  text-align: center;
+}
+
+.dex-home__link {
+  color: var(--dex-home-muted);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.dex-home__link:hover {
+  color: var(--dex-home-accent);
+  text-decoration: underline;
+}
+
+@media (max-width: 420px) {
+  .dex-fact {
+    display: block;
+  }
+
+  .dex-fact dd {
+    margin-top: 2px;
+    text-align: left;
+  }
 }
