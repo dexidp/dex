@@ -168,7 +168,6 @@ body {
   --dex-home-border: var(--dex-border, #e8eaed);
   --dex-home-subtle: var(--dex-surface-subtle, #f4f5f7);
   --dex-home-accent: var(--dex-accent, #2f6fb0);
-  --dex-home-accent-fg: var(--dex-accent-fg, #ffffff);
 
   color: var(--dex-home-fg);
   text-align: left;
@@ -331,27 +330,18 @@ body {
 
 .dex-home__actions {
   margin-top: 24px;
+  text-align: center;
 }
 
-/* The page's only action, so it gets the accent fill. The theme owns both the
- * fill and the text on it: an accent light enough to need dark labels (the dark
- * theme's) sets --dex-accent-fg accordingly. */
-.dex-btn--accent {
-  background-color: var(--dex-home-accent);
-  border: 0;
-  color: var(--dex-home-accent-fg);
-  display: block;
+/* Logging out is a link here and a form button on /logout, so the anchor needs
+ * the few properties a <button> brings on its own. Everything else comes from
+ * theme-btn--primary, the same class the rest of the pages use. */
+.dex-home__actions .dex-btn {
+  display: inline-block;
   font-size: 14px;
   font-weight: 600;
-  padding: 10px 16px;
-  text-align: center;
+  line-height: 22px;
   text-decoration: none;
-  transition: filter 0.15s ease;
-  width: 100%;
-}
-
-.dex-btn--accent:hover {
-  filter: brightness(0.92);
 }
 
 .dex-home__empty {
