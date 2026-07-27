@@ -43,8 +43,8 @@ func (h *Handler) handleContinue(w http.ResponseWriter, r *http.Request) {
 	// A step returns with the "continue" verifier (login, MFA) or the "approved"
 	// verifier (consent). The latter proves the user just approved, so consent is
 	// resolved for this request even under prompt=consent / ForceApprovalPrompt.
-	consentApproved := internal.VerifyHMAC(authReq.HMACKey, mac, authReq.ID, "approved")
-	if !consentApproved && !internal.VerifyHMAC(authReq.HMACKey, mac, authReq.ID, "continue") {
+	consentApproved := internal.VerifyStep(authReq, mac, internal.StepApproved)
+	if !consentApproved && !internal.VerifyStep(authReq, mac, internal.StepContinue) {
 		h.renderError(r, w, http.StatusUnauthorized, "Unauthorized request")
 		return
 	}

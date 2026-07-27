@@ -74,7 +74,7 @@ func (h *Handler) validateMFARequest(w http.ResponseWriter, r *http.Request) (*m
 
 	authenticatorID := r.FormValue("authenticator")
 
-	if !internal.VerifyHMAC(authReq.HMACKey, macEncoded, authReq.ID, authenticatorID) {
+	if !internal.VerifyStep(authReq, macEncoded, internal.Authenticator(authenticatorID)) {
 		h.renderError(r, w, http.StatusUnauthorized, "Unauthorized request.")
 		return nil, false
 	}
@@ -208,7 +208,7 @@ func (h *Handler) handleMFA(w http.ResponseWriter, r *http.Request) {
 		h.renderError(r, w, http.StatusInternalServerError, "Login process not yet finalized.")
 		return
 	}
-	if !internal.VerifyHMAC(authReq.HMACKey, r.FormValue("hmac"), authReq.ID, "mfa") {
+	if !internal.VerifyStep(authReq, r.FormValue("hmac"), internal.StepMFA) {
 		h.renderError(r, w, http.StatusUnauthorized, "Unauthorized request.")
 		return
 	}
@@ -240,20 +240,18 @@ func (h *Handler) handleMFA(w http.ResponseWriter, r *http.Request) {
 
 // buildRedirectURL builds an HMAC-protected redirect URL for the given authenticator.
 func (h *Handler) buildRedirectURL(authReq storage.AuthRequest, authenticatorID string) string {
-	v := url.Values{}
-	v.Set("req", authReq.ID)
-	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, authenticatorID))
-	v.Set("authenticator", authenticatorID)
-	return h.IssuerURL.AbsPath(h.mfaPagePath(authenticatorID)) + "?" + v.Encode()
+	return internal.StepURL(
+		h.IssuerURL.AbsPath(h.mfaPagePath(authenticatorID)),
+		authReq,
+		internal.Authenticator(authenticatorID),
+		url.Values{"authenticator": {authenticatorID}},
+	)
 }
 
 // buildContinueURL builds the HMAC-protected URL that returns to the authorize
 // dispatcher (/auth) once a factor is done, so it can decide the next step.
 func (h *Handler) buildContinueURL(authReq storage.AuthRequest) string {
-	v := url.Values{}
-	v.Set("req", authReq.ID)
-	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "continue"))
-	return h.IssuerURL.AbsPath("/auth") + "?" + v.Encode()
+	return internal.StepURL(h.IssuerURL.AbsPath("/auth"), authReq, internal.StepContinue, nil)
 }
 
 // Mount registers the MFA factor endpoints, only when at least one authenticator

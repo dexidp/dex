@@ -154,7 +154,7 @@ func TestMFAEntry(t *testing.T) {
 	}
 
 	get := func(router http.Handler, authReq storage.AuthRequest, hmacKey []byte) *httptest.ResponseRecorder {
-		hmacVal := internal.ComputeHMAC(hmacKey, authReq.ID, "mfa")
+		hmacVal := internal.SignStep(authReq, internal.StepMFA)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/mfa?req="+authReq.ID+"&hmac="+hmacVal, nil))
 		return w

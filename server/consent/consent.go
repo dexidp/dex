@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-	"net/url"
 
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
@@ -42,10 +41,7 @@ func (h *Handler) Mount(mux router.Mux) {
 // dispatcher (/auth) with the "approved" verifier, so the dispatcher knows the
 // user consented and can issue.
 func (h *Handler) buildApprovedURL(authReq storage.AuthRequest) string {
-	v := url.Values{}
-	v.Set("req", authReq.ID)
-	v.Set("hmac", internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "approved"))
-	return h.IssuerURL.AbsPath("/auth") + "?" + v.Encode()
+	return internal.StepURL(h.IssuerURL.AbsPath("/auth"), authReq, internal.StepApproved, nil)
 }
 
 // Satisfied reports whether the approval screen can be skipped: the client did
@@ -87,7 +83,7 @@ func (h *Handler) handleApproval(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !internal.VerifyHMAC(authReq.HMACKey, macEncoded, authReq.ID, "approval") {
+	if !internal.VerifyStep(authReq, macEncoded, internal.StepApproval) {
 		h.renderError(r, w, http.StatusUnauthorized, "Unauthorized request")
 		return
 	}

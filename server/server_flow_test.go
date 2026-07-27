@@ -39,7 +39,13 @@ func TestFlowStepsRequireHMAC(t *testing.T) {
 
 	// The dispatcher accepts only the "continue" and "approved" verifiers; a value
 	// minted for a different step (or none) is rejected.
-	wrongStepMAC := internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "mfa")
+	wrongStepMAC := internal.SignStep(authReq, internal.StepMFA)
+
+	// Authenticator IDs are operator config and are signed the same way. They
+	// live in their own namespace, so an authenticator named after a step cannot
+	// hand the user that step's verifier — an "approved" authenticator must not
+	// let its factor URL double as a consent approval.
+	collidingMAC := internal.SignStep(authReq, internal.Authenticator("approved"))
 
 	for _, tc := range []struct {
 		name string
@@ -47,6 +53,7 @@ func TestFlowStepsRequireHMAC(t *testing.T) {
 	}{
 		{"dispatcher without hmac", "/auth?req=" + authReq.ID},
 		{"dispatcher with wrong-step hmac", "/auth?req=" + authReq.ID + "&hmac=" + wrongStepMAC},
+		{"dispatcher with authenticator hmac named after a step", "/auth?req=" + authReq.ID + "&hmac=" + collidingMAC},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rr := httptest.NewRecorder()
@@ -58,7 +65,7 @@ func TestFlowStepsRequireHMAC(t *testing.T) {
 	// With no MFA configured and the "approved" verifier resolving consent, the
 	// dispatcher issues the code to the client.
 	rr := httptest.NewRecorder()
-	approvedMAC := internal.ComputeHMAC(authReq.HMACKey, authReq.ID, "approved")
+	approvedMAC := internal.SignStep(authReq, internal.StepApproved)
 	s.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/auth?req="+authReq.ID+"&hmac="+approvedMAC, nil))
 	require.Equal(t, http.StatusSeeOther, rr.Code)
 	require.Contains(t, rr.Header().Get("Location"), "https://client.example/callback")
