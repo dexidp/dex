@@ -39,7 +39,10 @@ import (
 	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/server/apiserver"
+	"github.com/dexidp/dex/server/authflow"
 	"github.com/dexidp/dex/server/connectors"
+	"github.com/dexidp/dex/server/mfa"
+	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
@@ -371,7 +374,7 @@ func runServe(options serveOptions) error {
 		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
 		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
 		PasswordConnector:      c.OAuth2.PasswordConnector,
-		PKCE: server.PKCEConfig{
+		PKCE: authflow.PKCEConfig{
 			Enforce:                       c.OAuth2.PKCE.Enforce,
 			CodeChallengeMethodsSupported: c.OAuth2.PKCE.CodeChallengeMethodsSupported,
 		},
@@ -588,6 +591,18 @@ func runServe(options serveOptions) error {
 	if c.GRPC.Addr != "" {
 		logger.Info("listening on", "server", "grpc", "address", c.GRPC.Addr)
 
+		if c.GRPC.TLSClientCA == "" {
+			// The gRPC API grants full administrative access (client secret reads,
+			// password/connector/identity CRUD). Its only built-in caller
+			// authentication is mutual TLS via grpc.tlsClientCA; without it, anyone
+			// who can reach the port controls the identity provider. This is a valid
+			// setup only when a trusted front-facing service authenticates callers.
+			logger.Warn("grpc: API server has no client certificate authentication (grpc.tlsClientCA is unset); "+
+				"it exposes full administrative access. Ensure the port is only reachable by an authenticated, trusted service, "+
+				"or set grpc.tlsClientCA to require mutual TLS.",
+				"tls", c.GRPC.TLSCert != "")
+		}
+
 		grpcListener, err := net.Listen("tcp", c.GRPC.Addr)
 		if err != nil {
 			return fmt.Errorf("listening (grpc) on %s: %w", c.GRPC.Addr, err)
@@ -779,8 +794,8 @@ func recordBuildInfo() {
 	buildInfo.WithLabelValues(version, runtime.Version(), fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)).Set(1)
 }
 
-func parseSessionConfig(s *Sessions) (*server.SessionConfig, error) {
-	sc := &server.SessionConfig{
+func parseSessionConfig(s *Sessions) (*session.Config, error) {
+	sc := &session.Config{
 		CookieName:                 "dex_session",
 		AbsoluteLifetime:           24 * time.Hour,
 		ValidIfNotUsedFor:          1 * time.Hour,
@@ -835,12 +850,12 @@ func parseSessionConfig(s *Sessions) (*server.SessionConfig, error) {
 	return sc, nil
 }
 
-func buildMFAProviders(authenticators []MFAAuthenticator, issuerURL string, logger *slog.Logger) map[string]server.MFAProvider {
+func buildMFAProviders(authenticators []MFAAuthenticator, issuerURL string, logger *slog.Logger) map[string]mfa.Provider {
 	if len(authenticators) == 0 {
 		return nil
 	}
 
-	providers := make(map[string]server.MFAProvider, len(authenticators))
+	providers := make(map[string]mfa.Provider, len(authenticators))
 	for _, auth := range authenticators {
 		switch auth.Type {
 		case "TOTP":
@@ -849,7 +864,7 @@ func buildMFAProviders(authenticators []MFAAuthenticator, issuerURL string, logg
 				logger.Error("failed to parse TOTP config", "id", auth.ID, "err", err)
 				continue
 			}
-			providers[auth.ID] = server.NewTOTPProvider(cfg.Issuer, auth.ConnectorTypes)
+			providers[auth.ID] = mfa.NewTOTPProvider(cfg.Issuer, auth.ConnectorTypes)
 			logger.Info("MFA authenticator configured", "id", auth.ID, "type", auth.Type)
 		case "WebAuthn":
 			var cfg WebAuthnConfig
@@ -857,7 +872,7 @@ func buildMFAProviders(authenticators []MFAAuthenticator, issuerURL string, logg
 				logger.Error("failed to parse WebAuthn config", "id", auth.ID, "err", err)
 				continue
 			}
-			provider, err := server.NewWebAuthnProvider(cfg.RPDisplayName, cfg.RPID, cfg.RPOrigins,
+			provider, err := mfa.NewWebAuthnProvider(cfg.RPDisplayName, cfg.RPID, cfg.RPOrigins,
 				cfg.AttestationPreference, cfg.Timeout, issuerURL, auth.ConnectorTypes)
 			if err != nil {
 				logger.Error("failed to create WebAuthn provider", "id", auth.ID, "err", err)

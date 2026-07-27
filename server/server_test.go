@@ -32,8 +32,10 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/connector/mock"
+	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server/device"
 	"github.com/dexidp/dex/server/oauth2"
+	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
@@ -126,6 +128,11 @@ func newTestServer(t *testing.T, updateConfig func(c *Config)) (*httptest.Server
 		config.RefreshTokenPolicy = tokens.NewRefreshStrategy(true, 0, 0, 0, config.Now)
 	}
 
+	// Mirror cmd: the session config is present iff the sessions feature flag is on.
+	if featureflags.SessionsEnabled.Enabled() && config.SessionConfig == nil {
+		config.SessionConfig = &session.Config{CookieName: "dex_session", AbsoluteLifetime: 24 * time.Hour, ValidIfNotUsedFor: time.Hour}
+	}
+
 	connector := storage.Connector{
 		ID:              "mock",
 		Type:            "mockCallback",
@@ -174,6 +181,11 @@ func newTestServerMultipleConnectors(t *testing.T, updateConfig func(c *Config))
 
 	if config.RefreshTokenPolicy == nil {
 		config.RefreshTokenPolicy = tokens.NewRefreshStrategy(true, 0, 0, 0, config.Now)
+	}
+
+	// Mirror cmd: the session config is present iff the sessions feature flag is on.
+	if featureflags.SessionsEnabled.Enabled() && config.SessionConfig == nil {
+		config.SessionConfig = &session.Config{CookieName: "dex_session", AbsoluteLifetime: 24 * time.Hour, ValidIfNotUsedFor: time.Hour}
 	}
 
 	connector := storage.Connector{

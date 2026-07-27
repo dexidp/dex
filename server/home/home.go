@@ -2,7 +2,6 @@ package home
 
 import (
 	"context"
-	"crypto/subtle"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -10,8 +9,8 @@ import (
 	"net/url"
 	"path"
 
-	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/router"
+	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/storage"
 )
@@ -20,13 +19,13 @@ import (
 // is available it renders the rich page (with logged-in details); otherwise it
 // falls back to a minimal inline page.
 type Handler struct {
-	IssuerURL           url.URL
-	Storage             storage.Storage
-	Templates           *templates.Templates
-	Logger              *slog.Logger
-	SessionsEnabled     bool
-	CookieName          string
-	CookieEncryptionKey []byte
+	IssuerURL url.URL
+	Storage   storage.Storage
+	Templates *templates.Templates
+	Logger    *slog.Logger
+	// Sessions is the shared session manager; nil (or with a nil Config) when
+	// sessions are disabled.
+	Sessions *session.Manager
 }
 
 // Mount registers the landing-page route.
@@ -41,7 +40,7 @@ func (h *Handler) renderError(r *http.Request, w http.ResponseWriter, status int
 }
 
 func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
-	if !h.SessionsEnabled || !h.Templates.HasHome() {
+	if h.Sessions == nil || h.Sessions.Config == nil || !h.Templates.HasHome() {
 		h.handleInline(w, r)
 		return
 	}
@@ -56,18 +55,14 @@ func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 		LogoutURL:    logoutURL.String(),
 	}
 
-	if cookie, err := r.Cookie(h.CookieName); err == nil && cookie.Value != "" {
-		if userID, connectorID, nonce, err := internal.ParseSessionCookie(cookie.Value, h.CookieEncryptionKey); err == nil {
-			session, err := h.Storage.GetAuthSession(ctx, userID, connectorID)
-			if err == nil && subtle.ConstantTimeCompare([]byte(session.Nonce), []byte(nonce)) == 1 {
-				data.LoggedIn = true
-				data.IPAddress = session.IPAddress
-				data.UserAgent = session.UserAgent
-				h.populateData(ctx, &data, userID, connectorID)
-			} else if err != nil && !errors.Is(err, storage.ErrNotFound) {
-				h.Logger.ErrorContext(ctx, "home: failed to get auth session", "err", err)
-			}
-		}
+	// ValidSession enforces the nonce AND absolute/idle expiry (clearing an
+	// expired session), so an expired-but-not-yet-purged cookie no longer renders
+	// a logged-in page.
+	if session := h.Sessions.ValidSession(ctx, w, r); session != nil {
+		data.LoggedIn = true
+		data.IPAddress = session.IPAddress
+		data.UserAgent = session.UserAgent
+		h.populateData(ctx, &data, session.UserID, session.ConnectorID)
 	}
 
 	if err := h.Templates.Home(r, w, data); err != nil {

@@ -102,8 +102,8 @@ type Responder interface {
 }
 
 // Grant serves one OAuth2 grant type at the token endpoint. It is a set of hooks
-// the Endpoint calls in order — the shared phases (client auth, scope validation,
-// connector resolution, response writing) live on the Endpoint, so a grant only
+// the Handler calls in order — the shared phases (client auth, scope validation,
+// connector resolution, response writing) live on the Handler, so a grant only
 // fills in the parts unique to it and cannot forget a shared step.
 type Grant interface {
 	// GrantType is the grant_type value this grant serves.
@@ -145,8 +145,11 @@ type ScopePolicy struct {
 	ErrorType string
 }
 
-// Config are the dependencies the token endpoint and its grants need.
-type Config struct {
+// Handler is the /token endpoint. It owns the phases shared by every grant —
+// dispatch by grant_type, client authentication, scope validation, connector
+// resolution and writing the response or error — while each grant carries only
+// its own narrow dependencies. It mounts its own routes (router.Handler).
+type Handler struct {
 	Issuer              *tokens.Issuer
 	Storage             storage.Storage
 	Connectors          *connectors.Cache
@@ -156,76 +159,61 @@ type Config struct {
 	RefreshPolicy       *tokens.RefreshStrategy
 	SessionsEnabled     bool
 	SupportedGrantTypes []string
-}
-
-// Endpoint is the /token endpoint. It owns the phases shared by every grant —
-// dispatch by grant_type, client authentication, scope validation, connector
-// resolution and writing the response or error — while each grant carries only
-// its own narrow dependencies. It mounts its own routes (router.Handler).
-type Endpoint struct {
-	storage    storage.Storage
-	connectors *connectors.Cache
-	logger     *slog.Logger
 
 	grants map[string]Grant
 }
 
-// NewEndpoint wires the token endpoint and its grants. Only grants whose type is
-// in SupportedGrantTypes are registered, so a grant type disabled by config is
-// simply not served.
-func NewEndpoint(c Config) *Endpoint {
-	e := &Endpoint{storage: c.Storage, connectors: c.Connectors, logger: c.Logger, grants: map[string]Grant{}}
-	e.register(c.SupportedGrantTypes,
-		&clientCredentials{issuer: c.Issuer, logger: c.Logger},
-		&password{issuer: c.Issuer, logger: c.Logger, connectorID: c.PasswordConnector},
-		&tokenExchange{issuer: c.Issuer, logger: c.Logger},
-		&authorizationCode{issuer: c.Issuer, storage: c.Storage, connectors: c.Connectors, now: c.Now, logger: c.Logger},
-		&refresh{storage: c.Storage, issuer: c.Issuer, policy: c.RefreshPolicy, sessionsEnabled: c.SessionsEnabled, now: c.Now, logger: c.Logger},
-		&deviceCode{storage: c.Storage, now: c.Now, logger: c.Logger},
-	)
-	return e
-}
-
-func (e *Endpoint) register(supported []string, gs ...Grant) {
+func (h *Handler) register(supported []string, gs ...Grant) {
 	for _, g := range gs {
 		if slices.Contains(supported, g.GrantType()) {
-			e.grants[g.GrantType()] = g
+			h.grants[g.GrantType()] = g
 		}
 	}
 }
 
-// Mount registers the token route.
-func (e *Endpoint) Mount(m router.Mux) {
-	m.HandleCORS("/token", e.handleToken)
+// Mount wires the endpoint's grants and registers the token route. Only grants
+// whose type is in SupportedGrantTypes are registered, so a grant type disabled
+// by config is simply not served.
+func (h *Handler) Mount(m router.Mux) {
+	h.grants = map[string]Grant{}
+	h.register(h.SupportedGrantTypes,
+		&clientCredentials{issuer: h.Issuer, logger: h.Logger},
+		&password{issuer: h.Issuer, logger: h.Logger, connectorID: h.PasswordConnector},
+		&tokenExchange{issuer: h.Issuer, logger: h.Logger},
+		&authorizationCode{issuer: h.Issuer, storage: h.Storage, connectors: h.Connectors, now: h.Now, logger: h.Logger},
+		&refresh{storage: h.Storage, issuer: h.Issuer, policy: h.RefreshPolicy, sessionsEnabled: h.SessionsEnabled, now: h.Now, logger: h.Logger},
+		&deviceCode{storage: h.Storage, now: h.Now, logger: h.Logger},
+	)
+	m.HandleCORS("/token", h.handleToken)
 }
 
 // handleToken serves /token: it validates the request shape and dispatches to the
 // grant for its grant_type.
-func (e *Endpoint) handleToken(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleToken(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
 	if r.Method != http.MethodPost {
-		e.writeError(ctx, w, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "method not allowed", Status: http.StatusBadRequest})
+		h.writeError(ctx, w, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "method not allowed", Status: http.StatusBadRequest})
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		e.logger.ErrorContext(ctx, "could not parse request body", "err", err)
-		e.writeError(ctx, w, &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusBadRequest})
+		h.Logger.ErrorContext(ctx, "could not parse request body", "err", err)
+		h.writeError(ctx, w, &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusBadRequest})
 		return
 	}
 
 	grantType := r.PostFormValue("grant_type")
-	if !e.dispatch(w, r, grantType) {
-		e.logger.ErrorContext(ctx, "unsupported grant type", "grant_type", grantType)
-		e.writeError(ctx, w, &oauth2.Error{Type: oauth2.UnsupportedGrantType, Status: http.StatusBadRequest})
+	if !h.dispatch(w, r, grantType) {
+		h.Logger.ErrorContext(ctx, "unsupported grant type", "grant_type", grantType)
+		h.writeError(ctx, w, &oauth2.Error{Type: oauth2.UnsupportedGrantType, Status: http.StatusBadRequest})
 	}
 }
 
 // dispatch runs the token-endpoint pipeline for the grant registered for
 // grantType. It reports whether a grant handled the request, so the caller can
 // fall back (e.g. the implicit grant, which is not a token-endpoint grant).
-func (e *Endpoint) dispatch(w http.ResponseWriter, r *http.Request, grantType string) bool {
-	grant, ok := e.grants[grantType]
+func (h *Handler) dispatch(w http.ResponseWriter, r *http.Request, grantType string) bool {
+	grant, ok := h.grants[grantType]
 	if !ok {
 		return false
 	}
@@ -233,22 +221,22 @@ func (e *Endpoint) dispatch(w http.ResponseWriter, r *http.Request, grantType st
 	ctx := r.Context()
 	req, oerr := parseRequest(r)
 	if oerr != nil {
-		e.writeError(ctx, w, oerr)
+		h.writeError(ctx, w, oerr)
 		return true
 	}
 
 	// 1. Authenticate the client.
 	client := storage.Client{}
 	if grant.RequiresClientAuth() {
-		client, ok = e.authenticateClient(ctx, w, req)
+		client, ok = h.authenticateClient(ctx, w, req)
 		if !ok {
 			return true
 		}
 	}
 
 	// 2. Validate the requested scopes.
-	if oerr := e.validateScopes(ctx, client, req, grant.ScopePolicy()); oerr != nil {
-		e.writeError(ctx, w, oerr)
+	if oerr := h.validateScopes(ctx, client, req, grant.ScopePolicy()); oerr != nil {
+		h.writeError(ctx, w, oerr)
 		return true
 	}
 
@@ -256,25 +244,25 @@ func (e *Endpoint) dispatch(w http.ResponseWriter, r *http.Request, grantType st
 	// invariant. A grant that uses no connector resolves to the zero Connector.
 	connID, oerr := grant.ConnectorID(ctx, req, client)
 	if oerr != nil {
-		e.writeError(ctx, w, oerr)
+		h.writeError(ctx, w, oerr)
 		return true
 	}
-	conn, oerr := e.resolveConnector(ctx, connID, client, grant.GrantType())
+	conn, oerr := h.resolveConnector(ctx, connID, client, grant.GrantType())
 	if oerr != nil {
-		e.writeError(ctx, w, oerr)
+		h.writeError(ctx, w, oerr)
 		return true
 	}
 
 	// 4. Let the grant prove the identity and produce the response.
 	resp, err := grant.Authorize(ctx, req, client, conn)
 	if err != nil {
-		e.writeError(ctx, w, err)
+		h.writeError(ctx, w, err)
 		return true
 	}
 
 	// 5. Write the response.
 	if err := resp.Write(w); err != nil {
-		e.logger.ErrorContext(ctx, "failed to write token response", "err", err)
+		h.Logger.ErrorContext(ctx, "failed to write token response", "err", err)
 	}
 	return true
 }
@@ -283,7 +271,7 @@ func (e *Endpoint) dispatch(w http.ResponseWriter, r *http.Request, grantType st
 // rejects refused scopes, filters unknown ones, enforces openid when required,
 // and verifies cross-client trust — the security-sensitive check that must run
 // for every grant. A nil policy set passes scopes through unvalidated.
-func (e *Endpoint) validateScopes(ctx context.Context, client storage.Client, req *Request, p ScopePolicy) *oauth2.Error {
+func (h *Handler) validateScopes(ctx context.Context, client storage.Client, req *Request, p ScopePolicy) *oauth2.Error {
 	if p.Standard == nil {
 		return nil
 	}
@@ -302,9 +290,9 @@ func (e *Endpoint) validateScopes(ctx context.Context, client storage.Client, re
 			unrecognized = append(unrecognized, scope)
 			continue
 		}
-		trusted, err := tokens.CrossClientTrusted(ctx, e.storage, client.ID, peerID)
+		trusted, err := tokens.CrossClientTrusted(ctx, h.Storage, client.ID, peerID)
 		if err != nil {
-			e.logger.ErrorContext(ctx, "error validating cross client trust", "client_id", client.ID, "peer_id", peerID, "err", err)
+			h.Logger.ErrorContext(ctx, "error validating cross client trust", "client_id", client.ID, "peer_id", peerID, "err", err)
 			return &oauth2.Error{Type: oauth2.InvalidClient, Description: "Error validating cross client trust.", Status: http.StatusBadRequest}
 		}
 		if !trusted {
@@ -329,22 +317,22 @@ func (e *Endpoint) validateScopes(ctx context.Context, client storage.Client, re
 // permit the grant type. connID == "" (a grant that uses no connector) resolves
 // to the zero Connector. Running here, before Authorize, means no grant can
 // forget the check.
-func (e *Endpoint) resolveConnector(ctx context.Context, connID string, client storage.Client, grantType string) (connectors.Connector, *oauth2.Error) {
+func (h *Handler) resolveConnector(ctx context.Context, connID string, client storage.Client, grantType string) (connectors.Connector, *oauth2.Error) {
 	if connID == "" {
 		return connectors.Connector{}, nil
 	}
 
 	if !connectors.ConnectorAllowed(client.AllowedConnectors, connID) {
-		e.logger.WarnContext(ctx, "connector not allowed for client", "client_id", client.ID, "connector_id", connID)
+		h.Logger.WarnContext(ctx, "connector not allowed for client", "client_id", client.ID, "connector_id", connID)
 		return connectors.Connector{}, &oauth2.Error{Type: oauth2.InvalidGrant, Description: "Connector not allowed for this client.", Status: http.StatusBadRequest}
 	}
-	conn, err := e.connectors.Get(ctx, connID)
+	conn, err := h.Connectors.Get(ctx, connID)
 	if err != nil {
-		e.logger.ErrorContext(ctx, "failed to get connector", "connector_id", connID, "err", err)
+		h.Logger.ErrorContext(ctx, "failed to get connector", "connector_id", connID, "err", err)
 		return connectors.Connector{}, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Requested connector does not exist.", Status: http.StatusBadRequest}
 	}
 	if !connectors.GrantTypeAllowed(conn.GrantTypes, grantType) {
-		e.logger.ErrorContext(ctx, "connector does not allow grant", "connector_id", connID, "grant_type", grantType)
+		h.Logger.ErrorContext(ctx, "connector does not allow grant", "connector_id", connID, "grant_type", grantType)
 		return connectors.Connector{}, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Requested connector does not support this grant type.", Status: http.StatusBadRequest}
 	}
 	return conn, nil
@@ -352,25 +340,25 @@ func (e *Endpoint) resolveConnector(ctx context.Context, connID string, client s
 
 // authenticateClient resolves the client from the parsed credentials. On failure
 // it writes the error response and returns ok=false.
-func (e *Endpoint) authenticateClient(ctx context.Context, w http.ResponseWriter, req *Request) (storage.Client, bool) {
-	client, err := e.storage.GetClient(ctx, req.ClientID)
+func (h *Handler) authenticateClient(ctx context.Context, w http.ResponseWriter, req *Request) (storage.Client, bool) {
+	client, err := h.Storage.GetClient(ctx, req.ClientID)
 	if err != nil {
 		if err != storage.ErrNotFound {
-			e.logger.ErrorContext(ctx, "failed to get client", "err", err)
-			e.writeError(ctx, w, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError})
+			h.Logger.ErrorContext(ctx, "failed to get client", "err", err)
+			h.writeError(ctx, w, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError})
 		} else {
-			e.writeError(ctx, w, &oauth2.Error{Type: oauth2.InvalidClient, Description: "Invalid client credentials.", Status: http.StatusUnauthorized})
+			h.writeError(ctx, w, &oauth2.Error{Type: oauth2.InvalidClient, Description: "Invalid client credentials.", Status: http.StatusUnauthorized})
 		}
 		return storage.Client{}, false
 	}
 
 	if subtle.ConstantTimeCompare([]byte(client.Secret), []byte(req.ClientSecret)) != 1 {
 		if req.ClientSecret == "" {
-			e.logger.InfoContext(ctx, "missing client_secret on token request", "client_id", client.ID)
+			h.Logger.InfoContext(ctx, "missing client_secret on token request", "client_id", client.ID)
 		} else {
-			e.logger.InfoContext(ctx, "invalid client_secret on token request", "client_id", client.ID)
+			h.Logger.InfoContext(ctx, "invalid client_secret on token request", "client_id", client.ID)
 		}
-		e.writeError(ctx, w, &oauth2.Error{Type: oauth2.InvalidClient, Description: "Invalid client credentials.", Status: http.StatusUnauthorized})
+		h.writeError(ctx, w, &oauth2.Error{Type: oauth2.InvalidClient, Description: "Invalid client credentials.", Status: http.StatusUnauthorized})
 		return storage.Client{}, false
 	}
 
@@ -379,14 +367,14 @@ func (e *Endpoint) authenticateClient(ctx context.Context, w http.ResponseWriter
 
 // writeError writes err as an OAuth2 error response. An *oauth2.Error carries its
 // own type/description/status; anything else is reported as a server error.
-func (e *Endpoint) writeError(ctx context.Context, w http.ResponseWriter, err error) {
+func (h *Handler) writeError(ctx context.Context, w http.ResponseWriter, err error) {
 	var oerr *oauth2.Error
 	if !errors.As(err, &oerr) || oerr == nil {
-		e.logger.ErrorContext(ctx, "token request failed", "err", err)
+		h.Logger.ErrorContext(ctx, "token request failed", "err", err)
 		oerr = &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
 	}
 	if werr := oauth2.WriteError(w, oerr.Type, oerr.Description, oerr.Status); werr != nil {
-		e.logger.ErrorContext(ctx, "failed to write token error response", "err", werr)
+		h.Logger.ErrorContext(ctx, "failed to write token error response", "err", werr)
 	}
 }
 
