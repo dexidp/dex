@@ -173,30 +173,11 @@ body {
   text-align: left;
 }
 
-.dex-identity {
-  align-items: center;
-  display: flex;
-  gap: 14px;
-  min-width: 0;
-}
-
-.dex-identity__avatar {
-  align-items: center;
-  background-color: var(--dex-home-subtle);
-  border: 1px solid var(--dex-home-border);
-  border-radius: 50%;
-  color: var(--dex-home-muted);
-  display: flex;
-  flex: 0 0 auto;
-  font-size: 18px;
-  font-weight: 600;
-  height: 44px;
-  justify-content: center;
-  width: 44px;
-}
-
-.dex-identity__text {
-  min-width: 0;
+/* Claim values are machine strings — an address, a group name, an IP. They read
+ * as data rather than prose in a monospace face, and it keeps the page from
+ * looking like a social profile, which is not what dex knows about anyone. */
+.dex-mono {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
 .dex-identity__name {
@@ -208,22 +189,11 @@ body {
 
 .dex-identity__email {
   color: var(--dex-home-muted);
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   font-size: 13px;
   line-height: 1.5;
-  margin-top: 2px;
+  margin-top: 3px;
   overflow-wrap: anywhere;
-}
-
-.dex-badge {
-  border: 1px solid var(--dex-home-border);
-  border-radius: 999px;
-  color: var(--dex-home-muted);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  margin-left: 6px;
-  padding: 1px 7px;
-  white-space: nowrap;
 }
 
 .dex-field {
@@ -249,24 +219,27 @@ body {
  * instead of pushing the rest of the page out of view. The count in the label
  * says how many there are; tabindex on the template keeps the overflow
  * reachable by keyboard. */
-.dex-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+.dex-groups {
+  font-size: 12.5px;
+  line-height: 1.7;
   list-style: none;
   margin: 0;
-  max-height: 114px;
+  max-height: 128px;
   overflow-y: auto;
   padding: 0 2px 0 0;
   scrollbar-color: var(--dex-home-border) transparent;
   scrollbar-width: thin;
 }
 
-.dex-chips::-webkit-scrollbar {
+.dex-groups li {
+  overflow-wrap: anywhere;
+}
+
+.dex-groups::-webkit-scrollbar {
   width: 6px;
 }
 
-.dex-chips::-webkit-scrollbar-thumb {
+.dex-groups::-webkit-scrollbar-thumb {
   background-color: var(--dex-home-border);
   border-radius: 3px;
 }
@@ -274,23 +247,14 @@ body {
 /* Overlay scrollbars stay invisible until touched, so a clipped list would read
  * as complete. The template adds this class only when the list actually
  * overflows, and the fade says the rest is below. */
-.dex-chips--clipped {
-  -webkit-mask-image: linear-gradient(to bottom, #000 72px, transparent);
-  mask-image: linear-gradient(to bottom, #000 72px, transparent);
+.dex-groups--clipped {
+  -webkit-mask-image: linear-gradient(to bottom, #000 86px, transparent);
+  mask-image: linear-gradient(to bottom, #000 86px, transparent);
 }
 
-.dex-chips:focus-visible {
+.dex-groups:focus-visible {
   outline: 2px solid var(--dex-home-accent);
   outline-offset: 3px;
-}
-
-.dex-chip {
-  background-color: var(--dex-home-subtle);
-  border: 1px solid var(--dex-home-border);
-  border-radius: 6px;
-  font-size: 12px;
-  overflow-wrap: anywhere;
-  padding: 3px 9px;
 }
 
 .dex-useragent {
@@ -326,6 +290,11 @@ body {
   margin: 0;
   overflow-wrap: anywhere;
   text-align: right;
+}
+
+/* Monospace runs large at a shared size; nudge it back to match its neighbours. */
+.dex-fact dd.dex-mono {
+  font-size: 12.5px;
 }
 
 .dex-home__actions {

@@ -3,32 +3,21 @@
 <div class="theme-panel dex-home">
   {{ if .LoggedIn }}
   <div class="dex-identity">
-    {{ with .Initial }}<div class="dex-identity__avatar" aria-hidden="true">{{ . }}</div>{{ end }}
-    <div class="dex-identity__text">
-      {{ if .Username }}<div class="dex-identity__name">{{ .Username }}</div>{{ end }}
-      {{ if .Email }}
-      <div class="dex-identity__email">
-        {{ .Email }}
-        {{ if .EmailVerified }}<span class="dex-badge" title="Email address verified by the connector">Verified</span>{{ end }}
-      </div>
-      {{ end }}
-    </div>
+    {{ if .Username }}<div class="dex-identity__name">{{ .Username }}</div>{{ end }}
+    {{ if .Email }}<div class="dex-identity__email">{{ .Email }}</div>{{ end }}
   </div>
-
-  {{ if .Groups }}
-  <div class="dex-field">
-    <div class="dex-field__label">Groups <span class="dex-field__count">{{ len .Groups }}</span></div>
-    <ul class="dex-chips" tabindex="0">
-      {{ range .Groups }}<li class="dex-chip">{{ . }}</li>{{ end }}
-    </ul>
-  </div>
-  {{ end }}
 
   <dl class="dex-facts">
     {{ if .ConnectorName }}
     <div class="dex-fact">
       <dt>Connector</dt>
       <dd>{{ .ConnectorName }}</dd>
+    </div>
+    {{ end }}
+    {{ if .Email }}
+    <div class="dex-fact">
+      <dt>Email verified</dt>
+      <dd>{{ if .EmailVerified }}yes{{ else }}no{{ end }}</dd>
     </div>
     {{ end }}
     {{ if .LastLoginEpoch }}
@@ -46,13 +35,22 @@
     {{ if .IPAddress }}
     <div class="dex-fact">
       <dt>IP address</dt>
-      <dd>{{ .IPAddress }}</dd>
+      <dd class="dex-mono">{{ .IPAddress }}</dd>
     </div>
     {{ end }}
   </dl>
 
+  {{ if .Groups }}
+  <div class="dex-field">
+    <div class="dex-field__label">Groups <span class="dex-field__count">{{ len .Groups }}</span></div>
+    <ul class="dex-groups dex-mono" tabindex="0">
+      {{ range .Groups }}<li>{{ . }}</li>{{ end }}
+    </ul>
+  </div>
+  {{ end }}
+
   {{ if .UserAgent }}
-  <div class="dex-field dex-field--wrap">
+  <div class="dex-field">
     <div class="dex-field__label">Browser</div>
     <div class="dex-useragent">{{ .UserAgent }}</div>
   </div>
@@ -80,9 +78,9 @@
   (function () {
     // A long group list is capped by CSS; fade its bottom edge so the cut is
     // visible on platforms whose scrollbars only appear while scrolling.
-    var groups = document.querySelector('.dex-chips');
+    var groups = document.querySelector('.dex-groups');
     if (groups && groups.scrollHeight > groups.clientHeight) {
-      groups.classList.add('dex-chips--clipped');
+      groups.classList.add('dex-groups--clipped');
     }
 
     // The server sends Unix seconds; render them in the visitor's own timezone.

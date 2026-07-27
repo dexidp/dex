@@ -395,18 +395,6 @@ type HomeData struct {
 	ReqPath             string
 }
 
-// Initial is the first letter of the display name, for the identity avatar.
-// Empty when there is no name to take it from.
-func (d HomeData) Initial() string {
-	for _, r := range d.Username {
-		return strings.ToUpper(string(r))
-	}
-	for _, r := range d.Email {
-		return strings.ToUpper(string(r))
-	}
-	return ""
-}
-
 // HasHome reports whether the home template was loaded.
 func (t *Templates) HasHome() bool {
 	return t.homeTmpl != nil
