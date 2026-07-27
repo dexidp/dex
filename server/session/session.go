@@ -39,6 +39,10 @@ type Manager struct {
 // Enabled reports whether sessions are configured.
 func (m *Manager) Enabled() bool { return m.Config != nil }
 
+// RememberMeDefault reports the configured default for the remember-me choice,
+// or nil when sessions are disabled. The password form renders it as the
+// checkbox's initial state; callers that need a plain bool (connector callbacks,
+// which render no checkbox) treat nil as false.
 func (m *Manager) RememberMeDefault() *bool {
 	if m.Config == nil {
 		return nil
@@ -89,7 +93,7 @@ func (m *Manager) ClearCookie(w http.ResponseWriter) {
 	})
 }
 
-// getValidSession returns a valid, non-expired session or nil.
+// ValidSession returns a valid, non-expired session or nil.
 // It parses the session cookie to extract (userID, connectorID, nonce),
 // looks up the session by composite key, and verifies the nonce.
 // Invalid or expired session cookies are cleared automatically.
@@ -155,7 +159,7 @@ func (m *Manager) ValidSession(ctx context.Context, w http.ResponseWriter, r *ht
 	return &session
 }
 
-// getValidAuthSession returns a valid session matching the auth request's connector, or nil.
+// ValidAuthSession returns a valid session matching the auth request's connector, or nil.
 func (m *Manager) ValidAuthSession(ctx context.Context, w http.ResponseWriter, r *http.Request, authReq *storage.AuthRequest) *storage.AuthSession {
 	session := m.ValidSession(ctx, w, r)
 	if session == nil {
@@ -170,7 +174,7 @@ func (m *Manager) ValidAuthSession(ctx context.Context, w http.ResponseWriter, r
 	return session
 }
 
-// createOrUpdateAuthSession creates a new session or updates an existing one
+// CreateOrUpdateAuthSession creates a new session or updates an existing one
 // after a successful login, and sets the session cookie.
 // rememberMe controls whether the cookie is persistent (survives browser close).
 func (m *Manager) CreateOrUpdateAuthSession(ctx context.Context, r *http.Request, w http.ResponseWriter, authReq storage.AuthRequest, rememberMe bool) error {
@@ -242,9 +246,9 @@ func (m *Manager) CreateOrUpdateAuthSession(ctx context.Context, r *http.Request
 	return nil
 }
 
-// trySessionLogin checks if the user has a valid session for the same connector.
-// If so, it finalizes login from the stored identity and returns a redirect URL.
-// Returns ("", false) if session-based login is not possible.
+// ClientSharesWith reports whether sourceClient's ssoSharedWith policy lets its
+// authenticated state be reused for targetClientID. A nil policy falls back to
+// the server-wide SSOSharedWithDefault; an explicit empty slice shares with no one.
 func (m *Manager) ClientSharesWith(sourceClient storage.Client, targetClientID string) bool {
 	ssoSharedWith := sourceClient.SSOSharedWith
 
@@ -271,7 +275,7 @@ func (m *Manager) ClientSharesWith(sourceClient storage.Client, targetClientID s
 	return false
 }
 
-// findSSOSession checks whether any active client in the session shares its
+// FindSSO checks whether any active client in the session shares its
 // authentication with targetClientID via the ssoSharedWith policy.
 //
 // Note: the caller already has the target client loaded (for AllowedConnectors
@@ -310,9 +314,9 @@ func (m *Manager) FindSSO(ctx context.Context, session *storage.AuthSession, tar
 	return nil
 }
 
-// trySessionLoginWithSession is like trySessionLogin but accepts a pre-retrieved session.
-// This allows callers to inspect the session (e.g., for id_token_hint comparison) before
-// attempting session-based login.
+// UpdateTokenIssuedAt records that a token was just issued to clientID: it
+// refreshes the session's idle timeout and the client state's last-issued
+// timestamp. A missing, undecodable or superseded cookie is a no-op.
 func (m *Manager) UpdateTokenIssuedAt(r *http.Request, clientID string) {
 	if m.Config == nil {
 		return
@@ -374,9 +378,4 @@ func (m *Manager) AbsoluteExpiry(now time.Time) time.Time {
 // IdleExpiry returns the idle-timeout expiry measured from now.
 func (m *Manager) IdleExpiry(now time.Time) time.Time {
 	return now.Add(m.Config.ValidIfNotUsedFor)
-}
-
-// DefaultRememberMe reports the configured default for the remember-me choice.
-func (m *Manager) DefaultRememberMe() bool {
-	return m.Config != nil && m.Config.RememberMeCheckedByDefault
 }

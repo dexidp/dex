@@ -169,7 +169,7 @@ func (h *Handler) createDeviceAuthorization(ctx context.Context, req deviceCodeR
 
 	deviceCode := storage.NewDeviceCode()
 	userCode := storage.NewUserCode()
-	expireTime := time.Now().Add(h.RequestsValidFor)
+	expireTime := h.Now().Add(h.RequestsValidFor)
 
 	if err := h.Storage.CreateDeviceRequest(ctx, storage.DeviceRequest{
 		UserCode:     userCode,
