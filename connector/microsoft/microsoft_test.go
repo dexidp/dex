@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -181,6 +182,64 @@ func TestUserNotInRequiredGroupFromGraphAPI(t *testing.T) {
 	var groupsErr *connector.UserNotInRequiredGroupsError
 	if !errors.As(err, &groupsErr) {
 		t.Errorf("expected *connector.UserNotInRequiredGroupsError, got %T: %v", err, err)
+	}
+}
+
+func TestClientAssertionTokenExchange(t *testing.T) {
+	assertion := "dummy-jwt-assertion"
+	file, err := os.CreateTemp("", "assertion.jwt")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(file.Name())
+	file.WriteString(assertion + "\n")
+	file.Close()
+
+	tokenCalled := false
+	var receivedAssertion, receivedClientID, receivedSecret, receivedAuthorization string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" && r.URL.Path == "/testtenant/oauth2/v2.0/token" {
+			receivedAuthorization = r.Header.Get("Authorization")
+			bodyBytes, _ := io.ReadAll(r.Body)
+			r.Body.Close()
+			form, _ := url.ParseQuery(string(bodyBytes))
+			receivedAssertion = form.Get("client_assertion")
+			receivedClientID = form.Get("client_id")
+			receivedSecret = form.Get("client_secret")
+			tokenCalled = true
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"access_token": "token", "expires_in": 3600}`))
+		}
+	}))
+	defer ts.Close()
+
+	conn := microsoftConnector{
+		apiURL:          ts.URL,
+		graphURL:        ts.URL,
+		redirectURI:     "https://test.com",
+		clientID:        clientID,
+		clientSecret:    "should-not-be-used",
+		tenant:          "testtenant",
+		clientAssertion: file.Name(),
+	}
+
+	req, _ := http.NewRequest("GET", ts.URL, nil)
+	conn.HandleCallback(connector.Scopes{}, nil, req)
+
+	if !tokenCalled {
+		t.Errorf("Token endpoint was not called")
+	}
+	if receivedAssertion != assertion {
+		t.Errorf("Expected client_assertion to be %q, got %q", assertion, receivedAssertion)
+	}
+	if receivedClientID != clientID {
+		t.Errorf("Expected client_id to be %q, got %q", clientID, receivedClientID)
+	}
+	if receivedSecret != "" {
+		t.Errorf("Expected client_secret to be empty, got %q", receivedSecret)
+	}
+	if receivedAuthorization != "" {
+		t.Errorf("Expected Authorization header to be empty, got %q", receivedAuthorization)
 	}
 }
 
