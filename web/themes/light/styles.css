@@ -134,5 +134,6 @@
   --dex-fg-muted: #6b7280;
   --dex-border: #e8eaed;
   --dex-surface-subtle: #f4f5f7;
-  --dex-accent: #4a90d9;
+  --dex-accent: #2f6fb0;
+  --dex-accent-fg: #ffffff;
 }

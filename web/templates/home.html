@@ -17,8 +17,8 @@
 
   {{ if .Groups }}
   <div class="dex-field">
-    <div class="dex-field__label">Groups</div>
-    <ul class="dex-chips">
+    <div class="dex-field__label">Groups <span class="dex-field__count">{{ len .Groups }}</span></div>
+    <ul class="dex-chips" tabindex="0">
       {{ range .Groups }}<li class="dex-chip">{{ . }}</li>{{ end }}
     </ul>
   </div>
@@ -59,7 +59,7 @@
   {{ end }}
 
   <div class="dex-home__actions">
-    <a href="{{ .LogoutURL }}" class="dex-btn dex-btn--outline">Log out</a>
+    <a href="{{ .LogoutURL }}" class="dex-btn dex-btn--accent">Log out</a>
   </div>
   {{ else }}
   <div class="dex-home__empty">
@@ -78,6 +78,13 @@
 {{ if .LoggedIn }}
 <script>
   (function () {
+    // A long group list is capped by CSS; fade its bottom edge so the cut is
+    // visible on platforms whose scrollbars only appear while scrolling.
+    var groups = document.querySelector('.dex-chips');
+    if (groups && groups.scrollHeight > groups.clientHeight) {
+      groups.classList.add('dex-chips--clipped');
+    }
+
     // The server sends Unix seconds; render them in the visitor's own timezone.
     document.querySelectorAll('time[datetime]').forEach(function (el) {
       var epoch = parseInt(el.getAttribute('datetime'), 10);

@@ -167,7 +167,8 @@ body {
   --dex-home-muted: var(--dex-fg-muted, #6b7280);
   --dex-home-border: var(--dex-border, #e8eaed);
   --dex-home-subtle: var(--dex-surface-subtle, #f4f5f7);
-  --dex-home-accent: var(--dex-accent, #4a90d9);
+  --dex-home-accent: var(--dex-accent, #2f6fb0);
+  --dex-home-accent-fg: var(--dex-accent-fg, #ffffff);
 
   color: var(--dex-home-fg);
   text-align: left;
@@ -239,13 +240,49 @@ body {
   text-transform: uppercase;
 }
 
+.dex-field__count {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: normal;
+  opacity: 0.75;
+}
+
+/* A directory can hand back dozens of groups, so the list is capped and scrolls
+ * instead of pushing the rest of the page out of view. The count in the label
+ * says how many there are; tabindex on the template keeps the overflow
+ * reachable by keyboard. */
 .dex-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   list-style: none;
   margin: 0;
-  padding: 0;
+  max-height: 114px;
+  overflow-y: auto;
+  padding: 0 2px 0 0;
+  scrollbar-color: var(--dex-home-border) transparent;
+  scrollbar-width: thin;
+}
+
+.dex-chips::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dex-chips::-webkit-scrollbar-thumb {
+  background-color: var(--dex-home-border);
+  border-radius: 3px;
+}
+
+/* Overlay scrollbars stay invisible until touched, so a clipped list would read
+ * as complete. The template adds this class only when the list actually
+ * overflows, and the fade says the rest is below. */
+.dex-chips--clipped {
+  -webkit-mask-image: linear-gradient(to bottom, #000 72px, transparent);
+  mask-image: linear-gradient(to bottom, #000 72px, transparent);
+}
+
+.dex-chips:focus-visible {
+  outline: 2px solid var(--dex-home-accent);
+  outline-offset: 3px;
 }
 
 .dex-chip {
@@ -296,21 +333,25 @@ body {
   margin-top: 24px;
 }
 
-.dex-btn--outline {
-  background-color: transparent;
-  border: 1px solid var(--dex-home-border);
-  color: var(--dex-home-fg);
+/* The page's only action, so it gets the accent fill. The theme owns both the
+ * fill and the text on it: an accent light enough to need dark labels (the dark
+ * theme's) sets --dex-accent-fg accordingly. */
+.dex-btn--accent {
+  background-color: var(--dex-home-accent);
+  border: 0;
+  color: var(--dex-home-accent-fg);
   display: block;
   font-size: 14px;
-  font-weight: 500;
-  padding: 9px 16px;
+  font-weight: 600;
+  padding: 10px 16px;
   text-align: center;
   text-decoration: none;
+  transition: filter 0.15s ease;
   width: 100%;
 }
 
-.dex-btn--outline:hover {
-  background-color: var(--dex-home-subtle);
+.dex-btn--accent:hover {
+  filter: brightness(0.92);
 }
 
 .dex-home__empty {
