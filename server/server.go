@@ -312,9 +312,8 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	// Build the discovery handler once from config; both the mounted HTTP route
 	// and the gRPC API (via Discovery) serve this same handler.
 	s.discovery = &discovery.Handler{
-		Issuer:          s.issuerURL.String(),
-		AbsURL:          s.issuerURL.AbsURL,
-		RenderError:     s.renderError,
+		IssuerURL:       s.issuerURL,
+		Templates:       s.templates,
 		Signer:          c.Signer,
 		Logger:          s.logger,
 		ResponseTypes:   supportedRes,

@@ -13,17 +13,18 @@ import (
 
 	jose "github.com/go-jose/go-jose/v4"
 
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/signer"
+	"github.com/dexidp/dex/server/templates"
 )
 
-// Handler serves the discovery document and the JWKS. AbsURL builds an absolute
-// URL under the issuer; RenderError renders an HTML error page. Both are
-// supplied by the server so the handler does not depend on the whole Server.
+// Handler serves the discovery document and the JWKS. Like every other domain
+// handler it takes the issuer URL and the templates directly, so it can be
+// built without a Server.
 type Handler struct {
-	Issuer          string
-	AbsURL          func(...string) string
-	RenderError     func(*http.Request, http.ResponseWriter, int, string)
+	IssuerURL       oauth2.IssuerURL
+	Templates       *templates.Templates
 	Signer          signer.Signer
 	Logger          *slog.Logger
 	ResponseTypes   map[string]bool
@@ -34,6 +35,13 @@ type Handler struct {
 	docOnce sync.Once
 	docData []byte
 	docErr  error
+}
+
+// renderError renders a user-facing HTML error page.
+func (h *Handler) renderError(r *http.Request, w http.ResponseWriter, status int, description string) {
+	if err := h.Templates.Err(r, w, status, description); err != nil {
+		h.Logger.ErrorContext(r.Context(), "server template error", "err", err)
+	}
 }
 
 // Mount registers the discovery routes.
@@ -69,13 +77,13 @@ func (h *Handler) Keys(w http.ResponseWriter, r *http.Request) {
 	keys, err := h.Signer.ValidationKeys(ctx)
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "failed to get keys", "err", err)
-		h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+		h.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 		return
 	}
 
 	if len(keys) == 0 {
 		h.Logger.ErrorContext(ctx, "no public keys found.")
-		h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+		h.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 		return
 	}
 
@@ -89,7 +97,7 @@ func (h *Handler) Keys(w http.ResponseWriter, r *http.Request) {
 	data, err := json.MarshalIndent(jwks, "", "  ")
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "failed to marshal discovery data", "err", err)
-		h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+		h.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 		return
 	}
 
@@ -110,7 +118,7 @@ func (h *Handler) serveDocument(w http.ResponseWriter, r *http.Request) {
 	})
 	if h.docErr != nil {
 		h.Logger.ErrorContext(r.Context(), "failed to marshal discovery data", "err", h.docErr)
-		h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+		h.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 		return
 	}
 
@@ -122,13 +130,13 @@ func (h *Handler) serveDocument(w http.ResponseWriter, r *http.Request) {
 // Construct builds the discovery document from the current configuration.
 func (h *Handler) Construct(ctx context.Context) Document {
 	d := Document{
-		Issuer:            h.Issuer,
-		Auth:              h.AbsURL("/auth"),
-		Token:             h.AbsURL("/token"),
-		Keys:              h.AbsURL("/keys"),
-		UserInfo:          h.AbsURL("/userinfo"),
-		DeviceEndpoint:    h.AbsURL("/device/code"),
-		Introspect:        h.AbsURL("/token/introspect"),
+		Issuer:            h.IssuerURL.String(),
+		Auth:              h.IssuerURL.AbsURL("/auth"),
+		Token:             h.IssuerURL.AbsURL("/token"),
+		Keys:              h.IssuerURL.AbsURL("/keys"),
+		UserInfo:          h.IssuerURL.AbsURL("/userinfo"),
+		DeviceEndpoint:    h.IssuerURL.AbsURL("/device/code"),
+		Introspect:        h.IssuerURL.AbsURL("/token/introspect"),
 		Subjects:          []string{"public"},
 		IDTokenAlgs:       []string{string(jose.RS256)},
 		CodeChallengeAlgs: h.PKCEMethods,
@@ -156,7 +164,7 @@ func (h *Handler) Construct(ctx context.Context) Document {
 	d.GrantTypes = h.GrantTypes
 
 	if h.SessionsEnabled {
-		d.EndSession = h.AbsURL("/logout")
+		d.EndSession = h.IssuerURL.AbsURL("/logout")
 	}
 
 	return d
