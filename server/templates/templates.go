@@ -388,6 +388,9 @@ type HomeData struct {
 	// time by the page's script. Zero means the row is omitted.
 	LastLoginEpoch      int64
 	SessionExpiresEpoch int64
+	// SessionExpiryIsIdle says SessionExpiresEpoch is the idle timeout rather
+	// than the absolute one, so the page can say the deadline slides.
+	SessionExpiryIsIdle bool
 	IPAddress           string
 	UserAgent           string
 	LogoutURL           string

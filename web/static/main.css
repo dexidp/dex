@@ -184,6 +184,7 @@ body {
   font-size: 17px;
   font-weight: 600;
   line-height: 1.3;
+  margin: 0;
   overflow-wrap: anywhere;
 }
 
@@ -196,35 +197,34 @@ body {
   overflow-wrap: anywhere;
 }
 
-.dex-field {
-  margin-top: 20px;
-}
-
-.dex-field__label {
-  color: var(--dex-home-muted);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  margin-bottom: 8px;
-  text-transform: uppercase;
-}
-
-.dex-field__count {
+.dex-fact__count {
   font-variant-numeric: tabular-nums;
-  letter-spacing: normal;
   opacity: 0.75;
 }
 
-/* A directory can hand back dozens of groups, so the list is capped and scrolls
+/* Groups sit below the table rather than in it: a group is often a full DN, and
+ * the table's value column would wrap one across three lines. The label matches
+ * the table's, so a wider row does not read as a different system.
+ *
+ * A directory can hand back dozens of groups, so the list is capped and scrolls
  * instead of pushing the rest of the page out of view. The count in the label
  * says how many there are; tabindex on the template keeps the overflow
  * reachable by keyboard. */
+.dex-groups-block {
+  margin-top: 14px;
+}
+
+.dex-groups-block__label {
+  color: var(--dex-home-muted);
+  font-size: 13px;
+  margin-bottom: 6px;
+}
 .dex-groups {
   font-size: 12.5px;
-  line-height: 1.7;
+  line-height: 1.6;
   list-style: none;
   margin: 0;
-  max-height: 128px;
+  max-height: 120px;
   overflow-y: auto;
   padding: 0 2px 0 0;
   scrollbar-color: var(--dex-home-border) transparent;
@@ -257,15 +257,11 @@ body {
   outline-offset: 3px;
 }
 
-.dex-useragent {
-  color: var(--dex-home-muted);
-  font-size: 12px;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-
-/* Facts are label/value pairs. They stack on narrow viewports so a long value
- * never has to share a line with its label. */
+/* Facts are label/value pairs on a fixed label column. Pushing values to the
+ * right edge instead would leave a hand's width of empty panel between a label
+ * and the value it belongs to, and would be the third alignment on a card that
+ * only needs one. They stack on narrow viewports, where the column costs more
+ * room than it buys. */
 .dex-facts {
   border-top: 1px solid var(--dex-home-border);
   margin: 20px 0 0;
@@ -274,22 +270,20 @@ body {
 
 .dex-fact {
   border-bottom: 1px solid var(--dex-home-border);
-  display: flex;
+  display: grid;
   font-size: 13px;
-  gap: 16px;
-  justify-content: space-between;
+  gap: 4px 16px;
+  grid-template-columns: 116px minmax(0, 1fr);
   padding: 9px 0;
 }
 
 .dex-fact dt {
   color: var(--dex-home-muted);
-  flex: 0 0 auto;
 }
 
 .dex-fact dd {
   margin: 0;
   overflow-wrap: anywhere;
-  text-align: right;
 }
 
 /* Monospace runs large at a shared size; nudge it back to match its neighbours. */
@@ -297,9 +291,15 @@ body {
   font-size: 12.5px;
 }
 
+/* The User-Agent is the longest and least urgent value on the page. */
+.dex-fact dd.dex-fact__long {
+  color: var(--dex-home-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .dex-home__actions {
   margin-top: 24px;
-  text-align: center;
 }
 
 /* Logging out is a link here and a form button on /logout, so the anchor needs
@@ -335,7 +335,6 @@ body {
   border-top: 1px solid var(--dex-home-border);
   margin-top: 24px;
   padding-top: 16px;
-  text-align: center;
 }
 
 .dex-home__link {
@@ -351,11 +350,6 @@ body {
 
 @media (max-width: 420px) {
   .dex-fact {
-    display: block;
-  }
-
-  .dex-fact dd {
-    margin-top: 2px;
-    text-align: left;
+    grid-template-columns: minmax(0, 1fr);
   }
 }

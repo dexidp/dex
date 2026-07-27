@@ -56,7 +56,7 @@ func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 		data.LoggedIn = true
 		data.IPAddress = session.IPAddress
 		data.UserAgent = session.UserAgent
-		data.SessionExpiresEpoch = sessionExpiry(session)
+		data.SessionExpiresEpoch, data.SessionExpiryIsIdle = sessionExpiry(session)
 		h.populateData(ctx, &data, session.UserID, session.ConnectorID)
 	}
 
@@ -69,15 +69,20 @@ func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 // sessionExpiry reports when the session ends: the earlier of its absolute
 // lifetime and its idle timeout, since whichever comes first logs the user out.
 // It returns 0 when neither is set, which drops the row from the page.
-func sessionExpiry(s *storage.AuthSession) int64 {
-	expiry := s.AbsoluteExpiry
+//
+// The second return says the idle timeout won. That distinction has to reach
+// the page: the absolute expiry is a fixed moment, while the idle one slides
+// forward every time the session is used, so labeling both "session ends"
+// would state a deadline that is not one.
+func sessionExpiry(s *storage.AuthSession) (int64, bool) {
+	expiry, idle := s.AbsoluteExpiry, false
 	if expiry.IsZero() || (!s.IdleExpiry.IsZero() && s.IdleExpiry.Before(expiry)) {
-		expiry = s.IdleExpiry
+		expiry, idle = s.IdleExpiry, true
 	}
 	if expiry.IsZero() {
-		return 0
+		return 0, false
 	}
-	return expiry.Unix()
+	return expiry.Unix(), idle
 }
 
 func (h *Handler) handleInline(w http.ResponseWriter, r *http.Request) {

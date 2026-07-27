@@ -3,14 +3,14 @@
 <div class="theme-panel dex-home">
   {{ if .LoggedIn }}
   <div class="dex-identity">
-    {{ if .Username }}<div class="dex-identity__name">{{ .Username }}</div>{{ end }}
+    {{ if .Username }}<h2 class="dex-identity__name">{{ .Username }}</h2>{{ end }}
     {{ if .Email }}<div class="dex-identity__email">{{ .Email }}</div>{{ end }}
   </div>
 
   <dl class="dex-facts">
     {{ if .ConnectorName }}
     <div class="dex-fact">
-      <dt>Connector</dt>
+      <dt>Signed in with</dt>
       <dd>{{ .ConnectorName }}</dd>
     </div>
     {{ end }}
@@ -22,13 +22,13 @@
     {{ end }}
     {{ if .LastLoginEpoch }}
     <div class="dex-fact">
-      <dt>Signed in</dt>
+      <dt>Last sign-in</dt>
       <dd><time id="last-login" datetime="{{ .LastLoginEpoch }}">&mdash;</time></dd>
     </div>
     {{ end }}
     {{ if .SessionExpiresEpoch }}
     <div class="dex-fact">
-      <dt>Session ends</dt>
+      <dt>{{ if .SessionExpiryIsIdle }}Expires if idle{{ else }}Session ends{{ end }}</dt>
       <dd><time id="session-expires" datetime="{{ .SessionExpiresEpoch }}">&mdash;</time></dd>
     </div>
     {{ end }}
@@ -38,21 +38,20 @@
       <dd class="dex-mono">{{ .IPAddress }}</dd>
     </div>
     {{ end }}
+    {{ if .UserAgent }}
+    <div class="dex-fact">
+      <dt>Browser</dt>
+      <dd class="dex-fact__long">{{ .UserAgent }}</dd>
+    </div>
+    {{ end }}
   </dl>
 
   {{ if .Groups }}
-  <div class="dex-field">
-    <div class="dex-field__label">Groups <span class="dex-field__count">{{ len .Groups }}</span></div>
+  <div class="dex-groups-block">
+    <div class="dex-groups-block__label">Groups <span class="dex-fact__count">{{ len .Groups }}</span></div>
     <ul class="dex-groups dex-mono" tabindex="0">
       {{ range .Groups }}<li>{{ . }}</li>{{ end }}
     </ul>
-  </div>
-  {{ end }}
-
-  {{ if .UserAgent }}
-  <div class="dex-field">
-    <div class="dex-field__label">Browser</div>
-    <div class="dex-useragent">{{ .UserAgent }}</div>
   </div>
   {{ end }}
 
@@ -88,7 +87,7 @@
       var epoch = parseInt(el.getAttribute('datetime'), 10);
       if (!epoch) return;
       var date = new Date(epoch * 1000);
-      el.textContent = date.toLocaleString();
+      el.textContent = date.toLocaleString([], {dateStyle: 'medium', timeStyle: 'short'});
       el.setAttribute('datetime', date.toISOString());
     });
   })();
