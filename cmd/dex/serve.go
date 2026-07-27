@@ -442,6 +442,11 @@ func runServe(options serveOptions) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse client remote IP settings: %v", err)
 	}
+	if serverConfig.RealIPHeader != "" && len(serverConfig.TrustedRealIPCIDRs) == 0 {
+		logger.Warn("web.clientRemoteIP.header is set without web.clientRemoteIP.trustedProxies; "+
+			"the header is ignored because any client could spoof it",
+			"header", serverConfig.RealIPHeader)
+	}
 
 	serv, err := server.NewServer(context.Background(), serverConfig)
 	if err != nil {

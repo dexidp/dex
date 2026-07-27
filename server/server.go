@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/netip"
 	"net/url"
@@ -400,34 +399,6 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		}
 	}
 
-	parseRealIP := func(r *http.Request) (string, error) {
-		remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err != nil {
-			return "", err
-		}
-
-		remoteIP, err := netip.ParseAddr(remoteAddr)
-		if err != nil {
-			return "", err
-		}
-
-		for _, n := range c.TrustedRealIPCIDRs {
-			if !n.Contains(remoteIP) {
-				return remoteAddr, nil // Fallback to the address from the request if the header is provided
-			}
-		}
-
-		ipVal := r.Header.Get(c.RealIPHeader)
-		if ipVal != "" {
-			ip, err := netip.ParseAddr(ipVal)
-			if err == nil {
-				return ip.String(), nil
-			}
-		}
-
-		return remoteAddr, nil
-	}
-
 	r := mux.NewRouter().SkipClean(true).UseEncodedPath()
 	r.NotFoundHandler = http.NotFoundHandler()
 
@@ -439,7 +410,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		Headers:      c.Headers,
 		RealIPHeader: c.RealIPHeader,
 		Instrument:   instrumentHandler,
-		RealIP:       parseRealIP,
+		RealIP:       router.ParseRealIP(c.RealIPHeader, c.TrustedRealIPCIDRs),
 		CORSOrigins:  c.AllowedOrigins,
 		CORSHeaders:  c.AllowedHeaders,
 	})
