@@ -31,7 +31,7 @@ func TestParseRealIP(t *testing.T) {
 		want       string
 	}{
 		{
-			name:       "trusted proxy, header honoured",
+			name:       "trusted proxy, header honored",
 			trusted:    []string{"10.0.0.0/8"},
 			remoteAddr: "10.1.2.3:1234",
 			headerVal:  "203.0.113.9",
@@ -40,7 +40,7 @@ func TestParseRealIP(t *testing.T) {
 		{
 			// The resolver used to return on the first prefix that did not match,
 			// so only the first entry of trustedProxies ever took effect.
-			name:       "trusted proxy in a later prefix, header honoured",
+			name:       "trusted proxy in a later prefix, header honored",
 			trusted:    []string{"10.0.0.0/8", "192.168.0.0/16"},
 			remoteAddr: "192.168.5.5:1234",
 			headerVal:  "203.0.113.9",
