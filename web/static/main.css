@@ -173,13 +173,6 @@ body {
   text-align: left;
 }
 
-/* Claim values are machine strings — an address, a group name, an IP. They read
- * as data rather than prose in a monospace face, and it keeps the page from
- * looking like a social profile, which is not what dex knows about anyone. */
-.dex-mono {
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-}
-
 .dex-identity__name {
   font-size: 17px;
   font-weight: 600;
@@ -197,8 +190,7 @@ body {
 }
 
 /* Whether the connector vouched for the address belongs next to the address,
- * not in a row of its own further down. It stays in the body face while the
- * address is monospace: it is a remark about the value, not part of it. */
+ * not in a row of its own further down. */
 .dex-identity__state {
   white-space: nowrap;
 }
@@ -232,6 +224,10 @@ body {
   margin-bottom: 6px;
 }
 .dex-groups {
+  /* The one place the page changes face. A group is an identifier you compare
+   * against something else, and a column of them lines up character for
+   * character in monospace. Single values elsewhere gain nothing from it. */
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   font-size: 12.5px;
   line-height: 1.6;
   list-style: none;
@@ -297,11 +293,6 @@ body {
 .dex-fact dd {
   margin: 0;
   overflow-wrap: anywhere;
-}
-
-/* Monospace runs large at a shared size; nudge it back to match its neighbours. */
-.dex-fact dd.dex-mono {
-  font-size: 12.5px;
 }
 
 /* The User-Agent is the longest and least urgent value on the page. */

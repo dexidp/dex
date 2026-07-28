@@ -6,9 +6,9 @@
     {{ if .Username }}<h2 class="dex-identity__name">{{ .Username }}</h2>{{ end }}
     {{ if .Email }}
     <div class="dex-identity__email">
-      <span class="dex-mono">{{ .Email }}</span>
-      {{ if .EmailVerified }}<span class="dex-identity__state">· verified</span>
-      {{ else }}<span class="dex-identity__state dex-identity__state--warn">· not verified</span>{{ end }}
+      {{ .Email }}
+      {{ if .EmailVerified }}<span class="dex-identity__state">(verified)</span>
+      {{ else }}<span class="dex-identity__state dex-identity__state--warn">(not verified)</span>{{ end }}
     </div>
     {{ end }}
   </div>
@@ -35,7 +35,7 @@
     {{ if .IPAddress }}
     <div class="dex-fact">
       <dt>IP address</dt>
-      <dd class="dex-mono">{{ .IPAddress }}</dd>
+      <dd>{{ .IPAddress }}</dd>
     </div>
     {{ end }}
     {{ if .UserAgent }}
@@ -49,7 +49,7 @@
   {{ if .Groups }}
   <div class="dex-groups-block">
     <div class="dex-groups-block__label">Groups <span class="dex-fact__count">{{ len .Groups }}</span></div>
-    <ul class="dex-groups dex-mono" tabindex="0">
+    <ul class="dex-groups" tabindex="0">
       {{ range .Groups }}<li>{{ . }}</li>{{ end }}
     </ul>
   </div>
