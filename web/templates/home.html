@@ -38,6 +38,16 @@
       <dd>{{ .IPAddress }}</dd>
     </div>
     {{ end }}
+    {{ if .Groups }}
+    <div class="dex-fact">
+      <dt id="groups-label">Groups <span class="dex-count">{{ len .Groups }}</span></dt>
+      <dd>
+        <ul class="dex-groups" tabindex="0" aria-labelledby="groups-label">
+          {{ range .Groups }}<li>{{ . }}</li>{{ end }}
+        </ul>
+      </dd>
+    </div>
+    {{ end }}
     {{ if .UserAgent }}
     <div class="dex-fact">
       <dt>Browser</dt>
@@ -45,15 +55,6 @@
     </div>
     {{ end }}
   </dl>
-
-  {{ if .Groups }}
-  <div class="dex-groups-block">
-    <div class="dex-groups-block__label" id="groups-label">Groups <span class="dex-count">{{ len .Groups }}</span></div>
-    <ul class="dex-groups" tabindex="0" aria-labelledby="groups-label">
-      {{ range .Groups }}<li>{{ . }}</li>{{ end }}
-    </ul>
-  </div>
-  {{ end }}
 
   <div class="dex-home__actions">
     <a href="{{ .LogoutURL }}" class="dex-btn theme-btn--primary">Log out</a>

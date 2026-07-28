@@ -205,24 +205,11 @@ body {
   opacity: 0.75;
 }
 
-/* Groups sit below the table rather than in it: a group is often a full DN, and
- * the table's value column would wrap one across three lines. The label matches
- * the table's, so a wider row does not read as a different system.
- *
- * A directory can hand back dozens of groups, so the list is capped and scrolls
- * instead of pushing the rest of the page out of view. The count in the label
- * says how many there are; tabindex on the template keeps the overflow
- * reachable by keyboard. */
-.dex-groups-block {
-  margin-top: 14px;
-}
-
-.dex-groups-block__label {
-  color: var(--dex-home-muted);
-  font-size: 13px;
-  margin-bottom: 6px;
-}
-
+/* Groups are a row like the others, so their values start where every other
+ * value on the page starts. A directory can hand back dozens of them, so the
+ * list is capped and scrolls instead of pushing the rest of the page out of
+ * view. The count in the label says how many there are; tabindex on the
+ * template keeps the overflow reachable by keyboard. */
 .dex-groups {
   font-size: 13px;
   line-height: 1.6;
