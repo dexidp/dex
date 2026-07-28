@@ -13,6 +13,10 @@ import (
 	"github.com/dexidp/dex/examples/example-app/session"
 )
 
+// settleTime is how long after a check the app takes its own answer for
+// granted. It only has to outlast the redirect the check itself causes.
+const settleTime = 2 * time.Second
+
 // handleIndex renders the app's own view of who is signed in.
 //
 // Before rendering it makes sure that view is still true. An access token that
@@ -64,10 +68,18 @@ func (s *Server) shouldCheckProvider(sess *session.Session) bool {
 	if sess.LastProviderCheck.IsZero() {
 		return true
 	}
-	// A signed-in browser is confirmed on every load. The interval only holds
-	// back the check for a browser that is not signed in, where it is looking
-	// for a session rather than confirming one: a session dex has just been
-	// told to end should not survive until a timer says to ask.
+
+	// A check redirects out and back, and the page it comes back to is this one.
+	// Without a floor it would ask again on that render, and again on the next:
+	// a browser bouncing through the provider forever.
+	if time.Since(sess.LastProviderCheck) < settleTime {
+		return false
+	}
+
+	// Past that, a signed-in browser is confirmed on every load. The interval
+	// only paces the check for a browser that is not signed in, where it is
+	// looking for a session rather than confirming one — a session dex has been
+	// told to end should not outlive the page it is shown on.
 	if sess.SignedIn() {
 		return true
 	}
