@@ -1,0 +1,48 @@
+{{define "content"}}
+<div class="card">
+    <div class="card-title">Introspection</div>
+    <p class="hint">
+        Asks dex what it thinks of a token. This is the only way to learn that a token
+        has been revoked: a revoked token still has a valid signature.
+    </p>
+    <form action="/tools/introspect" method="post" class="stack">
+        <textarea name="token" rows="4" placeholder="token">{{.AccessToken}}</textarea>
+        <select name="token_type_hint">
+            <option value="access_token">access_token</option>
+            <option value="refresh_token">refresh_token</option>
+            <option value="">no hint</option>
+        </select>
+        <button type="submit" class="button button-primary">Introspect</button>
+    </form>
+</div>
+
+<div class="card">
+    <div class="card-title">Local verification</div>
+    <p class="hint">
+        Checks the signature against the issuer's published keys and reads the claims,
+        the way a resource server would. It says nothing about revocation.
+    </p>
+    <form action="/tools/verify" method="post" class="stack">
+        <textarea name="token" rows="4" placeholder="JWT">{{.IDToken}}</textarea>
+        <button type="submit" class="button button-primary">Verify</button>
+    </form>
+</div>
+
+<div class="card">
+    <div class="card-title">UserInfo</div>
+    <p class="hint">Calls the provider's UserInfo endpoint with an access token.</p>
+    <form action="/userinfo" method="post" class="stack">
+        <textarea name="access_token" rows="4" placeholder="access token">{{.AccessToken}}</textarea>
+        <button type="submit" class="button button-primary">Call UserInfo</button>
+    </form>
+</div>
+
+<div class="card">
+    <div class="card-title">Refresh</div>
+    <p class="hint">Redeems a refresh token for a new set of tokens.</p>
+    <form action="/grant/refresh" method="post" class="stack">
+        <textarea name="refresh_token" rows="3" placeholder="refresh token">{{.RefreshToken}}</textarea>
+        <button type="submit" class="button button-primary">Redeem</button>
+    </form>
+</div>
+{{end}}

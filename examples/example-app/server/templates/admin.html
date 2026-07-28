@@ -1,0 +1,98 @@
+{{define "content"}}
+<div class="card">
+    <div class="card-title">dex gRPC API</div>
+    <p class="hint">
+        The API that manages dex itself: clients, local passwords and refresh tokens.
+        It is a separate endpoint from the OpenID Connect one, and this page is only
+        present because the app was started with --grpc-addr.
+    </p>
+    {{if .Version}}<div class="kv"><div class="k">Server</div><div class="v mono">{{.Version}}</div></div>{{end}}
+    {{if .Notice}}<p class="verdict">{{.Notice}}</p>{{end}}
+    {{if .Error}}<p class="verdict verdict-bad">{{.Error}}</p>{{end}}
+</div>
+
+<div class="card">
+    <div class="card-title">Clients</div>
+    {{if .Clients}}
+    <table class="table">
+        <tr><th>ID</th><th>Name</th><th>Redirect URIs</th><th></th></tr>
+        {{range .Clients}}
+        <tr>
+            <td class="mono">{{.ID}}{{if .Public}} <span class="tag">public</span>{{end}}</td>
+            <td>{{.Name}}</td>
+            <td class="mono small">{{range .RedirectURIs}}{{.}}<br>{{end}}</td>
+            <td>
+                <form action="/admin/client/delete" method="post">
+                    <input type="hidden" name="id" value="{{.ID}}">
+                    <button type="submit" class="button button-small">Delete</button>
+                </form>
+            </td>
+        </tr>
+        {{end}}
+    </table>
+    {{else}}
+    <p class="hint">The API reports no clients. Clients from a static config are not listed here.</p>
+    {{end}}
+
+    <form action="/admin/client/create" method="post" class="stack">
+        <div class="field">
+            <label>Create a client</label>
+            <input type="text" name="id" placeholder="client id" required>
+            <input type="text" name="name" placeholder="name">
+            <input type="text" name="secret" placeholder="secret (leave empty for a public client)">
+            <textarea name="redirect_uris" rows="2" placeholder="redirect URIs, one per line"></textarea>
+            <label class="checkbox"><input type="checkbox" name="public" value="1"> public client</label>
+        </div>
+        <button type="submit" class="button button-primary">Create client</button>
+    </form>
+</div>
+
+<div class="card">
+    <div class="card-title">Local passwords</div>
+    {{if .Passwords}}
+    <table class="table">
+        <tr><th>Email</th><th>Username</th><th>User ID</th><th></th></tr>
+        {{range .Passwords}}
+        <tr>
+            <td class="mono">{{.Email}}</td>
+            <td>{{.Username}}</td>
+            <td class="mono small">{{.UserID}}</td>
+            <td>
+                <form action="/admin/password/delete" method="post">
+                    <input type="hidden" name="email" value="{{.Email}}">
+                    <button type="submit" class="button button-small">Delete</button>
+                </form>
+            </td>
+        </tr>
+        {{end}}
+    </table>
+    {{else}}
+    <p class="hint">No passwords in storage. Users from staticPasswords are not listed here.</p>
+    {{end}}
+
+    <form action="/admin/password/create" method="post" class="stack">
+        <div class="field">
+            <label>Create a password</label>
+            <small class="hint">The API takes a bcrypt hash; this page hashes what you type.</small>
+            <input type="email" name="email" placeholder="email" required>
+            <input type="text" name="username" placeholder="username">
+            <input type="text" name="user_id" placeholder="user id">
+            <input type="password" name="password" placeholder="password" autocomplete="off" required>
+        </div>
+        <button type="submit" class="button button-primary">Create password</button>
+    </form>
+</div>
+
+<div class="card">
+    <div class="card-title">Revoke a refresh token</div>
+    <p class="hint">
+        Ends a user's offline access to one client. Try it against your own session:
+        revoke, then let this app refresh, and the sign-in is over.
+    </p>
+    <form action="/admin/refresh/revoke" method="post" class="stack">
+        <input type="text" name="user_id" placeholder="user id (the sub claim)" required>
+        <input type="text" name="client_id" placeholder="client id" required>
+        <button type="submit" class="button button-primary">Revoke</button>
+    </form>
+</div>
+{{end}}

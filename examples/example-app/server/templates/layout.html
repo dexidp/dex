@@ -1,0 +1,23 @@
+{{define "page"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Example App</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="logo-link"><img class="logo" src="/static/dex-glyph-color.svg" alt="Dex"></a>
+        <nav class="nav">
+            <a href="/">Flows</a>
+            <a href="/tools">Token tools</a>
+            {{if .AdminEnabled}}<a href="/admin">gRPC API</a>{{end}}
+        </nav>
+        {{template "content" .}}
+    </div>
+    <script src="/static/app.js"></script>
+</body>
+</html>
+{{end}}

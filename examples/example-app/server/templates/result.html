@@ -1,0 +1,11 @@
+{{define "content"}}
+<div class="card">
+    <div class="card-title">{{.Title}}</div>
+    {{if .Verdict}}<p class="verdict">{{.Verdict}}</p>{{end}}
+    <pre class="json">{{.Body}}</pre>
+    <div class="row">
+        <a href="/tools" class="button">Back to tools</a>
+        <a href="/" class="button button-secondary">Home</a>
+    </div>
+</div>
+{{end}}

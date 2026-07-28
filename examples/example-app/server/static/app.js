@@ -9,15 +9,14 @@
     // Default scopes that should be checked by default
     const defaultScopes = ["openid", "profile", "email", "offline_access"];
 
-    // Check default scopes on page load
-    document.addEventListener("DOMContentLoaded", function() {
-        const checkboxes = scopesList.querySelectorAll('input[type="checkbox"]');
-        checkboxes.forEach(cb => {
+    // The script is loaded on every page; only the index has these controls.
+    if (scopesList) {
+        scopesList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
             if (defaultScopes.includes(cb.value)) {
                 cb.checked = true;
             }
         });
-    });
+    }
 
     function addCrossClient(value) {
         const trimmed = value.trim();
@@ -147,7 +146,7 @@
             alert('Error starting device flow: ' + error.message);
         } finally {
             deviceGrantBtn.disabled = false;
-            deviceGrantBtn.textContent = "Device Code Flow";
+            deviceGrantBtn.textContent = "Device code";
         }
     });
 })();

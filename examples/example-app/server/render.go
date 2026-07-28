@@ -6,6 +6,9 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"time"
+
+	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/examples/example-app/session"
 )
@@ -29,30 +32,74 @@ func init() {
 	staticHandler = http.FileServer(http.FS(staticSubFS))
 }
 
-// LoginPageData holds data for the login page template.
-type LoginPageData struct {
+// TokenSummary is what the index page says about the tokens this browser holds.
+type TokenSummary struct {
+	AccessToken  string
+	IDToken      string
+	RefreshToken bool
+	Expiry       string
+	Expired      bool
+}
+
+// tokenSummary describes a token set without printing it in full.
+func tokenSummary(token *oauth2.Token, rawIDToken string) *TokenSummary {
+	if token == nil {
+		return nil
+	}
+	s := &TokenSummary{
+		AccessToken:  abbreviate(token.AccessToken),
+		IDToken:      abbreviate(rawIDToken),
+		RefreshToken: token.RefreshToken != "",
+	}
+	if !token.Expiry.IsZero() {
+		s.Expiry = token.Expiry.Format(time.RFC3339)
+		s.Expired = time.Now().After(token.Expiry)
+	}
+	return s
+}
+
+func abbreviate(token string) string {
+	const keep = 12
+	if len(token) <= keep*2+1 {
+		return token
+	}
+	return token[:keep] + "…" + token[len(token)-keep:]
+}
+
+// IndexPageData holds data for the index page template.
+type IndexPageData struct {
 	ScopesSupported []string
 	LogoURI         string
-	User            *session.UserClaims
-	NotLoggedIn     bool
-	LogoutURL       string
+	AdminEnabled    bool
+	DeviceSupported bool
+	PKCE            bool
+	SessionCheck    time.Duration
+
+	User  *session.UserClaims
+	Token *TokenSummary
 }
 
 // TokenPageData holds data for the token display template.
 type TokenPageData struct {
+	LogoURI            string
+	AdminEnabled       bool
+	Grant              string
 	IDToken            string
 	IDTokenJWTLink     string
 	AccessToken        string
 	AccessTokenJWTLink string
 	RefreshToken       string
+	IssuedTokenType    string
+	ExpiresIn          string
 	RedirectURL        string
 	Claims             string
+	RawResponse        string
 	PublicKeyPEM       string
 }
 
 // DevicePageData holds data for the device flow template.
 type DevicePageData struct {
-	SessionID       string
+	AdminEnabled    bool
 	DeviceCode      string
 	UserCode        string
 	VerificationURI string
@@ -60,11 +107,58 @@ type DevicePageData struct {
 	LogoURI         string
 }
 
+// ToolsPageData holds data for the token tools page.
+type ToolsPageData struct {
+	LogoURI      string
+	AdminEnabled bool
+	AccessToken  string
+	IDToken      string
+	RefreshToken string
+}
+
+// ResultPageData holds the output of a tool.
+type ResultPageData struct {
+	LogoURI      string
+	AdminEnabled bool
+	Title        string
+	Verdict      string
+	Body         string
+}
+
+// AdminClient is one OAuth2 client as the API reports it.
+type AdminClient struct {
+	ID           string
+	Name         string
+	RedirectURIs []string
+	Public       bool
+}
+
+// AdminPassword is one local password entry as the API reports it.
+type AdminPassword struct {
+	Email    string
+	Username string
+	UserID   string
+}
+
+// AdminPageData holds data for the gRPC API page.
+type AdminPageData struct {
+	LogoURI      string
+	AdminEnabled bool
+	Version      string
+	Notice       string
+	Error        string
+	Clients      []AdminClient
+	Passwords    []AdminPassword
+}
+
 // Renderer renders HTML pages for the application.
 type Renderer interface {
-	RenderLoginPage(w http.ResponseWriter, data LoginPageData)
+	RenderIndexPage(w http.ResponseWriter, data IndexPageData)
 	RenderTokenPage(w http.ResponseWriter, data TokenPageData)
 	RenderDevicePage(w http.ResponseWriter, data DevicePageData)
+	RenderToolsPage(w http.ResponseWriter, data ToolsPageData)
+	RenderResultPage(w http.ResponseWriter, data ResultPageData)
+	RenderAdminPage(w http.ResponseWriter, data AdminPageData)
 }
 
 // templateRenderer implements Renderer using Go html/template.
@@ -72,12 +166,15 @@ type templateRenderer struct {
 	index  *template.Template
 	token  *template.Template
 	device *template.Template
+	tools  *template.Template
+	result *template.Template
+	admin  *template.Template
 }
 
 // newTemplateRenderer parses embedded templates and returns a Renderer.
 func newTemplateRenderer() Renderer {
 	parse := func(name string) *template.Template {
-		t, err := template.ParseFS(templatesFS, name)
+		t, err := template.ParseFS(templatesFS, "templates/layout.html", "templates/"+name)
 		if err != nil {
 			log.Fatalf("failed to parse template %s: %v", name, err)
 		}
@@ -85,13 +182,16 @@ func newTemplateRenderer() Renderer {
 	}
 
 	return &templateRenderer{
-		index:  parse("templates/index.html"),
-		token:  parse("templates/token.html"),
-		device: parse("templates/device.html"),
+		index:  parse("index.html"),
+		token:  parse("token.html"),
+		device: parse("device.html"),
+		tools:  parse("tools.html"),
+		result: parse("result.html"),
+		admin:  parse("admin.html"),
 	}
 }
 
-func (r *templateRenderer) RenderLoginPage(w http.ResponseWriter, data LoginPageData) {
+func (r *templateRenderer) RenderIndexPage(w http.ResponseWriter, data IndexPageData) {
 	renderTemplate(w, r.index, data)
 }
 
@@ -103,8 +203,20 @@ func (r *templateRenderer) RenderDevicePage(w http.ResponseWriter, data DevicePa
 	renderTemplate(w, r.device, data)
 }
 
+func (r *templateRenderer) RenderToolsPage(w http.ResponseWriter, data ToolsPageData) {
+	renderTemplate(w, r.tools, data)
+}
+
+func (r *templateRenderer) RenderResultPage(w http.ResponseWriter, data ResultPageData) {
+	renderTemplate(w, r.result, data)
+}
+
+func (r *templateRenderer) RenderAdminPage(w http.ResponseWriter, data AdminPageData) {
+	renderTemplate(w, r.admin, data)
+}
+
 func renderTemplate(w http.ResponseWriter, tmpl *template.Template, data any) {
-	err := tmpl.Execute(w, data)
+	err := tmpl.ExecuteTemplate(w, "page", data)
 	if err == nil {
 		return
 	}
