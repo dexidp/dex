@@ -23,7 +23,7 @@ func TestHomeNoSessions(t *testing.T) {
 	body := rr.Body.String()
 	require.Contains(t, body, "Dex IdP")
 	require.Contains(t, body, "Discovery")
-	require.NotContains(t, body, "Logout")
+	require.NotContains(t, body, "/logout")
 }
 
 func TestHomeNotLoggedIn(t *testing.T) {
@@ -35,9 +35,9 @@ func TestHomeNotLoggedIn(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code)
 
 	body := rr.Body.String()
-	require.Contains(t, body, "Discovery")
-	require.Contains(t, body, "Not logged in")
-	require.NotContains(t, body, "Logout")
+	require.Contains(t, body, ".well-known/openid-configuration")
+	require.Contains(t, body, "Not signed in")
+	require.NotContains(t, body, "/logout")
 }
 
 func TestHomeLoggedIn(t *testing.T) {
@@ -50,12 +50,25 @@ func TestHomeLoggedIn(t *testing.T) {
 	nonce := "testnonce"
 	now := time.Now()
 
+	// The identity's last login is deliberately later than this session's start:
+	// the page reports the session it is describing, not the last time the same
+	// user signed in somewhere else.
+	sessionStart := now.Add(-3 * time.Hour)
+	lastLogin := now.Add(-5 * time.Minute)
+
+	// The idle deadline is the earlier of the two, so that is the one the page
+	// has to report — and it has to say the deadline is the sliding one.
+	idleExpiry := now.Add(30 * time.Minute)
+	absoluteExpiry := now.Add(21 * time.Hour)
+
 	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
-		UserID:       userID,
-		ConnectorID:  connectorID,
-		Nonce:        nonce,
-		CreatedAt:    now,
-		LastActivity: now,
+		UserID:         userID,
+		ConnectorID:    connectorID,
+		Nonce:          nonce,
+		CreatedAt:      sessionStart,
+		LastActivity:   now,
+		IdleExpiry:     idleExpiry,
+		AbsoluteExpiry: absoluteExpiry,
 	}))
 
 	require.NoError(t, server.storage.CreateUserIdentity(ctx, storage.UserIdentity{
@@ -69,7 +82,7 @@ func TestHomeLoggedIn(t *testing.T) {
 			EmailVerified:     true,
 			Groups:            []string{"admins", "devs"},
 		},
-		LastLogin: now,
+		LastLogin: lastLogin,
 	}))
 
 	req := httptest.NewRequest("GET", "/", nil)
@@ -83,14 +96,27 @@ func TestHomeLoggedIn(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code)
 
 	body := rr.Body.String()
-	require.Contains(t, body, "Logout")
 	require.Contains(t, body, "/logout")
 	require.Contains(t, body, "testuser")
 	require.Contains(t, body, "test@example.com")
 	require.Contains(t, body, "Mock")
+	// Groups are listed outright rather than hidden behind a disclosure.
 	require.Contains(t, body, "admins")
-	require.Contains(t, body, "Discovery")
-	require.NotContains(t, body, "Not logged in")
+	require.Contains(t, body, "devs")
+	require.Contains(t, body, ".well-known/openid-configuration")
+	require.NotContains(t, body, "Not signed in")
+
+	// Both the datetime attribute and the text a reader without JavaScript sees
+	// have to be the session's start, not the identity's last login.
+	require.Contains(t, body, sessionStart.UTC().Format(time.RFC3339))
+	require.Contains(t, body, sessionStart.UTC().Format("2 Jan 2006, 15:04 UTC"))
+	require.NotContains(t, body, lastLogin.UTC().Format(time.RFC3339))
+
+	// The expiry row reports the earlier deadline and names it as the idle one.
+	require.Contains(t, body, "Expires if idle")
+	require.NotContains(t, body, "Session ends")
+	require.Contains(t, body, idleExpiry.UTC().Format(time.RFC3339))
+	require.NotContains(t, body, absoluteExpiry.UTC().Format(time.RFC3339))
 }
 
 func TestHomeInvalidCookie(t *testing.T) {
@@ -108,7 +134,7 @@ func TestHomeInvalidCookie(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code)
 
 	body := rr.Body.String()
-	require.NotContains(t, body, "Logout")
-	require.Contains(t, body, "Not logged in")
-	require.Contains(t, body, "Discovery")
+	require.NotContains(t, body, "/logout")
+	require.Contains(t, body, "Not signed in")
+	require.Contains(t, body, ".well-known/openid-configuration")
 }

@@ -135,3 +135,13 @@
 .dex-container {
   color: #b8bcc4;
 }
+
+/* Palette the shared stylesheet reads for the home page. Without these the
+ * page would fall back to the light values and render dark text on the dark
+ * panel. */
+.theme-body {
+  --dex-fg: #dcdfe5;
+  --dex-fg-muted: #8b909b;
+  --dex-border: #2a2d35;
+  --dex-accent: #5a9bb5;
+}

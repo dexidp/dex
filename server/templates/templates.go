@@ -378,18 +378,32 @@ func (t *Templates) TOTPVerify(r *http.Request, w http.ResponseWriter, postURL, 
 }
 
 type HomeData struct {
-	LoggedIn       bool
-	Username       string
-	Email          string
-	EmailVerified  bool
-	Groups         []string
-	ConnectorName  string
-	LastLoginEpoch int64
-	IPAddress      string
-	UserAgent      string
-	LogoutURL      string
-	DiscoveryURL   string
-	ReqPath        string
+	LoggedIn      bool
+	Username      string
+	Email         string
+	EmailVerified bool
+	Groups        []string
+	ConnectorName string
+	// Each timestamp reaches the page twice: ISO for the <time> element's
+	// datetime attribute, which the page's script reads and restates in the
+	// visitor's timezone, and Text as the UTC rendering shown until (or unless)
+	// that script runs. Empty means the row is omitted.
+	//
+	// SignedIn is when this session began, not the identity's last login: the
+	// page describes one session, and the identity's last login moves when the
+	// same user signs in from somewhere else entirely.
+	SignedInISO        string
+	SignedInText       string
+	SessionExpiresISO  string
+	SessionExpiresText string
+	// SessionExpiryIsIdle says SessionExpiresEpoch is the idle timeout rather
+	// than the absolute one, so the page can say the deadline slides.
+	SessionExpiryIsIdle bool
+	IPAddress           string
+	UserAgent           string
+	LogoutURL           string
+	DiscoveryURL        string
+	ReqPath             string
 }
 
 // HasHome reports whether the home template was loaded.
