@@ -250,6 +250,15 @@ func (s *Server) completeAuth(w http.ResponseWriter, r *http.Request, sess *sess
 		return fmt.Errorf("id token nonce does not match the authorization request")
 	}
 
+	// A silent check confirms who is signed in; it does not re-issue the
+	// sign-in. Its token set is narrower than the one the flow asked for — no
+	// offline_access, so no refresh token — and storing it would quietly cost
+	// the app the refresh token it already had.
+	if pending.Silent && sess.Token != nil {
+		s.sessions.Confirm(sess, claims)
+		return nil
+	}
+
 	s.sessions.SignIn(sess, claims, token, rawIDToken)
 	return nil
 }

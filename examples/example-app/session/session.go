@@ -156,6 +156,22 @@ func (st *Store) SignIn(s *Session, claims *UserClaims, token *oauth2.Token, raw
 	s.expires = time.Now().Add(ttl)
 }
 
+// Confirm records that the provider still knows this user, without touching the
+// tokens the app is holding. A silent check asks for the scopes it needs to
+// identify someone, not the ones the sign-in asked for, so the tokens it comes
+// back with are narrower — overwriting with them loses the refresh token the
+// original flow was given.
+func (st *Store) Confirm(s *Session, claims *UserClaims) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+
+	if claims != nil {
+		s.Claims = claims
+	}
+	s.LastProviderCheck = time.Now()
+	s.expires = time.Now().Add(ttl)
+}
+
 // SignOut drops what the app knows about the user and returns the last ID
 // token, which RP-initiated logout sends back to the provider as a hint.
 func (st *Store) SignOut(s *Session) string {
