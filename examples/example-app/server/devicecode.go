@@ -199,9 +199,12 @@ func (s *Server) handleDeviceComplete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token := sess.Device.Token
-	if claims, rawIDToken, err := s.claimsFromToken(r, token); err == nil {
-		s.sessions.SignIn(sess, claims, token, rawIDToken)
+	rawIDToken, _ := token.Extra("id_token").(string)
+	if claims, raw, err := s.claimsFromToken(r, token); err == nil {
+		s.sessions.SignIn(sess, claims, token, raw)
+		rawIDToken = raw
 	}
 
-	s.renderToken(w, r, "Device code", token)
+	s.sessions.RememberTokens(sess, "Device code", token, rawIDToken)
+	http.Redirect(w, r, "/tokens", http.StatusSeeOther)
 }

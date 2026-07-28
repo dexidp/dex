@@ -157,7 +157,15 @@ func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	state := r.FormValue("state")
 	pending, ok := s.sessions.TakeAuth(sess, state)
 	if !ok {
-		http.Error(w, "no authorization in progress for this state — did the request start in this browser?", http.StatusBadRequest)
+		// A state is good for one callback, so coming back to this URL — the
+		// browser's Back button, a reload, a bookmark — finds nothing pending.
+		// For a browser that already holds what the callback produced that is
+		// not an error, it is the page it is looking for.
+		if sess.LastTokens != nil {
+			http.Redirect(w, r, "/tokens", http.StatusSeeOther)
+			return
+		}
+		http.Error(w, "no authorization in progress for this state — a callback is good once, so start the flow again", http.StatusBadRequest)
 		return
 	}
 
@@ -193,7 +201,11 @@ func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.renderToken(w, r, "Authorization code", sess.Token)
+	// The result lives at its own address rather than at the callback: a page
+	// rendered on a URL that carries a one-use code is a page that cannot be
+	// reloaded or come back to.
+	s.sessions.RememberTokens(sess, "Authorization code", sess.Token, sess.IDToken)
+	http.Redirect(w, r, "/tokens", http.StatusSeeOther)
 }
 
 // completeAuth exchanges the code and records the sign-in.
