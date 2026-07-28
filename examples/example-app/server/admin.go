@@ -757,5 +757,5 @@ func (s *Server) handleAdminTerminateByConnector(w http.ResponseWriter, r *http.
 		s.adminRedirect(w, r, "", err.Error())
 		return
 	}
-	s.adminRedirect(w, r, fmt.Sprintf("terminated %d session(s) from connector %q", resp.SessionsTerminated, connectorID), "")
+	s.detailRedirect(w, r, fmt.Sprintf("terminated %d session(s) from connector %q", resp.SessionsTerminated, connectorID), "")
 }

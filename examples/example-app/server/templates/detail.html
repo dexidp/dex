@@ -52,6 +52,21 @@
 </div>
 
 <div class="card">
+    <div class="card-title">TerminateSessionsByConnector</div>
+    <p class="hint">
+        Ends every session that came through this connector, for every user — what
+        you reach for when a connector is retired or no longer trusted. It is an
+        action on the connector, which is why it lives here rather than next to a
+        single user's sessions.
+    </p>
+    <form action="/admin/session/terminate-connector" method="post" class="form">
+        <input type="hidden" name="connector_id" value="{{.ID}}">
+        <input type="hidden" name="back" value="/admin/connector/{{.ID}}">
+        <div class="form-actions"><button type="submit" class="button">Terminate all its sessions</button></div>
+    </form>
+</div>
+
+<div class="card">
     <div class="card-title">Configuration</div>
     {{if .Config}}<pre class="json">{{.Config}}</pre>{{else}}<p class="hint">No configuration stored.</p>{{end}}
 </div>
@@ -79,9 +94,10 @@
         <div class="form-row form-row--wide">
             <label>Grant types</label>
             <div class="form-control">
-                <label class="checkbox"><input type="checkbox" name="set_grant_types" value="1"> change them</label>
+                <label class="checkbox"><input type="radio" name="grant_mode" value="" checked> leave as they are</label>
+                <label class="checkbox"><input type="radio" name="grant_mode" value="any"> allow every grant type</label>
+                <label class="checkbox"><input type="radio" name="grant_mode" value="restrict"> restrict to those ticked</label>
                 <div class="scopes-list">
-                    {{$grants := .GrantTypes}}
                     {{range $g := $.ConnectorGrantTypes}}
                     <div class="scope-item">
                         <input type="checkbox" name="grant_types" value="{{$g}}" id="cg_{{$g}}">
@@ -89,7 +105,10 @@
                     </div>
                     {{end}}
                 </div>
-                <small class="hint">Ticking none, with "change them" set, lifts the restriction entirely.</small>
+                <small class="hint">
+                    The API takes three answers here — leave alone, no restriction, or
+                    this list — so the form asks for one of the three.
+                </small>
             </div>
         </div>
         <div class="form-actions">

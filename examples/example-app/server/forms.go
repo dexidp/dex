@@ -164,18 +164,19 @@ func (s *Server) handleToolForm(w http.ResponseWriter, r *http.Request) {
 	case "introspect":
 		data = FormPageData{
 			Title:       "Introspection",
-			Description: "Asks dex what it makes of a token. This is the only way to learn that a token has been revoked: a revoked token still has a valid signature.",
+			Description: "Asks dex what it makes of a token — access, ID or refresh. This is the only way to learn that one has been revoked: a revoked token still has a valid signature.",
 			Action:      "/tools/introspect",
 			Submit:      "Introspect",
 			Fields: []Field{
 				{Name: "token", Label: "Token", Type: "textarea", Required: true, Wide: true, Value: accessToken},
 				{
 					Name: "token_type_hint", Label: "Type hint", Type: "select",
-					Hint: "Optional. Tells dex where to look first.",
+					Hint: "Optional — dex works the type out from the token itself and only logs a mismatch.",
 					Options: []Option{
-						{Value: "access_token", Label: "access_token"},
-						{Value: "refresh_token", Label: "refresh_token"},
 						{Value: "", Label: "no hint"},
+						{Value: "access_token", Label: "access_token"},
+						{Value: "id_token", Label: "id_token"},
+						{Value: "refresh_token", Label: "refresh_token"},
 					},
 				},
 			},

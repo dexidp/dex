@@ -278,9 +278,12 @@ func (s *Server) handleAdminUpdateConnector(w http.ResponseWriter, r *http.Reque
 	if config := r.FormValue("config"); config != "" {
 		req.NewConfig = []byte(config)
 	}
-	// An empty list means "no restriction", which is different from leaving the
-	// field alone, so it is only sent when the form says to.
-	if r.FormValue("set_grant_types") != "" {
+	// The field is a tri-state: absent leaves the restriction alone, an empty
+	// list lifts it, a list replaces it.
+	switch r.FormValue("grant_mode") {
+	case "any":
+		req.NewGrantTypes = &api.GrantTypes{}
+	case "restrict":
 		req.NewGrantTypes = &api.GrantTypes{GrantTypes: r.Form["grant_types"]}
 	}
 

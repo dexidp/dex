@@ -271,8 +271,11 @@
             </div>
         </div>
         <p class="note">
-            UpdatePassword looks an entry up by its email, so the email itself is
-            not editable — changing one means creating the entry again.
+            A password entry holds four things and no more: email, username, user
+            ID and the hash. UpdatePassword carries only the username and the hash,
+            and looks the entry up by its email — so the email and the user ID are
+            fixed once created. Claims like groups are not stored here at all; they
+            come from the connector.
         </p>
         <div class="form-actions">
             <button type="submit" class="button button-primary">Update</button>
@@ -517,18 +520,6 @@
     </form>
     {{end}}
 
-    <div class="subhead">TerminateSessionsByConnector</div>
-    <form action="/admin/session/terminate-connector" method="post" class="form">
-        <input type="hidden" name="section" value="sessions">
-        <div class="form-row">
-            <label for="tc_conn">Connector <span class="req" title="required">*</span></label>
-            <div class="form-control">
-                <input id="tc_conn" type="text" name="connector_id" required autocomplete="off">
-                <small class="hint">Ends every session that came through it — for a connector being retired or one you no longer trust.</small>
-            </div>
-        </div>
-        <div class="form-actions"><button type="submit" class="button">Terminate</button></div>
-    </form>
     {{end}}
 </div>
 {{end}}
