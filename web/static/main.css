@@ -57,14 +57,17 @@ body {
   max-width: 100%;
 }
 
+/* The icon keeps its own size instead of stretching down the side of a button
+ * a long name has made two or three lines tall. */
 .dex-btn-icon {
+  align-self: center;
   background-position: center;
   background-repeat: no-repeat;
-  background-size: 20px;
-  border-radius: 8px 0 0 8px;
-  flex: 0 0 40px;
-  margin-right: 4px;
-  min-height: 40px;
+  background-size: 18px;
+  border-radius: 6px;
+  flex: 0 0 36px;
+  height: 36px;
+  margin: 0 4px 0 3px;
 }
 
 .dex-btn-icon--google {
@@ -151,7 +154,7 @@ body {
   line-height: 1.35;
   min-height: 40px;
   overflow-wrap: anywhere;
-  padding: 6px 14px;
+  padding: 6px 12px;
   text-align: center;
 }
 
