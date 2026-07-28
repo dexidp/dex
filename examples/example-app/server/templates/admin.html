@@ -336,7 +336,27 @@
     {{if not .Mode}}
     <div class="form-actions">
         <a href="/admin?section=connectors&amp;mode=create" class="button button-primary">Create a connector</a>
+        <a href="/admin?section=connectors&amp;mode=terminate" class="button">Terminate a connector's sessions</a>
     </div>
+    {{end}}
+
+    {{if eq .Mode "terminate"}}
+    <div class="subhead">TerminateSessionsByConnector</div>
+    <form action="/admin/session/terminate-connector" method="post" class="form">
+        <input type="hidden" name="section" value="connectors">
+        <input type="hidden" name="back" value="/admin?section=connectors">
+        <div class="form-row">
+            <label for="tc_conn">Connector <span class="req" title="required">*</span></label>
+            <div class="form-control">
+                <input id="tc_conn" type="text" name="connector_id" required autocomplete="off">
+                <small class="hint">Ends every session that came through it, for every user — for a connector being retired or one you no longer trust.</small>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Terminate</button>
+            <a href="/admin?section=connectors" class="button button-secondary">Cancel</a>
+        </div>
+    </form>
     {{end}}
 
     {{if eq .Mode "create"}}
@@ -377,7 +397,7 @@
                     </div>
                     {{end}}
                 </div>
-                <small class="hint">None ticked means every grant type this dex allows.</small>
+                <small class="hint">Leave every box clear to put no restriction on the connector.</small>
             </div>
         </div>
         <div class="form-actions">

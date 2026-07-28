@@ -242,3 +242,15 @@
             '<span class="jwt-signature">' + escapeHTML(parts[2]) + "</span>";
     });
 })();
+
+// "Use my access token" and friends fill the field they sit under, so trying a
+// tool against a different one of your tokens is a click rather than a paste.
+document.querySelectorAll(".fill-token").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+        var control = btn.closest(".form-control");
+        var field = control && control.querySelector("textarea");
+        if (!field) return;
+        field.value = btn.getAttribute("data-token");
+        field.focus();
+    });
+});

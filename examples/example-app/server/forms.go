@@ -150,13 +150,28 @@ func (s *Server) handleToolForm(w http.ResponseWriter, r *http.Request) {
 
 	// Whatever this browser last got back is the likeliest thing to want to look
 	// at, so it is filled in already — including from flows that sign nobody in.
-	var accessToken, idToken string
+	var accessToken, idToken, refreshToken string
 	if sess.LastTokens != nil {
 		accessToken = sess.LastTokens.AccessToken
+		refreshToken = sess.LastTokens.RefreshToken
 		idToken = sess.LastIDToken
 	} else if sess.Token != nil {
 		accessToken = sess.Token.AccessToken
+		refreshToken = sess.Token.RefreshToken
 		idToken = sess.IDToken
+	}
+
+	// Introspection takes any of the three, so the page offers whichever this
+	// browser holds rather than filling in one and leaving the rest to a paste.
+	held := []Option{}
+	if accessToken != "" {
+		held = append(held, Option{Value: accessToken, Label: "access token"})
+	}
+	if idToken != "" {
+		held = append(held, Option{Value: idToken, Label: "ID token"})
+	}
+	if refreshToken != "" {
+		held = append(held, Option{Value: refreshToken, Label: "refresh token"})
 	}
 
 	var data FormPageData
@@ -168,7 +183,8 @@ func (s *Server) handleToolForm(w http.ResponseWriter, r *http.Request) {
 			Action:      "/tools/introspect",
 			Submit:      "Introspect",
 			Fields: []Field{
-				{Name: "token", Label: "Token", Type: "textarea", Required: true, Wide: true, Value: accessToken},
+				{Name: "token", Label: "Token", Type: "textarea", Required: true, Wide: true, Value: accessToken, Options: held,
+					Hint: "Any token dex issued."},
 				{
 					Name: "token_type_hint", Label: "Type hint", Type: "select",
 					Hint: "Optional — dex works the type out from the token itself and only logs a mismatch.",

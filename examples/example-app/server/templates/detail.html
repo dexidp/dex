@@ -52,21 +52,6 @@
 </div>
 
 <div class="card">
-    <div class="card-title">TerminateSessionsByConnector</div>
-    <p class="hint">
-        Ends every session that came through this connector, for every user — what
-        you reach for when a connector is retired or no longer trusted. It is an
-        action on the connector, which is why it lives here rather than next to a
-        single user's sessions.
-    </p>
-    <form action="/admin/session/terminate-connector" method="post" class="form">
-        <input type="hidden" name="connector_id" value="{{.ID}}">
-        <input type="hidden" name="back" value="/admin/connector/{{.ID}}">
-        <div class="form-actions"><button type="submit" class="button">Terminate all its sessions</button></div>
-    </form>
-</div>
-
-<div class="card">
     <div class="card-title">Configuration</div>
     {{if .Config}}<pre class="json">{{.Config}}</pre>{{else}}<p class="hint">No configuration stored.</p>{{end}}
 </div>

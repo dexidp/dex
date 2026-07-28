@@ -24,6 +24,13 @@
                 </div>
                 {{else if eq .Type "textarea"}}
                 <textarea id="f_{{.Name}}" name="{{.Name}}" rows="4" placeholder="{{.Placeholder}}"{{if .Required}} required{{end}}>{{.Value}}</textarea>
+                {{if .Options}}
+                <div class="row">
+                    {{range .Options}}
+                    <button type="button" class="button button-small fill-token" data-token="{{.Value}}">Use my {{.Label}}</button>
+                    {{end}}
+                </div>
+                {{end}}
                 {{else if eq .Type "select"}}
                 <select id="f_{{.Name}}" name="{{.Name}}">
                     {{range .Options}}<option value="{{.Value}}">{{.Label}}</option>{{end}}
