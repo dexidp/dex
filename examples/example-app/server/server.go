@@ -168,9 +168,25 @@ func (s *Server) oauth2Config(scopes []string) *oauth2.Config {
 	}
 }
 
+// sessionKey marks the session already resolved for a request.
+type sessionKey struct{}
+
 // session returns this browser's session, creating one if needed.
+//
+// The lookup is remembered on the request: handlers ask for the session more
+// than once, and on the very first request — the one that has no cookie yet —
+// asking twice used to mint two sessions and set two cookies. Whatever the
+// second one recorded then belonged to a session the browser never came back
+// with, which looked like tokens appearing from nowhere and sign-ins that did
+// not survive the redirect they arrived on.
 func (s *Server) session(w http.ResponseWriter, r *http.Request) *session.Session {
-	return s.sessions.FromRequest(w, r, strings.HasPrefix(s.redirectURI, "https://"))
+	if sess, ok := r.Context().Value(sessionKey{}).(*session.Session); ok {
+		return sess
+	}
+
+	sess := s.sessions.FromRequest(w, r, strings.HasPrefix(s.redirectURI, "https://"))
+	*r = *r.WithContext(context.WithValue(r.Context(), sessionKey{}, sess))
+	return sess
 }
 
 // routes builds the HTTP handler with all application routes.
@@ -204,6 +220,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("POST /grant/token-exchange", s.handleTokenExchangeGrant)
 
 	mux.HandleFunc("GET /tokens", s.handleTokens)
+	mux.HandleFunc("GET /discovery", s.handleDiscovery)
 
 	// Tools for looking at a token you already hold.
 	mux.HandleFunc("GET /tools", s.handleTools)
@@ -229,6 +246,12 @@ func (s *Server) routes() http.Handler {
 		mux.HandleFunc("POST /admin/session/delete", s.handleAdminDeleteSession)
 		mux.HandleFunc("POST /admin/session/terminate", s.handleAdminTerminateSessions)
 		mux.HandleFunc("POST /admin/session/terminate-connector", s.handleAdminTerminateByConnector)
+		mux.HandleFunc("GET /admin/client/{id}", s.handleAdminClientDetail)
+		mux.HandleFunc("GET /admin/connector/{id}", s.handleAdminConnectorDetail)
+		mux.HandleFunc("GET /admin/user/{connector}/{user}", s.handleAdminUserDetail)
+		mux.HandleFunc("POST /admin/connector/update", s.handleAdminUpdateConnector)
+		mux.HandleFunc("POST /admin/consent/revoke", s.handleAdminRevokeConsent)
+		mux.HandleFunc("POST /admin/webauthn/delete", s.handleAdminDeleteWebAuthn)
 		mux.HandleFunc("POST /admin/mfa/reset", s.handleAdminResetMFA)
 		mux.HandleFunc("POST /admin/mfa/secret/delete", s.handleAdminDeleteMFASecret)
 		mux.HandleFunc("POST /admin/refresh/revoke", s.handleAdminRevokeRefresh)

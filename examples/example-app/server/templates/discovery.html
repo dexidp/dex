@@ -1,0 +1,20 @@
+{{define "content"}}
+<div class="card">
+    <div class="card-title">Provider metadata</div>
+    <p class="hint">
+        What the issuer publishes at <span class="mono">/.well-known/openid-configuration</span>.
+        The app reads it at startup to find endpoints and to decide which flows to offer.
+    </p>
+    <div class="kv">
+        {{range .Summary}}
+        <div class="k mono">{{.Name}}</div>
+        <div class="v mono">{{if .Value}}{{.Value}}{{else}}{{range .Values}}{{.}}<br>{{end}}{{end}}</div>
+        {{end}}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-title">The whole document</div>
+    <pre class="json">{{.Document}}</pre>
+</div>
+{{end}}

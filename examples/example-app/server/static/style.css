@@ -562,3 +562,28 @@ pre.code {
     display: block;
     overflow-x: auto;
 }
+
+/* An object's header: what it is on the left, the way back on the right. */
+.detail-head {
+    align-items: flex-start;
+    display: flex;
+    gap: 16px;
+    justify-content: space-between;
+}
+
+.detail-head .card-title {
+    margin-bottom: 2px;
+    overflow-wrap: anywhere;
+}
+
+.detail-head .hint {
+    margin: 0;
+}
+
+.table a {
+    color: var(--fg);
+}
+
+.table a:hover {
+    color: var(--accent);
+}

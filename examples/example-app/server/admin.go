@@ -106,6 +106,10 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		Mode:         r.URL.Query().Get("mode"),
 
 		ConnectorTypes: connectorTypes,
+		ConnectorGrantTypes: []string{
+			grantAuthorizationCode, grantRefreshToken, grantDeviceCode,
+			grantTokenExchange, grantClientCredentials, grantPassword,
+		},
 	}
 	for _, sec := range adminSections {
 		sec.Current = sec.ID == section
@@ -142,10 +146,14 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		if resp, err := s.admin.api.ListClients(ctx, &api.ListClientReq{}); err == nil {
 			for _, c := range resp.Clients {
 				data.Clients = append(data.Clients, AdminClient{
-					ID:           c.Id,
-					Name:         c.Name,
-					RedirectURIs: c.RedirectUris,
-					Public:       c.Public,
+					ID:                c.Id,
+					Name:              c.Name,
+					RedirectURIs:      c.RedirectUris,
+					TrustedPeers:      c.TrustedPeers,
+					Public:            c.Public,
+					LogoURL:           c.LogoUrl,
+					AllowedConnectors: c.AllowedConnectors,
+					SSOSharedWith:     c.SsoSharedWith,
 				})
 			}
 		} else {
@@ -168,7 +176,9 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 	case "connectors":
 		if resp, err := s.admin.api.ListConnectors(ctx, &api.ListConnectorReq{}); err == nil {
 			for _, c := range resp.Connectors {
-				data.Connectors = append(data.Connectors, AdminConnector{ID: c.Id, Type: c.Type, Name: c.Name})
+				data.Connectors = append(data.Connectors, AdminConnector{
+					ID: c.Id, Type: c.Type, Name: c.Name, GrantTypes: c.GrantTypes,
+				})
 			}
 		} else {
 			fail(err)
@@ -178,14 +188,15 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		if resp, err := s.admin.api.ListUserIdentities(ctx, &api.ListUserIdentitiesReq{}); err == nil {
 			for _, u := range resp.Identities {
 				identity := AdminIdentity{
-					UserID:      u.UserId,
-					ConnectorID: u.ConnectorId,
-					Email:       u.Email,
-					Username:    u.Username,
-					Groups:      u.Groups,
+					UserID:        u.UserId,
+					ConnectorID:   u.ConnectorId,
+					Email:         u.Email,
+					EmailVerified: u.EmailVerified,
+					Username:      u.Username,
+					Groups:        u.Groups,
 				}
 				for _, d := range u.MfaDevices {
-					identity.MFADevices = append(identity.MFADevices, d.AuthenticatorId)
+					identity.MFADevices = append(identity.MFADevices, AdminMFADevice{AuthenticatorID: d.AuthenticatorId})
 				}
 				data.Identities = append(data.Identities, identity)
 			}
@@ -237,11 +248,16 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 	// An edit starts from a row, so the form comes back filled in.
 	if id := r.URL.Query().Get("edit"); id != "" && section == "clients" {
 		if resp, err := s.admin.api.GetClient(ctx, &api.GetClientReq{Id: id}); err == nil && resp.Client != nil {
+			c := resp.Client
 			data.EditClient = &AdminClient{
-				ID:           resp.Client.Id,
-				Name:         resp.Client.Name,
-				RedirectURIs: resp.Client.RedirectUris,
-				Public:       resp.Client.Public,
+				ID:                c.Id,
+				Name:              c.Name,
+				RedirectURIs:      c.RedirectUris,
+				TrustedPeers:      c.TrustedPeers,
+				Public:            c.Public,
+				LogoURL:           c.LogoUrl,
+				AllowedConnectors: c.AllowedConnectors,
+				SSOSharedWith:     c.SsoSharedWith,
 			}
 		} else if err != nil {
 			fail(err)
@@ -281,11 +297,15 @@ func (s *Server) handleAdminCreateClient(w http.ResponseWriter, r *http.Request)
 
 	req := &api.CreateClientReq{
 		Client: &api.Client{
-			Id:           r.FormValue("id"),
-			Name:         r.FormValue("name"),
-			Secret:       r.FormValue("secret"),
-			RedirectUris: splitLines(r.FormValue("redirect_uris")),
-			Public:       r.FormValue("public") != "",
+			Id:                r.FormValue("id"),
+			Name:              r.FormValue("name"),
+			Secret:            r.FormValue("secret"),
+			LogoUrl:           r.FormValue("logo_url"),
+			RedirectUris:      splitLines(r.FormValue("redirect_uris")),
+			TrustedPeers:      splitLines(r.FormValue("trusted_peers")),
+			AllowedConnectors: splitLines(r.FormValue("allowed_connectors")),
+			SsoSharedWith:     splitLines(r.FormValue("sso_shared_with")),
+			Public:            r.FormValue("public") != "",
 		},
 	}
 
@@ -466,9 +486,13 @@ func (s *Server) handleAdminUpdateClient(w http.ResponseWriter, r *http.Request)
 
 	id := r.FormValue("id")
 	resp, err := s.admin.api.UpdateClient(ctx, &api.UpdateClientReq{
-		Id:           id,
-		Name:         r.FormValue("name"),
-		RedirectUris: splitLines(r.FormValue("redirect_uris")),
+		Id:                id,
+		Name:              r.FormValue("name"),
+		LogoUrl:           r.FormValue("logo_url"),
+		RedirectUris:      splitLines(r.FormValue("redirect_uris")),
+		TrustedPeers:      splitLines(r.FormValue("trusted_peers")),
+		AllowedConnectors: splitLines(r.FormValue("allowed_connectors")),
+		SsoSharedWith:     splitLines(r.FormValue("sso_shared_with")),
 	})
 	switch {
 	case err != nil:
@@ -555,10 +579,11 @@ func (s *Server) handleAdminCreateConnector(w http.ResponseWriter, r *http.Reque
 	id := r.FormValue("id")
 	resp, err := s.admin.api.CreateConnector(ctx, &api.CreateConnectorReq{
 		Connector: &api.Connector{
-			Id:     id,
-			Type:   r.FormValue("type"),
-			Name:   r.FormValue("name"),
-			Config: []byte(r.FormValue("config")),
+			Id:         id,
+			Type:       r.FormValue("type"),
+			Name:       r.FormValue("name"),
+			Config:     []byte(r.FormValue("config")),
+			GrantTypes: r.Form["grant_types"],
 		},
 	})
 	switch {

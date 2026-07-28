@@ -135,19 +135,81 @@ type ResultPageData struct {
 
 // AdminConnector is one connector as the API reports it.
 type AdminConnector struct {
-	ID   string
-	Type string
-	Name string
+	ID         string
+	Type       string
+	Name       string
+	GrantTypes []string
+	Config     string
 }
 
 // AdminIdentity is one user identity as the API reports it.
 type AdminIdentity struct {
-	UserID      string
-	ConnectorID string
-	Email       string
-	Username    string
-	Groups      []string
-	MFADevices  []string
+	UserID        string
+	ConnectorID   string
+	Email         string
+	EmailVerified bool
+	Username      string
+	Groups        []string
+	MFADevices    []AdminMFADevice
+	Consents      []AdminConsent
+	Created       string
+	LastLogin     string
+}
+
+// AdminConsent is one client a user has approved, and for what.
+type AdminConsent struct {
+	ClientID string
+	Scopes   []string
+}
+
+// AdminMFADevice is one enrolled authenticator.
+type AdminMFADevice struct {
+	AuthenticatorID string
+	HasSecret       bool
+	Credentials     []AdminWebAuthnCredential
+}
+
+// AdminWebAuthnCredential is one registered key.
+type AdminWebAuthnCredential struct {
+	ID          string
+	DisplayName string
+	Transport   []string
+	SignCount   uint32
+	Created     string
+}
+
+// AdminDetailPageData is one object with everything the API knows about it.
+// The lists say what a thing is; this says what it holds.
+type AdminDetailPageData struct {
+	LogoURI      string
+	AdminEnabled bool
+	Kind         string // client, connector, user
+	Title        string
+	BackURL      string
+	Error        string
+
+	Client    *AdminClient
+	Connector *AdminConnector
+	Identity  *AdminIdentity
+
+	// ConnectorGrantTypes are the grants a connector can be restricted to.
+	ConnectorGrantTypes []string
+}
+
+// DiscoveryPageData is the provider's metadata document, in full.
+type DiscoveryPageData struct {
+	LogoURI      string
+	AdminEnabled bool
+	IssuerURL    string
+	Document     string
+	Summary      []DiscoveryEntry
+}
+
+// DiscoveryEntry is one metadata field worth reading without scrolling.
+type DiscoveryEntry struct {
+	Name   string
+	Value  string
+	Values []string
 }
 
 // AdminSession is one of dex's own sessions as the API reports it.
@@ -167,12 +229,18 @@ type AdminRefreshToken struct {
 	LastUsed string
 }
 
-// AdminClient is one OAuth2 client as the API reports it.
+// AdminClient is one OAuth2 client as the API reports it — every field it has,
+// since a list that shows three of nine invites you to guess the rest.
 type AdminClient struct {
-	ID           string
-	Name         string
-	RedirectURIs []string
-	Public       bool
+	ID                string
+	Name              string
+	Secret            string
+	RedirectURIs      []string
+	TrustedPeers      []string
+	Public            bool
+	LogoURL           string
+	AllowedConnectors []string
+	SSOSharedWith     []string
 }
 
 // AdminPassword is one local password entry as the API reports it.
@@ -217,8 +285,10 @@ type AdminPageData struct {
 	// the one you wanted.
 	Mode string
 
-	// ConnectorTypes are the types dex accepts, for the create form.
-	ConnectorTypes []string
+	// ConnectorTypes are the types dex accepts, and ConnectorGrantTypes the
+	// grants a connector can be restricted to, both for the create form.
+	ConnectorTypes      []string
+	ConnectorGrantTypes []string
 
 	// EditClient and EditPassword are prefilled from the row an edit was
 	// started from, so updating is something you do to a thing you can see.
@@ -242,6 +312,8 @@ type Renderer interface {
 	RenderFormPage(w http.ResponseWriter, data FormPageData)
 	RenderResultPage(w http.ResponseWriter, data ResultPageData)
 	RenderAdminPage(w http.ResponseWriter, data AdminPageData)
+	RenderAdminDetailPage(w http.ResponseWriter, data AdminDetailPageData)
+	RenderDiscoveryPage(w http.ResponseWriter, data DiscoveryPageData)
 }
 
 // templateRenderer implements Renderer using Go html/template.
@@ -253,6 +325,8 @@ type templateRenderer struct {
 	form   *template.Template
 	result *template.Template
 	admin  *template.Template
+	detail *template.Template
+	disco  *template.Template
 }
 
 // newTemplateRenderer parses embedded templates and returns a Renderer.
@@ -273,6 +347,8 @@ func newTemplateRenderer() Renderer {
 		form:   parse("form.html"),
 		result: parse("result.html"),
 		admin:  parse("admin.html"),
+		detail: parse("detail.html"),
+		disco:  parse("discovery.html"),
 	}
 }
 
@@ -302,6 +378,14 @@ func (r *templateRenderer) RenderResultPage(w http.ResponseWriter, data ResultPa
 
 func (r *templateRenderer) RenderAdminPage(w http.ResponseWriter, data AdminPageData) {
 	renderTemplate(w, r.admin, data)
+}
+
+func (r *templateRenderer) RenderAdminDetailPage(w http.ResponseWriter, data AdminDetailPageData) {
+	renderTemplate(w, r.detail, data)
+}
+
+func (r *templateRenderer) RenderDiscoveryPage(w http.ResponseWriter, data DiscoveryPageData) {
+	renderTemplate(w, r.disco, data)
 }
 
 func renderTemplate(w http.ResponseWriter, tmpl *template.Template, data any) {

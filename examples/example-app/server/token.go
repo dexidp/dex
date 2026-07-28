@@ -115,6 +115,15 @@ func decodeJWTClaims(token string) (string, bool) {
 	return indentJSON(payload), true
 }
 
+// jsonOf pretty-prints a value the app decoded itself.
+func jsonOf(v any) string {
+	raw, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return ""
+	}
+	return string(raw)
+}
+
 func indentJSON(raw []byte) string {
 	buf := new(bytes.Buffer)
 	if err := json.Indent(buf, raw, "", "  "); err != nil {

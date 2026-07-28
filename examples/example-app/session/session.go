@@ -173,6 +173,13 @@ func (st *Store) SignOut(s *Session) string {
 	s.Claims = nil
 	s.Token = nil
 	s.IDToken = ""
+	// The tools prefill from the last flow's result. Keeping it past a sign-out
+	// would put a signed-out user's access token back on screen, which reads as
+	// the app inventing tokens.
+	s.LastTokens = nil
+	s.LastIDToken = ""
+	s.LastGrant = ""
+	s.Device = nil
 	// LastProviderCheck deliberately survives: it records when the provider was
 	// last asked, and signing out here does not make that answer any older.
 	// Clearing it would send the next page load straight back into a check,

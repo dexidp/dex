@@ -47,15 +47,15 @@
     {{if eq .Section "clients"}}
     {{if .Clients}}
     <table class="table">
-        <tr><th>ID</th><th>Name</th><th>Redirect URIs</th><th class="actions-col"></th></tr>
+        <tr><th>ID</th><th>Name</th><th>Redirects</th><th class="actions-col"></th></tr>
         {{range .Clients}}
         <tr>
-            <td class="mono">{{.ID}}{{if .Public}} <span class="tag">public</span>{{end}}</td>
+            <td><a href="/admin/client/{{.ID}}" class="mono">{{.ID}}</a>{{if .Public}} <span class="tag">public</span>{{end}}</td>
             <td>{{.Name}}</td>
-            <td class="mono small">{{range .RedirectURIs}}{{.}}<br>{{end}}</td>
+            <td class="small">{{len .RedirectURIs}}</td>
             <td class="actions-col">
                 <div class="row-actions">
-                    <a href="/admin?section=clients&amp;mode=edit&amp;edit={{.ID}}" class="button button-small">Edit</a>
+                    <a href="/admin/client/{{.ID}}" class="button button-small">Open</a>
                     <form action="/admin/client/delete" method="post">
                         <input type="hidden" name="section" value="clients">
                         <input type="hidden" name="id" value="{{.ID}}">
@@ -95,11 +95,36 @@
                 <small class="hint">Leave empty for a public client.</small>
             </div>
         </div>
+        <div class="form-row">
+            <label for="c_logo">Logo URL</label>
+            <div class="form-control"><input id="c_logo" type="text" name="logo_url" autocomplete="off"></div>
+        </div>
         <div class="form-row form-row--wide">
             <label for="c_uris">Redirect URIs</label>
             <div class="form-control">
                 <textarea id="c_uris" name="redirect_uris" rows="2"></textarea>
                 <small class="hint">One per line.</small>
+            </div>
+        </div>
+        <div class="form-row form-row--wide">
+            <label for="c_peers">Trusted peers</label>
+            <div class="form-control">
+                <textarea id="c_peers" name="trusted_peers" rows="2"></textarea>
+                <small class="hint">Clients allowed to ask for tokens with this one as the audience.</small>
+            </div>
+        </div>
+        <div class="form-row form-row--wide">
+            <label for="c_conns">Allowed connectors</label>
+            <div class="form-control">
+                <textarea id="c_conns" name="allowed_connectors" rows="2"></textarea>
+                <small class="hint">Empty means every connector.</small>
+            </div>
+        </div>
+        <div class="form-row form-row--wide">
+            <label for="c_sso">SSO shared with</label>
+            <div class="form-control">
+                <textarea id="c_sso" name="sso_shared_with" rows="2"></textarea>
+                <small class="hint">Which clients may reuse this one's session. * for all.</small>
             </div>
         </div>
         <div class="form-row">
@@ -127,11 +152,34 @@
                 <small class="hint">Fields left empty stay as they are.</small>
             </div>
         </div>
+        <div class="form-row">
+            <label for="cu_logo">Logo URL</label>
+            <div class="form-control"><input id="cu_logo" type="text" name="logo_url" value="{{.LogoURL}}" autocomplete="off"></div>
+        </div>
         <div class="form-row form-row--wide">
             <label for="cu_uris">Redirect URIs</label>
             <div class="form-control"><textarea id="cu_uris" name="redirect_uris" rows="2">{{range .RedirectURIs}}{{.}}
 {{end}}</textarea></div>
         </div>
+        <div class="form-row form-row--wide">
+            <label for="cu_peers">Trusted peers</label>
+            <div class="form-control"><textarea id="cu_peers" name="trusted_peers" rows="2">{{range .TrustedPeers}}{{.}}
+{{end}}</textarea></div>
+        </div>
+        <div class="form-row form-row--wide">
+            <label for="cu_conns">Allowed connectors</label>
+            <div class="form-control"><textarea id="cu_conns" name="allowed_connectors" rows="2">{{range .AllowedConnectors}}{{.}}
+{{end}}</textarea></div>
+        </div>
+        <div class="form-row form-row--wide">
+            <label for="cu_sso">SSO shared with</label>
+            <div class="form-control"><textarea id="cu_sso" name="sso_shared_with" rows="2">{{range .SSOSharedWith}}{{.}}
+{{end}}</textarea></div>
+        </div>
+        <p class="note">
+            UpdateClient carries no secret and no public flag, so neither can be
+            changed: dex expects a client that needs a new secret to be replaced.
+        </p>
         <div class="form-actions">
             <button type="submit" class="button button-primary">Update</button>
             <a href="/admin?section=clients" class="button button-secondary">Cancel</a>
@@ -222,6 +270,10 @@
                 <small class="hint">Leave empty to change only the username.</small>
             </div>
         </div>
+        <p class="note">
+            UpdatePassword looks an entry up by its email, so the email itself is
+            not editable — changing one means creating the entry again.
+        </p>
         <div class="form-actions">
             <button type="submit" class="button button-primary">Update</button>
             <a href="/admin?section=passwords" class="button button-secondary">Cancel</a>
@@ -258,11 +310,12 @@
         <tr><th>ID</th><th>Type</th><th>Name</th><th class="actions-col"></th></tr>
         {{range .Connectors}}
         <tr>
-            <td class="mono">{{.ID}}</td>
+            <td><a href="/admin/connector/{{.ID}}" class="mono">{{.ID}}</a></td>
             <td class="mono small">{{.Type}}</td>
             <td>{{.Name}}</td>
             <td class="actions-col">
                 <div class="row-actions">
+                    <a href="/admin/connector/{{.ID}}" class="button button-small">Open</a>
                     <form action="/admin/connector/delete" method="post">
                         <input type="hidden" name="section" value="connectors">
                         <input type="hidden" name="id" value="{{.ID}}">
@@ -310,6 +363,20 @@
                 <small class="hint">The connector's own JSON configuration — the same keys the config file takes for this type.</small>
             </div>
         </div>
+        <div class="form-row form-row--wide">
+            <label>Grant types</label>
+            <div class="form-control">
+                <div class="scopes-list">
+                    {{range $.ConnectorGrantTypes}}
+                    <div class="scope-item">
+                        <input type="checkbox" name="grant_types" value="{{.}}" id="ng_{{.}}">
+                        <label for="ng_{{.}}">{{.}}</label>
+                    </div>
+                    {{end}}
+                </div>
+                <small class="hint">None ticked means every grant type this dex allows.</small>
+            </div>
+        </div>
         <div class="form-actions">
             <button type="submit" class="button button-primary">Create</button>
             <a href="/admin?section=connectors" class="button button-secondary">Cancel</a>
@@ -325,36 +392,24 @@
         {{range .Identities}}
         <tr>
             <td>
-                {{.Email}}
-                {{if .Username}}<div class="hint">{{.Username}}</div>{{end}}
-                <div class="mono small">{{.UserID}}</div>
+                <a href="/admin/user/{{.ConnectorID}}/{{.UserID}}">{{if .Email}}{{.Email}}{{else}}{{.UserID}}{{end}}</a>
+                <div class="mono small hint">{{.UserID}}</div>
             </td>
             <td class="mono small">{{.ConnectorID}}</td>
-            <td class="small">{{range .Groups}}{{.}}<br>{{else}}<span class="hint">none</span>{{end}}</td>
-            <td class="mono small">{{range .MFADevices}}{{.}}<br>{{else}}<span class="hint">none</span>{{end}}</td>
+            <td class="small">{{len .Groups}}</td>
+            <td class="small">{{len .MFADevices}}</td>
             <td class="actions-col">
                 <div class="row-actions">
-                    <a href="/admin?section=sessions&amp;user_id={{.UserID}}&amp;connector_id={{.ConnectorID}}" class="button button-small">Sessions</a>
-                    {{if .MFADevices}}
-                    <form action="/admin/mfa/reset" method="post">
-                        <input type="hidden" name="section" value="identities">
-                        <input type="hidden" name="user_id" value="{{.UserID}}">
-                        <input type="hidden" name="connector_id" value="{{.ConnectorID}}">
-                        <button type="submit" class="button button-small">Reset MFA</button>
-                    </form>
-                    {{end}}
-                    <form action="/admin/identity/delete" method="post">
-                        <input type="hidden" name="section" value="identities">
-                        <input type="hidden" name="user_id" value="{{.UserID}}">
-                        <input type="hidden" name="connector_id" value="{{.ConnectorID}}">
-                        <button type="submit" class="button button-small">Delete</button>
-                    </form>
+                    <a href="/admin/user/{{.ConnectorID}}/{{.UserID}}" class="button button-small">Open</a>
                 </div>
             </td>
         </tr>
         {{end}}
     </table>
-    <p class="hint">What dex recorded from the connector when this user signed in — the ID token's claims are built from it.</p>
+    <p class="hint">
+        Counts rather than contents: a user with forty groups would otherwise be the
+        whole table. Everything about one — claims, consents, factors — is on its page.
+    </p>
     {{else}}
     <p class="hint">
         ListUserIdentities returns nothing. An identity appears once someone signs
