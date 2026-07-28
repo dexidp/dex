@@ -4,7 +4,8 @@
     {{if .Verdict}}<p class="verdict">{{.Verdict}}</p>{{end}}
     <pre class="json">{{.Body}}</pre>
     <div class="row">
-        <a href="/tools" class="button">Back to tools</a>
+        {{if .LastGrant}}<a href="/tokens" class="button">Back to the {{.LastGrant}} tokens</a>{{end}}
+        <a href="/tools" class="button">Token tools</a>
         <a href="/" class="button button-secondary">Home</a>
     </div>
 </div>

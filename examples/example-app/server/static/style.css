@@ -444,3 +444,72 @@ textarea {
         gap: 8px;
     }
 }
+
+/* Syntax colours. Enough contrast to separate the parts, not so much that the
+   block becomes a Christmas tree. */
+.json-key {
+    color: #2f6fb0;
+}
+
+.json-string {
+    color: #227a4b;
+}
+
+.json-number {
+    color: #a2540d;
+}
+
+.json-boolean,
+.json-null {
+    color: #8250df;
+}
+
+.jwt-header {
+    color: #b3261e;
+}
+
+.jwt-payload {
+    color: #2f6fb0;
+}
+
+.jwt-signature {
+    color: #227a4b;
+}
+
+pre.code {
+    background: #f7f8fa;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    margin: 4px 0;
+    padding: 10px;
+    white-space: pre-wrap;
+}
+
+/* Section tabs on the API page. */
+.tabs {
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 16px;
+}
+
+.tab {
+    border-bottom: 2px solid transparent;
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 600;
+    padding: 6px 10px;
+    text-decoration: none;
+}
+
+.tab:hover {
+    color: var(--fg);
+}
+
+.tab--current {
+    border-bottom-color: var(--accent);
+    color: var(--fg);
+}

@@ -29,8 +29,9 @@ in another tab and this app stops showing you as signed in.
 
 ## Configuring dex for it
 
-The defaults work against `examples/config-dev.yaml`. The rest of the flows need
-dex told to allow them:
+`examples/config-dev.yaml` is set up for all of this already — sessions, the
+device callback, the password connector and the gRPC API. What each part is for,
+if you are writing your own config:
 
 ```yaml
 oauth2:
@@ -46,6 +47,11 @@ oauth2:
   # Without this the password grant is refused: dex needs to know which
   # connector verifies the password.
   passwordConnector: local
+
+# Sessions are what make single sign-on, the home page and prompt=none session
+# checks work. Also needs DEX_SESSIONS_ENABLED=true.
+sessions:
+  cookieName: dex_session
 
 staticClients:
   - id: example-app
@@ -68,22 +74,22 @@ in dex means one implementing `TokenIdentityConnector`.
 ## The gRPC API page
 
 ```
-go run ./examples/example-app --grpc-addr 127.0.0.1:5557
+--grpc-addr 127.0.0.1:5557
 ```
 
-The page lists clients and local passwords, creates and deletes both, and
-revokes refresh tokens. Without `--grpc-addr` it is not served at all.
+The page is in sections: clients, local passwords, connectors, the identities
+dex has recorded, and a user's sessions and refresh tokens. Without
+`--grpc-addr` the page still exists and says what to pass to connect it.
 
 The connection is plaintext by default, which is how dex's example config
 exposes the API locally. For anything else, pass certificates — see
 `examples/grpc-client/cert-gen` for generating a set:
 
 ```
-go run ./examples/example-app \
-  --grpc-addr 127.0.0.1:5557 \
-  --grpc-ca examples/grpc-client/ca.crt \
-  --grpc-client-cert examples/grpc-client/client.crt \
-  --grpc-client-key examples/grpc-client/client.key
+--grpc-addr 127.0.0.1:5557
+--grpc-ca examples/grpc-client/ca.crt
+--grpc-client-cert examples/grpc-client/client.crt
+--grpc-client-key examples/grpc-client/client.key
 ```
 
 Revoking a refresh token is worth trying against your own session: revoke it,

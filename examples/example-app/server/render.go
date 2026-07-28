@@ -120,6 +120,43 @@ type ResultPageData struct {
 	Title        string
 	Verdict      string
 	Body         string
+	// LastGrant names the flow whose tokens are still on the session, so a tool
+	// result is not a dead end with the tokens left behind on a page you can no
+	// longer reach.
+	LastGrant string
+}
+
+// AdminConnector is one connector as the API reports it.
+type AdminConnector struct {
+	ID   string
+	Type string
+	Name string
+}
+
+// AdminIdentity is one user identity as the API reports it.
+type AdminIdentity struct {
+	UserID      string
+	ConnectorID string
+	Email       string
+	Username    string
+	Groups      []string
+}
+
+// AdminSession is one of dex's own sessions as the API reports it.
+type AdminSession struct {
+	UserID      string
+	ConnectorID string
+	IPAddress   string
+	Created     string
+	Expires     string
+}
+
+// AdminRefreshToken is one refresh token as the API reports it.
+type AdminRefreshToken struct {
+	ID       string
+	ClientID string
+	Created  string
+	LastUsed string
 }
 
 // AdminClient is one OAuth2 client as the API reports it.
@@ -146,10 +183,31 @@ type AdminPageData struct {
 	AdminEnabled bool
 	Configured   bool
 	Version      string
+	Issuer       string
 	Notice       string
 	Error        string
-	Clients      []AdminClient
-	Passwords    []AdminPassword
+
+	// Section is which part of the API the page is showing. The API has more
+	// than twenty methods; one page of all of them is the stack this replaced.
+	Section  string
+	Sections []AdminSection
+
+	Clients       []AdminClient
+	Passwords     []AdminPassword
+	Connectors    []AdminConnector
+	Identities    []AdminIdentity
+	Sessions      []AdminSession
+	RefreshTokens []AdminRefreshToken
+	// UserID is what the session and refresh listings were filtered by, since
+	// both of those methods take one.
+	UserID string
+}
+
+// AdminSection is one tab of the API page.
+type AdminSection struct {
+	ID      string
+	Label   string
+	Current bool
 }
 
 // Renderer renders HTML pages for the application.

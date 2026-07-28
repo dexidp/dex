@@ -65,10 +65,24 @@ type Session struct {
 	// Device is the device authorization in progress, if any.
 	Device *Device
 
+	// LastTokens is whatever the last flow produced, sign-in or not. Client
+	// credentials and token exchange do not sign anyone in, and a tool that
+	// forgets the tokens you just fetched is a tool you have to run twice.
+	LastTokens  *oauth2.Token
+	LastIDToken string
+	LastGrant   string
+
 	// LastProviderCheck is when the app last confirmed with the provider that
 	// the session there still exists. Without it the app would keep showing a
 	// user who signed out of the provider in another tab.
 	LastProviderCheck time.Time
+
+	// ProviderSSO is what the app has learned about whether the provider keeps
+	// sessions at all: 0 not yet known, 1 yes, -1 no. dex only does when its
+	// sessions feature is on, and against a dex without it every prompt=none
+	// request fails — which would otherwise read as "the user signed out" and
+	// end a sign-in that had just happened.
+	ProviderSSO int8
 
 	pending map[string]*PendingAuth
 	expires time.Time
@@ -205,6 +219,18 @@ func (st *Store) TakeAuth(s *Session, state string) (*PendingAuth, bool) {
 	return p, ok
 }
 
+// RememberTokens keeps the result of the last flow so the tools can offer it
+// and the token page can be reached again.
+func (st *Store) RememberTokens(s *Session, grant string, token *oauth2.Token, rawIDToken string) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+
+	s.LastTokens = token
+	s.LastIDToken = rawIDToken
+	s.LastGrant = grant
+	s.expires = time.Now().Add(ttl)
+}
+
 // StartDevice records a device authorization for this browser.
 func (st *Store) StartDevice(s *Session, d *Device) {
 	st.mu.Lock()
@@ -221,6 +247,19 @@ func (st *Store) SetDeviceToken(s *Session, token *oauth2.Token) {
 
 	if s.Device != nil {
 		s.Device.Token = token
+	}
+}
+
+// SetProviderSSO records what the last silent check implies about whether the
+// provider keeps sessions.
+func (st *Store) SetProviderSSO(s *Session, keeps bool) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+
+	if keeps {
+		s.ProviderSSO = 1
+	} else {
+		s.ProviderSSO = -1
 	}
 }
 

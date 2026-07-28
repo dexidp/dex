@@ -188,6 +188,8 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("POST /grant/password", s.handlePasswordGrant)
 	mux.HandleFunc("POST /grant/token-exchange", s.handleTokenExchangeGrant)
 
+	mux.HandleFunc("GET /tokens", s.handleTokens)
+
 	// Tools for looking at a token you already hold.
 	mux.HandleFunc("GET /tools", s.handleTools)
 	mux.HandleFunc("GET /tools/{tool}", s.handleToolForm)
@@ -200,9 +202,17 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /admin", s.handleAdmin)
 	if s.admin != nil {
 		mux.HandleFunc("POST /admin/client/create", s.handleAdminCreateClient)
+		mux.HandleFunc("POST /admin/client/update", s.handleAdminUpdateClient)
 		mux.HandleFunc("POST /admin/client/delete", s.handleAdminDeleteClient)
 		mux.HandleFunc("POST /admin/password/create", s.handleAdminCreatePassword)
+		mux.HandleFunc("POST /admin/password/update", s.handleAdminUpdatePassword)
+		mux.HandleFunc("POST /admin/password/verify", s.handleAdminVerifyPassword)
 		mux.HandleFunc("POST /admin/password/delete", s.handleAdminDeletePassword)
+		mux.HandleFunc("POST /admin/connector/create", s.handleAdminCreateConnector)
+		mux.HandleFunc("POST /admin/connector/delete", s.handleAdminDeleteConnector)
+		mux.HandleFunc("POST /admin/identity/delete", s.handleAdminDeleteIdentity)
+		mux.HandleFunc("POST /admin/session/delete", s.handleAdminDeleteSession)
+		mux.HandleFunc("POST /admin/session/terminate", s.handleAdminTerminateSessions)
 		mux.HandleFunc("POST /admin/refresh/revoke", s.handleAdminRevokeRefresh)
 	}
 

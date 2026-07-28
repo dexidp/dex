@@ -67,14 +67,36 @@ func (a *adminClient) close() {
 	}
 }
 
-// handleAdmin renders what the API can tell us about this dex.
+// adminSections are the tabs of the API page. dex's API has more than twenty
+// methods; putting every list and every form on one page is what made the last
+// version unreadable.
+var adminSections = []AdminSection{
+	{ID: "clients", Label: "Clients"},
+	{ID: "passwords", Label: "Passwords"},
+	{ID: "connectors", Label: "Connectors"},
+	{ID: "identities", Label: "Users"},
+	{ID: "sessions", Label: "Sessions"},
+}
+
+// handleAdmin renders one section of the API.
 func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
+	section := r.URL.Query().Get("section")
+	if section == "" {
+		section = "clients"
+	}
+
 	data := AdminPageData{
 		LogoURI:      dexLogoDataURI,
 		AdminEnabled: true,
 		Configured:   s.admin != nil,
+		Section:      section,
 		Notice:       r.URL.Query().Get("notice"),
 		Error:        r.URL.Query().Get("error"),
+		UserID:       r.URL.Query().Get("user_id"),
+	}
+	for _, sec := range adminSections {
+		sec.Current = sec.ID == section
+		data.Sections = append(data.Sections, sec)
 	}
 
 	// Without --grpc-addr the page explains itself rather than 404ing, which is
@@ -87,36 +109,115 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
+	fail := func(err error) {
+		if data.Error == "" {
+			data.Error = err.Error()
+		}
+	}
+
 	if version, err := s.admin.api.GetVersion(ctx, &api.VersionReq{}); err == nil {
 		data.Version = fmt.Sprintf("%s (API %d)", version.Server, version.Api)
 	} else {
-		data.Error = err.Error()
+		fail(err)
+	}
+	if disco, err := s.admin.api.GetDiscovery(ctx, &api.DiscoveryReq{}); err == nil {
+		data.Issuer = disco.Issuer
 	}
 
-	if clients, err := s.admin.api.ListClients(ctx, &api.ListClientReq{}); err == nil {
-		for _, c := range clients.Clients {
-			data.Clients = append(data.Clients, AdminClient{
-				ID:           c.Id,
-				Name:         c.Name,
-				RedirectURIs: c.RedirectUris,
-				Public:       c.Public,
-			})
+	switch section {
+	case "clients":
+		if resp, err := s.admin.api.ListClients(ctx, &api.ListClientReq{}); err == nil {
+			for _, c := range resp.Clients {
+				data.Clients = append(data.Clients, AdminClient{
+					ID:           c.Id,
+					Name:         c.Name,
+					RedirectURIs: c.RedirectUris,
+					Public:       c.Public,
+				})
+			}
+		} else {
+			fail(err)
 		}
-	} else if data.Error == "" {
-		data.Error = err.Error()
-	}
 
-	if passwords, err := s.admin.api.ListPasswords(ctx, &api.ListPasswordReq{}); err == nil {
-		for _, p := range passwords.Passwords {
-			data.Passwords = append(data.Passwords, AdminPassword{
-				Email:    p.Email,
-				Username: p.Username,
-				UserID:   p.UserId,
-			})
+	case "passwords":
+		if resp, err := s.admin.api.ListPasswords(ctx, &api.ListPasswordReq{}); err == nil {
+			for _, p := range resp.Passwords {
+				data.Passwords = append(data.Passwords, AdminPassword{
+					Email:    p.Email,
+					Username: p.Username,
+					UserID:   p.UserId,
+				})
+			}
+		} else {
+			fail(err)
+		}
+
+	case "connectors":
+		if resp, err := s.admin.api.ListConnectors(ctx, &api.ListConnectorReq{}); err == nil {
+			for _, c := range resp.Connectors {
+				data.Connectors = append(data.Connectors, AdminConnector{ID: c.Id, Type: c.Type, Name: c.Name})
+			}
+		} else {
+			fail(err)
+		}
+
+	case "identities":
+		if resp, err := s.admin.api.ListUserIdentities(ctx, &api.ListUserIdentitiesReq{}); err == nil {
+			for _, u := range resp.Identities {
+				data.Identities = append(data.Identities, AdminIdentity{
+					UserID:      u.UserId,
+					ConnectorID: u.ConnectorId,
+					Email:       u.Email,
+					Username:    u.Username,
+					Groups:      u.Groups,
+				})
+			}
+		} else {
+			fail(err)
+		}
+
+	case "sessions":
+		// Both listings take a user, so the section asks for one first.
+		if data.UserID != "" {
+			if resp, err := s.admin.api.ListAuthSessions(ctx, &api.ListAuthSessionsReq{UserId: data.UserID}); err == nil {
+				for _, sess := range resp.Sessions {
+					data.Sessions = append(data.Sessions, AdminSession{
+						UserID:      sess.UserId,
+						ConnectorID: sess.ConnectorId,
+						IPAddress:   sess.IpAddress,
+						Created:     epochText(sess.CreatedAt),
+						Expires:     epochText(sess.AbsoluteExpiry),
+					})
+				}
+			} else {
+				fail(err)
+			}
+
+			if resp, err := s.admin.api.ListRefresh(ctx, &api.ListRefreshReq{UserId: data.UserID}); err == nil {
+				for _, t := range resp.RefreshTokens {
+					data.RefreshTokens = append(data.RefreshTokens, AdminRefreshToken{
+						ID:       t.Id,
+						ClientID: t.ClientId,
+						Created:  epochText(t.CreatedAt),
+						LastUsed: epochText(t.LastUsed),
+					})
+				}
+			} else {
+				fail(err)
+			}
 		}
 	}
 
 	s.renderer.RenderAdminPage(w, data)
+}
+
+// epochText renders one of the API's Unix timestamps, which are zero when the
+// field was never set.
+func epochText(epoch int64) string {
+	if epoch == 0 {
+		return ""
+	}
+	return time.Unix(epoch, 0).UTC().Format("2 Jan 2006, 15:04 UTC")
 }
 
 // handleAdminCreateClient registers an OAuth2 client.
@@ -268,12 +369,23 @@ func (s *Server) handleAdminRevokeRefresh(w http.ResponseWriter, r *http.Request
 // adminRedirect returns to the admin page carrying the outcome, so a reload
 // does not repeat the action.
 func (s *Server) adminRedirect(w http.ResponseWriter, r *http.Request, notice, errMsg string) {
-	u := "/admin"
+	q := url.Values{}
+	if section := r.FormValue("section"); section != "" {
+		q.Set("section", section)
+	}
+	if userID := r.FormValue("list_user_id"); userID != "" {
+		q.Set("user_id", userID)
+	}
 	switch {
 	case errMsg != "":
-		u += "?error=" + url.QueryEscape(errMsg)
+		q.Set("error", errMsg)
 	case notice != "":
-		u += "?notice=" + url.QueryEscape(notice)
+		q.Set("notice", notice)
+	}
+
+	u := "/admin"
+	if len(q) > 0 {
+		u += "?" + q.Encode()
 	}
 	http.Redirect(w, r, u, http.StatusSeeOther)
 }
@@ -287,4 +399,214 @@ func splitLines(raw string) []string {
 		}
 	}
 	return out
+}
+
+// handleAdminUpdateClient changes a client. Empty fields are left alone, since
+// the API's update takes only what it should overwrite.
+func (s *Server) handleAdminUpdateClient(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		s.adminRedirect(w, r, "", err.Error())
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	id := r.FormValue("id")
+	resp, err := s.admin.api.UpdateClient(ctx, &api.UpdateClientReq{
+		Id:           id,
+		Name:         r.FormValue("name"),
+		RedirectUris: splitLines(r.FormValue("redirect_uris")),
+	})
+	switch {
+	case err != nil:
+		s.adminRedirect(w, r, "", err.Error())
+	case resp.NotFound:
+		s.adminRedirect(w, r, "", fmt.Sprintf("client %q not found", id))
+	default:
+		s.adminRedirect(w, r, fmt.Sprintf("updated client %q", id), "")
+	}
+}
+
+// handleAdminUpdatePassword changes a user's password or username.
+func (s *Server) handleAdminUpdatePassword(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		s.adminRedirect(w, r, "", err.Error())
+		return
+	}
+
+	req := &api.UpdatePasswordReq{
+		Email:       r.FormValue("email"),
+		NewUsername: r.FormValue("username"),
+	}
+	if password := r.FormValue("password"); password != "" {
+		hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+		if err != nil {
+			s.adminRedirect(w, r, "", err.Error())
+			return
+		}
+		req.NewHash = hash
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	resp, err := s.admin.api.UpdatePassword(ctx, req)
+	switch {
+	case err != nil:
+		s.adminRedirect(w, r, "", err.Error())
+	case resp.NotFound:
+		s.adminRedirect(w, r, "", fmt.Sprintf("password for %q not found", req.Email))
+	default:
+		s.adminRedirect(w, r, fmt.Sprintf("updated password for %q", req.Email), "")
+	}
+}
+
+// handleAdminVerifyPassword checks a password without issuing anything, which
+// is how a service that owns its own login screen would use dex's user store.
+func (s *Server) handleAdminVerifyPassword(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		s.adminRedirect(w, r, "", err.Error())
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	email := r.FormValue("email")
+	resp, err := s.admin.api.VerifyPassword(ctx, &api.VerifyPasswordReq{
+		Email:    email,
+		Password: r.FormValue("password"),
+	})
+	switch {
+	case err != nil:
+		s.adminRedirect(w, r, "", err.Error())
+	case resp.NotFound:
+		s.adminRedirect(w, r, "", fmt.Sprintf("no password for %q", email))
+	case !resp.Verified:
+		s.adminRedirect(w, r, "", fmt.Sprintf("password for %q does not match", email))
+	default:
+		s.adminRedirect(w, r, fmt.Sprintf("password for %q verified", email), "")
+	}
+}
+
+// handleAdminCreateConnector adds a connector at runtime.
+func (s *Server) handleAdminCreateConnector(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		s.adminRedirect(w, r, "", err.Error())
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	id := r.FormValue("id")
+	resp, err := s.admin.api.CreateConnector(ctx, &api.CreateConnectorReq{
+		Connector: &api.Connector{
+			Id:     id,
+			Type:   r.FormValue("type"),
+			Name:   r.FormValue("name"),
+			Config: []byte(r.FormValue("config")),
+		},
+	})
+	switch {
+	case err != nil:
+		s.adminRedirect(w, r, "", err.Error())
+	case resp.AlreadyExists:
+		s.adminRedirect(w, r, "", fmt.Sprintf("connector %q already exists", id))
+	default:
+		s.adminRedirect(w, r, fmt.Sprintf("created connector %q", id), "")
+	}
+}
+
+// handleAdminDeleteConnector removes a connector.
+func (s *Server) handleAdminDeleteConnector(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		s.adminRedirect(w, r, "", err.Error())
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	id := r.FormValue("id")
+	resp, err := s.admin.api.DeleteConnector(ctx, &api.DeleteConnectorReq{Id: id})
+	switch {
+	case err != nil:
+		s.adminRedirect(w, r, "", err.Error())
+	case resp.NotFound:
+		s.adminRedirect(w, r, "", fmt.Sprintf("connector %q not found", id))
+	default:
+		s.adminRedirect(w, r, fmt.Sprintf("deleted connector %q", id), "")
+	}
+}
+
+// handleAdminDeleteIdentity forgets what dex recorded about a user from one
+// connector. The next sign-in records it again.
+func (s *Server) handleAdminDeleteIdentity(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		s.adminRedirect(w, r, "", err.Error())
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	userID := r.FormValue("user_id")
+	resp, err := s.admin.api.DeleteUserIdentity(ctx, &api.DeleteUserIdentityReq{
+		UserId:      userID,
+		ConnectorId: r.FormValue("connector_id"),
+	})
+	switch {
+	case err != nil:
+		s.adminRedirect(w, r, "", err.Error())
+	case resp.NotFound:
+		s.adminRedirect(w, r, "", fmt.Sprintf("no identity for user %q", userID))
+	default:
+		s.adminRedirect(w, r, fmt.Sprintf("deleted identity for user %q", userID), "")
+	}
+}
+
+// handleAdminDeleteSession ends one of dex's sessions.
+func (s *Server) handleAdminDeleteSession(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		s.adminRedirect(w, r, "", err.Error())
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	userID := r.FormValue("user_id")
+	resp, err := s.admin.api.DeleteAuthSession(ctx, &api.DeleteAuthSessionReq{
+		UserId:      userID,
+		ConnectorId: r.FormValue("connector_id"),
+	})
+	switch {
+	case err != nil:
+		s.adminRedirect(w, r, "", err.Error())
+	case resp.NotFound:
+		s.adminRedirect(w, r, "", fmt.Sprintf("no session for user %q", userID))
+	default:
+		s.adminRedirect(w, r, fmt.Sprintf("deleted session for user %q", userID), "")
+	}
+}
+
+// handleAdminTerminateSessions ends every session a user has.
+func (s *Server) handleAdminTerminateSessions(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		s.adminRedirect(w, r, "", err.Error())
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	userID := r.FormValue("user_id")
+	resp, err := s.admin.api.TerminateSessionsByUser(ctx, &api.TerminateSessionsByUserReq{UserId: userID})
+	if err != nil {
+		s.adminRedirect(w, r, "", err.Error())
+		return
+	}
+	s.adminRedirect(w, r, fmt.Sprintf("terminated %d session(s) for user %q", resp.SessionsTerminated, userID), "")
 }

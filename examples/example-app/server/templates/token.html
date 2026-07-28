@@ -14,7 +14,7 @@
 {{if .IDToken}}
 <div class="card">
     <div class="card-title">ID token</div>
-    <pre class="token">{{.IDToken}}</pre>
+    <pre class="token" data-jwt>{{.IDToken}}</pre>
     <a href="{{.IDTokenJWTLink}}" target="_blank" rel="noopener" class="hint">Open in jwt.io</a>
 </div>
 {{end}}
@@ -22,7 +22,7 @@
 {{if .AccessToken}}
 <div class="card">
     <div class="card-title">Access token</div>
-    <pre class="token">{{.AccessToken}}</pre>
+    <pre class="token" data-jwt>{{.AccessToken}}</pre>
     <a href="{{.AccessTokenJWTLink}}" target="_blank" rel="noopener" class="hint">Open in jwt.io</a>
     <div class="row">
         <form action="/userinfo" method="post">

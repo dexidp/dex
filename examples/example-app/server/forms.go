@@ -96,7 +96,10 @@ func (s *Server) handleGrantForm(w http.ResponseWriter, r *http.Request) {
 		}
 	case "refresh":
 		value := ""
-		if sess.Token != nil {
+		if sess.LastTokens != nil {
+			value = sess.LastTokens.RefreshToken
+		}
+		if value == "" && sess.Token != nil {
 			value = sess.Token.RefreshToken
 		}
 		data = FormPageData{
@@ -122,10 +125,13 @@ func (s *Server) handleGrantForm(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleToolForm(w http.ResponseWriter, r *http.Request) {
 	sess := s.session(w, r)
 
-	// Whatever this browser is holding is the likeliest thing to want to look
-	// at, so it is filled in already.
+	// Whatever this browser last got back is the likeliest thing to want to look
+	// at, so it is filled in already — including from flows that sign nobody in.
 	var accessToken, idToken string
-	if sess.Token != nil {
+	if sess.LastTokens != nil {
+		accessToken = sess.LastTokens.AccessToken
+		idToken = sess.LastIDToken
+	} else if sess.Token != nil {
 		accessToken = sess.Token.AccessToken
 		idToken = sess.IDToken
 	}

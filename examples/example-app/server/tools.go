@@ -62,7 +62,7 @@ func (s *Server) handleIntrospect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if resp.StatusCode != http.StatusOK {
-		s.renderResult(w, "Introspection", fmt.Sprintf("%s: %s", resp.Status, strings.TrimSpace(string(body))), "")
+		s.renderResult(w, r, "Introspection", fmt.Sprintf("%s: %s", resp.Status, strings.TrimSpace(string(body))), "")
 		return
 	}
 
@@ -76,7 +76,7 @@ func (s *Server) handleIntrospect(w http.ResponseWriter, r *http.Request) {
 		verdict = "The provider says this token is not active — expired, revoked, or never issued by it."
 	}
 
-	s.renderResult(w, "Introspection", indentJSON(body), verdict)
+	s.renderResult(w, r, "Introspection", indentJSON(body), verdict)
 }
 
 // handleVerify checks a token's signature and claims locally, the way a
@@ -104,7 +104,7 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 	idToken, err := verifier.Verify(ctx, raw)
 	if err != nil {
 		claims, _ := decodeJWTClaims(raw)
-		s.renderResult(w, "Local verification", claims, "Signature or claims rejected: "+err.Error())
+		s.renderResult(w, r, "Local verification", claims, "Signature or claims rejected: "+err.Error())
 		return
 	}
 
@@ -115,7 +115,7 @@ func (s *Server) handleVerify(w http.ResponseWriter, r *http.Request) {
 		verdict += " Note: this application is not in the audience."
 	}
 
-	s.renderResult(w, "Local verification", claims, verdict)
+	s.renderResult(w, r, "Local verification", claims, verdict)
 }
 
 // handleUserInfo calls the provider's UserInfo endpoint with an access token.
@@ -151,20 +151,21 @@ func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
 
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		s.renderResult(w, "UserInfo", fmt.Sprintf("%s: %s", resp.Status, strings.TrimSpace(string(body))), "")
+		s.renderResult(w, r, "UserInfo", fmt.Sprintf("%s: %s", resp.Status, strings.TrimSpace(string(body))), "")
 		return
 	}
 
-	s.renderResult(w, "UserInfo", indentJSON(body), "")
+	s.renderResult(w, r, "UserInfo", indentJSON(body), "")
 }
 
 // renderResult shows the output of a tool.
-func (s *Server) renderResult(w http.ResponseWriter, title, body, verdict string) {
+func (s *Server) renderResult(w http.ResponseWriter, r *http.Request, title, body, verdict string) {
 	s.renderer.RenderResultPage(w, ResultPageData{
 		LogoURI:      dexLogoDataURI,
 		AdminEnabled: s.admin != nil,
 		Title:        title,
 		Verdict:      verdict,
 		Body:         body,
+		LastGrant:    s.session(w, r).LastGrant,
 	})
 }

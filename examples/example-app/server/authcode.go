@@ -56,6 +56,11 @@ func (s *Server) shouldCheckProvider(sess *session.Session) bool {
 	if s.sessionCheckInterval <= 0 {
 		return false
 	}
+	// A provider without sessions answers every prompt=none request the same
+	// way, so asking again tells us nothing and costs a redirect.
+	if sess.ProviderSSO < 0 {
+		return false
+	}
 	if sess.LastProviderCheck.IsZero() {
 		return true
 	}
@@ -153,14 +158,27 @@ func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	// provider has no session for this browser, and neither should the app.
 	if pending.Silent {
 		s.sessions.MarkChecked(sess)
+
 		if errMsg := r.FormValue("error"); errMsg != "" {
-			s.sessions.SignOut(sess)
+			// The first failure is ambiguous: either the provider has no
+			// session for this browser, or it does not keep sessions at all.
+			// Ending a sign-in that just happened would be the wrong guess, so
+			// the app only acts on a failure once a check has succeeded before.
+			if sess.ProviderSSO > 0 || !sess.SignedIn() {
+				s.sessions.SignOut(sess)
+			} else {
+				log.Printf("silent session check failed (%s); the provider appears not to keep sessions, so this app will stop asking", errMsg)
+			}
+			s.sessions.SetProviderSSO(sess, false)
 			http.Redirect(w, r, "/", http.StatusFound)
 			return
 		}
+
 		if err := s.completeAuth(w, r, sess, pending); err != nil {
 			log.Printf("silent session check: %v", err)
 			s.sessions.SignOut(sess)
+		} else {
+			s.sessions.SetProviderSSO(sess, true)
 		}
 		http.Redirect(w, r, "/", http.StatusFound)
 		return

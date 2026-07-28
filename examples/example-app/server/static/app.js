@@ -151,3 +151,52 @@
     });
 })();
 
+
+// JSON syntax highlighting. Claims and API responses are read, not skimmed:
+// telling a key from a value from a number is most of what makes a blob of
+// JSON legible at a glance.
+(function () {
+    function escapeHTML(text) {
+        return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function highlight(text) {
+        return escapeHTML(text).replace(
+            /("(\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\b\d+(\.\d+)?([eE][+-]?\d+)?\b)/g,
+            function (match) {
+                var cls = "json-number";
+                if (/^"/.test(match)) {
+                    cls = /:$/.test(match) ? "json-key" : "json-string";
+                } else if (/true|false/.test(match)) {
+                    cls = "json-boolean";
+                } else if (/null/.test(match)) {
+                    cls = "json-null";
+                }
+                return '<span class="' + cls + '">' + match + "</span>";
+            },
+        );
+    }
+
+    document.querySelectorAll("pre.json").forEach(function (el) {
+        var text = el.textContent;
+        try {
+            // Reject anything that is not JSON rather than colouring it wrongly:
+            // these blocks also carry error text from the provider.
+            JSON.parse(text);
+        } catch (e) {
+            return;
+        }
+        el.innerHTML = highlight(text);
+    });
+
+    // A JWT is three base64 segments; colouring the dots apart is enough to see
+    // where the header ends and the signature begins.
+    document.querySelectorAll("pre.token[data-jwt]").forEach(function (el) {
+        var parts = el.textContent.trim().split(".");
+        if (parts.length !== 3) return;
+        el.innerHTML =
+            '<span class="jwt-header">' + escapeHTML(parts[0]) + "</span>." +
+            '<span class="jwt-payload">' + escapeHTML(parts[1]) + "</span>." +
+            '<span class="jwt-signature">' + escapeHTML(parts[2]) + "</span>";
+    });
+})();

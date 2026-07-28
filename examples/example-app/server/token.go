@@ -20,6 +20,9 @@ import (
 // renderToken shows the result of a grant that produced a token through the
 // oauth2 library.
 func (s *Server) renderToken(w http.ResponseWriter, r *http.Request, grant string, token *oauth2.Token) {
+	rawID, _ := token.Extra("id_token").(string)
+	s.sessions.RememberTokens(s.session(w, r), grant, token, rawID)
+
 	data := TokenPageData{
 		LogoURI:      dexLogoDataURI,
 		AdminEnabled: s.admin != nil,
@@ -80,6 +83,10 @@ func (s *Server) renderRawToken(w http.ResponseWriter, r *http.Request, grant st
 	if resp.ExpiresIn > 0 {
 		data.ExpiresIn = (time.Duration(resp.ExpiresIn) * time.Second).String()
 	}
+
+	remembered := (&oauth2.Token{AccessToken: resp.AccessToken, RefreshToken: resp.RefreshToken}).
+		WithExtra(map[string]any{"id_token": resp.IDToken})
+	s.sessions.RememberTokens(s.session(w, r), grant, remembered, resp.IDToken)
 	if data.IDToken != "" {
 		data.IDTokenJWTLink = jwtIOLink(data.IDToken)
 		data.Claims, _ = decodeJWTClaims(data.IDToken)
@@ -174,4 +181,16 @@ func (s *Server) fetchPublicKeyPEM() string {
 		Type:  "PUBLIC KEY",
 		Bytes: pubKeyBytes,
 	}))
+}
+
+// handleTokens re-renders the last tokens this browser was given. Without it a
+// tool result is a dead end: the page holding the tokens you were working with
+// is gone, and nothing in the app can bring it back.
+func (s *Server) handleTokens(w http.ResponseWriter, r *http.Request) {
+	sess := s.session(w, r)
+	if sess.LastTokens == nil {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+	s.renderToken(w, r, sess.LastGrant, sess.LastTokens)
 }
