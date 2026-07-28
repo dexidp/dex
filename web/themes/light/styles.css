@@ -43,11 +43,15 @@
   padding: 32px;
 }
 
+/* A width rather than a minimum: the button has to be the same size whatever
+ * the connector is called, and it has to give way on a screen too narrow to
+ * hold it rather than push out of the panel. */
 .theme-btn-provider {
   background-color: #fff;
   border: 1px solid #d0d5dd;
   color: #1a1a1a;
-  min-width: 260px;
+  max-width: 100%;
+  width: 260px;
 }
 
 .theme-btn-provider:hover {

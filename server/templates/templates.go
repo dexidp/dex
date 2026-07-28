@@ -1,6 +1,7 @@
 package templates
 
 import (
+	"cmp"
 	"fmt"
 	"html/template"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 
@@ -279,11 +281,15 @@ type ConnectorInfo struct {
 	Type string
 }
 
-type byName []ConnectorInfo
-
-func (n byName) Len() int           { return len(n) }
-func (n byName) Less(i, j int) bool { return n[i].Name < n[j].Name }
-func (n byName) Swap(i, j int)      { n[i], n[j] = n[j], n[i] }
+// sortConnectors orders the login screen the way a reader scans it, which is
+// not the way bytes compare: "okta" sorting after "Zendesk" is an artifact of
+// capital letters coming first in ASCII, and connector names are whatever the
+// operator typed. Names that differ only in case keep a stable order.
+func sortConnectors(connectors []ConnectorInfo) {
+	slices.SortStableFunc(connectors, func(a, b ConnectorInfo) int {
+		return cmp.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
+	})
+}
 
 func (t *Templates) Device(r *http.Request, w http.ResponseWriter, postURL string, userCode string, lastWasInvalid bool) error {
 	if lastWasInvalid {
@@ -307,7 +313,7 @@ func (t *Templates) DeviceSuccess(r *http.Request, w http.ResponseWriter, client
 }
 
 func (t *Templates) Login(r *http.Request, w http.ResponseWriter, connectors []ConnectorInfo) error {
-	sort.Sort(byName(connectors))
+	sortConnectors(connectors)
 	data := struct {
 		Connectors []ConnectorInfo
 		ReqPath    string
