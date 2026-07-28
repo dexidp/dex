@@ -20,16 +20,16 @@
       <dd>{{ .ConnectorName }}</dd>
     </div>
     {{ end }}
-    {{ if .SignedInEpoch }}
+    {{ if .SignedInISO }}
     <div class="dex-fact">
       <dt>Signed in</dt>
-      <dd><time datetime="{{ .SignedInEpoch }}">{{ .SignedInText }}</time></dd>
+      <dd><time datetime="{{ .SignedInISO }}">{{ .SignedInText }}</time></dd>
     </div>
     {{ end }}
-    {{ if .SessionExpiresEpoch }}
+    {{ if .SessionExpiresISO }}
     <div class="dex-fact">
       <dt>{{ if .SessionExpiryIsIdle }}Expires if idle{{ else }}Session ends{{ end }}</dt>
-      <dd><time datetime="{{ .SessionExpiresEpoch }}">{{ .SessionExpiresText }}</time></dd>
+      <dd><time datetime="{{ .SessionExpiresISO }}">{{ .SessionExpiresText }}</time></dd>
     </div>
     {{ end }}
     {{ if .IPAddress }}
@@ -93,13 +93,11 @@
       window.addEventListener('resize', syncFade, {passive: true});
     }
 
-    // The server sends Unix seconds; render them in the visitor's own timezone.
+    // The server states these in UTC; restate them in the visitor's own zone.
     document.querySelectorAll('time[datetime]').forEach(function (el) {
-      var epoch = parseInt(el.getAttribute('datetime'), 10);
-      if (!epoch) return;
-      var date = new Date(epoch * 1000);
+      var date = new Date(el.getAttribute('datetime'));
+      if (isNaN(date.getTime())) return;
       el.textContent = date.toLocaleString([], {dateStyle: 'medium', timeStyle: 'short'});
-      el.setAttribute('datetime', date.toISOString());
     });
   })();
 </script>

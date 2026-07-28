@@ -339,6 +339,14 @@ body {
   text-decoration-thickness: 2px;
 }
 
+/* Matches the focus ring the buttons and the group list use, rather than
+ * leaving this one link to the browser default. */
+.dex-home__link:focus-visible {
+  outline: 2px solid var(--dex-home-accent);
+  outline-offset: 3px;
+  text-decoration-thickness: 2px;
+}
+
 @media (max-width: 420px) {
   .dex-fact {
     grid-template-columns: minmax(0, 1fr);

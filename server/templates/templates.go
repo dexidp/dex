@@ -384,18 +384,18 @@ type HomeData struct {
 	EmailVerified bool
 	Groups        []string
 	ConnectorName string
-	// SignedInEpoch and SessionExpiresEpoch are Unix seconds, restated in the
-	// visitor's timezone by the page's script. Zero means the row is omitted.
-	// The matching Text fields hold the UTC rendering the page shows until (or
-	// unless) that script runs.
+	// Each timestamp reaches the page twice: ISO for the <time> element's
+	// datetime attribute, which the page's script reads and restates in the
+	// visitor's timezone, and Text as the UTC rendering shown until (or unless)
+	// that script runs. Empty means the row is omitted.
 	//
-	// SignedInEpoch is when this session began, not the identity's last login:
-	// the page describes one session, and the identity's last login moves when
-	// the same user signs in from somewhere else entirely.
-	SignedInEpoch       int64
-	SignedInText        string
-	SessionExpiresEpoch int64
-	SessionExpiresText  string
+	// SignedIn is when this session began, not the identity's last login: the
+	// page describes one session, and the identity's last login moves when the
+	// same user signs in from somewhere else entirely.
+	SignedInISO        string
+	SignedInText       string
+	SessionExpiresISO  string
+	SessionExpiresText string
 	// SessionExpiryIsIdle says SessionExpiresEpoch is the idle timeout rather
 	// than the absolute one, so the page can say the deadline slides.
 	SessionExpiryIsIdle bool

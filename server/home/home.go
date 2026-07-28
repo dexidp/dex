@@ -57,13 +57,11 @@ func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 		data.LoggedIn = true
 		data.IPAddress = session.IPAddress
 		data.UserAgent = session.UserAgent
-		if !session.CreatedAt.IsZero() {
-			data.SignedInEpoch = session.CreatedAt.Unix()
-		}
-		data.SessionExpiresEpoch, data.SessionExpiryIsIdle = sessionExpiry(session)
+		data.SignedInISO, data.SignedInText = timeFields(session.CreatedAt)
+		expiry, idle := sessionExpiry(session)
+		data.SessionExpiresISO, data.SessionExpiresText = timeFields(expiry)
+		data.SessionExpiryIsIdle = idle
 		h.populateData(ctx, &data, session.UserID, session.ConnectorID)
-		data.SignedInText = utcText(data.SignedInEpoch)
-		data.SessionExpiresText = utcText(data.SessionExpiresEpoch)
 	}
 
 	if err := h.Templates.Home(r, w, data); err != nil {
@@ -72,33 +70,34 @@ func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// utcText renders an epoch for readers whose browser will not run the page's
-// script, which otherwise restates these times in the local timezone. Without
-// it those rows are an em dash. Empty for 0, which drops the row entirely.
-func utcText(epoch int64) string {
-	if epoch == 0 {
-		return ""
+// timeFields renders a timestamp for the page: an ISO 8601 string for the <time>
+// element's datetime attribute, and the UTC text shown to readers whose browser
+// will not run the script that restates it in their own timezone. Both are empty
+// for the zero time, which drops the row entirely.
+func timeFields(t time.Time) (iso, text string) {
+	if t.IsZero() {
+		return "", ""
 	}
-	return time.Unix(epoch, 0).UTC().Format("2 Jan 2006, 15:04 UTC")
+	return t.UTC().Format(time.RFC3339), t.UTC().Format("2 Jan 2006, 15:04 UTC")
 }
 
 // sessionExpiry reports when the session ends: the earlier of its absolute
 // lifetime and its idle timeout, since whichever comes first logs the user out.
-// It returns 0 when neither is set, which drops the row from the page.
+// It returns the zero time when neither is set, which drops the row.
 //
 // The second return says the idle timeout won. That distinction has to reach
 // the page: the absolute expiry is a fixed moment, while the idle one slides
 // forward every time the session is used, so labeling both "session ends"
 // would state a deadline that is not one.
-func sessionExpiry(s *storage.AuthSession) (int64, bool) {
+func sessionExpiry(s *storage.AuthSession) (time.Time, bool) {
 	expiry, idle := s.AbsoluteExpiry, false
 	if expiry.IsZero() || (!s.IdleExpiry.IsZero() && s.IdleExpiry.Before(expiry)) {
 		expiry, idle = s.IdleExpiry, true
 	}
 	if expiry.IsZero() {
-		return 0, false
+		return time.Time{}, false
 	}
-	return expiry.Unix(), idle
+	return expiry, idle
 }
 
 func (h *Handler) handleInline(w http.ResponseWriter, r *http.Request) {

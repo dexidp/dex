@@ -52,7 +52,9 @@ func (m *Manager) RememberMeDefault() *bool {
 	return &v
 }
 
-// remoteIP returns the real IP from context (set by parseRealIP middleware) or falls back to r.RemoteAddr.
+// remoteIP returns the real IP from context (set by the real-IP resolver) or,
+// failing that, the host part of r.RemoteAddr. Either way the result carries no
+// port; only an address that parses as neither is returned verbatim.
 func remoteIP(r *http.Request) string {
 	if ip, ok := r.Context().Value(reqctx.RequestKeyRemoteIP).(string); ok && ip != "" {
 		return ip
