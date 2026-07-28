@@ -254,3 +254,55 @@ document.querySelectorAll(".fill-token").forEach(function (btn) {
         field.focus();
     });
 });
+
+// List fields — redirect URIs, trusted peers, allowed connectors — are lists in
+// the API, so the form collects them as one value each rather than as lines of
+// text somebody has to split.
+document.querySelectorAll(".chip-add").forEach(function (btn) {
+    var control = btn.closest(".form-control");
+    var list = control && control.querySelector(".chips");
+    var input = control && control.querySelector(".chip-input");
+    if (!list || !input) return;
+
+    var add = function () {
+        var value = input.value.trim();
+        if (!value) return;
+
+        var chip = document.createElement("span");
+        chip.className = "chip";
+
+        var text = document.createElement("span");
+        text.textContent = value;
+
+        var hidden = document.createElement("input");
+        hidden.type = "hidden";
+        hidden.name = list.getAttribute("data-name");
+        hidden.value = value;
+
+        var remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "chip-remove";
+        remove.textContent = "×";
+        remove.addEventListener("click", function () { chip.remove(); });
+
+        chip.append(text, hidden, remove);
+        list.appendChild(chip);
+        input.value = "";
+        input.focus();
+    };
+
+    btn.addEventListener("click", add);
+    input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            add();
+        }
+    });
+});
+
+document.querySelectorAll(".chip-remove").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+        var chip = btn.closest(".chip");
+        if (chip) chip.remove();
+    });
+});

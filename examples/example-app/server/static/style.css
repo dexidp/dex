@@ -605,3 +605,51 @@ pre.code {
         grid-template-columns: minmax(0, 1fr);
     }
 }
+
+/* Grant types are URNs; side by side they wrap to one per line, so they get a
+   grid with cells wide enough to hold one. */
+.scopes-list--grid {
+    display: grid;
+    gap: 6px 16px;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.chips:empty {
+    display: none;
+}
+
+.chip-remove {
+    background: none;
+    border: 0;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+}
+
+/* One authenticator per block, so its keys and its actions read as belonging
+   to it rather than to the section. */
+.mfa-device {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    padding: 12px;
+}
+
+.mfa-device .subhead {
+    border-top: 0;
+    margin-top: 0;
+    padding-top: 0;
+}
+
+.mfa-reset {
+    border-top: 1px solid var(--border);
+    margin-top: 16px;
+    padding-top: 16px;
+}

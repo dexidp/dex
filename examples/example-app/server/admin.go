@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -301,10 +300,10 @@ func (s *Server) handleAdminCreateClient(w http.ResponseWriter, r *http.Request)
 			Name:              r.FormValue("name"),
 			Secret:            r.FormValue("secret"),
 			LogoUrl:           r.FormValue("logo_url"),
-			RedirectUris:      splitLines(r.FormValue("redirect_uris")),
-			TrustedPeers:      splitLines(r.FormValue("trusted_peers")),
-			AllowedConnectors: splitLines(r.FormValue("allowed_connectors")),
-			SsoSharedWith:     splitLines(r.FormValue("sso_shared_with")),
+			RedirectUris:      r.Form["redirect_uris"],
+			TrustedPeers:      r.Form["trusted_peers"],
+			AllowedConnectors: r.Form["allowed_connectors"],
+			SsoSharedWith:     r.Form["sso_shared_with"],
 			Public:            r.FormValue("public") != "",
 		},
 	}
@@ -462,17 +461,6 @@ func (s *Server) adminRedirect(w http.ResponseWriter, r *http.Request, notice, e
 	http.Redirect(w, r, u, http.StatusSeeOther)
 }
 
-// splitLines reads a textarea into a list, dropping blanks.
-func splitLines(raw string) []string {
-	var out []string
-	for _, line := range strings.Split(raw, "\n") {
-		if line = strings.TrimSpace(line); line != "" {
-			out = append(out, line)
-		}
-	}
-	return out
-}
-
 // handleAdminUpdateClient changes a client. Empty fields are left alone, since
 // the API's update takes only what it should overwrite.
 func (s *Server) handleAdminUpdateClient(w http.ResponseWriter, r *http.Request) {
@@ -489,10 +477,10 @@ func (s *Server) handleAdminUpdateClient(w http.ResponseWriter, r *http.Request)
 		Id:                id,
 		Name:              r.FormValue("name"),
 		LogoUrl:           r.FormValue("logo_url"),
-		RedirectUris:      splitLines(r.FormValue("redirect_uris")),
-		TrustedPeers:      splitLines(r.FormValue("trusted_peers")),
-		AllowedConnectors: splitLines(r.FormValue("allowed_connectors")),
-		SsoSharedWith:     splitLines(r.FormValue("sso_shared_with")),
+		RedirectUris:      r.Form["redirect_uris"],
+		TrustedPeers:      r.Form["trusted_peers"],
+		AllowedConnectors: r.Form["allowed_connectors"],
+		SsoSharedWith:     r.Form["sso_shared_with"],
 	})
 	switch {
 	case err != nil:

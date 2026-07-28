@@ -100,30 +100,50 @@
             <div class="form-control"><input id="c_logo" type="text" name="logo_url" autocomplete="off"></div>
         </div>
         <div class="form-row form-row--wide">
-            <label for="c_uris">Redirect URIs</label>
+            <label for="redirect_uris_input">Redirect URIs</label>
             <div class="form-control">
-                <textarea id="c_uris" name="redirect_uris" rows="2"></textarea>
-                <small class="hint">One per line.</small>
+                <div class="chips" data-name="redirect_uris">
+                </div>
+                <div class="inline-input">
+                    <input type="text" id="redirect_uris_input" class="chip-input" autocomplete="off">
+                    <button type="button" class="button button-small chip-add">Add</button>
+                </div>
+                <small class="hint">Where dex may send the browser back to.</small>
             </div>
         </div>
         <div class="form-row form-row--wide">
-            <label for="c_peers">Trusted peers</label>
+            <label for="trusted_peers_input">Trusted peers</label>
             <div class="form-control">
-                <textarea id="c_peers" name="trusted_peers" rows="2"></textarea>
+                <div class="chips" data-name="trusted_peers">
+                </div>
+                <div class="inline-input">
+                    <input type="text" id="trusted_peers_input" class="chip-input" autocomplete="off">
+                    <button type="button" class="button button-small chip-add">Add</button>
+                </div>
                 <small class="hint">Clients allowed to ask for tokens with this one as the audience.</small>
             </div>
         </div>
         <div class="form-row form-row--wide">
-            <label for="c_conns">Allowed connectors</label>
+            <label for="allowed_connectors_input">Allowed connectors</label>
             <div class="form-control">
-                <textarea id="c_conns" name="allowed_connectors" rows="2"></textarea>
+                <div class="chips" data-name="allowed_connectors">
+                </div>
+                <div class="inline-input">
+                    <input type="text" id="allowed_connectors_input" class="chip-input" autocomplete="off">
+                    <button type="button" class="button button-small chip-add">Add</button>
+                </div>
                 <small class="hint">Empty means every connector.</small>
             </div>
         </div>
         <div class="form-row form-row--wide">
-            <label for="c_sso">SSO shared with</label>
+            <label for="sso_shared_with_input">SSO shared with</label>
             <div class="form-control">
-                <textarea id="c_sso" name="sso_shared_with" rows="2"></textarea>
+                <div class="chips" data-name="sso_shared_with">
+                </div>
+                <div class="inline-input">
+                    <input type="text" id="sso_shared_with_input" class="chip-input" autocomplete="off">
+                    <button type="button" class="button button-small chip-add">Add</button>
+                </div>
                 <small class="hint">Which clients may reuse this one's session. * for all.</small>
             </div>
         </div>
@@ -157,24 +177,56 @@
             <div class="form-control"><input id="cu_logo" type="text" name="logo_url" value="{{.LogoURL}}" autocomplete="off"></div>
         </div>
         <div class="form-row form-row--wide">
-            <label for="cu_uris">Redirect URIs</label>
-            <div class="form-control"><textarea id="cu_uris" name="redirect_uris" rows="2">{{range .RedirectURIs}}{{.}}
-{{end}}</textarea></div>
+            <label for="redirect_uris_input">Redirect URIs</label>
+            <div class="form-control">
+                <div class="chips" data-name="redirect_uris">
+                {{range .RedirectURIs}}<span class="chip"><span>{{.}}</span><input type="hidden" name="redirect_uris" value="{{.}}"><button type="button" class="chip-remove">&times;</button></span>{{end}}
+                </div>
+                <div class="inline-input">
+                    <input type="text" id="redirect_uris_input" class="chip-input" autocomplete="off">
+                    <button type="button" class="button button-small chip-add">Add</button>
+                </div>
+                <small class="hint">Where dex may send the browser back to.</small>
+            </div>
         </div>
         <div class="form-row form-row--wide">
-            <label for="cu_peers">Trusted peers</label>
-            <div class="form-control"><textarea id="cu_peers" name="trusted_peers" rows="2">{{range .TrustedPeers}}{{.}}
-{{end}}</textarea></div>
+            <label for="trusted_peers_input">Trusted peers</label>
+            <div class="form-control">
+                <div class="chips" data-name="trusted_peers">
+                {{range .TrustedPeers}}<span class="chip"><span>{{.}}</span><input type="hidden" name="trusted_peers" value="{{.}}"><button type="button" class="chip-remove">&times;</button></span>{{end}}
+                </div>
+                <div class="inline-input">
+                    <input type="text" id="trusted_peers_input" class="chip-input" autocomplete="off">
+                    <button type="button" class="button button-small chip-add">Add</button>
+                </div>
+                <small class="hint">Clients allowed to ask for tokens with this one as the audience.</small>
+            </div>
         </div>
         <div class="form-row form-row--wide">
-            <label for="cu_conns">Allowed connectors</label>
-            <div class="form-control"><textarea id="cu_conns" name="allowed_connectors" rows="2">{{range .AllowedConnectors}}{{.}}
-{{end}}</textarea></div>
+            <label for="allowed_connectors_input">Allowed connectors</label>
+            <div class="form-control">
+                <div class="chips" data-name="allowed_connectors">
+                {{range .AllowedConnectors}}<span class="chip"><span>{{.}}</span><input type="hidden" name="allowed_connectors" value="{{.}}"><button type="button" class="chip-remove">&times;</button></span>{{end}}
+                </div>
+                <div class="inline-input">
+                    <input type="text" id="allowed_connectors_input" class="chip-input" autocomplete="off">
+                    <button type="button" class="button button-small chip-add">Add</button>
+                </div>
+                <small class="hint">Empty means every connector.</small>
+            </div>
         </div>
         <div class="form-row form-row--wide">
-            <label for="cu_sso">SSO shared with</label>
-            <div class="form-control"><textarea id="cu_sso" name="sso_shared_with" rows="2">{{range .SSOSharedWith}}{{.}}
-{{end}}</textarea></div>
+            <label for="sso_shared_with_input">SSO shared with</label>
+            <div class="form-control">
+                <div class="chips" data-name="sso_shared_with">
+                {{range .SSOSharedWith}}<span class="chip"><span>{{.}}</span><input type="hidden" name="sso_shared_with" value="{{.}}"><button type="button" class="chip-remove">&times;</button></span>{{end}}
+                </div>
+                <div class="inline-input">
+                    <input type="text" id="sso_shared_with_input" class="chip-input" autocomplete="off">
+                    <button type="button" class="button button-small chip-add">Add</button>
+                </div>
+                <small class="hint">Which clients may reuse this one's session. * for all.</small>
+            </div>
         </div>
         <p class="note">
             UpdateClient carries no secret and no public flag, so neither can be
@@ -389,7 +441,7 @@
         <div class="form-row form-row--wide">
             <label>Grant types</label>
             <div class="form-control">
-                <div class="scopes-list">
+                <div class="scopes-list scopes-list--grid">
                     {{range $.ConnectorGrantTypes}}
                     <div class="scope-item">
                         <input type="checkbox" name="grant_types" value="{{.}}" id="ng_{{.}}">

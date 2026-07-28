@@ -82,7 +82,7 @@
                 <label class="checkbox"><input type="radio" name="grant_mode" value="" checked> leave as they are</label>
                 <label class="checkbox"><input type="radio" name="grant_mode" value="any"> allow every grant type</label>
                 <label class="checkbox"><input type="radio" name="grant_mode" value="restrict"> restrict to those ticked</label>
-                <div class="scopes-list">
+                <div class="scopes-list scopes-list--grid">
                     {{range $g := $.ConnectorGrantTypes}}
                     <div class="scope-item">
                         <input type="checkbox" name="grant_types" value="{{$g}}" id="cg_{{$g}}">
@@ -158,50 +158,62 @@
     <div class="card-title">Multi-factor</div>
     {{if .MFADevices}}
     {{range .MFADevices}}
-    <div class="subhead">{{.AuthenticatorID}}</div>
-    <div class="kv">
-        <div class="k">Secret</div><div class="v">{{if .HasSecret}}enrolled{{else}}none{{end}}</div>
-    </div>
-    {{if .Credentials}}
-    <table class="table">
-        <tr><th>Credential</th><th>Transport</th><th>Uses</th><th>Created</th><th class="actions-col"></th></tr>
-        {{range .Credentials}}
-        <tr>
-            <td>{{if .DisplayName}}{{.DisplayName}}{{else}}<span class="hint">unnamed</span>{{end}}<div class="mono small">{{.ID}}</div></td>
-            <td class="small">{{range .Transport}}{{.}} {{end}}</td>
-            <td class="small">{{.SignCount}}</td>
-            <td class="small">{{.Created}}</td>
-            <td class="actions-col">
-                <div class="row-actions">
-                    <form action="/admin/webauthn/delete" method="post">
-                        <input type="hidden" name="user_id" value="{{$.Identity.UserID}}">
-                        <input type="hidden" name="connector_id" value="{{$.Identity.ConnectorID}}">
-                        <input type="hidden" name="credential_id" value="{{.ID}}">
-                        <input type="hidden" name="back" value="/admin/user/{{$.Identity.ConnectorID}}/{{$.Identity.UserID}}">
-                        <button type="submit" class="button button-small">Delete</button>
-                    </form>
-                </div>
-            </td>
-        </tr>
+    <div class="mfa-device">
+        <div class="subhead">{{.AuthenticatorID}}</div>
+        <div class="kv">
+            <div class="k">Secret</div><div class="v">{{if .HasSecret}}enrolled{{else}}<span class="hint">none</span>{{end}}</div>
+            <div class="k">Keys</div><div class="v">{{len .Credentials}}</div>
+        </div>
+
+        {{if .Credentials}}
+        <table class="table">
+            <tr><th>Key</th><th>Transport</th><th>Uses</th><th>Registered</th><th class="actions-col"></th></tr>
+            {{range .Credentials}}
+            <tr>
+                <td>
+                    {{if .DisplayName}}{{.DisplayName}}{{else}}<span class="hint">unnamed</span>{{end}}
+                    <div class="mono small hint">{{.ID}}</div>
+                </td>
+                <td class="small">{{range .Transport}}{{.}} {{else}}<span class="hint">unknown</span>{{end}}</td>
+                <td class="small">{{.SignCount}}</td>
+                <td class="small">{{.Created}}</td>
+                <td class="actions-col">
+                    <div class="row-actions">
+                        <form action="/admin/webauthn/delete" method="post">
+                            <input type="hidden" name="user_id" value="{{$.Identity.UserID}}">
+                            <input type="hidden" name="connector_id" value="{{$.Identity.ConnectorID}}">
+                            <input type="hidden" name="credential_id" value="{{.ID}}">
+                            <input type="hidden" name="back" value="/admin/user/{{$.Identity.ConnectorID}}/{{$.Identity.UserID}}">
+                            <button type="submit" class="button button-small">Delete</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {{end}}
+        </table>
         {{end}}
-    </table>
-    {{end}}
-    <form action="/admin/mfa/secret/delete" method="post" class="form">
-        <input type="hidden" name="user_id" value="{{$.Identity.UserID}}">
-        <input type="hidden" name="connector_id" value="{{$.Identity.ConnectorID}}">
-        <input type="hidden" name="authenticator_id" value="{{.AuthenticatorID}}">
-        <input type="hidden" name="back" value="/admin/user/{{$.Identity.ConnectorID}}/{{$.Identity.UserID}}">
-        <div class="form-actions"><button type="submit" class="button button-small">Delete this authenticator's secret</button></div>
-    </form>
+
+        {{if .HasSecret}}
+        <form action="/admin/mfa/secret/delete" method="post">
+            <input type="hidden" name="user_id" value="{{$.Identity.UserID}}">
+            <input type="hidden" name="connector_id" value="{{$.Identity.ConnectorID}}">
+            <input type="hidden" name="authenticator_id" value="{{.AuthenticatorID}}">
+            <input type="hidden" name="back" value="/admin/user/{{$.Identity.ConnectorID}}/{{$.Identity.UserID}}">
+            <div class="form-actions"><button type="submit" class="button button-small">Delete this secret</button></div>
+        </form>
+        {{end}}
+    </div>
     {{end}}
 
-    <form action="/admin/mfa/reset" method="post" class="form">
-        <input type="hidden" name="user_id" value="{{.UserID}}">
-        <input type="hidden" name="connector_id" value="{{.ConnectorID}}">
-        <input type="hidden" name="back" value="/admin/user/{{.ConnectorID}}/{{.UserID}}">
-        <p class="hint">Resetting clears every factor, and the user enrols again on their next sign-in.</p>
-        <div class="form-actions"><button type="submit" class="button">Reset all MFA</button></div>
-    </form>
+    <div class="mfa-reset">
+        <form action="/admin/mfa/reset" method="post">
+            <input type="hidden" name="user_id" value="{{.UserID}}">
+            <input type="hidden" name="connector_id" value="{{.ConnectorID}}">
+            <input type="hidden" name="back" value="/admin/user/{{.ConnectorID}}/{{.UserID}}">
+            <p class="hint">Clears every factor above at once; the user enrols again on their next sign-in.</p>
+            <div class="form-actions"><button type="submit" class="button">Reset all MFA</button></div>
+        </form>
+    </div>
     {{else}}
     <p class="hint">Nothing enrolled.</p>
     {{end}}
