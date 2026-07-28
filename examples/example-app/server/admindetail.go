@@ -233,9 +233,14 @@ func (s *Server) handleAdminDeleteWebAuthn(w http.ResponseWriter, r *http.Reques
 }
 
 // detailRedirect returns to the detail page an action was started from.
+//
+// The target comes from the form, so it is only honoured when it points back
+// into this app: a path, and not a protocol-relative one, which a browser reads
+// as another host. Anything else would make these endpoints a way to bounce
+// someone off to a site of the sender's choosing.
 func (s *Server) detailRedirect(w http.ResponseWriter, r *http.Request, notice, errMsg string) {
 	back := r.FormValue("back")
-	if back == "" {
+	if !strings.HasPrefix(back, "/") || strings.HasPrefix(back, "//") {
 		back = "/admin"
 	}
 
