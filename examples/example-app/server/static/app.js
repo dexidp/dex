@@ -9,15 +9,14 @@
     // Default scopes that should be checked by default
     const defaultScopes = ["openid", "profile", "email", "offline_access"];
 
-    // Check default scopes on page load
-    document.addEventListener("DOMContentLoaded", function() {
-        const checkboxes = scopesList.querySelectorAll('input[type="checkbox"]');
-        checkboxes.forEach(cb => {
+    // The script is loaded on every page; only the index has these controls.
+    if (scopesList) {
+        scopesList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
             if (defaultScopes.includes(cb.value)) {
                 cb.checked = true;
             }
         });
-    });
+    }
 
     function addCrossClient(value) {
         const trimmed = value.trim();
@@ -103,6 +102,48 @@
         }
     });
 
+    // Scope pickers on the flow forms take custom scopes too.
+    document.querySelectorAll(".add-custom-scope").forEach(function (btn) {
+        var wrap = btn.closest(".form-control");
+        var input = wrap && wrap.querySelector(".custom-scope-input");
+        var list = wrap && wrap.querySelector(".scopes-list");
+        if (!input || !list) return;
+
+        var add = function () {
+            var value = input.value.trim();
+            if (!value) return;
+
+            var existing = list.querySelector('input[value="' + value + '"]');
+            if (existing) {
+                existing.checked = true;
+            } else {
+                var item = document.createElement("div");
+                item.className = "scope-item";
+                var box = document.createElement("input");
+                box.type = "checkbox";
+                box.name = "scopes";
+                box.value = value;
+                box.checked = true;
+                box.id = "scope_custom_" + value;
+                var label = document.createElement("label");
+                label.htmlFor = box.id;
+                label.textContent = value;
+                item.append(box, label);
+                list.appendChild(item);
+            }
+            input.value = "";
+            input.focus();
+        };
+
+        btn.addEventListener("click", add);
+        input.addEventListener("keydown", function (e) {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                add();
+            }
+        });
+    });
+
     // Device Grant Login Handler
     const deviceGrantBtn = document.getElementById("device-grant-btn");
     deviceGrantBtn?.addEventListener("click", async () => {
@@ -147,8 +188,121 @@
             alert('Error starting device flow: ' + error.message);
         } finally {
             deviceGrantBtn.disabled = false;
-            deviceGrantBtn.textContent = "Device Code Flow";
+            deviceGrantBtn.textContent = "Device code";
         }
     });
 })();
 
+
+// JSON syntax highlighting. Claims and API responses are read, not skimmed:
+// telling a key from a value from a number is most of what makes a blob of
+// JSON legible at a glance.
+(function () {
+    function escapeHTML(text) {
+        return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function highlight(text) {
+        return escapeHTML(text).replace(
+            /("(\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\b\d+(\.\d+)?([eE][+-]?\d+)?\b)/g,
+            function (match) {
+                var cls = "json-number";
+                if (/^"/.test(match)) {
+                    cls = /:$/.test(match) ? "json-key" : "json-string";
+                } else if (/true|false/.test(match)) {
+                    cls = "json-boolean";
+                } else if (/null/.test(match)) {
+                    cls = "json-null";
+                }
+                return '<span class="' + cls + '">' + match + "</span>";
+            },
+        );
+    }
+
+    document.querySelectorAll("pre.json").forEach(function (el) {
+        var text = el.textContent;
+        try {
+            // Reject anything that is not JSON rather than colouring it wrongly:
+            // these blocks also carry error text from the provider.
+            JSON.parse(text);
+        } catch (e) {
+            return;
+        }
+        el.innerHTML = highlight(text);
+    });
+
+    // A JWT is three base64 segments; colouring the dots apart is enough to see
+    // where the header ends and the signature begins.
+    document.querySelectorAll("pre.token[data-jwt]").forEach(function (el) {
+        var parts = el.textContent.trim().split(".");
+        if (parts.length !== 3) return;
+        el.innerHTML =
+            '<span class="jwt-header">' + escapeHTML(parts[0]) + "</span>." +
+            '<span class="jwt-payload">' + escapeHTML(parts[1]) + "</span>." +
+            '<span class="jwt-signature">' + escapeHTML(parts[2]) + "</span>";
+    });
+})();
+
+// "Use my access token" and friends fill the field they sit under, so trying a
+// tool against a different one of your tokens is a click rather than a paste.
+document.querySelectorAll(".fill-token").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+        var control = btn.closest(".form-control");
+        var field = control && control.querySelector("textarea");
+        if (!field) return;
+        field.value = btn.getAttribute("data-token");
+        field.focus();
+    });
+});
+
+// List fields — redirect URIs, trusted peers, allowed connectors — are lists in
+// the API, so the form collects them as one value each rather than as lines of
+// text somebody has to split.
+document.querySelectorAll(".chip-add").forEach(function (btn) {
+    var control = btn.closest(".form-control");
+    var list = control && control.querySelector(".chips");
+    var input = control && control.querySelector(".chip-input");
+    if (!list || !input) return;
+
+    var add = function () {
+        var value = input.value.trim();
+        if (!value) return;
+
+        var chip = document.createElement("span");
+        chip.className = "chip";
+
+        var text = document.createElement("span");
+        text.textContent = value;
+
+        var hidden = document.createElement("input");
+        hidden.type = "hidden";
+        hidden.name = list.getAttribute("data-name");
+        hidden.value = value;
+
+        var remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "chip-remove";
+        remove.textContent = "×";
+        remove.addEventListener("click", function () { chip.remove(); });
+
+        chip.append(text, hidden, remove);
+        list.appendChild(chip);
+        input.value = "";
+        input.focus();
+    };
+
+    btn.addEventListener("click", add);
+    input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            add();
+        }
+    });
+});
+
+document.querySelectorAll(".chip-remove").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+        var chip = btn.closest(".chip");
+        if (chip) chip.remove();
+    });
+});

@@ -1,0 +1,227 @@
+{{define "content"}}
+<div class="card">
+    <div class="detail-head">
+        <div>
+            <div class="card-title">{{.Title}}</div>
+            <div class="hint">{{.Kind}}</div>
+        </div>
+        <a href="{{.BackURL}}" class="button button-secondary">Back</a>
+    </div>
+    {{if .Error}}<p class="verdict verdict-bad">{{.Error}}</p>{{end}}
+</div>
+
+{{with .Client}}
+<div class="card">
+    <div class="card-title">Client</div>
+    <div class="kv">
+        <div class="k">ID</div><div class="v mono">{{.ID}}</div>
+        <div class="k">Name</div><div class="v">{{if .Name}}{{.Name}}{{else}}<span class="hint">not set</span>{{end}}</div>
+        <div class="k">Type</div><div class="v">{{if .Public}}public — no secret{{else}}confidential{{end}}</div>
+        {{if .Secret}}<div class="k">Secret</div><div class="v mono">{{.Secret}}</div>{{end}}
+        <div class="k">Logo URL</div><div class="v mono">{{if .LogoURL}}{{.LogoURL}}{{else}}<span class="hint">not set</span>{{end}}</div>
+        <div class="k">Redirect URIs</div>
+        <div class="v mono">{{range .RedirectURIs}}{{.}}<br>{{else}}<span class="hint">none</span>{{end}}</div>
+        <div class="k">Trusted peers</div>
+        <div class="v mono">{{range .TrustedPeers}}{{.}}<br>{{else}}<span class="hint">none</span>{{end}}</div>
+        <div class="k">Allowed connectors</div>
+        <div class="v mono">{{range .AllowedConnectors}}{{.}}<br>{{else}}<span class="hint">all</span>{{end}}</div>
+        <div class="k">SSO shared with</div>
+        <div class="v mono">{{range .SSOSharedWith}}{{.}}<br>{{else}}<span class="hint">the sessions default</span>{{end}}</div>
+    </div>
+    <div class="form-actions">
+        <a href="/admin?section=clients&amp;mode=edit&amp;edit={{.ID}}" class="button button-primary">Edit</a>
+    </div>
+    <p class="note">
+        The API's UpdateClient does not carry a secret or the public flag, so
+        neither can be changed here: dex expects a client that needs a new secret
+        to be deleted and created again.
+    </p>
+</div>
+{{end}}
+
+{{with .Connector}}
+<div class="card">
+    <div class="card-title">Connector</div>
+    <div class="kv">
+        <div class="k">ID</div><div class="v mono">{{.ID}}</div>
+        <div class="k">Type</div><div class="v mono">{{.Type}}</div>
+        <div class="k">Name</div><div class="v">{{.Name}}</div>
+        <div class="k">Grant types</div>
+        <div class="v mono">{{range .GrantTypes}}{{.}}<br>{{else}}<span class="hint">unrestricted</span>{{end}}</div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-title">Configuration</div>
+    {{if .Config}}<pre class="json">{{.Config}}</pre>{{else}}<p class="hint">No configuration stored.</p>{{end}}
+</div>
+
+<div class="card">
+    <div class="card-title">UpdateConnector</div>
+    <form action="/admin/connector/update" method="post" class="form">
+        <input type="hidden" name="id" value="{{.ID}}">
+        <input type="hidden" name="back" value="/admin/connector/{{.ID}}">
+        <div class="form-row">
+            <label for="u_type">Type</label>
+            <div class="form-control"><input id="u_type" type="text" name="type" value="{{.Type}}" autocomplete="off"></div>
+        </div>
+        <div class="form-row">
+            <label for="u_name">Name</label>
+            <div class="form-control"><input id="u_name" type="text" name="name" value="{{.Name}}" autocomplete="off"></div>
+        </div>
+        <div class="form-row form-row--wide">
+            <label for="u_config">Config</label>
+            <div class="form-control">
+                <textarea id="u_config" name="config" rows="8">{{.Config}}</textarea>
+                <small class="hint">Left empty, the stored configuration is kept.</small>
+            </div>
+        </div>
+        <div class="form-row form-row--wide">
+            <label>Grant types</label>
+            <div class="form-control">
+                <select name="grant_mode">
+                    <option value="">Leave as they are</option>
+                    <option value="any">No restriction</option>
+                    <option value="restrict">Only those ticked</option>
+                </select>
+                <div class="scopes-list scopes-list--grid">
+                    {{range $g := $.ConnectorGrantTypes}}
+                    <div class="scope-item">
+                        <input type="checkbox" name="grant_types" value="{{$g.Value}}" id="cg_{{$g.Label}}">
+                        <label for="cg_{{$g.Label}}" title="{{$g.Value}}">{{$g.Label}}</label>
+                    </div>
+                    {{end}}
+                </div>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Update</button>
+            <a href="/admin?section=connectors" class="button button-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{{end}}
+
+{{with .Identity}}
+<div class="card">
+    <div class="card-title">Identity</div>
+    <div class="kv">
+        <div class="k">User ID</div><div class="v mono">{{.UserID}}</div>
+        <div class="k">Connector</div><div class="v mono">{{.ConnectorID}}</div>
+        <div class="k">Email</div><div class="v">{{.Email}}{{if .EmailVerified}} (verified){{else}} (not verified){{end}}</div>
+        <div class="k">Username</div><div class="v">{{if .Username}}{{.Username}}{{else}}<span class="hint">not set</span>{{end}}</div>
+        <div class="k">Groups</div>
+        <div class="v">{{range .Groups}}{{.}}<br>{{else}}<span class="hint">none</span>{{end}}</div>
+        {{if .Created}}<div class="k">First seen</div><div class="v">{{.Created}}</div>{{end}}
+        {{if .LastLogin}}<div class="k">Last sign-in</div><div class="v">{{.LastLogin}}</div>{{end}}
+    </div>
+    <p class="note">
+        None of this is editable: it is what the connector said about the user at
+        their last sign-in, and dex re-records it at the next one. For the local
+        connector, the entry behind it is on the Passwords tab.
+    </p>
+</div>
+
+<div class="card">
+    <div class="card-title">Consents</div>
+    {{if .Consents}}
+    <table class="table">
+        <tr><th>Client</th><th>Scopes</th><th class="actions-col"></th></tr>
+        {{range .Consents}}
+        <tr>
+            <td class="mono">{{.ClientID}}</td>
+            <td class="small">{{range .Scopes}}{{.}} {{end}}</td>
+            <td class="actions-col">
+                <div class="row-actions">
+                    <form action="/admin/consent/revoke" method="post">
+                        <input type="hidden" name="user_id" value="{{$.Identity.UserID}}">
+                        <input type="hidden" name="connector_id" value="{{$.Identity.ConnectorID}}">
+                        <input type="hidden" name="client_id" value="{{.ClientID}}">
+                        <input type="hidden" name="back" value="/admin/user/{{$.Identity.ConnectorID}}/{{$.Identity.UserID}}">
+                        <button type="submit" class="button button-small">Revoke</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {{end}}
+    </table>
+    <p class="hint">Revoking one puts the consent screen back in front of the user for that client.</p>
+    {{else}}
+    <p class="hint">Nothing approved yet, or the client skips the consent screen.</p>
+    {{end}}
+</div>
+
+<div class="card">
+    <div class="card-title">Multi-factor</div>
+    {{if .MFADevices}}
+    {{range .MFADevices}}
+    <div class="mfa-device">
+        <div class="subhead">{{.AuthenticatorID}}</div>
+        <div class="kv">
+            <div class="k">Secret</div><div class="v">{{if .HasSecret}}enrolled{{else}}<span class="hint">none</span>{{end}}</div>
+            <div class="k">Keys</div><div class="v">{{len .Credentials}}</div>
+        </div>
+
+        {{if .Credentials}}
+        <table class="table">
+            <tr><th>Key</th><th>Transport</th><th>Uses</th><th>Registered</th><th class="actions-col"></th></tr>
+            {{range .Credentials}}
+            <tr>
+                <td>
+                    {{if .DisplayName}}{{.DisplayName}}{{else}}<span class="hint">unnamed</span>{{end}}
+                    <div class="mono small hint">{{.ID}}</div>
+                </td>
+                <td class="small">{{range .Transport}}{{.}} {{else}}<span class="hint">unknown</span>{{end}}</td>
+                <td class="small">{{.SignCount}}</td>
+                <td class="small">{{.Created}}</td>
+                <td class="actions-col">
+                    <div class="row-actions">
+                        <form action="/admin/webauthn/delete" method="post">
+                            <input type="hidden" name="user_id" value="{{$.Identity.UserID}}">
+                            <input type="hidden" name="connector_id" value="{{$.Identity.ConnectorID}}">
+                            <input type="hidden" name="credential_id" value="{{.ID}}">
+                            <input type="hidden" name="back" value="/admin/user/{{$.Identity.ConnectorID}}/{{$.Identity.UserID}}">
+                            <button type="submit" class="button button-small">Delete</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {{end}}
+        </table>
+        {{end}}
+
+        {{if .HasSecret}}
+        <form action="/admin/mfa/secret/delete" method="post">
+            <input type="hidden" name="user_id" value="{{$.Identity.UserID}}">
+            <input type="hidden" name="connector_id" value="{{$.Identity.ConnectorID}}">
+            <input type="hidden" name="authenticator_id" value="{{.AuthenticatorID}}">
+            <input type="hidden" name="back" value="/admin/user/{{$.Identity.ConnectorID}}/{{$.Identity.UserID}}">
+            <div class="form-actions"><button type="submit" class="button button-small">Delete this secret</button></div>
+        </form>
+        {{end}}
+    </div>
+    {{end}}
+
+    <div class="mfa-reset">
+        <form action="/admin/mfa/reset" method="post">
+            <input type="hidden" name="user_id" value="{{.UserID}}">
+            <input type="hidden" name="connector_id" value="{{.ConnectorID}}">
+            <input type="hidden" name="back" value="/admin/user/{{.ConnectorID}}/{{.UserID}}">
+            <p class="hint">Clears every factor above at once; the user enrols again on their next sign-in.</p>
+            <div class="form-actions"><button type="submit" class="button">Reset all MFA</button></div>
+        </form>
+    </div>
+    {{else}}
+    <p class="hint">Nothing enrolled.</p>
+    {{end}}
+</div>
+
+<div class="card">
+    <div class="card-title">Sessions</div>
+    <p class="hint">Sessions and refresh tokens for this user are on the Sessions tab.</p>
+    <div class="form-actions">
+        <a href="/admin?section=sessions&amp;user_id={{.UserID}}&amp;connector_id={{.ConnectorID}}" class="button">Open them</a>
+    </div>
+</div>
+{{end}}
+{{end}}

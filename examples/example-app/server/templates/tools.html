@@ -1,0 +1,41 @@
+{{define "content"}}
+<div class="card">
+    <div class="card-title">Token tools</div>
+    <p class="hint">
+        Two of these answer questions that sound alike and are not:
+        introspection asks dex whether it still honours a token, verification checks
+        the signature and lifetime for yourself. A revoked token passes verification
+        and fails introspection.
+    </p>
+    <ul class="flows">
+        <li class="flow">
+            <div class="flow-text">
+                <div class="flow-name">Introspection</div>
+                <div class="flow-desc">Ask dex whether a token is still active.</div>
+            </div>
+            <a href="/tools/introspect" class="button">Open</a>
+        </li>
+        <li class="flow">
+            <div class="flow-text">
+                <div class="flow-name">Local verification</div>
+                <div class="flow-desc">Check a JWT's signature and claims against the issuer's keys.</div>
+            </div>
+            <a href="/tools/verify" class="button">Open</a>
+        </li>
+        <li class="flow">
+            <div class="flow-text">
+                <div class="flow-name">UserInfo</div>
+                <div class="flow-desc">Fetch claims with an access token.</div>
+            </div>
+            <a href="/tools/userinfo" class="button">Open</a>
+        </li>
+        <li class="flow">
+            <div class="flow-text">
+                <div class="flow-name">Refresh</div>
+                <div class="flow-desc">Redeem a refresh token for a new set.</div>
+            </div>
+            <a href="/grant/refresh" class="button">Open</a>
+        </li>
+    </ul>
+</div>
+{{end}}

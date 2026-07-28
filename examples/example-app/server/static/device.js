@@ -1,5 +1,4 @@
 (function() {
-    const sessionID = document.getElementById("session-id")?.value;
     const deviceCode = document.getElementById("device-code")?.value;
     const pollInterval = parseInt(document.getElementById("poll-interval")?.value || "5", 10);
     const verificationURL = document.getElementById("verification-url")?.textContent;
@@ -9,28 +8,6 @@
     const openAuthBtn = document.getElementById("open-auth-btn");
 
     let pollTimer = null;
-
-    document.querySelectorAll(".copy-btn").forEach(btn => {
-        btn.addEventListener("click", async function() {
-            const targetId = this.getAttribute("data-copy");
-            const targetElement = document.getElementById(targetId);
-
-            if (targetElement) {
-                const textToCopy = targetElement.textContent;
-
-                try {
-                    await navigator.clipboard.writeText(textToCopy);
-                    const originalText = this.textContent;
-                    this.textContent = "✓";
-                    setTimeout(() => {
-                        this.textContent = originalText;
-                    }, 2000);
-                } catch (err) {
-                    console.error('Failed to copy:', err);
-                }
-            }
-        });
-    });
 
     openAuthBtn?.addEventListener("click", () => {
         if (verificationURL && userCode) {
@@ -46,10 +23,7 @@
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    session_id: sessionID,
-                    device_code: deviceCode
-                })
+                body: JSON.stringify({device_code: deviceCode})
             });
 
             const data = await response.json();
@@ -63,8 +37,8 @@
             } else {
                 const errorText = data.error_description || data.error || 'Unknown error';
 
-                if (data.error === 'session_expired') {
-                    showError('This session has been superseded by a new device flow. Please start over.');
+                if (data.error === 'no_device_flow') {
+                    showError('This browser has no device flow in progress. Start one from the home page.');
                     stopPolling();
                 } else if (data.error === 'expired_token' || data.error === 'access_denied') {
                     showError(data.error === 'expired_token' ?

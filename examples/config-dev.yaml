@@ -80,8 +80,8 @@ telemetry:
 
 # Uncomment this block to enable the gRPC API. This values MUST be different
 # from the HTTP endpoints.
-# grpc:
-#   addr: 127.0.0.1:5557
+grpc:
+  addr: 127.0.0.1:5557
 #   tlsCert: examples/grpc-client/server.crt
 #   tlsKey: examples/grpc-client/server.key
 #   tlsClientCA: examples/grpc-client/ca.crt
@@ -99,10 +99,15 @@ telemetry:
 
 # Authentication sessions configuration.
 # Requires DEX_SESSIONS_ENABLED=true feature flag.
-# sessions:
-#   cookieName: "dex_session"
-#   absoluteLifetime: "24h"
-#   validIfNotUsedFor: "1h"
+#
+# Enabled here so that single sign-on works out of the box: without it every
+# authorization is a fresh login, the home page has no session to describe, and
+# prompt=none requests — how a client asks whether you are still signed in —
+# always answer no.
+sessions:
+  cookieName: "dex_session"
+  absoluteLifetime: "24h"
+  validIfNotUsedFor: "1h"
 #   rememberMeCheckedByDefault: false
 #   # Default SSO sharing policy for clients without explicit ssoSharedWith.
 #   # "all" = share with all clients (Keycloak-like), "none" = no sharing (default).
@@ -112,6 +117,23 @@ telemetry:
 # logger:
 #   level: "debug"
 #   format: "text" # can also be "json"
+
+# Enabled so the example app can exercise the grants dex implements. The
+# password grant needs passwordConnector to name the connector that checks it;
+# without that it is refused however the grant types are listed.
+oauth2:
+  # Listed explicitly so none of them depends on a default: the example app
+  # draws a flow only when the provider advertises the grant behind it.
+  grantTypes:
+    - "authorization_code"
+    - "refresh_token"
+    - "client_credentials"
+    - "urn:ietf:params:oauth:grant-type:device_code"
+    - "urn:ietf:params:oauth:grant-type:token-exchange"
+    - "password"
+  # The password grant is refused without this: dex needs to know which
+  # connector checks the password.
+  passwordConnector: local
 
 # Default values shown below
 # oauth2:

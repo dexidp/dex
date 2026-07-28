@@ -1,0 +1,613 @@
+{{define "content"}}
+<div class="card">
+    <div class="card-title">dex gRPC API</div>
+    <p class="hint">
+        The API that manages dex itself. It is a separate endpoint from the OpenID
+        Connect one, and tokens from that one do not authenticate against it.
+    </p>
+    <div class="kv">
+        {{if .Version}}<div class="k">Server</div><div class="v mono">{{.Version}}</div>{{end}}
+        {{if .Issuer}}<div class="k">Issuer</div><div class="v mono">{{.Issuer}}</div>{{end}}
+    </div>
+    {{if .Notice}}<p class="verdict">{{.Notice}}</p>{{end}}
+    {{if .Error}}<p class="verdict verdict-bad">{{.Error}}</p>{{end}}
+</div>
+
+{{if not .Configured}}
+<div class="card">
+    <div class="card-title">Not connected</div>
+    <p class="hint">This app was started without a gRPC address, so it has nothing to talk to. Two things are needed.</p>
+
+    <div class="form-row form-row--wide">
+        <label>In dex</label>
+        <div class="form-control">
+            <pre class="code">grpc:
+  addr: 127.0.0.1:5557</pre>
+            <small class="hint">Plaintext is fine on a loopback address; add tlsCert, tlsKey and tlsClientCA for anything else.</small>
+        </div>
+    </div>
+
+    <div class="form-row form-row--wide">
+        <label>In this app</label>
+        <div class="form-control">
+            <pre class="code">--grpc-addr 127.0.0.1:5557</pre>
+            <small class="hint">With certificates: --grpc-ca, --grpc-client-cert and --grpc-client-key.</small>
+        </div>
+    </div>
+</div>
+{{else}}
+
+<div class="card">
+    <nav class="tabs">
+        {{range .Sections}}
+        <a href="/admin?section={{.ID}}" class="tab{{if .Current}} tab--current{{end}}">{{.Label}}</a>
+        {{end}}
+    </nav>
+
+    {{if eq .Section "clients"}}
+    {{if .Clients}}
+    <table class="table">
+        <tr><th>ID</th><th>Name</th><th>Redirects</th><th class="actions-col"></th></tr>
+        {{range .Clients}}
+        <tr>
+            <td><a href="/admin/client/{{.ID}}" class="mono">{{.ID}}</a>{{if .Public}} <span class="tag">public</span>{{end}}</td>
+            <td>{{.Name}}</td>
+            <td class="small">{{len .RedirectURIs}}</td>
+            <td class="actions-col">
+                <div class="row-actions">
+                    <a href="/admin/client/{{.ID}}" class="button button-small">Open</a>
+                    <form action="/admin/client/delete" method="post">
+                        <input type="hidden" name="section" value="clients">
+                        <input type="hidden" name="id" value="{{.ID}}">
+                        <button type="submit" class="button button-small">Delete</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {{end}}
+    </table>
+    {{else}}
+    <p class="hint">ListClients returns nothing. Clients from a static config are not stored, and so are not listed.</p>
+    {{end}}
+
+    {{if not .Mode}}
+    <div class="form-actions">
+        <a href="/admin?section=clients&amp;mode=create" class="button button-primary">Create a client</a>
+    </div>
+    {{end}}
+
+    {{if eq .Mode "create"}}
+    <div class="subhead">CreateClient</div>
+    <form action="/admin/client/create" method="post" class="form">
+        <input type="hidden" name="section" value="clients">
+        <div class="form-row">
+            <label for="c_id">Client ID <span class="req" title="required">*</span></label>
+            <div class="form-control"><input id="c_id" type="text" name="id" required autocomplete="off"></div>
+        </div>
+        <div class="form-row">
+            <label for="c_name">Name</label>
+            <div class="form-control"><input id="c_name" type="text" name="name" autocomplete="off"></div>
+        </div>
+        <div class="form-row">
+            <label for="c_secret">Secret</label>
+            <div class="form-control">
+                <input id="c_secret" type="text" name="secret" autocomplete="off">
+                <small class="hint">Leave empty for a public client.</small>
+            </div>
+        </div>
+        <div class="form-row">
+            <label for="c_logo">Logo URL</label>
+            <div class="form-control"><input id="c_logo" type="text" name="logo_url" autocomplete="off"></div>
+        </div>
+        <div class="form-row form-row--wide">
+            <label for="redirect_uris_input">Redirect URIs</label>
+            <div class="form-control">
+                <div class="chips" data-name="redirect_uris">
+                </div>
+                <div class="inline-input">
+                    <input type="text" id="redirect_uris_input" class="chip-input" autocomplete="off">
+                    <button type="button" class="button button-small chip-add">Add</button>
+                </div>
+                <small class="hint">Where dex may send the browser back to.</small>
+            </div>
+        </div>
+        <div class="form-row form-row--wide">
+            <label for="trusted_peers_input">Trusted peers</label>
+            <div class="form-control">
+                <div class="chips" data-name="trusted_peers">
+                </div>
+                <div class="inline-input">
+                    <input type="text" id="trusted_peers_input" class="chip-input" autocomplete="off">
+                    <button type="button" class="button button-small chip-add">Add</button>
+                </div>
+                <small class="hint">Clients allowed to ask for tokens with this one as the audience.</small>
+            </div>
+        </div>
+        <div class="form-row form-row--wide">
+            <label for="allowed_connectors_input">Allowed connectors</label>
+            <div class="form-control">
+                <div class="chips" data-name="allowed_connectors">
+                </div>
+                <div class="inline-input">
+                    <input type="text" id="allowed_connectors_input" class="chip-input" autocomplete="off">
+                    <button type="button" class="button button-small chip-add">Add</button>
+                </div>
+                <small class="hint">Empty means every connector.</small>
+            </div>
+        </div>
+        <div class="form-row form-row--wide">
+            <label for="sso_shared_with_input">SSO shared with</label>
+            <div class="form-control">
+                <div class="chips" data-name="sso_shared_with">
+                </div>
+                <div class="inline-input">
+                    <input type="text" id="sso_shared_with_input" class="chip-input" autocomplete="off">
+                    <button type="button" class="button button-small chip-add">Add</button>
+                </div>
+                <small class="hint">Which clients may reuse this one's session. * for all.</small>
+            </div>
+        </div>
+        <div class="form-row">
+            <label for="c_public">Public</label>
+            <div class="form-control">
+                <label class="checkbox"><input id="c_public" type="checkbox" name="public" value="1"> no client secret</label>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Create</button>
+            <a href="/admin?section=clients" class="button button-secondary">Cancel</a>
+        </div>
+    </form>
+    {{end}}
+
+    {{with .EditClient}}
+    <div class="subhead">UpdateClient — {{.ID}}</div>
+    <form action="/admin/client/update" method="post" class="form">
+        <input type="hidden" name="section" value="clients">
+        <input type="hidden" name="id" value="{{.ID}}">
+        <div class="form-row">
+            <label for="cu_name">Name</label>
+            <div class="form-control">
+                <input id="cu_name" type="text" name="name" value="{{.Name}}" autocomplete="off">
+                <small class="hint">Fields left empty stay as they are.</small>
+            </div>
+        </div>
+        <div class="form-row">
+            <label for="cu_logo">Logo URL</label>
+            <div class="form-control"><input id="cu_logo" type="text" name="logo_url" value="{{.LogoURL}}" autocomplete="off"></div>
+        </div>
+        <div class="form-row form-row--wide">
+            <label for="redirect_uris_input">Redirect URIs</label>
+            <div class="form-control">
+                <div class="chips" data-name="redirect_uris">
+                {{range .RedirectURIs}}<span class="chip"><span>{{.}}</span><input type="hidden" name="redirect_uris" value="{{.}}"><button type="button" class="chip-remove">&times;</button></span>{{end}}
+                </div>
+                <div class="inline-input">
+                    <input type="text" id="redirect_uris_input" class="chip-input" autocomplete="off">
+                    <button type="button" class="button button-small chip-add">Add</button>
+                </div>
+                <small class="hint">Where dex may send the browser back to.</small>
+            </div>
+        </div>
+        <div class="form-row form-row--wide">
+            <label for="trusted_peers_input">Trusted peers</label>
+            <div class="form-control">
+                <div class="chips" data-name="trusted_peers">
+                {{range .TrustedPeers}}<span class="chip"><span>{{.}}</span><input type="hidden" name="trusted_peers" value="{{.}}"><button type="button" class="chip-remove">&times;</button></span>{{end}}
+                </div>
+                <div class="inline-input">
+                    <input type="text" id="trusted_peers_input" class="chip-input" autocomplete="off">
+                    <button type="button" class="button button-small chip-add">Add</button>
+                </div>
+                <small class="hint">Clients allowed to ask for tokens with this one as the audience.</small>
+            </div>
+        </div>
+        <div class="form-row form-row--wide">
+            <label for="allowed_connectors_input">Allowed connectors</label>
+            <div class="form-control">
+                <div class="chips" data-name="allowed_connectors">
+                {{range .AllowedConnectors}}<span class="chip"><span>{{.}}</span><input type="hidden" name="allowed_connectors" value="{{.}}"><button type="button" class="chip-remove">&times;</button></span>{{end}}
+                </div>
+                <div class="inline-input">
+                    <input type="text" id="allowed_connectors_input" class="chip-input" autocomplete="off">
+                    <button type="button" class="button button-small chip-add">Add</button>
+                </div>
+                <small class="hint">Empty means every connector.</small>
+            </div>
+        </div>
+        <div class="form-row form-row--wide">
+            <label for="sso_shared_with_input">SSO shared with</label>
+            <div class="form-control">
+                <div class="chips" data-name="sso_shared_with">
+                {{range .SSOSharedWith}}<span class="chip"><span>{{.}}</span><input type="hidden" name="sso_shared_with" value="{{.}}"><button type="button" class="chip-remove">&times;</button></span>{{end}}
+                </div>
+                <div class="inline-input">
+                    <input type="text" id="sso_shared_with_input" class="chip-input" autocomplete="off">
+                    <button type="button" class="button button-small chip-add">Add</button>
+                </div>
+                <small class="hint">Which clients may reuse this one's session. * for all.</small>
+            </div>
+        </div>
+        <p class="note">
+            UpdateClient carries no secret and no public flag, so neither can be
+            changed: dex expects a client that needs a new secret to be replaced.
+        </p>
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Update</button>
+            <a href="/admin?section=clients" class="button button-secondary">Cancel</a>
+        </div>
+    </form>
+    {{end}}
+    {{end}}
+
+    {{if eq .Section "passwords"}}
+    {{if .Passwords}}
+    <table class="table">
+        <tr><th>Email</th><th>Username</th><th>User ID</th><th class="actions-col"></th></tr>
+        {{range .Passwords}}
+        <tr>
+            <td class="mono">{{.Email}}</td>
+            <td>{{.Username}}</td>
+            <td class="mono small">{{.UserID}}</td>
+            <td class="actions-col">
+                <div class="row-actions">
+                    <a href="/admin?section=passwords&amp;mode=edit&amp;edit={{.Email}}" class="button button-small">Edit</a>
+                    <form action="/admin/password/delete" method="post">
+                        <input type="hidden" name="section" value="passwords">
+                        <input type="hidden" name="email" value="{{.Email}}">
+                        <button type="submit" class="button button-small">Delete</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {{end}}
+    </table>
+    {{else}}
+    <p class="hint">ListPasswords returns nothing. Users from staticPasswords are not stored, and so are not listed.</p>
+    {{end}}
+
+    {{if not .Mode}}
+    <div class="form-actions">
+        <a href="/admin?section=passwords&amp;mode=create" class="button button-primary">Create a password</a>
+        <a href="/admin?section=passwords&amp;mode=verify" class="button">Verify a password</a>
+    </div>
+    {{end}}
+
+    {{if eq .Mode "create"}}
+    <div class="subhead">CreatePassword</div>
+    <form action="/admin/password/create" method="post" class="form">
+        <input type="hidden" name="section" value="passwords">
+        <div class="form-row">
+            <label for="p_email">Email <span class="req" title="required">*</span></label>
+            <div class="form-control"><input id="p_email" type="email" name="email" required autocomplete="off"></div>
+        </div>
+        <div class="form-row">
+            <label for="p_username">Username</label>
+            <div class="form-control"><input id="p_username" type="text" name="username" autocomplete="off"></div>
+        </div>
+        <div class="form-row">
+            <label for="p_userid">User ID</label>
+            <div class="form-control">
+                <input id="p_userid" type="text" name="user_id" autocomplete="off">
+                <small class="hint">What the connector calls this user; the sub claim is built from it.</small>
+            </div>
+        </div>
+        <div class="form-row">
+            <label for="p_password">Password <span class="req" title="required">*</span></label>
+            <div class="form-control">
+                <input id="p_password" type="password" name="password" required autocomplete="off">
+                <small class="hint">The API takes a bcrypt hash; this page hashes what you type.</small>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Create</button>
+            <a href="/admin?section=passwords" class="button button-secondary">Cancel</a>
+        </div>
+    </form>
+    {{end}}
+
+    {{with .EditPassword}}
+    <div class="subhead">UpdatePassword — {{.Email}}</div>
+    <form action="/admin/password/update" method="post" class="form">
+        <input type="hidden" name="section" value="passwords">
+        <input type="hidden" name="email" value="{{.Email}}">
+        <div class="form-row">
+            <label for="pu_username">Username</label>
+            <div class="form-control"><input id="pu_username" type="text" name="username" value="{{.Username}}" autocomplete="off"></div>
+        </div>
+        <div class="form-row">
+            <label for="pu_password">New password</label>
+            <div class="form-control">
+                <input id="pu_password" type="password" name="password" autocomplete="off">
+                <small class="hint">Leave empty to change only the username.</small>
+            </div>
+        </div>
+        <p class="note">
+            A password entry holds four things and no more: email, username, user
+            ID and the hash. UpdatePassword carries only the username and the hash,
+            and looks the entry up by its email — so the email and the user ID are
+            fixed once created. Claims like groups are not stored here at all; they
+            come from the connector.
+        </p>
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Update</button>
+            <a href="/admin?section=passwords" class="button button-secondary">Cancel</a>
+        </div>
+    </form>
+    {{end}}
+
+    {{if eq .Mode "verify"}}
+    <div class="subhead">VerifyPassword</div>
+    <form action="/admin/password/verify" method="post" class="form">
+        <input type="hidden" name="section" value="passwords">
+        <div class="form-row">
+            <label for="pv_email">Email <span class="req" title="required">*</span></label>
+            <div class="form-control"><input id="pv_email" type="email" name="email" required autocomplete="off"></div>
+        </div>
+        <div class="form-row">
+            <label for="pv_password">Password <span class="req" title="required">*</span></label>
+            <div class="form-control">
+                <input id="pv_password" type="password" name="password" required autocomplete="off">
+                <small class="hint">Checks a password without issuing anything.</small>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Verify</button>
+            <a href="/admin?section=passwords" class="button button-secondary">Cancel</a>
+        </div>
+    </form>
+    {{end}}
+    {{end}}
+
+    {{if eq .Section "connectors"}}
+    {{if .Connectors}}
+    <table class="table">
+        <tr><th>ID</th><th>Type</th><th>Name</th><th class="actions-col"></th></tr>
+        {{range .Connectors}}
+        <tr>
+            <td><a href="/admin/connector/{{.ID}}" class="mono">{{.ID}}</a></td>
+            <td class="mono small">{{.Type}}</td>
+            <td>{{.Name}}</td>
+            <td class="actions-col">
+                <div class="row-actions">
+                    <a href="/admin/connector/{{.ID}}" class="button button-small">Open</a>
+                    <form action="/admin/connector/delete" method="post">
+                        <input type="hidden" name="section" value="connectors">
+                        <input type="hidden" name="id" value="{{.ID}}">
+                        <button type="submit" class="button button-small">Delete</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {{end}}
+    </table>
+    {{else}}
+    <p class="hint">ListConnectors returns nothing. Connectors from the config file are not stored, and so are not listed.</p>
+    {{end}}
+
+    {{if not .Mode}}
+    <div class="form-actions">
+        <a href="/admin?section=connectors&amp;mode=create" class="button button-primary">Create a connector</a>
+        <a href="/admin?section=connectors&amp;mode=terminate" class="button">Terminate a connector's sessions</a>
+    </div>
+    {{end}}
+
+    {{if eq .Mode "terminate"}}
+    <div class="subhead">TerminateSessionsByConnector</div>
+    <form action="/admin/session/terminate-connector" method="post" class="form">
+        <input type="hidden" name="section" value="connectors">
+        <input type="hidden" name="back" value="/admin?section=connectors">
+        <div class="form-row">
+            <label for="tc_conn">Connector <span class="req" title="required">*</span></label>
+            <div class="form-control">
+                <input id="tc_conn" type="text" name="connector_id" required autocomplete="off">
+                <small class="hint">Ends every session that came through it, for every user — for a connector being retired or one you no longer trust.</small>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Terminate</button>
+            <a href="/admin?section=connectors" class="button button-secondary">Cancel</a>
+        </div>
+    </form>
+    {{end}}
+
+    {{if eq .Mode "create"}}
+    <div class="subhead">CreateConnector</div>
+    <form action="/admin/connector/create" method="post" class="form">
+        <input type="hidden" name="section" value="connectors">
+        <div class="form-row">
+            <label for="n_id">ID <span class="req" title="required">*</span></label>
+            <div class="form-control"><input id="n_id" type="text" name="id" required autocomplete="off"></div>
+        </div>
+        <div class="form-row">
+            <label for="n_type">Type <span class="req" title="required">*</span></label>
+            <div class="form-control">
+                <select id="n_type" name="type" required>
+                    {{range $.ConnectorTypes}}<option value="{{.}}">{{.}}</option>{{end}}
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <label for="n_name">Name <span class="req" title="required">*</span></label>
+            <div class="form-control"><input id="n_name" type="text" name="name" required autocomplete="off"></div>
+        </div>
+        <div class="form-row form-row--wide">
+            <label for="n_config">Config</label>
+            <div class="form-control">
+                <textarea id="n_config" name="config" rows="5" placeholder='{"issuer": "https://accounts.google.com", "clientID": "..."}'></textarea>
+                <small class="hint">The connector's own JSON configuration — the same keys the config file takes for this type.</small>
+            </div>
+        </div>
+        <div class="form-row form-row--wide">
+            <label>Grant types</label>
+            <div class="form-control">
+                <div class="scopes-list scopes-list--grid">
+                    {{range $.ConnectorGrantTypes}}
+                    <div class="scope-item">
+                        <input type="checkbox" name="grant_types" value="{{.Value}}" id="ng_{{.Label}}">
+                        <label for="ng_{{.Label}}" title="{{.Value}}">{{.Label}}</label>
+                    </div>
+                    {{end}}
+                </div>
+                <small class="hint">Nothing ticked leaves the connector unrestricted.</small>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Create</button>
+            <a href="/admin?section=connectors" class="button button-secondary">Cancel</a>
+        </div>
+    </form>
+    {{end}}
+    {{end}}
+
+    {{if eq .Section "identities"}}
+    {{if .Identities}}
+    <table class="table">
+        <tr><th>User</th><th>Connector</th><th>Groups</th><th>MFA</th><th class="actions-col"></th></tr>
+        {{range .Identities}}
+        <tr>
+            <td>
+                <a href="/admin/user/{{.ConnectorID}}/{{.UserID}}">{{if .Email}}{{.Email}}{{else}}{{.UserID}}{{end}}</a>
+                <div class="mono small hint">{{.UserID}}</div>
+            </td>
+            <td class="mono small">{{.ConnectorID}}</td>
+            <td class="small">{{len .Groups}}</td>
+            <td class="small">{{len .MFADevices}}</td>
+            <td class="actions-col">
+                <div class="row-actions">
+                    <a href="/admin/user/{{.ConnectorID}}/{{.UserID}}" class="button button-small">Open</a>
+                </div>
+            </td>
+        </tr>
+        {{end}}
+    </table>
+    <p class="hint">
+        Counts rather than contents: a user with forty groups would otherwise be the
+        whole table. Everything about one — claims, consents, factors — is on its page.
+    </p>
+    {{else}}
+    <p class="hint">
+        ListUserIdentities returns nothing. An identity appears once someone signs
+        in through a connector — and the method itself needs dex started with
+        <code>DEX_API_SESSIONS_IDENTITIES_CRUD=true</code>.
+    </p>
+    {{end}}
+    {{end}}
+
+    {{if eq .Section "discovery"}}
+    <p class="hint">What dex reports about itself through GetDiscovery.</p>
+    <table class="table">
+        {{range .Endpoints}}
+        <tr><td class="mono small meta-name">{{.Name}}</td><td class="mono small">{{.Value}}</td></tr>
+        {{end}}
+        {{range .Capabilities}}
+        <tr>
+            <td class="mono small meta-name">{{.Name}}</td>
+            <td class="mono small">{{range .Values}}{{.}}<br>{{end}}</td>
+        </tr>
+        {{end}}
+    </table>
+    {{end}}
+
+    {{if eq .Section "sessions"}}
+    <p class="hint">
+        Pick a user from the Users tab, or name one here. Sessions are keyed by the
+        ID the connector gave the user; refresh tokens by the sub claim, which the
+        app derives from that ID and the connector. Listing sessions needs dex
+        started with <code>DEX_API_SESSIONS_IDENTITIES_CRUD=true</code>.
+    </p>
+    <form action="/admin" method="get" class="form">
+        <input type="hidden" name="section" value="sessions">
+        <div class="form-row">
+            <label for="s_user">User ID</label>
+            <div class="form-control"><input id="s_user" type="text" name="user_id" value="{{.UserID}}" autocomplete="off"></div>
+        </div>
+        <div class="form-row">
+            <label for="s_conn">Connector</label>
+            <div class="form-control">
+                <input id="s_conn" type="text" name="connector_id" value="{{.ConnectorID}}" autocomplete="off">
+                <small class="hint">Needed for the refresh tokens.</small>
+            </div>
+        </div>
+        <div class="form-actions"><button type="submit" class="button button-primary">List</button></div>
+    </form>
+
+    {{if .UserID}}
+    <div class="subhead">Sessions</div>
+    {{if .Sessions}}
+    <table class="table">
+        <tr><th>Connector</th><th>From</th><th>Started</th><th>Expires</th><th class="actions-col"></th></tr>
+        {{range .Sessions}}
+        <tr>
+            <td class="mono small">{{.ConnectorID}}</td>
+            <td class="mono small">{{.IPAddress}}</td>
+            <td class="small">{{.Created}}</td>
+            <td class="small">{{.Expires}}</td>
+            <td class="actions-col">
+                <div class="row-actions">
+                    <form action="/admin/session/delete" method="post">
+                        <input type="hidden" name="section" value="sessions">
+                        <input type="hidden" name="list_user_id" value="{{$.UserID}}">
+                        <input type="hidden" name="list_connector_id" value="{{$.ConnectorID}}">
+                        <input type="hidden" name="user_id" value="{{.UserID}}">
+                        <input type="hidden" name="connector_id" value="{{.ConnectorID}}">
+                        <button type="submit" class="button button-small">Delete</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {{end}}
+    </table>
+    {{else}}
+    <p class="hint">No sessions for this user.</p>
+    {{end}}
+    {{end}}
+
+    {{if and .UserID .ConnectorID}}
+    <div class="subhead">Refresh tokens</div>
+    {{if .RefreshTokens}}
+    <table class="table">
+        <tr><th>Client</th><th>Created</th><th>Last used</th><th class="actions-col"></th></tr>
+        {{range .RefreshTokens}}
+        <tr>
+            <td class="mono">{{.ClientID}}</td>
+            <td class="small">{{.Created}}</td>
+            <td class="small">{{.LastUsed}}</td>
+            <td class="actions-col">
+                <div class="row-actions">
+                    <form action="/admin/refresh/revoke" method="post">
+                        <input type="hidden" name="section" value="sessions">
+                        <input type="hidden" name="list_user_id" value="{{$.UserID}}">
+                        <input type="hidden" name="list_connector_id" value="{{$.ConnectorID}}">
+                        <input type="hidden" name="user_id" value="{{$.UserID}}">
+                        <input type="hidden" name="connector_id" value="{{$.ConnectorID}}">
+                        <input type="hidden" name="client_id" value="{{.ClientID}}">
+                        <button type="submit" class="button button-small">Revoke</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {{end}}
+    </table>
+    <p class="hint">Revoke one, then let this app refresh: the sign-in ends. That is the pair worth trying together.</p>
+    {{else}}
+    <p class="hint">No refresh tokens for this user. They are issued only when offline_access is requested.</p>
+    {{end}}
+    {{end}}
+
+    {{if .UserID}}
+    <div class="subhead">TerminateSessionsByUser</div>
+    <form action="/admin/session/terminate" method="post" class="form">
+        <input type="hidden" name="section" value="sessions">
+        <input type="hidden" name="list_user_id" value="{{.UserID}}">
+        <input type="hidden" name="list_connector_id" value="{{.ConnectorID}}">
+        <input type="hidden" name="user_id" value="{{.UserID}}">
+        <p class="hint">Ends every session this user has, whatever connector they came through.</p>
+        <div class="form-actions"><button type="submit" class="button">Terminate all sessions</button></div>
+    </form>
+    {{end}}
+
+    {{end}}
+</div>
+{{end}}
+{{end}}

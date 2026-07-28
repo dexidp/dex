@@ -1,0 +1,52 @@
+{{define "content"}}
+<div class="card">
+    <div class="card-title">{{.Title}}</div>
+    {{if .Description}}<p class="hint">{{.Description}}</p>{{end}}
+    {{if .Note}}<p class="note">{{.Note}}</p>{{end}}
+
+    <form action="{{.Action}}" method="post" class="form">
+        {{range .Fields}}
+        <div class="form-row{{if .Wide}} form-row--wide{{end}}">
+            <label for="f_{{.Name}}">{{.Label}}{{if .Required}} <span class="req" title="required">*</span>{{end}}</label>
+            <div class="form-control">
+                {{if eq .Type "scopes"}}
+                <div class="scopes-list">
+                    {{range .Options}}
+                    <div class="scope-item">
+                        <input type="checkbox" name="scopes" value="{{.Value}}" id="scope_{{.Value}}"{{if .Selected}} checked{{end}}>
+                        <label for="scope_{{.Value}}">{{.Value}}</label>
+                    </div>
+                    {{end}}
+                </div>
+                <div class="inline-input">
+                    <input type="text" class="custom-scope-input" placeholder="custom-scope">
+                    <button type="button" class="button button-small add-custom-scope">Add</button>
+                </div>
+                {{else if eq .Type "textarea"}}
+                <textarea id="f_{{.Name}}" name="{{.Name}}" rows="4" placeholder="{{.Placeholder}}"{{if .Required}} required{{end}}>{{.Value}}</textarea>
+                {{if .Options}}
+                <div class="row">
+                    {{range .Options}}
+                    <button type="button" class="button button-small fill-token" data-token="{{.Value}}">Use my {{.Label}}</button>
+                    {{end}}
+                </div>
+                {{end}}
+                {{else if eq .Type "select"}}
+                <select id="f_{{.Name}}" name="{{.Name}}">
+                    {{range .Options}}<option value="{{.Value}}">{{.Label}}</option>{{end}}
+                </select>
+                {{else}}
+                <input id="f_{{.Name}}" type="{{.Type}}" name="{{.Name}}" value="{{.Value}}" placeholder="{{.Placeholder}}" autocomplete="off"{{if .Required}} required{{end}}>
+                {{end}}
+                {{if .Hint}}<small class="hint">{{.Hint}}</small>{{end}}
+            </div>
+        </div>
+        {{end}}
+
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">{{.Submit}}</button>
+            <a href="/" class="button button-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{{end}}
