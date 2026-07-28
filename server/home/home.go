@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/router"
@@ -58,12 +59,24 @@ func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 		data.UserAgent = session.UserAgent
 		data.SessionExpiresEpoch, data.SessionExpiryIsIdle = sessionExpiry(session)
 		h.populateData(ctx, &data, session.UserID, session.ConnectorID)
+		data.LastLoginText = utcText(data.LastLoginEpoch)
+		data.SessionExpiresText = utcText(data.SessionExpiresEpoch)
 	}
 
 	if err := h.Templates.Home(r, w, data); err != nil {
 		h.Logger.ErrorContext(ctx, "failed to render home template", "err", err)
 		h.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 	}
+}
+
+// utcText renders an epoch for readers whose browser will not run the page's
+// script, which otherwise restates these times in the local timezone. Without
+// it those rows are an em dash. Empty for 0, which drops the row entirely.
+func utcText(epoch int64) string {
+	if epoch == 0 {
+		return ""
+	}
+	return time.Unix(epoch, 0).UTC().Format("2 Jan 2006, 15:04 UTC")
 }
 
 // sessionExpiry reports when the session ends: the earlier of its absolute

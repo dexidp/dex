@@ -23,13 +23,13 @@
     {{ if .LastLoginEpoch }}
     <div class="dex-fact">
       <dt>Last sign-in</dt>
-      <dd><time id="last-login" datetime="{{ .LastLoginEpoch }}">&mdash;</time></dd>
+      <dd><time datetime="{{ .LastLoginEpoch }}">{{ .LastLoginText }}</time></dd>
     </div>
     {{ end }}
     {{ if .SessionExpiresEpoch }}
     <div class="dex-fact">
       <dt>{{ if .SessionExpiryIsIdle }}Expires if idle{{ else }}Session ends{{ end }}</dt>
-      <dd><time id="session-expires" datetime="{{ .SessionExpiresEpoch }}">&mdash;</time></dd>
+      <dd><time datetime="{{ .SessionExpiresEpoch }}">{{ .SessionExpiresText }}</time></dd>
     </div>
     {{ end }}
     {{ if .IPAddress }}
@@ -48,8 +48,8 @@
 
   {{ if .Groups }}
   <div class="dex-groups-block">
-    <div class="dex-groups-block__label">Groups <span class="dex-fact__count">{{ len .Groups }}</span></div>
-    <ul class="dex-groups" tabindex="0">
+    <div class="dex-groups-block__label" id="groups-label">Groups <span class="dex-count">{{ len .Groups }}</span></div>
+    <ul class="dex-groups" tabindex="0" aria-labelledby="groups-label">
       {{ range .Groups }}<li>{{ . }}</li>{{ end }}
     </ul>
   </div>
@@ -60,7 +60,7 @@
   </div>
   {{ else }}
   <div class="dex-home__empty">
-    <div class="dex-home__empty-title">Not signed in</div>
+    <h2 class="dex-home__empty-title">Not signed in</h2>
     <p class="dex-home__empty-text">
       This is the dex identity provider. Sign in from the application you want to use.
     </p>
@@ -87,6 +87,9 @@
       };
       syncFade();
       groups.addEventListener('scroll', syncFade, {passive: true});
+      // A narrower window wraps long group names onto more lines, so whether
+      // the list overflows is not settled once at load.
+      window.addEventListener('resize', syncFade, {passive: true});
     }
 
     // The server sends Unix seconds; render them in the visitor's own timezone.

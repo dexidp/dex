@@ -166,7 +166,6 @@ body {
   --dex-home-fg: var(--dex-fg, #1a1a1a);
   --dex-home-muted: var(--dex-fg-muted, #6b7280);
   --dex-home-border: var(--dex-border, #e8eaed);
-  --dex-home-subtle: var(--dex-surface-subtle, #f4f5f7);
   --dex-home-accent: var(--dex-accent, #2f6fb0);
 
   color: var(--dex-home-fg);
@@ -201,7 +200,7 @@ body {
   color: var(--dex-home-fg);
 }
 
-.dex-fact__count {
+.dex-count {
   font-variant-numeric: tabular-nums;
   opacity: 0.75;
 }
@@ -223,12 +222,9 @@ body {
   font-size: 13px;
   margin-bottom: 6px;
 }
+
 .dex-groups {
-  /* The one place the page changes face. A group is an identifier you compare
-   * against something else, and a column of them lines up character for
-   * character in monospace. Single values elsewhere gain nothing from it. */
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.6;
   list-style: none;
   margin: 0;
