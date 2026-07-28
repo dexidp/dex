@@ -57,9 +57,12 @@ func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 		data.LoggedIn = true
 		data.IPAddress = session.IPAddress
 		data.UserAgent = session.UserAgent
+		if !session.CreatedAt.IsZero() {
+			data.SignedInEpoch = session.CreatedAt.Unix()
+		}
 		data.SessionExpiresEpoch, data.SessionExpiryIsIdle = sessionExpiry(session)
 		h.populateData(ctx, &data, session.UserID, session.ConnectorID)
-		data.LastLoginText = utcText(data.LastLoginEpoch)
+		data.SignedInText = utcText(data.SignedInEpoch)
 		data.SessionExpiresText = utcText(data.SessionExpiresEpoch)
 	}
 
@@ -127,9 +130,6 @@ func (h *Handler) populateData(ctx context.Context, data *templates.HomeData, us
 	data.Email = ui.Claims.Email
 	data.EmailVerified = ui.Claims.EmailVerified
 	data.Groups = ui.Claims.Groups
-	if !ui.LastLogin.IsZero() {
-		data.LastLoginEpoch = ui.LastLogin.Unix()
-	}
 
 	conn, err := h.Storage.GetConnector(ctx, connectorID)
 	if err == nil {

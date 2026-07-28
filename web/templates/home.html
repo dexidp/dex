@@ -20,10 +20,10 @@
       <dd>{{ .ConnectorName }}</dd>
     </div>
     {{ end }}
-    {{ if .LastLoginEpoch }}
+    {{ if .SignedInEpoch }}
     <div class="dex-fact">
-      <dt>Last sign-in</dt>
-      <dd><time datetime="{{ .LastLoginEpoch }}">{{ .LastLoginText }}</time></dd>
+      <dt>Signed in</dt>
+      <dd><time datetime="{{ .SignedInEpoch }}">{{ .SignedInText }}</time></dd>
     </div>
     {{ end }}
     {{ if .SessionExpiresEpoch }}
@@ -34,7 +34,7 @@
     {{ end }}
     {{ if .IPAddress }}
     <div class="dex-fact">
-      <dt>IP address</dt>
+      <dt>Signed in from</dt>
       <dd>{{ .IPAddress }}</dd>
     </div>
     {{ end }}

@@ -3,6 +3,7 @@ package server
 import (
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -50,11 +51,17 @@ func TestHomeLoggedIn(t *testing.T) {
 	nonce := "testnonce"
 	now := time.Now()
 
+	// The identity's last login is deliberately later than this session's start:
+	// the page reports the session it is describing, not the last time the same
+	// user signed in somewhere else.
+	sessionStart := now.Add(-3 * time.Hour)
+	lastLogin := now.Add(-5 * time.Minute)
+
 	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
 		UserID:       userID,
 		ConnectorID:  connectorID,
 		Nonce:        nonce,
-		CreatedAt:    now,
+		CreatedAt:    sessionStart,
 		LastActivity: now,
 	}))
 
@@ -69,7 +76,7 @@ func TestHomeLoggedIn(t *testing.T) {
 			EmailVerified:     true,
 			Groups:            []string{"admins", "devs"},
 		},
-		LastLogin: now,
+		LastLogin: lastLogin,
 	}))
 
 	req := httptest.NewRequest("GET", "/", nil)
@@ -92,6 +99,12 @@ func TestHomeLoggedIn(t *testing.T) {
 	require.Contains(t, body, "devs")
 	require.Contains(t, body, ".well-known/openid-configuration")
 	require.NotContains(t, body, "Not signed in")
+
+	// Both the machine-readable epoch and the text a reader without JavaScript
+	// sees have to be the session's start.
+	require.Contains(t, body, strconv.FormatInt(sessionStart.Unix(), 10))
+	require.Contains(t, body, sessionStart.UTC().Format("2 Jan 2006, 15:04 UTC"))
+	require.NotContains(t, body, strconv.FormatInt(lastLogin.Unix(), 10))
 }
 
 func TestHomeInvalidCookie(t *testing.T) {

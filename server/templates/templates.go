@@ -384,12 +384,16 @@ type HomeData struct {
 	EmailVerified bool
 	Groups        []string
 	ConnectorName string
-	// LastLoginEpoch and SessionExpiresEpoch are Unix seconds, restated in the
+	// SignedInEpoch and SessionExpiresEpoch are Unix seconds, restated in the
 	// visitor's timezone by the page's script. Zero means the row is omitted.
 	// The matching Text fields hold the UTC rendering the page shows until (or
 	// unless) that script runs.
-	LastLoginEpoch      int64
-	LastLoginText       string
+	//
+	// SignedInEpoch is when this session began, not the identity's last login:
+	// the page describes one session, and the identity's last login moves when
+	// the same user signs in from somewhere else entirely.
+	SignedInEpoch       int64
+	SignedInText        string
 	SessionExpiresEpoch int64
 	SessionExpiresText  string
 	// SessionExpiryIsIdle says SessionExpiresEpoch is the idle timeout rather
