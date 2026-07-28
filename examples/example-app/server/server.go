@@ -180,7 +180,9 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("POST /device/poll", s.handleDevicePoll)
 	mux.HandleFunc("GET /device/result", s.handleDeviceComplete)
 
-	// Grants that need no browser redirect.
+	// Grants that need no browser redirect: a page for the parameters, and the
+	// endpoint the page posts to.
+	mux.HandleFunc("GET /grant/{grant}", s.handleGrantForm)
 	mux.HandleFunc("POST /grant/refresh", s.handleRefreshGrant)
 	mux.HandleFunc("POST /grant/client-credentials", s.handleClientCredentialsGrant)
 	mux.HandleFunc("POST /grant/password", s.handlePasswordGrant)
@@ -188,12 +190,15 @@ func (s *Server) routes() http.Handler {
 
 	// Tools for looking at a token you already hold.
 	mux.HandleFunc("GET /tools", s.handleTools)
+	mux.HandleFunc("GET /tools/{tool}", s.handleToolForm)
 	mux.HandleFunc("POST /tools/introspect", s.handleIntrospect)
 	mux.HandleFunc("POST /tools/verify", s.handleVerify)
 	mux.HandleFunc("POST /userinfo", s.handleUserInfo)
 
+	// The page is always served; without a gRPC address it says what to pass to
+	// get the rest of it.
+	mux.HandleFunc("GET /admin", s.handleAdmin)
 	if s.admin != nil {
-		mux.HandleFunc("GET /admin", s.handleAdmin)
 		mux.HandleFunc("POST /admin/client/create", s.handleAdminCreateClient)
 		mux.HandleFunc("POST /admin/client/delete", s.handleAdminDeleteClient)
 		mux.HandleFunc("POST /admin/password/create", s.handleAdminCreatePassword)

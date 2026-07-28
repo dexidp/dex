@@ -317,3 +317,130 @@ textarea {
         grid-template-columns: minmax(0, 1fr);
     }
 }
+
+/* Flow lists. The front page offers flows, not their parameters: six grants'
+   worth of inputs on one screen is a wall with no way to tell which fields
+   belong together, and most of them are irrelevant to what you came to do. */
+.flows {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.flow {
+    align-items: center;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 16px;
+    justify-content: space-between;
+    padding: 12px 0;
+}
+
+.flow:first-child {
+    border-top: 0;
+    padding-top: 0;
+}
+
+.flow-text {
+    min-width: 0;
+}
+
+.flow-name {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.flow-desc {
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.flow form {
+    margin: 0;
+}
+
+/* Forms. One label column, so every field on a page lines up whatever its
+   control is. */
+.form {
+    margin-top: 16px;
+}
+
+.form-row {
+    display: grid;
+    gap: 4px 16px;
+    grid-template-columns: 150px minmax(0, 1fr);
+    margin-bottom: 14px;
+}
+
+.form-row > label {
+    font-size: 13px;
+    font-weight: 600;
+    padding-top: 8px;
+}
+
+/* Tokens and lists get the full width; identifiers do not need it. */
+.form-row--wide {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.form-row--wide > label {
+    padding-top: 0;
+}
+
+.form-control {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-width: 420px;
+}
+
+.form-row--wide .form-control {
+    max-width: none;
+}
+
+.form-control .hint {
+    margin: 0;
+}
+
+.form-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.req {
+    color: var(--muted);
+    font-weight: 400;
+}
+
+.subhead {
+    border-top: 1px solid var(--border);
+    font-size: 14px;
+    font-weight: 600;
+    margin-top: 16px;
+    padding-top: 16px;
+}
+
+.note {
+    background: #fff8e6;
+    border-left: 3px solid #d9a441;
+    font-size: 13px;
+    margin: 12px 0;
+    padding: 8px 12px;
+}
+
+@media (max-width: 560px) {
+    .form-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .form-row > label {
+        padding-top: 0;
+    }
+
+    .flow {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 8px;
+    }
+}

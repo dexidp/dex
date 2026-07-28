@@ -1,129 +1,136 @@
 {{define "content"}}
 {{if .User}}
 <div class="card">
-    <div class="card-title">Signed in to this application</div>
+    <div class="card-title">Signed in</div>
     <div class="kv">
-        {{if .User.PreferredUsername}}<div class="k">Username</div><div class="v">{{.User.PreferredUsername}}</div>{{end}}
         {{if .User.Name}}<div class="k">Name</div><div class="v">{{.User.Name}}</div>{{end}}
         {{if .User.Email}}<div class="k">Email</div><div class="v">{{.User.Email}}</div>{{end}}
         <div class="k">Subject</div><div class="v mono">{{.User.Subject}}</div>
         {{with .Token}}
         <div class="k">Access token</div><div class="v mono">{{.AccessToken}}</div>
-        {{if .Expiry}}<div class="k">Expires</div><div class="v">{{.Expiry}}{{if .Expired}} — expired, will be refreshed{{end}}</div>{{end}}
-        <div class="k">Refresh token</div><div class="v">{{if .RefreshToken}}held{{else}}none — request the offline_access scope{{end}}</div>
+        {{if .Expiry}}<div class="k">Expires</div><div class="v">{{.Expiry}}{{if .Expired}} — expired, refreshing on next load{{end}}</div>{{end}}
+        <div class="k">Refresh token</div><div class="v">{{if .RefreshToken}}held{{else}}none — request offline_access to get one{{end}}</div>
         {{end}}
     </div>
-    <div class="row">
-        <a href="/tools" class="button">Inspect these tokens</a>
+    <div class="form-actions">
+        <a href="/tools" class="button">Inspect tokens</a>
         <a href="/logout" class="button button-secondary">Log out</a>
     </div>
     {{if .SessionCheck}}
-    <p class="hint">This page re-checks the provider every {{.SessionCheck}} with a prompt=none request, so signing out of dex elsewhere ends this session too.</p>
+    <p class="hint">Re-checked with the provider every {{.SessionCheck}} using prompt=none, so signing out of dex elsewhere ends this session too.</p>
     {{end}}
 </div>
 {{else}}
 <div class="card">
     <div class="card-title">Not signed in</div>
     <p class="hint">
-        This is the example application for the <b>Dex</b> OpenID Connect provider.
-        Start a flow below, or read the <a href="https://dexidp.io/docs/" target="_blank" rel="noopener">documentation</a>.
+        The example client for <b>dex</b>. Pick a flow to run it and see what comes back.
+        Configuration for each one is in the
+        <a href="https://github.com/dexidp/dex/blob/master/examples/example-app/README.md" target="_blank" rel="noopener">README</a>.
     </p>
 </div>
 {{end}}
 
 <div class="card">
-    <div class="card-title">Browser flows</div>
-    <form id="login-form" action="/login" method="post">
-        <div class="row">
-            <button type="submit" class="button button-primary">Authorization code{{if .PKCE}} + PKCE{{end}}</button>
-            {{if .DeviceSupported}}
-            <button type="button" id="device-grant-btn" class="button button-primary">Device code</button>
-            {{end}}
-        </div>
-        <details class="advanced">
-            <summary>Request options</summary>
-            <div class="field">
-                <label>Scopes</label>
-                <small class="hint">openid is always requested. offline_access is what gets you a refresh token.</small>
+    <div class="card-title">Flows through the browser</div>
+    <ul class="flows">
+        <li class="flow">
+            <div class="flow-text">
+                <div class="flow-name">Authorization code{{if .PKCE}} with PKCE{{end}}</div>
+                <div class="flow-desc">The one web applications use. Redirects to dex and comes back with a code.</div>
+            </div>
+            <form action="/login" method="post" id="login-form">
+                <button type="submit" class="button button-primary">Run</button>
+            </form>
+        </li>
+        {{if .DeviceSupported}}
+        <li class="flow">
+            <div class="flow-text">
+                <div class="flow-name">Device code</div>
+                <div class="flow-desc">For input-constrained devices: shows a code to type in elsewhere while this page polls.</div>
+            </div>
+            <button type="button" id="device-grant-btn" class="button button-primary">Run</button>
+        </li>
+        {{end}}
+    </ul>
+
+    <details class="advanced">
+        <summary>Authorization request options</summary>
+        <p class="hint">These apply to both flows above.</p>
+        <div class="form-row form-row--wide">
+            <label>Scopes</label>
+            <div class="form-control">
                 <div class="scopes-list" id="scopes-list">
                     {{range .ScopesSupported}}
                     <div class="scope-item">
-                        <input type="checkbox" name="extra_scopes" value="{{.}}" id="scope_{{.}}">
+                        <input type="checkbox" name="extra_scopes" value="{{.}}" id="scope_{{.}}" form="login-form">
                         <label for="scope_{{.}}">{{.}}</label>
                     </div>
                     {{end}}
                 </div>
                 {{if eq (len .ScopesSupported) 0}}
-                <div class="hint">The provider advertises no scopes — add them by hand.</div>
+                <small class="hint">The provider advertises no scopes — add them by hand.</small>
                 {{end}}
                 <div class="inline-input">
                     <input type="text" id="custom_scope_input" placeholder="custom-scope">
-                    <button type="button" id="add-custom-scope" class="button button-small">Add scope</button>
+                    <button type="button" id="add-custom-scope" class="button button-small">Add</button>
                 </div>
+                <small class="hint">openid is always requested. offline_access is what gets you a refresh token.</small>
             </div>
-            <div class="field">
-                <label for="cross_client_input">Cross-client audiences</label>
-                <small class="hint">Each one is sent as audience:server:client_id:&lt;id&gt;, which asks dex to issue a token another client will accept.</small>
+        </div>
+        <div class="form-row">
+            <label for="cross_client_input">Cross-client audience</label>
+            <div class="form-control">
                 <div id="cross-client-list"></div>
                 <div class="inline-input">
                     <input type="text" id="cross_client_input" placeholder="other-client-id">
                     <button type="button" id="add-cross-client" class="button button-small">Add</button>
                 </div>
+                <small class="hint">Sent as audience:server:client_id:&lt;id&gt;, which asks dex for a token another client will accept.</small>
             </div>
-            <div class="field">
-                <label for="connector_id">Connector</label>
-                <small class="hint">Skips the connector selection screen.</small>
-                <input type="text" id="connector_id" name="connector_id" placeholder="connector id">
+        </div>
+        <div class="form-row">
+            <label for="connector_id">Connector</label>
+            <div class="form-control">
+                <input type="text" id="connector_id" name="connector_id" placeholder="connector id" form="login-form">
+                <small class="hint">Skips dex's connector selection screen.</small>
             </div>
-        </details>
-    </form>
+        </div>
+    </details>
 </div>
 
 <div class="card">
-    <div class="card-title">Direct grants</div>
-    <p class="hint">These need no browser redirect. Each one asks the token endpoint directly.</p>
-
-    <form action="/grant/client-credentials" method="post" class="stack">
-        <div class="field">
-            <label for="cc_scopes">Client credentials</label>
-            <small class="hint">A token for this application itself. No user, and so no ID token.</small>
-            <input type="text" id="cc_scopes" name="scopes" placeholder="scopes (optional)">
-        </div>
-        <button type="submit" class="button">Request token</button>
-    </form>
-
-    <form action="/grant/password" method="post" class="stack">
-        <div class="field">
-            <label for="pw_username">Password grant</label>
-            <small class="hint">
-                Deprecated: the password goes through this application instead of staying at the provider.
-                dex allows it only for clients and connectors configured for it.
-            </small>
-            <input type="text" id="pw_username" name="username" placeholder="username or email" autocomplete="off">
-            <input type="password" name="password" placeholder="password" autocomplete="off">
-            <input type="text" name="scopes" placeholder="scopes (optional)">
-        </div>
-        <button type="submit" class="button">Request token</button>
-    </form>
-
-    <form action="/grant/token-exchange" method="post" class="stack">
-        <div class="field">
-            <label for="te_subject">Token exchange</label>
-            <small class="hint">RFC 8693. Trades a token issued by a connector for one issued by dex; the connector verifies it, so connector_id is required.</small>
-            <textarea id="te_subject" name="subject_token" rows="3" placeholder="subject token"></textarea>
-            <input type="text" name="connector_id" placeholder="connector id">
-            <select name="subject_token_type">
-                <option value="urn:ietf:params:oauth:token-type:access_token">subject is an access token</option>
-                <option value="urn:ietf:params:oauth:token-type:id_token">subject is an ID token</option>
-            </select>
-            <select name="requested_token_type">
-                <option value="">request the default (access token)</option>
-                <option value="urn:ietf:params:oauth:token-type:id_token">request an ID token</option>
-                <option value="urn:ietf:params:oauth:token-type:access_token">request an access token</option>
-            </select>
-            <input type="text" name="scopes" placeholder="scopes (optional)">
-        </div>
-        <button type="submit" class="button">Exchange</button>
-    </form>
+    <div class="card-title">Flows without a browser</div>
+    <p class="hint">These call the token endpoint directly. Each one asks for its own parameters.</p>
+    <ul class="flows">
+        <li class="flow">
+            <div class="flow-text">
+                <div class="flow-name">Client credentials</div>
+                <div class="flow-desc">A token for this application itself, with no user involved.</div>
+            </div>
+            <a href="/grant/client-credentials" class="button">Open</a>
+        </li>
+        <li class="flow">
+            <div class="flow-text">
+                <div class="flow-name">Refresh</div>
+                <div class="flow-desc">Redeems a refresh token for a new set.</div>
+            </div>
+            <a href="/grant/refresh" class="button">Open</a>
+        </li>
+        <li class="flow">
+            <div class="flow-text">
+                <div class="flow-name">Token exchange</div>
+                <div class="flow-desc">RFC 8693. Trades a token from a connector for one issued by dex.</div>
+            </div>
+            <a href="/grant/token-exchange" class="button">Open</a>
+        </li>
+        <li class="flow">
+            <div class="flow-text">
+                <div class="flow-name">Password <span class="tag">deprecated</span></div>
+                <div class="flow-desc">Sends a username and password to the token endpoint.</div>
+            </div>
+            <a href="/grant/password" class="button">Open</a>
+        </li>
+    </ul>
 </div>
 {{end}}

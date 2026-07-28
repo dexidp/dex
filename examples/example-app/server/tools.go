@@ -14,21 +14,10 @@ import (
 
 // handleTools renders the page for looking at tokens you already hold.
 func (s *Server) handleTools(w http.ResponseWriter, r *http.Request) {
-	sess := s.session(w, r)
-
-	data := ToolsPageData{
+	s.renderer.RenderToolsPage(w, ToolsPageData{
 		LogoURI:      dexLogoDataURI,
 		AdminEnabled: s.admin != nil,
-	}
-	if sess.SignedIn() && sess.Token != nil {
-		// Pre-fill with what this browser is holding, so the tools are one
-		// click rather than a copy-paste away.
-		data.AccessToken = sess.Token.AccessToken
-		data.IDToken = sess.IDToken
-		data.RefreshToken = sess.Token.RefreshToken
-	}
-
-	s.renderer.RenderToolsPage(w, data)
+	})
 }
 
 // handleIntrospect asks the provider what it thinks of a token.

@@ -1,0 +1,32 @@
+{{define "content"}}
+<div class="card">
+    <div class="card-title">{{.Title}}</div>
+    {{if .Description}}<p class="hint">{{.Description}}</p>{{end}}
+    {{if .Note}}<p class="note">{{.Note}}</p>{{end}}
+
+    <form action="{{.Action}}" method="post" class="form">
+        {{range .Fields}}
+        <div class="form-row{{if .Wide}} form-row--wide{{end}}">
+            <label for="f_{{.Name}}">{{.Label}}{{if .Required}} <span class="req" title="required">*</span>{{end}}</label>
+            <div class="form-control">
+                {{if eq .Type "textarea"}}
+                <textarea id="f_{{.Name}}" name="{{.Name}}" rows="4" placeholder="{{.Placeholder}}"{{if .Required}} required{{end}}>{{.Value}}</textarea>
+                {{else if eq .Type "select"}}
+                <select id="f_{{.Name}}" name="{{.Name}}">
+                    {{range .Options}}<option value="{{.Value}}">{{.Label}}</option>{{end}}
+                </select>
+                {{else}}
+                <input id="f_{{.Name}}" type="{{.Type}}" name="{{.Name}}" value="{{.Value}}" placeholder="{{.Placeholder}}" autocomplete="off"{{if .Required}} required{{end}}>
+                {{end}}
+                {{if .Hint}}<small class="hint">{{.Hint}}</small>{{end}}
+            </div>
+        </div>
+        {{end}}
+
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">{{.Submit}}</button>
+            <a href="/" class="button button-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{{end}}

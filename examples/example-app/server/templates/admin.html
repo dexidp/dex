@@ -3,13 +3,36 @@
     <div class="card-title">dex gRPC API</div>
     <p class="hint">
         The API that manages dex itself: clients, local passwords and refresh tokens.
-        It is a separate endpoint from the OpenID Connect one, and this page is only
-        present because the app was started with --grpc-addr.
+        It is a separate endpoint from the OpenID Connect one.
     </p>
     {{if .Version}}<div class="kv"><div class="k">Server</div><div class="v mono">{{.Version}}</div></div>{{end}}
     {{if .Notice}}<p class="verdict">{{.Notice}}</p>{{end}}
     {{if .Error}}<p class="verdict verdict-bad">{{.Error}}</p>{{end}}
 </div>
+
+{{if not .Configured}}
+<div class="card">
+    <div class="card-title">Not connected</div>
+    <p class="hint">This app was started without a gRPC address, so it has nothing to talk to. Two things are needed.</p>
+
+    <div class="form-row form-row--wide">
+        <label>In dex</label>
+        <div class="form-control">
+            <pre class="json">grpc:
+  addr: 127.0.0.1:5557</pre>
+            <small class="hint">Plaintext is fine on a loopback address; add tlsCert, tlsKey and tlsClientCA for anything else.</small>
+        </div>
+    </div>
+
+    <div class="form-row form-row--wide">
+        <label>In this app</label>
+        <div class="form-control">
+            <pre class="json">go run ./examples/example-app --grpc-addr 127.0.0.1:5557</pre>
+            <small class="hint">With certificates: --grpc-ca, --grpc-client-cert and --grpc-client-key.</small>
+        </div>
+    </div>
+</div>
+{{else}}
 
 <div class="card">
     <div class="card-title">Clients</div>
@@ -34,16 +57,39 @@
     <p class="hint">The API reports no clients. Clients from a static config are not listed here.</p>
     {{end}}
 
-    <form action="/admin/client/create" method="post" class="stack">
-        <div class="field">
-            <label>Create a client</label>
-            <input type="text" name="id" placeholder="client id" required>
-            <input type="text" name="name" placeholder="name">
-            <input type="text" name="secret" placeholder="secret (leave empty for a public client)">
-            <textarea name="redirect_uris" rows="2" placeholder="redirect URIs, one per line"></textarea>
-            <label class="checkbox"><input type="checkbox" name="public" value="1"> public client</label>
+    <div class="subhead">Create a client</div>
+    <form action="/admin/client/create" method="post" class="form">
+        <div class="form-row">
+            <label for="c_id">Client ID <span class="req" title="required">*</span></label>
+            <div class="form-control"><input id="c_id" type="text" name="id" required autocomplete="off"></div>
         </div>
-        <button type="submit" class="button button-primary">Create client</button>
+        <div class="form-row">
+            <label for="c_name">Name</label>
+            <div class="form-control"><input id="c_name" type="text" name="name" autocomplete="off"></div>
+        </div>
+        <div class="form-row">
+            <label for="c_secret">Secret</label>
+            <div class="form-control">
+                <input id="c_secret" type="text" name="secret" autocomplete="off">
+                <small class="hint">Leave empty for a public client.</small>
+            </div>
+        </div>
+        <div class="form-row form-row--wide">
+            <label for="c_uris">Redirect URIs</label>
+            <div class="form-control">
+                <textarea id="c_uris" name="redirect_uris" rows="2"></textarea>
+                <small class="hint">One per line.</small>
+            </div>
+        </div>
+        <div class="form-row">
+            <label for="c_public">Public</label>
+            <div class="form-control">
+                <label class="checkbox"><input id="c_public" type="checkbox" name="public" value="1"> no client secret</label>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Create client</button>
+        </div>
     </form>
 </div>
 
@@ -70,16 +116,33 @@
     <p class="hint">No passwords in storage. Users from staticPasswords are not listed here.</p>
     {{end}}
 
-    <form action="/admin/password/create" method="post" class="stack">
-        <div class="field">
-            <label>Create a password</label>
-            <small class="hint">The API takes a bcrypt hash; this page hashes what you type.</small>
-            <input type="email" name="email" placeholder="email" required>
-            <input type="text" name="username" placeholder="username">
-            <input type="text" name="user_id" placeholder="user id">
-            <input type="password" name="password" placeholder="password" autocomplete="off" required>
+    <div class="subhead">Create a password</div>
+    <form action="/admin/password/create" method="post" class="form">
+        <div class="form-row">
+            <label for="p_email">Email <span class="req" title="required">*</span></label>
+            <div class="form-control"><input id="p_email" type="email" name="email" required autocomplete="off"></div>
         </div>
-        <button type="submit" class="button button-primary">Create password</button>
+        <div class="form-row">
+            <label for="p_username">Username</label>
+            <div class="form-control"><input id="p_username" type="text" name="username" autocomplete="off"></div>
+        </div>
+        <div class="form-row">
+            <label for="p_userid">User ID</label>
+            <div class="form-control">
+                <input id="p_userid" type="text" name="user_id" autocomplete="off">
+                <small class="hint">The sub claim tokens for this user will carry.</small>
+            </div>
+        </div>
+        <div class="form-row">
+            <label for="p_password">Password <span class="req" title="required">*</span></label>
+            <div class="form-control">
+                <input id="p_password" type="password" name="password" required autocomplete="off">
+                <small class="hint">The API takes a bcrypt hash; this page hashes what you type.</small>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Create password</button>
+        </div>
     </form>
 </div>
 
@@ -89,10 +152,22 @@
         Ends a user's offline access to one client. Try it against your own session:
         revoke, then let this app refresh, and the sign-in is over.
     </p>
-    <form action="/admin/refresh/revoke" method="post" class="stack">
-        <input type="text" name="user_id" placeholder="user id (the sub claim)" required>
-        <input type="text" name="client_id" placeholder="client id" required>
-        <button type="submit" class="button button-primary">Revoke</button>
+    <form action="/admin/refresh/revoke" method="post" class="form">
+        <div class="form-row">
+            <label for="r_user">User ID <span class="req" title="required">*</span></label>
+            <div class="form-control">
+                <input id="r_user" type="text" name="user_id" required autocomplete="off">
+                <small class="hint">The sub claim from the token.</small>
+            </div>
+        </div>
+        <div class="form-row">
+            <label for="r_client">Client ID <span class="req" title="required">*</span></label>
+            <div class="form-control"><input id="r_client" type="text" name="client_id" required autocomplete="off"></div>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Revoke</button>
+        </div>
     </form>
 </div>
+{{end}}
 {{end}}

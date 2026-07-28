@@ -111,9 +111,6 @@ type DevicePageData struct {
 type ToolsPageData struct {
 	LogoURI      string
 	AdminEnabled bool
-	AccessToken  string
-	IDToken      string
-	RefreshToken string
 }
 
 // ResultPageData holds the output of a tool.
@@ -140,10 +137,14 @@ type AdminPassword struct {
 	UserID   string
 }
 
-// AdminPageData holds data for the gRPC API page.
+// AdminPageData holds data for the gRPC API page. Configured is false when the
+// app was started without --grpc-addr: the page still exists and says what to
+// pass, because a feature that is simply absent reads as a feature that is
+// missing.
 type AdminPageData struct {
 	LogoURI      string
 	AdminEnabled bool
+	Configured   bool
 	Version      string
 	Notice       string
 	Error        string
@@ -157,6 +158,7 @@ type Renderer interface {
 	RenderTokenPage(w http.ResponseWriter, data TokenPageData)
 	RenderDevicePage(w http.ResponseWriter, data DevicePageData)
 	RenderToolsPage(w http.ResponseWriter, data ToolsPageData)
+	RenderFormPage(w http.ResponseWriter, data FormPageData)
 	RenderResultPage(w http.ResponseWriter, data ResultPageData)
 	RenderAdminPage(w http.ResponseWriter, data AdminPageData)
 }
@@ -167,6 +169,7 @@ type templateRenderer struct {
 	token  *template.Template
 	device *template.Template
 	tools  *template.Template
+	form   *template.Template
 	result *template.Template
 	admin  *template.Template
 }
@@ -186,6 +189,7 @@ func newTemplateRenderer() Renderer {
 		token:  parse("token.html"),
 		device: parse("device.html"),
 		tools:  parse("tools.html"),
+		form:   parse("form.html"),
 		result: parse("result.html"),
 		admin:  parse("admin.html"),
 	}
@@ -205,6 +209,10 @@ func (r *templateRenderer) RenderDevicePage(w http.ResponseWriter, data DevicePa
 
 func (r *templateRenderer) RenderToolsPage(w http.ResponseWriter, data ToolsPageData) {
 	renderTemplate(w, r.tools, data)
+}
+
+func (r *templateRenderer) RenderFormPage(w http.ResponseWriter, data FormPageData) {
+	renderTemplate(w, r.form, data)
 }
 
 func (r *templateRenderer) RenderResultPage(w http.ResponseWriter, data ResultPageData) {

@@ -72,8 +72,16 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 	data := AdminPageData{
 		LogoURI:      dexLogoDataURI,
 		AdminEnabled: true,
+		Configured:   s.admin != nil,
 		Notice:       r.URL.Query().Get("notice"),
 		Error:        r.URL.Query().Get("error"),
+	}
+
+	// Without --grpc-addr the page explains itself rather than 404ing, which is
+	// how you find out the feature exists at all.
+	if s.admin == nil {
+		s.renderer.RenderAdminPage(w, data)
+		return
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)

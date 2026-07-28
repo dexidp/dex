@@ -1,48 +1,41 @@
 {{define "content"}}
 <div class="card">
-    <div class="card-title">Introspection</div>
+    <div class="card-title">Token tools</div>
     <p class="hint">
-        Asks dex what it thinks of a token. This is the only way to learn that a token
-        has been revoked: a revoked token still has a valid signature.
+        Two of these answer questions that sound alike and are not:
+        introspection asks dex whether it still honours a token, verification checks
+        the signature and lifetime for yourself. A revoked token passes verification
+        and fails introspection.
     </p>
-    <form action="/tools/introspect" method="post" class="stack">
-        <textarea name="token" rows="4" placeholder="token">{{.AccessToken}}</textarea>
-        <select name="token_type_hint">
-            <option value="access_token">access_token</option>
-            <option value="refresh_token">refresh_token</option>
-            <option value="">no hint</option>
-        </select>
-        <button type="submit" class="button button-primary">Introspect</button>
-    </form>
-</div>
-
-<div class="card">
-    <div class="card-title">Local verification</div>
-    <p class="hint">
-        Checks the signature against the issuer's published keys and reads the claims,
-        the way a resource server would. It says nothing about revocation.
-    </p>
-    <form action="/tools/verify" method="post" class="stack">
-        <textarea name="token" rows="4" placeholder="JWT">{{.IDToken}}</textarea>
-        <button type="submit" class="button button-primary">Verify</button>
-    </form>
-</div>
-
-<div class="card">
-    <div class="card-title">UserInfo</div>
-    <p class="hint">Calls the provider's UserInfo endpoint with an access token.</p>
-    <form action="/userinfo" method="post" class="stack">
-        <textarea name="access_token" rows="4" placeholder="access token">{{.AccessToken}}</textarea>
-        <button type="submit" class="button button-primary">Call UserInfo</button>
-    </form>
-</div>
-
-<div class="card">
-    <div class="card-title">Refresh</div>
-    <p class="hint">Redeems a refresh token for a new set of tokens.</p>
-    <form action="/grant/refresh" method="post" class="stack">
-        <textarea name="refresh_token" rows="3" placeholder="refresh token">{{.RefreshToken}}</textarea>
-        <button type="submit" class="button button-primary">Redeem</button>
-    </form>
+    <ul class="flows">
+        <li class="flow">
+            <div class="flow-text">
+                <div class="flow-name">Introspection</div>
+                <div class="flow-desc">Ask dex whether a token is still active.</div>
+            </div>
+            <a href="/tools/introspect" class="button">Open</a>
+        </li>
+        <li class="flow">
+            <div class="flow-text">
+                <div class="flow-name">Local verification</div>
+                <div class="flow-desc">Check a JWT's signature and claims against the issuer's keys.</div>
+            </div>
+            <a href="/tools/verify" class="button">Open</a>
+        </li>
+        <li class="flow">
+            <div class="flow-text">
+                <div class="flow-name">UserInfo</div>
+                <div class="flow-desc">Fetch claims with an access token.</div>
+            </div>
+            <a href="/tools/userinfo" class="button">Open</a>
+        </li>
+        <li class="flow">
+            <div class="flow-text">
+                <div class="flow-name">Refresh</div>
+                <div class="flow-desc">Redeem a refresh token for a new set.</div>
+            </div>
+            <a href="/grant/refresh" class="button">Open</a>
+        </li>
+    </ul>
 </div>
 {{end}}
