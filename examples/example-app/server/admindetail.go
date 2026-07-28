@@ -229,15 +229,33 @@ func (s *Server) handleAdminDeleteWebAuthn(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+// localPath reports whether a redirect target stays inside this app.
+//
+// A leading slash is not enough: a browser reads "//host" as another host, and
+// so does it read "/\host", because it turns backslashes into slashes before
+// resolving. Normalising first and then insisting the parsed URL carries
+// neither scheme nor host covers both spellings.
+func localPath(target string) bool {
+	if !strings.HasPrefix(target, "/") {
+		return false
+	}
+
+	u, err := url.Parse(strings.ReplaceAll(target, `\`, "/"))
+	if err != nil {
+		return false
+	}
+
+	return u.Scheme == "" && u.Host == "" && strings.HasPrefix(u.Path, "/") && !strings.HasPrefix(u.Path, "//")
+}
+
 // detailRedirect returns to the detail page an action was started from.
 //
 // The target comes from the form, so it is only honoured when it points back
-// into this app: a path, and not a protocol-relative one, which a browser reads
-// as another host. Anything else would make these endpoints a way to bounce
+// into this app. Anything else would make these endpoints a way to bounce
 // someone off to a site of the sender's choosing.
 func (s *Server) detailRedirect(w http.ResponseWriter, r *http.Request, notice, errMsg string) {
 	back := r.FormValue("back")
-	if !strings.HasPrefix(back, "/") || strings.HasPrefix(back, "//") {
+	if !localPath(back) {
 		back = "/admin"
 	}
 
