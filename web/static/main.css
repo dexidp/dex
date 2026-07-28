@@ -312,6 +312,7 @@ body {
 
 .dex-home__actions {
   margin-top: 24px;
+  text-align: center;
 }
 
 /* Logging out is a link here and a form button on /logout, so the anchor needs
