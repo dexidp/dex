@@ -38,15 +38,33 @@ body {
   opacity: 0.5;
 }
 
+/* A connector button is an icon and a label. The label used to sit next to a
+ * floated icon on a single 40px line, which held together only while the name
+ * was short: a longer one stretched its button past the others, and once it
+ * wrapped, the second line cleared the float while the icon stayed a 40px
+ * square at the top of a taller button.
+ *
+ * The button is a row instead, at a width that does not depend on the name, so
+ * a label that does not fit wraps inside it and the icon spans the full height
+ * however many lines that turns out to be. */
+.dex-btn-provider {
+  align-items: stretch;
+  /* inline-flex, not flex: the button sits inside the connector's link, and an
+   * atomic inline-level box is where the link's underline stops. A block-level
+   * flex container would take that underline across the label, and no rule on
+   * the label can turn off a decoration its ancestor is drawing. */
+  display: inline-flex;
+  max-width: 100%;
+}
+
 .dex-btn-icon {
   background-position: center;
   background-repeat: no-repeat;
   background-size: 20px;
   border-radius: 8px 0 0 8px;
-  float: left;
-  height: 40px;
+  flex: 0 0 40px;
   margin-right: 4px;
-  width: 40px;
+  min-height: 40px;
 }
 
 .dex-btn-icon--google {
@@ -122,9 +140,17 @@ body {
   background-image: url(../static/img/mock-icon.svg);
 }
 
+/* Also the label of the approval buttons, which have no icon: the min-height
+ * keeps those the size they were when a 40px line box set it. */
 .dex-btn-text {
+  align-items: center;
+  display: flex;
+  flex: 1;
   font-weight: 600;
-  line-height: 40px;
+  justify-content: center;
+  line-height: 1.35;
+  min-height: 40px;
+  overflow-wrap: anywhere;
   padding: 6px 14px;
   text-align: center;
 }
