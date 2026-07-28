@@ -122,6 +122,17 @@ sessions:
 # password grant needs passwordConnector to name the connector that checks it;
 # without that it is refused however the grant types are listed.
 oauth2:
+  # Listed explicitly so none of them depends on a default: the example app
+  # draws a flow only when the provider advertises the grant behind it.
+  grantTypes:
+    - "authorization_code"
+    - "refresh_token"
+    - "client_credentials"
+    - "urn:ietf:params:oauth:grant-type:device_code"
+    - "urn:ietf:params:oauth:grant-type:token-exchange"
+    - "password"
+  # The password grant is refused without this: dex needs to know which
+  # connector checks the password.
   passwordConnector: local
 
 # Default values shown below

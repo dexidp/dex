@@ -54,6 +54,7 @@ type Server struct {
 	provider        *oidc.Provider
 	verifier        *oidc.IDTokenVerifier
 	scopesSupported []string
+	grantsSupported []string
 	offlineAsScope  bool
 
 	// Discovered endpoint URLs.
@@ -85,6 +86,7 @@ func New(opts Options) (*Server, error) {
 	// Extract discovery metadata: scopes and endpoint URLs.
 	var discovery struct {
 		ScopesSupported             []string `json:"scopes_supported"`
+		GrantTypesSupported         []string `json:"grant_types_supported"`
 		UserInfoEndpoint            string   `json:"userinfo_endpoint"`
 		DeviceAuthorizationEndpoint string   `json:"device_authorization_endpoint"`
 		JWKSURI                     string   `json:"jwks_uri"`
@@ -118,6 +120,7 @@ func New(opts Options) (*Server, error) {
 		provider:        provider,
 		verifier:        provider.Verifier(&oidc.Config{ClientID: opts.ClientID}),
 		scopesSupported: discovery.ScopesSupported,
+		grantsSupported: discovery.GrantTypesSupported,
 		offlineAsScope:  offlineAsScope,
 
 		deviceAuthURL:      discovery.DeviceAuthorizationEndpoint,
@@ -140,6 +143,18 @@ func New(opts Options) (*Server, error) {
 	}
 
 	return s, nil
+}
+
+// supportsGrant reports whether the provider advertises a grant. A provider
+// that does not is not going to start honouring it because this app offers a
+// button for it, so the button is not drawn.
+func (s *Server) supportsGrant(grant string) bool {
+	if len(s.grantsSupported) == 0 {
+		// Nothing advertised: offer everything rather than nothing, since the
+		// metadata field is optional.
+		return true
+	}
+	return slices.Contains(s.grantsSupported, grant)
 }
 
 // oauth2Config returns an oauth2.Config for the given scopes.
@@ -213,6 +228,9 @@ func (s *Server) routes() http.Handler {
 		mux.HandleFunc("POST /admin/identity/delete", s.handleAdminDeleteIdentity)
 		mux.HandleFunc("POST /admin/session/delete", s.handleAdminDeleteSession)
 		mux.HandleFunc("POST /admin/session/terminate", s.handleAdminTerminateSessions)
+		mux.HandleFunc("POST /admin/session/terminate-connector", s.handleAdminTerminateByConnector)
+		mux.HandleFunc("POST /admin/mfa/reset", s.handleAdminResetMFA)
+		mux.HandleFunc("POST /admin/mfa/secret/delete", s.handleAdminDeleteMFASecret)
 		mux.HandleFunc("POST /admin/refresh/revoke", s.handleAdminRevokeRefresh)
 	}
 

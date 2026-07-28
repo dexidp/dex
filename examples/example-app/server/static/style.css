@@ -304,6 +304,25 @@ textarea {
     vertical-align: top;
 }
 
+/* The last row's rule and the following section's rule would otherwise sit one
+   pixel apart and read as a double line. */
+.table tr:last-child td {
+    border-bottom: 0;
+}
+
+.row-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.row-actions form {
+    margin: 0;
+}
+
+.mfa-device {
+    white-space: nowrap;
+}
+
 .tag {
     background: #f4f5f7;
     border: 1px solid var(--border);

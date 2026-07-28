@@ -93,6 +93,7 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		Notice:       r.URL.Query().Get("notice"),
 		Error:        r.URL.Query().Get("error"),
 		UserID:       r.URL.Query().Get("user_id"),
+		Subject:      r.URL.Query().Get("subject"),
 	}
 	for _, sec := range adminSections {
 		sec.Current = sec.ID == section
@@ -164,20 +165,27 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 	case "identities":
 		if resp, err := s.admin.api.ListUserIdentities(ctx, &api.ListUserIdentitiesReq{}); err == nil {
 			for _, u := range resp.Identities {
-				data.Identities = append(data.Identities, AdminIdentity{
+				identity := AdminIdentity{
 					UserID:      u.UserId,
 					ConnectorID: u.ConnectorId,
 					Email:       u.Email,
 					Username:    u.Username,
 					Groups:      u.Groups,
-				})
+				}
+				for _, d := range u.MfaDevices {
+					identity.MFADevices = append(identity.MFADevices, d.AuthenticatorId)
+				}
+				data.Identities = append(data.Identities, identity)
 			}
 		} else {
 			fail(err)
 		}
 
 	case "sessions":
-		// Both listings take a user, so the section asks for one first.
+		// The two listings are keyed differently, which is a property of the API
+		// rather than a choice here: sessions are stored under the ID the
+		// connector gave the user, refresh tokens under the encoded sub claim
+		// that ends up in tokens.
 		if data.UserID != "" {
 			if resp, err := s.admin.api.ListAuthSessions(ctx, &api.ListAuthSessionsReq{UserId: data.UserID}); err == nil {
 				for _, sess := range resp.Sessions {
@@ -193,7 +201,10 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 				fail(err)
 			}
 
-			if resp, err := s.admin.api.ListRefresh(ctx, &api.ListRefreshReq{UserId: data.UserID}); err == nil {
+		}
+
+		if data.Subject != "" {
+			if resp, err := s.admin.api.ListRefresh(ctx, &api.ListRefreshReq{UserId: data.Subject}); err == nil {
 				for _, t := range resp.RefreshTokens {
 					data.RefreshTokens = append(data.RefreshTokens, AdminRefreshToken{
 						ID:       t.Id,
@@ -204,6 +215,29 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 				}
 			} else {
 				fail(err)
+			}
+		}
+	}
+
+	// An edit starts from a row, so the form comes back filled in.
+	if id := r.URL.Query().Get("edit_client"); id != "" {
+		if resp, err := s.admin.api.GetClient(ctx, &api.GetClientReq{Id: id}); err == nil && resp.Client != nil {
+			data.EditClient = &AdminClient{
+				ID:           resp.Client.Id,
+				Name:         resp.Client.Name,
+				RedirectURIs: resp.Client.RedirectUris,
+				Public:       resp.Client.Public,
+			}
+		} else if err != nil {
+			fail(err)
+		}
+	}
+	if email := r.URL.Query().Get("edit_password"); email != "" {
+		for _, p := range data.Passwords {
+			if p.Email == email {
+				entry := p
+				data.EditPassword = &entry
+				break
 			}
 		}
 	}
@@ -375,6 +409,9 @@ func (s *Server) adminRedirect(w http.ResponseWriter, r *http.Request, notice, e
 	}
 	if userID := r.FormValue("list_user_id"); userID != "" {
 		q.Set("user_id", userID)
+	}
+	if subject := r.FormValue("list_subject"); subject != "" {
+		q.Set("subject", subject)
 	}
 	switch {
 	case errMsg != "":
@@ -609,4 +646,76 @@ func (s *Server) handleAdminTerminateSessions(w http.ResponseWriter, r *http.Req
 		return
 	}
 	s.adminRedirect(w, r, fmt.Sprintf("terminated %d session(s) for user %q", resp.SessionsTerminated, userID), "")
+}
+
+// handleAdminResetMFA clears a user's second factors so they enrol again.
+func (s *Server) handleAdminResetMFA(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		s.adminRedirect(w, r, "", err.Error())
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	userID := r.FormValue("user_id")
+	resp, err := s.admin.api.ResetMFA(ctx, &api.ResetMFAReq{
+		UserId:      userID,
+		ConnectorId: r.FormValue("connector_id"),
+	})
+	switch {
+	case err != nil:
+		s.adminRedirect(w, r, "", err.Error())
+	case resp.NotFound:
+		s.adminRedirect(w, r, "", fmt.Sprintf("no MFA enrolment for user %q", userID))
+	default:
+		s.adminRedirect(w, r, fmt.Sprintf("reset MFA for user %q", userID), "")
+	}
+}
+
+// handleAdminDeleteMFASecret removes one authenticator's secret, leaving the
+// user's other factors alone.
+func (s *Server) handleAdminDeleteMFASecret(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		s.adminRedirect(w, r, "", err.Error())
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	userID, authenticator := r.FormValue("user_id"), r.FormValue("authenticator_id")
+	resp, err := s.admin.api.DeleteMFASecret(ctx, &api.DeleteMFASecretReq{
+		UserId:          userID,
+		ConnectorId:     r.FormValue("connector_id"),
+		AuthenticatorId: authenticator,
+	})
+	switch {
+	case err != nil:
+		s.adminRedirect(w, r, "", err.Error())
+	case resp.NotFound:
+		s.adminRedirect(w, r, "", fmt.Sprintf("no %q secret for user %q", authenticator, userID))
+	default:
+		s.adminRedirect(w, r, fmt.Sprintf("deleted %q secret for user %q", authenticator, userID), "")
+	}
+}
+
+// handleAdminTerminateByConnector ends every session that came through one
+// connector — what you reach for when a connector is compromised or retired.
+func (s *Server) handleAdminTerminateByConnector(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		s.adminRedirect(w, r, "", err.Error())
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	connectorID := r.FormValue("connector_id")
+	resp, err := s.admin.api.TerminateSessionsByConnector(ctx, &api.TerminateSessionsByConnectorReq{ConnectorId: connectorID})
+	if err != nil {
+		s.adminRedirect(w, r, "", err.Error())
+		return
+	}
+	s.adminRedirect(w, r, fmt.Sprintf("terminated %d session(s) from connector %q", resp.SessionsTerminated, connectorID), "")
 }

@@ -11,7 +11,7 @@ type Field struct {
 	Name        string
 	Label       string
 	Hint        string
-	Type        string // text, password, textarea, select
+	Type        string // text, password, textarea, select, scopes
 	Placeholder string
 	Value       string
 	Options     []Option
@@ -19,10 +19,35 @@ type Field struct {
 	Wide        bool // full-width control, for tokens rather than identifiers
 }
 
-// Option is one choice in a select field.
+// scopeField offers the scopes the provider advertises, with the usual ones
+// ticked — the same control the browser flows use, rather than a text box you
+// have to know the spelling for.
+func (s *Server) scopeField(defaults ...string) Field {
+	chosen := make(map[string]bool, len(defaults))
+	for _, d := range defaults {
+		chosen[d] = true
+	}
+
+	options := make([]Option, 0, len(s.scopesSupported))
+	for _, scope := range s.scopesSupported {
+		options = append(options, Option{Value: scope, Label: scope, Selected: chosen[scope]})
+	}
+
+	return Field{
+		Name:    "scopes",
+		Label:   "Scopes",
+		Type:    "scopes",
+		Wide:    true,
+		Options: options,
+		Hint:    "What the token should be good for. Add any the provider does not advertise.",
+	}
+}
+
+// Option is one choice in a select or scope field.
 type Option struct {
-	Value string
-	Label string
+	Value    string
+	Label    string
+	Selected bool
 }
 
 // FormPageData is a page that asks for parameters and posts them somewhere.
@@ -49,9 +74,7 @@ func (s *Server) handleGrantForm(w http.ResponseWriter, r *http.Request) {
 			Description: "A token for this application itself. There is no user in this flow, and so no ID token — what comes back says only which client it belongs to.",
 			Action:      "/grant/client-credentials",
 			Submit:      "Request token",
-			Fields: []Field{
-				{Name: "scopes", Label: "Scopes", Type: "text", Placeholder: "openid", Hint: "Space separated. Optional."},
-			},
+			Fields:      []Field{s.scopeField("openid")},
 		}
 	case "password":
 		data = FormPageData{
@@ -63,7 +86,7 @@ func (s *Server) handleGrantForm(w http.ResponseWriter, r *http.Request) {
 			Fields: []Field{
 				{Name: "username", Label: "Username", Type: "text", Placeholder: "user@example.com", Required: true},
 				{Name: "password", Label: "Password", Type: "password", Required: true},
-				{Name: "scopes", Label: "Scopes", Type: "text", Placeholder: "openid email", Hint: "Space separated. Optional."},
+				s.scopeField("openid", "profile", "email", "offline_access"),
 			},
 		}
 	case "token-exchange":
@@ -91,7 +114,7 @@ func (s *Server) handleGrantForm(w http.ResponseWriter, r *http.Request) {
 						{Value: tokenTypeAccess, Label: "Access token"},
 					},
 				},
-				{Name: "scopes", Label: "Scopes", Type: "text", Hint: "Space separated. Optional."},
+				s.scopeField("openid"),
 			},
 		}
 	case "refresh":

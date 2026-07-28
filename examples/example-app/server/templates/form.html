@@ -9,7 +9,20 @@
         <div class="form-row{{if .Wide}} form-row--wide{{end}}">
             <label for="f_{{.Name}}">{{.Label}}{{if .Required}} <span class="req" title="required">*</span>{{end}}</label>
             <div class="form-control">
-                {{if eq .Type "textarea"}}
+                {{if eq .Type "scopes"}}
+                <div class="scopes-list">
+                    {{range .Options}}
+                    <div class="scope-item">
+                        <input type="checkbox" name="scopes" value="{{.Value}}" id="scope_{{.Value}}"{{if .Selected}} checked{{end}}>
+                        <label for="scope_{{.Value}}">{{.Value}}</label>
+                    </div>
+                    {{end}}
+                </div>
+                <div class="inline-input">
+                    <input type="text" class="custom-scope-input" placeholder="custom-scope">
+                    <button type="button" class="button button-small add-custom-scope">Add</button>
+                </div>
+                {{else if eq .Type "textarea"}}
                 <textarea id="f_{{.Name}}" name="{{.Name}}" rows="4" placeholder="{{.Placeholder}}"{{if .Required}} required{{end}}>{{.Value}}</textarea>
                 {{else if eq .Type "select"}}
                 <select id="f_{{.Name}}" name="{{.Name}}">

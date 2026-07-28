@@ -19,6 +19,16 @@ const (
 	tokenTypeID     = "urn:ietf:params:oauth:token-type:id_token"
 )
 
+// Grant type identifiers, as they appear in the provider's metadata.
+const (
+	grantAuthorizationCode = "authorization_code"
+	grantRefreshToken      = "refresh_token"
+	grantDeviceCode        = "urn:ietf:params:oauth:grant-type:device_code"
+	grantTokenExchange     = "urn:ietf:params:oauth:grant-type:token-exchange"
+	grantClientCredentials = "client_credentials"
+	grantPassword          = "password"
+)
+
 // handleRefreshGrant redeems a refresh token for a new token set. The token
 // comes from the form rather than the session so that a refresh token from
 // anywhere — another flow, a copy-paste — can be tried here.
@@ -61,7 +71,7 @@ func (s *Server) handleClientCredentialsGrant(w http.ResponseWriter, r *http.Req
 		ClientID:     s.clientID,
 		ClientSecret: s.clientSecret,
 		TokenURL:     s.provider.Endpoint().TokenURL,
-		Scopes:       splitScopes(r.FormValue("scopes")),
+		Scopes:       r.Form["scopes"],
 	}
 
 	ctx := oidc.ClientContext(r.Context(), s.client)
@@ -94,7 +104,7 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := oidc.ClientContext(r.Context(), s.client)
-	cfg := s.oauth2Config(splitScopes(r.FormValue("scopes")))
+	cfg := s.oauth2Config(r.Form["scopes"])
 	token, err := cfg.PasswordCredentialsToken(ctx, username, password)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("password grant failed: %v", err), http.StatusBadRequest)
@@ -138,7 +148,7 @@ func (s *Server) handleTokenExchangeGrant(w http.ResponseWriter, r *http.Request
 	if v := r.FormValue("requested_token_type"); v != "" {
 		form.Set("requested_token_type", v)
 	}
-	if scopes := splitScopes(r.FormValue("scopes")); len(scopes) > 0 {
+	if scopes := r.Form["scopes"]; len(scopes) > 0 {
 		form.Set("scope", strings.Join(scopes, " "))
 	}
 
@@ -175,17 +185,6 @@ func (s *Server) postToTokenEndpoint(r *http.Request, form url.Values) ([]byte, 
 		return nil, fmt.Errorf("%s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
 	return body, nil
-}
-
-// splitScopes parses a space or comma separated scope list.
-func splitScopes(raw string) []string {
-	fields := strings.FieldsFunc(raw, func(r rune) bool {
-		return r == ' ' || r == ',' || r == '\n' || r == '\t'
-	})
-	if len(fields) == 0 {
-		return nil
-	}
-	return fields
 }
 
 // buildScopes assembles the scope list for an authorization request.

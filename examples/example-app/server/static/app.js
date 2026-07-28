@@ -102,6 +102,48 @@
         }
     });
 
+    // Scope pickers on the flow forms take custom scopes too.
+    document.querySelectorAll(".add-custom-scope").forEach(function (btn) {
+        var wrap = btn.closest(".form-control");
+        var input = wrap && wrap.querySelector(".custom-scope-input");
+        var list = wrap && wrap.querySelector(".scopes-list");
+        if (!input || !list) return;
+
+        var add = function () {
+            var value = input.value.trim();
+            if (!value) return;
+
+            var existing = list.querySelector('input[value="' + value + '"]');
+            if (existing) {
+                existing.checked = true;
+            } else {
+                var item = document.createElement("div");
+                item.className = "scope-item";
+                var box = document.createElement("input");
+                box.type = "checkbox";
+                box.name = "scopes";
+                box.value = value;
+                box.checked = true;
+                box.id = "scope_custom_" + value;
+                var label = document.createElement("label");
+                label.htmlFor = box.id;
+                label.textContent = value;
+                item.append(box, label);
+                list.appendChild(item);
+            }
+            input.value = "";
+            input.focus();
+        };
+
+        btn.addEventListener("click", add);
+        input.addEventListener("keydown", function (e) {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                add();
+            }
+        });
+    });
+
     // Device Grant Login Handler
     const deviceGrantBtn = document.getElementById("device-grant-btn");
     deviceGrantBtn?.addEventListener("click", async () => {

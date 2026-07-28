@@ -36,9 +36,14 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		ScopesSupported: s.scopesSupported,
 		LogoURI:         dexLogoDataURI,
 		AdminEnabled:    s.admin != nil,
-		DeviceSupported: s.deviceAuthURL != "",
 		PKCE:            s.pkce,
 		SessionCheck:    s.sessionCheckInterval,
+
+		DeviceSupported:            s.deviceAuthURL != "" && s.supportsGrant(grantDeviceCode),
+		RefreshSupported:           s.supportsGrant(grantRefreshToken),
+		ClientCredentialsSupported: s.supportsGrant(grantClientCredentials),
+		PasswordSupported:          s.supportsGrant(grantPassword),
+		TokenExchangeSupported:     s.supportsGrant(grantTokenExchange),
 	}
 	if sess.SignedIn() {
 		data.User = sess.Claims

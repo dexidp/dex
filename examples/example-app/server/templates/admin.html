@@ -53,7 +53,8 @@
             <td class="mono">{{.ID}}{{if .Public}} <span class="tag">public</span>{{end}}</td>
             <td>{{.Name}}</td>
             <td class="mono small">{{range .RedirectURIs}}{{.}}<br>{{end}}</td>
-            <td>
+            <td class="row-actions">
+                <a href="/admin?section=clients&amp;edit_client={{.ID}}" class="button button-small">Edit</a>
                 <form action="/admin/client/delete" method="post">
                     <input type="hidden" name="section" value="clients">
                     <input type="hidden" name="id" value="{{.ID}}">
@@ -101,26 +102,29 @@
         <div class="form-actions"><button type="submit" class="button button-primary">Create</button></div>
     </form>
 
-    <div class="subhead">UpdateClient</div>
+    {{with .EditClient}}
+    <div class="subhead">UpdateClient — {{.ID}}</div>
     <form action="/admin/client/update" method="post" class="form">
         <input type="hidden" name="section" value="clients">
-        <div class="form-row">
-            <label for="cu_id">Client ID <span class="req" title="required">*</span></label>
-            <div class="form-control"><input id="cu_id" type="text" name="id" required autocomplete="off"></div>
-        </div>
+        <input type="hidden" name="id" value="{{.ID}}">
         <div class="form-row">
             <label for="cu_name">Name</label>
             <div class="form-control">
-                <input id="cu_name" type="text" name="name" autocomplete="off">
+                <input id="cu_name" type="text" name="name" value="{{.Name}}" autocomplete="off">
                 <small class="hint">Fields left empty stay as they are.</small>
             </div>
         </div>
         <div class="form-row form-row--wide">
             <label for="cu_uris">Redirect URIs</label>
-            <div class="form-control"><textarea id="cu_uris" name="redirect_uris" rows="2"></textarea></div>
+            <div class="form-control"><textarea id="cu_uris" name="redirect_uris" rows="2">{{range .RedirectURIs}}{{.}}
+{{end}}</textarea></div>
         </div>
-        <div class="form-actions"><button type="submit" class="button button-primary">Update</button></div>
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Update</button>
+            <a href="/admin?section=clients" class="button button-secondary">Cancel</a>
+        </div>
     </form>
+    {{end}}
     {{end}}
 
     {{if eq .Section "passwords"}}
@@ -132,7 +136,8 @@
             <td class="mono">{{.Email}}</td>
             <td>{{.Username}}</td>
             <td class="mono small">{{.UserID}}</td>
-            <td>
+            <td class="row-actions">
+                <a href="/admin?section=passwords&amp;edit_password={{.Email}}" class="button button-small">Edit</a>
                 <form action="/admin/password/delete" method="post">
                     <input type="hidden" name="section" value="passwords">
                     <input type="hidden" name="email" value="{{.Email}}">
@@ -174,16 +179,14 @@
         <div class="form-actions"><button type="submit" class="button button-primary">Create</button></div>
     </form>
 
-    <div class="subhead">UpdatePassword</div>
+    {{with .EditPassword}}
+    <div class="subhead">UpdatePassword — {{.Email}}</div>
     <form action="/admin/password/update" method="post" class="form">
         <input type="hidden" name="section" value="passwords">
-        <div class="form-row">
-            <label for="pu_email">Email <span class="req" title="required">*</span></label>
-            <div class="form-control"><input id="pu_email" type="email" name="email" required autocomplete="off"></div>
-        </div>
+        <input type="hidden" name="email" value="{{.Email}}">
         <div class="form-row">
             <label for="pu_username">Username</label>
-            <div class="form-control"><input id="pu_username" type="text" name="username" autocomplete="off"></div>
+            <div class="form-control"><input id="pu_username" type="text" name="username" value="{{.Username}}" autocomplete="off"></div>
         </div>
         <div class="form-row">
             <label for="pu_password">New password</label>
@@ -192,8 +195,12 @@
                 <small class="hint">Leave empty to change only the username.</small>
             </div>
         </div>
-        <div class="form-actions"><button type="submit" class="button button-primary">Update</button></div>
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Update</button>
+            <a href="/admin?section=passwords" class="button button-secondary">Cancel</a>
+        </div>
     </form>
+    {{end}}
 
     <div class="subhead">VerifyPassword</div>
     <form action="/admin/password/verify" method="post" class="form">
@@ -268,14 +275,29 @@
     {{if eq .Section "identities"}}
     {{if .Identities}}
     <table class="table">
-        <tr><th>User ID</th><th>Connector</th><th>Email</th><th>Groups</th><th></th></tr>
+        <tr><th>User ID</th><th>Connector</th><th>Email</th><th>Groups</th><th>MFA</th><th></th></tr>
         {{range .Identities}}
         <tr>
             <td class="mono small">{{.UserID}}</td>
             <td class="mono small">{{.ConnectorID}}</td>
             <td>{{.Email}}{{if .Username}}<br><span class="hint">{{.Username}}</span>{{end}}</td>
             <td class="small">{{range .Groups}}{{.}}<br>{{end}}</td>
-            <td>
+            <td class="small">
+                {{range .MFADevices}}
+                <div class="mfa-device">
+                    <span class="mono">{{.}}</span>
+                </div>
+                {{else}}<span class="hint">none</span>{{end}}
+            </td>
+            <td class="row-actions">
+                {{if .MFADevices}}
+                <form action="/admin/mfa/reset" method="post">
+                    <input type="hidden" name="section" value="identities">
+                    <input type="hidden" name="user_id" value="{{.UserID}}">
+                    <input type="hidden" name="connector_id" value="{{.ConnectorID}}">
+                    <button type="submit" class="button button-small">Reset MFA</button>
+                </form>
+                {{end}}
                 <form action="/admin/identity/delete" method="post">
                     <input type="hidden" name="section" value="identities">
                     <input type="hidden" name="user_id" value="{{.UserID}}">
@@ -294,14 +316,25 @@
 
     {{if eq .Section "sessions"}}
     <p class="hint">
-        Both listings take dex's own user ID — what the connector calls the user,
-        not the encoded sub claim from a token. The Users tab lists them.
+        The two listings are keyed differently, which is the API's shape rather than
+        a choice here: sessions are stored under the ID the connector gave the user,
+        refresh tokens under the encoded sub claim that ends up in tokens.
     </p>
     <form action="/admin" method="get" class="form">
         <input type="hidden" name="section" value="sessions">
         <div class="form-row">
             <label for="s_user">User ID</label>
-            <div class="form-control"><input id="s_user" type="text" name="user_id" value="{{.UserID}}" autocomplete="off"></div>
+            <div class="form-control">
+                <input id="s_user" type="text" name="user_id" value="{{.UserID}}" autocomplete="off">
+                <small class="hint">For sessions. The Users tab lists these.</small>
+            </div>
+        </div>
+        <div class="form-row">
+            <label for="s_subject">Subject</label>
+            <div class="form-control">
+                <input id="s_subject" type="text" name="subject" value="{{.Subject}}" autocomplete="off">
+                <small class="hint">For refresh tokens. The sub claim of a token issued to the user.</small>
+            </div>
         </div>
         <div class="form-actions"><button type="submit" class="button button-primary">List</button></div>
     </form>
@@ -333,6 +366,9 @@
     <p class="hint">No sessions for this user.</p>
     {{end}}
 
+    {{end}}
+
+    {{if .Subject}}
     <div class="subhead">Refresh tokens</div>
     {{if .RefreshTokens}}
     <table class="table">
@@ -346,7 +382,8 @@
                 <form action="/admin/refresh/revoke" method="post">
                     <input type="hidden" name="section" value="sessions">
                     <input type="hidden" name="list_user_id" value="{{$.UserID}}">
-                    <input type="hidden" name="user_id" value="{{$.UserID}}">
+                    <input type="hidden" name="list_subject" value="{{$.Subject}}">
+                    <input type="hidden" name="user_id" value="{{$.Subject}}">
                     <input type="hidden" name="client_id" value="{{.ClientID}}">
                     <button type="submit" class="button button-small">Revoke</button>
                 </form>
@@ -359,13 +396,29 @@
     <p class="hint">No refresh tokens for this user. They are issued only when offline_access is requested.</p>
     {{end}}
 
+    {{if .UserID}}
     <div class="subhead">TerminateSessionsByUser</div>
     <form action="/admin/session/terminate" method="post" class="form">
         <input type="hidden" name="section" value="sessions">
         <input type="hidden" name="list_user_id" value="{{.UserID}}">
+        <input type="hidden" name="list_subject" value="{{.Subject}}">
         <input type="hidden" name="user_id" value="{{.UserID}}">
         <p class="hint">Ends every session this user has, whatever connector they came through.</p>
         <div class="form-actions"><button type="submit" class="button">Terminate all sessions</button></div>
+    </form>
+    {{end}}
+
+    <div class="subhead">TerminateSessionsByConnector</div>
+    <form action="/admin/session/terminate-connector" method="post" class="form">
+        <input type="hidden" name="section" value="sessions">
+        <div class="form-row">
+            <label for="s_conn">Connector <span class="req" title="required">*</span></label>
+            <div class="form-control">
+                <input id="s_conn" type="text" name="connector_id" required autocomplete="off">
+                <small class="hint">Ends every session that came through it — for a connector being retired or one you no longer trust.</small>
+            </div>
+        </div>
+        <div class="form-actions"><button type="submit" class="button">Terminate</button></div>
     </form>
     {{end}}
     {{end}}

@@ -71,9 +71,16 @@ type IndexPageData struct {
 	ScopesSupported []string
 	LogoURI         string
 	AdminEnabled    bool
-	DeviceSupported bool
 	PKCE            bool
 	SessionCheck    time.Duration
+
+	// Which flows the provider says it supports. A button for a grant dex will
+	// refuse is a button that only teaches you it does not work.
+	DeviceSupported            bool
+	RefreshSupported           bool
+	ClientCredentialsSupported bool
+	PasswordSupported          bool
+	TokenExchangeSupported     bool
 
 	User  *session.UserClaims
 	Token *TokenSummary
@@ -140,6 +147,7 @@ type AdminIdentity struct {
 	Email       string
 	Username    string
 	Groups      []string
+	MFADevices  []string
 }
 
 // AdminSession is one of dex's own sessions as the API reports it.
@@ -198,9 +206,16 @@ type AdminPageData struct {
 	Identities    []AdminIdentity
 	Sessions      []AdminSession
 	RefreshTokens []AdminRefreshToken
-	// UserID is what the session and refresh listings were filtered by, since
-	// both of those methods take one.
-	UserID string
+	// UserID is what the session listing was filtered by, and Subject is what
+	// the refresh listing was: dex identifies a user by the connector's ID in
+	// one API and by the encoded sub claim in the other.
+	UserID  string
+	Subject string
+
+	// EditClient and EditPassword are prefilled from the row an edit was
+	// started from, so updating is something you do to a thing you can see.
+	EditClient   *AdminClient
+	EditPassword *AdminPassword
 }
 
 // AdminSection is one tab of the API page.

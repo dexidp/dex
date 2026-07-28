@@ -103,6 +103,7 @@
     <div class="card-title">Flows without a browser</div>
     <p class="hint">These call the token endpoint directly. Each one asks for its own parameters.</p>
     <ul class="flows">
+        {{if .ClientCredentialsSupported}}
         <li class="flow">
             <div class="flow-text">
                 <div class="flow-name">Client credentials</div>
@@ -110,6 +111,8 @@
             </div>
             <a href="/grant/client-credentials" class="button">Open</a>
         </li>
+        {{end}}
+        {{if .RefreshSupported}}
         <li class="flow">
             <div class="flow-text">
                 <div class="flow-name">Refresh</div>
@@ -117,6 +120,8 @@
             </div>
             <a href="/grant/refresh" class="button">Open</a>
         </li>
+        {{end}}
+        {{if .TokenExchangeSupported}}
         <li class="flow">
             <div class="flow-text">
                 <div class="flow-name">Token exchange</div>
@@ -124,6 +129,8 @@
             </div>
             <a href="/grant/token-exchange" class="button">Open</a>
         </li>
+        {{end}}
+        {{if .PasswordSupported}}
         <li class="flow">
             <div class="flow-text">
                 <div class="flow-name">Password <span class="tag">deprecated</span></div>
@@ -131,6 +138,10 @@
             </div>
             <a href="/grant/password" class="button">Open</a>
         </li>
+        {{end}}
     </ul>
+    {{if not (or .ClientCredentialsSupported .RefreshSupported .TokenExchangeSupported .PasswordSupported)}}
+    <p class="hint">The provider advertises none of these grants. oauth2.grantTypes in dex's config decides.</p>
+    {{end}}
 </div>
 {{end}}
