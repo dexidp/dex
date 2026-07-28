@@ -68,10 +68,7 @@ func (s *Server) handleAdminConnectorDetail(w http.ResponseWriter, r *http.Reque
 		Title:        id,
 		BackURL:      "/admin?section=connectors",
 
-		ConnectorGrantTypes: []string{
-			grantAuthorizationCode, grantRefreshToken, grantDeviceCode,
-			grantTokenExchange, grantClientCredentials, grantPassword,
-		},
+		ConnectorGrantTypes: connectorGrantTypes(),
 	}
 
 	// The API lists connectors but has no getter, so the list is the lookup.
@@ -298,26 +295,12 @@ func (s *Server) handleAdminUpdateConnector(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-// handleDiscovery shows what dex says about itself, asked over the gRPC API.
-func (s *Server) handleDiscovery(w http.ResponseWriter, r *http.Request) {
-	data := DiscoveryPageData{
-		LogoURI:      dexLogoDataURI,
-		AdminEnabled: s.admin != nil,
-		Configured:   s.admin != nil,
-	}
-	if s.admin == nil {
-		s.renderer.RenderDiscoveryPage(w, data)
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
-
+// discoveryEntries asks dex what it says about itself, over the API rather than
+// by reading the document it publishes for clients.
+func (s *Server) discoveryEntries(ctx context.Context) (endpoints, capabilities []DiscoveryEntry, err error) {
 	resp, err := s.admin.api.GetDiscovery(ctx, &api.DiscoveryReq{})
 	if err != nil {
-		data.Error = err.Error()
-		s.renderer.RenderDiscoveryPage(w, data)
-		return
+		return nil, nil, err
 	}
 
 	for _, e := range []DiscoveryEntry{
@@ -330,7 +313,7 @@ func (s *Server) handleDiscovery(w http.ResponseWriter, r *http.Request) {
 		{Name: "introspection_endpoint", Value: resp.IntrospectionEndpoint},
 	} {
 		if e.Value != "" {
-			data.Endpoints = append(data.Endpoints, e)
+			endpoints = append(endpoints, e)
 		}
 	}
 
@@ -345,9 +328,9 @@ func (s *Server) handleDiscovery(w http.ResponseWriter, r *http.Request) {
 		{Name: "token_endpoint_auth_methods_supported", Values: resp.TokenEndpointAuthMethodsSupported},
 	} {
 		if len(e.Values) > 0 {
-			data.Capabilities = append(data.Capabilities, e)
+			capabilities = append(capabilities, e)
 		}
 	}
 
-	s.renderer.RenderDiscoveryPage(w, data)
+	return endpoints, capabilities, nil
 }

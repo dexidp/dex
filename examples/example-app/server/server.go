@@ -220,7 +220,6 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("POST /grant/token-exchange", s.handleTokenExchangeGrant)
 
 	mux.HandleFunc("GET /tokens", s.handleTokens)
-	mux.HandleFunc("GET /discovery", s.handleDiscovery)
 
 	// Tools for looking at a token you already hold.
 	mux.HandleFunc("GET /tools", s.handleTools)

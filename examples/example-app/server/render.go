@@ -193,19 +193,7 @@ type AdminDetailPageData struct {
 	Identity  *AdminIdentity
 
 	// ConnectorGrantTypes are the grants a connector can be restricted to.
-	ConnectorGrantTypes []string
-}
-
-// DiscoveryPageData is what dex says about itself. It comes from the gRPC API's
-// GetDiscovery rather than the published document: same facts, from the
-// interface that answers for the server rather than for a client reading it.
-type DiscoveryPageData struct {
-	LogoURI      string
-	AdminEnabled bool
-	Configured   bool
-	Error        string
-	Endpoints    []DiscoveryEntry
-	Capabilities []DiscoveryEntry
+	ConnectorGrantTypes []Option
 }
 
 // DiscoveryEntry is one metadata field worth reading without scrolling.
@@ -291,7 +279,11 @@ type AdminPageData struct {
 	// ConnectorTypes are the types dex accepts, and ConnectorGrantTypes the
 	// grants a connector can be restricted to, both for the create form.
 	ConnectorTypes      []string
-	ConnectorGrantTypes []string
+	ConnectorGrantTypes []Option
+
+	// Endpoints and Capabilities are what GetDiscovery reports.
+	Endpoints    []DiscoveryEntry
+	Capabilities []DiscoveryEntry
 
 	// EditClient and EditPassword are prefilled from the row an edit was
 	// started from, so updating is something you do to a thing you can see.
@@ -316,7 +308,6 @@ type Renderer interface {
 	RenderResultPage(w http.ResponseWriter, data ResultPageData)
 	RenderAdminPage(w http.ResponseWriter, data AdminPageData)
 	RenderAdminDetailPage(w http.ResponseWriter, data AdminDetailPageData)
-	RenderDiscoveryPage(w http.ResponseWriter, data DiscoveryPageData)
 }
 
 // templateRenderer implements Renderer using Go html/template.
@@ -329,7 +320,6 @@ type templateRenderer struct {
 	result *template.Template
 	admin  *template.Template
 	detail *template.Template
-	disco  *template.Template
 }
 
 // newTemplateRenderer parses embedded templates and returns a Renderer.
@@ -351,7 +341,6 @@ func newTemplateRenderer() Renderer {
 		result: parse("result.html"),
 		admin:  parse("admin.html"),
 		detail: parse("detail.html"),
-		disco:  parse("discovery.html"),
 	}
 }
 
@@ -385,10 +374,6 @@ func (r *templateRenderer) RenderAdminPage(w http.ResponseWriter, data AdminPage
 
 func (r *templateRenderer) RenderAdminDetailPage(w http.ResponseWriter, data AdminDetailPageData) {
 	renderTemplate(w, r.detail, data)
-}
-
-func (r *templateRenderer) RenderDiscoveryPage(w http.ResponseWriter, data DiscoveryPageData) {
-	renderTemplate(w, r.disco, data)
 }
 
 func renderTemplate(w http.ResponseWriter, tmpl *template.Template, data any) {

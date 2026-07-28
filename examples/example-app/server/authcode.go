@@ -61,15 +61,17 @@ func (s *Server) shouldCheckProvider(sess *session.Session) bool {
 	if s.sessionCheckInterval <= 0 {
 		return false
 	}
-	// A provider without sessions answers every prompt=none request the same
-	// way, so asking again tells us nothing and costs a redirect.
-	if sess.ProviderSSO < 0 {
-		return false
-	}
 	if sess.LastProviderCheck.IsZero() {
 		return true
 	}
-	return sess.SignedIn() && time.Since(sess.LastProviderCheck) > s.sessionCheckInterval
+	// A signed-in browser is confirmed on every load. The interval only holds
+	// back the check for a browser that is not signed in, where it is looking
+	// for a session rather than confirming one: a session dex has just been
+	// told to end should not survive until a timer says to ask.
+	if sess.SignedIn() {
+		return true
+	}
+	return time.Since(sess.LastProviderCheck) > s.sessionCheckInterval
 }
 
 // refreshIfExpired renews an expired access token, and ends the app's session
@@ -164,17 +166,11 @@ func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 	if pending.Silent {
 		s.sessions.MarkChecked(sess)
 
-		if errMsg := r.FormValue("error"); errMsg != "" {
-			// The first failure is ambiguous: either the provider has no
-			// session for this browser, or it does not keep sessions at all.
-			// Ending a sign-in that just happened would be the wrong guess, so
-			// the app only acts on a failure once a check has succeeded before.
-			if sess.ProviderSSO > 0 || !sess.SignedIn() {
-				s.sessions.SignOut(sess)
-			} else {
-				log.Printf("silent session check failed (%s); the provider appears not to keep sessions, so this app will stop asking", errMsg)
-			}
-			s.sessions.SetProviderSSO(sess, false)
+		if r.FormValue("error") != "" {
+			// The provider has no session for this browser. Whether it never had
+			// one or has just been told to end it, the app has no business
+			// showing a signed-in user either way.
+			s.sessions.SignOut(sess)
 			http.Redirect(w, r, "/", http.StatusFound)
 			return
 		}
@@ -182,8 +178,6 @@ func (s *Server) handleAuthCallback(w http.ResponseWriter, r *http.Request) {
 		if err := s.completeAuth(w, r, sess, pending); err != nil {
 			log.Printf("silent session check: %v", err)
 			s.sessions.SignOut(sess)
-		} else {
-			s.sessions.SetProviderSSO(sess, true)
 		}
 		http.Redirect(w, r, "/", http.StatusFound)
 		return

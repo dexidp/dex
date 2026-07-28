@@ -79,21 +79,19 @@
         <div class="form-row form-row--wide">
             <label>Grant types</label>
             <div class="form-control">
-                <label class="checkbox"><input type="radio" name="grant_mode" value="" checked> leave as they are</label>
-                <label class="checkbox"><input type="radio" name="grant_mode" value="any"> allow every grant type</label>
-                <label class="checkbox"><input type="radio" name="grant_mode" value="restrict"> restrict to those ticked</label>
+                <select name="grant_mode">
+                    <option value="">Leave as they are</option>
+                    <option value="any">No restriction</option>
+                    <option value="restrict">Only those ticked</option>
+                </select>
                 <div class="scopes-list scopes-list--grid">
                     {{range $g := $.ConnectorGrantTypes}}
                     <div class="scope-item">
-                        <input type="checkbox" name="grant_types" value="{{$g}}" id="cg_{{$g}}">
-                        <label for="cg_{{$g}}">{{$g}}</label>
+                        <input type="checkbox" name="grant_types" value="{{$g.Value}}" id="cg_{{$g.Label}}">
+                        <label for="cg_{{$g.Label}}" title="{{$g.Value}}">{{$g.Label}}</label>
                     </div>
                     {{end}}
                 </div>
-                <small class="hint">
-                    The API takes three answers here — leave alone, no restriction, or
-                    this list — so the form asks for one of the three.
-                </small>
             </div>
         </div>
         <div class="form-actions">

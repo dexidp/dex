@@ -444,12 +444,12 @@
                 <div class="scopes-list scopes-list--grid">
                     {{range $.ConnectorGrantTypes}}
                     <div class="scope-item">
-                        <input type="checkbox" name="grant_types" value="{{.}}" id="ng_{{.}}">
-                        <label for="ng_{{.}}">{{.}}</label>
+                        <input type="checkbox" name="grant_types" value="{{.Value}}" id="ng_{{.Label}}">
+                        <label for="ng_{{.Label}}" title="{{.Value}}">{{.Label}}</label>
                     </div>
                     {{end}}
                 </div>
-                <small class="hint">Leave every box clear to put no restriction on the connector.</small>
+                <small class="hint">Nothing ticked leaves the connector unrestricted.</small>
             </div>
         </div>
         <div class="form-actions">
@@ -492,6 +492,21 @@
         <code>DEX_API_SESSIONS_IDENTITIES_CRUD=true</code>.
     </p>
     {{end}}
+    {{end}}
+
+    {{if eq .Section "discovery"}}
+    <p class="hint">What dex reports about itself through GetDiscovery.</p>
+    <table class="table">
+        {{range .Endpoints}}
+        <tr><td class="mono small meta-name">{{.Name}}</td><td class="mono small">{{.Value}}</td></tr>
+        {{end}}
+        {{range .Capabilities}}
+        <tr>
+            <td class="mono small meta-name">{{.Name}}</td>
+            <td class="mono small">{{range .Values}}{{.}}<br>{{end}}</td>
+        </tr>
+        {{end}}
+    </table>
     {{end}}
 
     {{if eq .Section "sessions"}}

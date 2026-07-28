@@ -77,13 +77,6 @@ type Session struct {
 	// user who signed out of the provider in another tab.
 	LastProviderCheck time.Time
 
-	// ProviderSSO is what the app has learned about whether the provider keeps
-	// sessions at all: 0 not yet known, 1 yes, -1 no. dex only does when its
-	// sessions feature is on, and against a dex without it every prompt=none
-	// request fails — which would otherwise read as "the user signed out" and
-	// end a sign-in that had just happened.
-	ProviderSSO int8
-
 	pending map[string]*PendingAuth
 	expires time.Time
 }
@@ -254,19 +247,6 @@ func (st *Store) SetDeviceToken(s *Session, token *oauth2.Token) {
 
 	if s.Device != nil {
 		s.Device.Token = token
-	}
-}
-
-// SetProviderSSO records what the last silent check implies about whether the
-// provider keeps sessions.
-func (st *Store) SetProviderSSO(s *Session, keeps bool) {
-	st.mu.Lock()
-	defer st.mu.Unlock()
-
-	if keeps {
-		s.ProviderSSO = 1
-	} else {
-		s.ProviderSSO = -1
 	}
 }
 

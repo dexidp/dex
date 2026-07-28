@@ -78,12 +78,26 @@ var connectorTypes = []string{
 	"mockCallback", "mockPassword", "oauth", "oidc", "openshift", "saml",
 }
 
+// connectorGrantTypes pairs each grant with a readable name: the two URNs are
+// forty characters of boilerplate and four of meaning.
+func connectorGrantTypes() []Option {
+	return []Option{
+		{Value: grantAuthorizationCode, Label: "authorization_code"},
+		{Value: grantRefreshToken, Label: "refresh_token"},
+		{Value: grantDeviceCode, Label: "device_code"},
+		{Value: grantTokenExchange, Label: "token_exchange"},
+		{Value: grantClientCredentials, Label: "client_credentials"},
+		{Value: grantPassword, Label: "password"},
+	}
+}
+
 var adminSections = []AdminSection{
 	{ID: "clients", Label: "Clients"},
 	{ID: "passwords", Label: "Passwords"},
 	{ID: "connectors", Label: "Connectors"},
 	{ID: "identities", Label: "Users"},
 	{ID: "sessions", Label: "Sessions"},
+	{ID: "discovery", Label: "Discovery"},
 }
 
 // handleAdmin renders one section of the API.
@@ -104,11 +118,8 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		ConnectorID:  r.URL.Query().Get("connector_id"),
 		Mode:         r.URL.Query().Get("mode"),
 
-		ConnectorTypes: connectorTypes,
-		ConnectorGrantTypes: []string{
-			grantAuthorizationCode, grantRefreshToken, grantDeviceCode,
-			grantTokenExchange, grantClientCredentials, grantPassword,
-		},
+		ConnectorTypes:      connectorTypes,
+		ConnectorGrantTypes: connectorGrantTypes(),
 	}
 	for _, sec := range adminSections {
 		sec.Current = sec.ID == section
@@ -202,6 +213,13 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		} else {
 			fail(err)
 		}
+
+	case "discovery":
+		endpoints, capabilities, err := s.discoveryEntries(ctx)
+		if err != nil {
+			fail(err)
+		}
+		data.Endpoints, data.Capabilities = endpoints, capabilities
 
 	case "sessions":
 		// The two listings are keyed differently, which is a property of the API
