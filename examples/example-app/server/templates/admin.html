@@ -47,19 +47,21 @@
     {{if eq .Section "clients"}}
     {{if .Clients}}
     <table class="table">
-        <tr><th>ID</th><th>Name</th><th>Redirect URIs</th><th></th></tr>
+        <tr><th>ID</th><th>Name</th><th>Redirect URIs</th><th class="actions-col"></th></tr>
         {{range .Clients}}
         <tr>
             <td class="mono">{{.ID}}{{if .Public}} <span class="tag">public</span>{{end}}</td>
             <td>{{.Name}}</td>
             <td class="mono small">{{range .RedirectURIs}}{{.}}<br>{{end}}</td>
-            <td class="row-actions">
-                <a href="/admin?section=clients&amp;edit_client={{.ID}}" class="button button-small">Edit</a>
-                <form action="/admin/client/delete" method="post">
-                    <input type="hidden" name="section" value="clients">
-                    <input type="hidden" name="id" value="{{.ID}}">
-                    <button type="submit" class="button button-small">Delete</button>
-                </form>
+            <td class="actions-col">
+                <div class="row-actions">
+                    <a href="/admin?section=clients&amp;mode=edit&amp;edit={{.ID}}" class="button button-small">Edit</a>
+                    <form action="/admin/client/delete" method="post">
+                        <input type="hidden" name="section" value="clients">
+                        <input type="hidden" name="id" value="{{.ID}}">
+                        <button type="submit" class="button button-small">Delete</button>
+                    </form>
+                </div>
             </td>
         </tr>
         {{end}}
@@ -68,6 +70,13 @@
     <p class="hint">ListClients returns nothing. Clients from a static config are not stored, and so are not listed.</p>
     {{end}}
 
+    {{if not .Mode}}
+    <div class="form-actions">
+        <a href="/admin?section=clients&amp;mode=create" class="button button-primary">Create a client</a>
+    </div>
+    {{end}}
+
+    {{if eq .Mode "create"}}
     <div class="subhead">CreateClient</div>
     <form action="/admin/client/create" method="post" class="form">
         <input type="hidden" name="section" value="clients">
@@ -99,8 +108,12 @@
                 <label class="checkbox"><input id="c_public" type="checkbox" name="public" value="1"> no client secret</label>
             </div>
         </div>
-        <div class="form-actions"><button type="submit" class="button button-primary">Create</button></div>
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Create</button>
+            <a href="/admin?section=clients" class="button button-secondary">Cancel</a>
+        </div>
     </form>
+    {{end}}
 
     {{with .EditClient}}
     <div class="subhead">UpdateClient — {{.ID}}</div>
@@ -130,19 +143,21 @@
     {{if eq .Section "passwords"}}
     {{if .Passwords}}
     <table class="table">
-        <tr><th>Email</th><th>Username</th><th>User ID</th><th></th></tr>
+        <tr><th>Email</th><th>Username</th><th>User ID</th><th class="actions-col"></th></tr>
         {{range .Passwords}}
         <tr>
             <td class="mono">{{.Email}}</td>
             <td>{{.Username}}</td>
             <td class="mono small">{{.UserID}}</td>
-            <td class="row-actions">
-                <a href="/admin?section=passwords&amp;edit_password={{.Email}}" class="button button-small">Edit</a>
-                <form action="/admin/password/delete" method="post">
-                    <input type="hidden" name="section" value="passwords">
-                    <input type="hidden" name="email" value="{{.Email}}">
-                    <button type="submit" class="button button-small">Delete</button>
-                </form>
+            <td class="actions-col">
+                <div class="row-actions">
+                    <a href="/admin?section=passwords&amp;mode=edit&amp;edit={{.Email}}" class="button button-small">Edit</a>
+                    <form action="/admin/password/delete" method="post">
+                        <input type="hidden" name="section" value="passwords">
+                        <input type="hidden" name="email" value="{{.Email}}">
+                        <button type="submit" class="button button-small">Delete</button>
+                    </form>
+                </div>
             </td>
         </tr>
         {{end}}
@@ -151,6 +166,14 @@
     <p class="hint">ListPasswords returns nothing. Users from staticPasswords are not stored, and so are not listed.</p>
     {{end}}
 
+    {{if not .Mode}}
+    <div class="form-actions">
+        <a href="/admin?section=passwords&amp;mode=create" class="button button-primary">Create a password</a>
+        <a href="/admin?section=passwords&amp;mode=verify" class="button">Verify a password</a>
+    </div>
+    {{end}}
+
+    {{if eq .Mode "create"}}
     <div class="subhead">CreatePassword</div>
     <form action="/admin/password/create" method="post" class="form">
         <input type="hidden" name="section" value="passwords">
@@ -166,7 +189,7 @@
             <label for="p_userid">User ID</label>
             <div class="form-control">
                 <input id="p_userid" type="text" name="user_id" autocomplete="off">
-                <small class="hint">The sub claim tokens for this user will carry.</small>
+                <small class="hint">What the connector calls this user; the sub claim is built from it.</small>
             </div>
         </div>
         <div class="form-row">
@@ -176,8 +199,12 @@
                 <small class="hint">The API takes a bcrypt hash; this page hashes what you type.</small>
             </div>
         </div>
-        <div class="form-actions"><button type="submit" class="button button-primary">Create</button></div>
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Create</button>
+            <a href="/admin?section=passwords" class="button button-secondary">Cancel</a>
+        </div>
     </form>
+    {{end}}
 
     {{with .EditPassword}}
     <div class="subhead">UpdatePassword — {{.Email}}</div>
@@ -202,6 +229,7 @@
     </form>
     {{end}}
 
+    {{if eq .Mode "verify"}}
     <div class="subhead">VerifyPassword</div>
     <form action="/admin/password/verify" method="post" class="form">
         <input type="hidden" name="section" value="passwords">
@@ -216,25 +244,31 @@
                 <small class="hint">Checks a password without issuing anything.</small>
             </div>
         </div>
-        <div class="form-actions"><button type="submit" class="button button-primary">Verify</button></div>
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Verify</button>
+            <a href="/admin?section=passwords" class="button button-secondary">Cancel</a>
+        </div>
     </form>
+    {{end}}
     {{end}}
 
     {{if eq .Section "connectors"}}
     {{if .Connectors}}
     <table class="table">
-        <tr><th>ID</th><th>Type</th><th>Name</th><th></th></tr>
+        <tr><th>ID</th><th>Type</th><th>Name</th><th class="actions-col"></th></tr>
         {{range .Connectors}}
         <tr>
             <td class="mono">{{.ID}}</td>
             <td class="mono small">{{.Type}}</td>
             <td>{{.Name}}</td>
-            <td>
-                <form action="/admin/connector/delete" method="post">
-                    <input type="hidden" name="section" value="connectors">
-                    <input type="hidden" name="id" value="{{.ID}}">
-                    <button type="submit" class="button button-small">Delete</button>
-                </form>
+            <td class="actions-col">
+                <div class="row-actions">
+                    <form action="/admin/connector/delete" method="post">
+                        <input type="hidden" name="section" value="connectors">
+                        <input type="hidden" name="id" value="{{.ID}}">
+                        <button type="submit" class="button button-small">Delete</button>
+                    </form>
+                </div>
             </td>
         </tr>
         {{end}}
@@ -243,6 +277,13 @@
     <p class="hint">ListConnectors returns nothing. Connectors from the config file are not stored, and so are not listed.</p>
     {{end}}
 
+    {{if not .Mode}}
+    <div class="form-actions">
+        <a href="/admin?section=connectors&amp;mode=create" class="button button-primary">Create a connector</a>
+    </div>
+    {{end}}
+
+    {{if eq .Mode "create"}}
     <div class="subhead">CreateConnector</div>
     <form action="/admin/connector/create" method="post" class="form">
         <input type="hidden" name="section" value="connectors">
@@ -253,8 +294,9 @@
         <div class="form-row">
             <label for="n_type">Type <span class="req" title="required">*</span></label>
             <div class="form-control">
-                <input id="n_type" type="text" name="type" placeholder="oidc" required autocomplete="off">
-                <small class="hint">One of dex's connector types.</small>
+                <select id="n_type" name="type" required>
+                    {{range $.ConnectorTypes}}<option value="{{.}}">{{.}}</option>{{end}}
+                </select>
             </div>
         </div>
         <div class="form-row">
@@ -265,75 +307,81 @@
             <label for="n_config">Config</label>
             <div class="form-control">
                 <textarea id="n_config" name="config" rows="5" placeholder='{"issuer": "https://accounts.google.com", "clientID": "..."}'></textarea>
-                <small class="hint">The connector's own JSON configuration — the same keys the config file takes.</small>
+                <small class="hint">The connector's own JSON configuration — the same keys the config file takes for this type.</small>
             </div>
         </div>
-        <div class="form-actions"><button type="submit" class="button button-primary">Create</button></div>
+        <div class="form-actions">
+            <button type="submit" class="button button-primary">Create</button>
+            <a href="/admin?section=connectors" class="button button-secondary">Cancel</a>
+        </div>
     </form>
+    {{end}}
     {{end}}
 
     {{if eq .Section "identities"}}
     {{if .Identities}}
     <table class="table">
-        <tr><th>User ID</th><th>Connector</th><th>Email</th><th>Groups</th><th>MFA</th><th></th></tr>
+        <tr><th>User</th><th>Connector</th><th>Groups</th><th>MFA</th><th class="actions-col"></th></tr>
         {{range .Identities}}
         <tr>
-            <td class="mono small">{{.UserID}}</td>
-            <td class="mono small">{{.ConnectorID}}</td>
-            <td>{{.Email}}{{if .Username}}<br><span class="hint">{{.Username}}</span>{{end}}</td>
-            <td class="small">{{range .Groups}}{{.}}<br>{{end}}</td>
-            <td class="small">
-                {{range .MFADevices}}
-                <div class="mfa-device">
-                    <span class="mono">{{.}}</span>
-                </div>
-                {{else}}<span class="hint">none</span>{{end}}
+            <td>
+                {{.Email}}
+                {{if .Username}}<div class="hint">{{.Username}}</div>{{end}}
+                <div class="mono small">{{.UserID}}</div>
             </td>
-            <td class="row-actions">
-                {{if .MFADevices}}
-                <form action="/admin/mfa/reset" method="post">
-                    <input type="hidden" name="section" value="identities">
-                    <input type="hidden" name="user_id" value="{{.UserID}}">
-                    <input type="hidden" name="connector_id" value="{{.ConnectorID}}">
-                    <button type="submit" class="button button-small">Reset MFA</button>
-                </form>
-                {{end}}
-                <form action="/admin/identity/delete" method="post">
-                    <input type="hidden" name="section" value="identities">
-                    <input type="hidden" name="user_id" value="{{.UserID}}">
-                    <input type="hidden" name="connector_id" value="{{.ConnectorID}}">
-                    <button type="submit" class="button button-small">Delete</button>
-                </form>
+            <td class="mono small">{{.ConnectorID}}</td>
+            <td class="small">{{range .Groups}}{{.}}<br>{{else}}<span class="hint">none</span>{{end}}</td>
+            <td class="mono small">{{range .MFADevices}}{{.}}<br>{{else}}<span class="hint">none</span>{{end}}</td>
+            <td class="actions-col">
+                <div class="row-actions">
+                    <a href="/admin?section=sessions&amp;user_id={{.UserID}}&amp;connector_id={{.ConnectorID}}" class="button button-small">Sessions</a>
+                    {{if .MFADevices}}
+                    <form action="/admin/mfa/reset" method="post">
+                        <input type="hidden" name="section" value="identities">
+                        <input type="hidden" name="user_id" value="{{.UserID}}">
+                        <input type="hidden" name="connector_id" value="{{.ConnectorID}}">
+                        <button type="submit" class="button button-small">Reset MFA</button>
+                    </form>
+                    {{end}}
+                    <form action="/admin/identity/delete" method="post">
+                        <input type="hidden" name="section" value="identities">
+                        <input type="hidden" name="user_id" value="{{.UserID}}">
+                        <input type="hidden" name="connector_id" value="{{.ConnectorID}}">
+                        <button type="submit" class="button button-small">Delete</button>
+                    </form>
+                </div>
             </td>
         </tr>
         {{end}}
     </table>
     <p class="hint">What dex recorded from the connector when this user signed in — the ID token's claims are built from it.</p>
     {{else}}
-    <p class="hint">ListUserIdentities returns nothing. An identity appears once someone signs in through a connector.</p>
+    <p class="hint">
+        ListUserIdentities returns nothing. An identity appears once someone signs
+        in through a connector — and the method itself needs dex started with
+        <code>DEX_API_SESSIONS_IDENTITIES_CRUD=true</code>.
+    </p>
     {{end}}
     {{end}}
 
     {{if eq .Section "sessions"}}
     <p class="hint">
-        The two listings are keyed differently, which is the API's shape rather than
-        a choice here: sessions are stored under the ID the connector gave the user,
-        refresh tokens under the encoded sub claim that ends up in tokens.
+        Pick a user from the Users tab, or name one here. Sessions are keyed by the
+        ID the connector gave the user; refresh tokens by the sub claim, which the
+        app derives from that ID and the connector. Listing sessions needs dex
+        started with <code>DEX_API_SESSIONS_IDENTITIES_CRUD=true</code>.
     </p>
     <form action="/admin" method="get" class="form">
         <input type="hidden" name="section" value="sessions">
         <div class="form-row">
             <label for="s_user">User ID</label>
-            <div class="form-control">
-                <input id="s_user" type="text" name="user_id" value="{{.UserID}}" autocomplete="off">
-                <small class="hint">For sessions. The Users tab lists these.</small>
-            </div>
+            <div class="form-control"><input id="s_user" type="text" name="user_id" value="{{.UserID}}" autocomplete="off"></div>
         </div>
         <div class="form-row">
-            <label for="s_subject">Subject</label>
+            <label for="s_conn">Connector</label>
             <div class="form-control">
-                <input id="s_subject" type="text" name="subject" value="{{.Subject}}" autocomplete="off">
-                <small class="hint">For refresh tokens. The sub claim of a token issued to the user.</small>
+                <input id="s_conn" type="text" name="connector_id" value="{{.ConnectorID}}" autocomplete="off">
+                <small class="hint">Needed for the refresh tokens.</small>
             </div>
         </div>
         <div class="form-actions"><button type="submit" class="button button-primary">List</button></div>
@@ -343,21 +391,24 @@
     <div class="subhead">Sessions</div>
     {{if .Sessions}}
     <table class="table">
-        <tr><th>Connector</th><th>From</th><th>Started</th><th>Expires</th><th></th></tr>
+        <tr><th>Connector</th><th>From</th><th>Started</th><th>Expires</th><th class="actions-col"></th></tr>
         {{range .Sessions}}
         <tr>
             <td class="mono small">{{.ConnectorID}}</td>
             <td class="mono small">{{.IPAddress}}</td>
             <td class="small">{{.Created}}</td>
             <td class="small">{{.Expires}}</td>
-            <td>
-                <form action="/admin/session/delete" method="post">
-                    <input type="hidden" name="section" value="sessions">
-                    <input type="hidden" name="list_user_id" value="{{$.UserID}}">
-                    <input type="hidden" name="user_id" value="{{.UserID}}">
-                    <input type="hidden" name="connector_id" value="{{.ConnectorID}}">
-                    <button type="submit" class="button button-small">Delete</button>
-                </form>
+            <td class="actions-col">
+                <div class="row-actions">
+                    <form action="/admin/session/delete" method="post">
+                        <input type="hidden" name="section" value="sessions">
+                        <input type="hidden" name="list_user_id" value="{{$.UserID}}">
+                        <input type="hidden" name="list_connector_id" value="{{$.ConnectorID}}">
+                        <input type="hidden" name="user_id" value="{{.UserID}}">
+                        <input type="hidden" name="connector_id" value="{{.ConnectorID}}">
+                        <button type="submit" class="button button-small">Delete</button>
+                    </form>
+                </div>
             </td>
         </tr>
         {{end}}
@@ -365,28 +416,30 @@
     {{else}}
     <p class="hint">No sessions for this user.</p>
     {{end}}
-
     {{end}}
 
-    {{if .Subject}}
+    {{if and .UserID .ConnectorID}}
     <div class="subhead">Refresh tokens</div>
     {{if .RefreshTokens}}
     <table class="table">
-        <tr><th>Client</th><th>Created</th><th>Last used</th><th></th></tr>
+        <tr><th>Client</th><th>Created</th><th>Last used</th><th class="actions-col"></th></tr>
         {{range .RefreshTokens}}
         <tr>
             <td class="mono">{{.ClientID}}</td>
             <td class="small">{{.Created}}</td>
             <td class="small">{{.LastUsed}}</td>
-            <td>
-                <form action="/admin/refresh/revoke" method="post">
-                    <input type="hidden" name="section" value="sessions">
-                    <input type="hidden" name="list_user_id" value="{{$.UserID}}">
-                    <input type="hidden" name="list_subject" value="{{$.Subject}}">
-                    <input type="hidden" name="user_id" value="{{$.Subject}}">
-                    <input type="hidden" name="client_id" value="{{.ClientID}}">
-                    <button type="submit" class="button button-small">Revoke</button>
-                </form>
+            <td class="actions-col">
+                <div class="row-actions">
+                    <form action="/admin/refresh/revoke" method="post">
+                        <input type="hidden" name="section" value="sessions">
+                        <input type="hidden" name="list_user_id" value="{{$.UserID}}">
+                        <input type="hidden" name="list_connector_id" value="{{$.ConnectorID}}">
+                        <input type="hidden" name="user_id" value="{{$.UserID}}">
+                        <input type="hidden" name="connector_id" value="{{$.ConnectorID}}">
+                        <input type="hidden" name="client_id" value="{{.ClientID}}">
+                        <button type="submit" class="button button-small">Revoke</button>
+                    </form>
+                </div>
             </td>
         </tr>
         {{end}}
@@ -395,13 +448,14 @@
     {{else}}
     <p class="hint">No refresh tokens for this user. They are issued only when offline_access is requested.</p>
     {{end}}
+    {{end}}
 
     {{if .UserID}}
     <div class="subhead">TerminateSessionsByUser</div>
     <form action="/admin/session/terminate" method="post" class="form">
         <input type="hidden" name="section" value="sessions">
         <input type="hidden" name="list_user_id" value="{{.UserID}}">
-        <input type="hidden" name="list_subject" value="{{.Subject}}">
+        <input type="hidden" name="list_connector_id" value="{{.ConnectorID}}">
         <input type="hidden" name="user_id" value="{{.UserID}}">
         <p class="hint">Ends every session this user has, whatever connector they came through.</p>
         <div class="form-actions"><button type="submit" class="button">Terminate all sessions</button></div>
@@ -412,15 +466,14 @@
     <form action="/admin/session/terminate-connector" method="post" class="form">
         <input type="hidden" name="section" value="sessions">
         <div class="form-row">
-            <label for="s_conn">Connector <span class="req" title="required">*</span></label>
+            <label for="tc_conn">Connector <span class="req" title="required">*</span></label>
             <div class="form-control">
-                <input id="s_conn" type="text" name="connector_id" required autocomplete="off">
+                <input id="tc_conn" type="text" name="connector_id" required autocomplete="off">
                 <small class="hint">Ends every session that came through it — for a connector being retired or one you no longer trust.</small>
             </div>
         </div>
         <div class="form-actions"><button type="submit" class="button">Terminate</button></div>
     </form>
-    {{end}}
     {{end}}
 </div>
 {{end}}

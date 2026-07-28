@@ -357,7 +357,7 @@ textarea {
 
 .flow:first-child {
     border-top: 0;
-    padding-top: 0;
+    padding-top: 4px;
 }
 
 .flow-text {
@@ -531,4 +531,34 @@ pre.code {
 .tab--current {
     border-bottom-color: var(--accent);
     color: var(--fg);
+}
+
+/* Row actions sit in a column of their own so the buttons line up down the
+   table instead of wherever the text before them happens to end. */
+.table .actions-col {
+    text-align: right;
+    white-space: nowrap;
+    width: 1%;
+}
+
+.table .row-actions {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+.table .button-small {
+    line-height: 1.2;
+}
+
+/* The flow list starts far enough below the heading to read as a list under it
+   rather than a first row of it. */
+.card-title + .flows,
+.card-title + .hint + .flows {
+    margin-top: 16px;
+}
+
+.card .table {
+    display: block;
+    overflow-x: auto;
 }

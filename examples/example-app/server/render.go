@@ -206,11 +206,19 @@ type AdminPageData struct {
 	Identities    []AdminIdentity
 	Sessions      []AdminSession
 	RefreshTokens []AdminRefreshToken
-	// UserID is what the session listing was filtered by, and Subject is what
-	// the refresh listing was: dex identifies a user by the connector's ID in
-	// one API and by the encoded sub claim in the other.
-	UserID  string
-	Subject string
+	// UserID and ConnectorID are who the sessions section is about. The refresh
+	// listing needs the sub claim, which the app derives from the pair rather
+	// than asking for a value nobody has to hand.
+	UserID      string
+	ConnectorID string
+
+	// Mode is which form the section is showing, if any: create, edit, verify.
+	// One at a time — three stacked forms is a page you have to read to find
+	// the one you wanted.
+	Mode string
+
+	// ConnectorTypes are the types dex accepts, for the create form.
+	ConnectorTypes []string
 
 	// EditClient and EditPassword are prefilled from the row an edit was
 	// started from, so updating is something you do to a thing you can see.

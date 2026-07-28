@@ -70,6 +70,15 @@ func (a *adminClient) close() {
 // adminSections are the tabs of the API page. dex's API has more than twenty
 // methods; putting every list and every form on one page is what made the last
 // version unreadable.
+// connectorTypes are the types dex's config parser knows. The list is short,
+// fixed, and impossible to guess the spelling of, so the form offers it rather
+// than asking you to type one.
+var connectorTypes = []string{
+	"atlassian-crowd", "authproxy", "bitbucket-cloud", "gitea", "github",
+	"gitlab", "google", "keystone", "ldap", "linkedin", "microsoft",
+	"mockCallback", "mockPassword", "oauth", "oidc", "openshift", "saml",
+}
+
 var adminSections = []AdminSection{
 	{ID: "clients", Label: "Clients"},
 	{ID: "passwords", Label: "Passwords"},
@@ -93,7 +102,10 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		Notice:       r.URL.Query().Get("notice"),
 		Error:        r.URL.Query().Get("error"),
 		UserID:       r.URL.Query().Get("user_id"),
-		Subject:      r.URL.Query().Get("subject"),
+		ConnectorID:  r.URL.Query().Get("connector_id"),
+		Mode:         r.URL.Query().Get("mode"),
+
+		ConnectorTypes: connectorTypes,
 	}
 	for _, sec := range adminSections {
 		sec.Current = sec.ID == section
@@ -203,8 +215,11 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 
 		}
 
-		if data.Subject != "" {
-			if resp, err := s.admin.api.ListRefresh(ctx, &api.ListRefreshReq{UserId: data.Subject}); err == nil {
+		// Refresh tokens are keyed by the sub claim, which is the user and the
+		// connector encoded together.
+		if data.UserID != "" && data.ConnectorID != "" {
+			subject := idTokenSubject(data.UserID, data.ConnectorID)
+			if resp, err := s.admin.api.ListRefresh(ctx, &api.ListRefreshReq{UserId: subject}); err == nil {
 				for _, t := range resp.RefreshTokens {
 					data.RefreshTokens = append(data.RefreshTokens, AdminRefreshToken{
 						ID:       t.Id,
@@ -220,7 +235,7 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// An edit starts from a row, so the form comes back filled in.
-	if id := r.URL.Query().Get("edit_client"); id != "" {
+	if id := r.URL.Query().Get("edit"); id != "" && section == "clients" {
 		if resp, err := s.admin.api.GetClient(ctx, &api.GetClientReq{Id: id}); err == nil && resp.Client != nil {
 			data.EditClient = &AdminClient{
 				ID:           resp.Client.Id,
@@ -232,7 +247,7 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 			fail(err)
 		}
 	}
-	if email := r.URL.Query().Get("edit_password"); email != "" {
+	if email := r.URL.Query().Get("edit"); email != "" && section == "passwords" {
 		for _, p := range data.Passwords {
 			if p.Email == email {
 				entry := p
@@ -410,8 +425,8 @@ func (s *Server) adminRedirect(w http.ResponseWriter, r *http.Request, notice, e
 	if userID := r.FormValue("list_user_id"); userID != "" {
 		q.Set("user_id", userID)
 	}
-	if subject := r.FormValue("list_subject"); subject != "" {
-		q.Set("subject", subject)
+	if connectorID := r.FormValue("list_connector_id"); connectorID != "" {
+		q.Set("connector_id", connectorID)
 	}
 	switch {
 	case errMsg != "":

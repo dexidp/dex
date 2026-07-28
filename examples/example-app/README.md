@@ -81,6 +81,13 @@ The page is in sections: clients, local passwords, connectors, the identities
 dex has recorded, and a user's sessions and refresh tokens. Without
 `--grpc-addr` the page still exists and says what to pass to connect it.
 
+The last two sections call methods behind a feature flag, so dex has to be
+started with it:
+
+```
+DEX_API_SESSIONS_IDENTITIES_CRUD=true
+```
+
 The connection is plaintext by default, which is how dex's example config
 exposes the API locally. For anything else, pass certificates — see
 `examples/grpc-client/cert-gen` for generating a set:
