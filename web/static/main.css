@@ -19,6 +19,10 @@ body {
   border-radius: 8px;
   border: 0;
   cursor: pointer;
+  /* Buttons do not inherit the page's typeface on their own, so without this
+   * every button label on every screen came out in the browser's default —
+   * Arial next to the system font the rest of the page is set in. */
+  font-family: inherit;
   font-size: 15px;
   padding: 0;
   transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
@@ -55,12 +59,19 @@ body {
    * the label can turn off a decoration its ancestor is drawing. */
   display: inline-flex;
   max-width: 100%;
+  /* It is a link: it navigates to the connector, and it is the only thing on
+   * the row that should take focus. */
+  text-decoration: none;
 }
 
 /* The icon keeps its own size instead of stretching down the side of a button
  * a long name has made two or three lines tall. */
 .dex-btn-icon {
   align-self: center;
+  /* Not every connector type has a rule below — oauth, authproxy and openshift
+   * are shipped without one. They used to render as a transparent hole with the
+   * label pushed off to the side of it; a plain tile is at least a tile. */
+  background-color: #84B6EF;
   background-position: center;
   background-repeat: no-repeat;
   background-size: 18px;
