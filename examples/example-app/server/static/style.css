@@ -587,3 +587,21 @@ pre.code {
 .table a:hover {
     color: var(--accent);
 }
+
+/* A label column sized for "Redirect URIs" cannot hold
+   "device_authorization_endpoint" — the metadata page names its own fields, so
+   it gets a column wide enough for them and labels that wrap rather than run
+   into their values. */
+.kv .k {
+    overflow-wrap: anywhere;
+}
+
+.kv--metadata {
+    grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+}
+
+@media (max-width: 620px) {
+    .kv--metadata {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
