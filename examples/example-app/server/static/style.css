@@ -653,3 +653,25 @@ pre.code {
     margin-top: 16px;
     padding-top: 16px;
 }
+
+/* Metadata names are long and fixed; values are lists. A column for the name
+   and pills for the values beats a two-column grid that has to fit both. */
+.meta-name {
+    color: var(--muted);
+    white-space: nowrap;
+    width: 1%;
+}
+
+.pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.pill {
+    background: #f4f5f7;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    font-size: 11.5px;
+    padding: 2px 6px;
+}

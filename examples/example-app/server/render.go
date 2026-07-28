@@ -196,13 +196,16 @@ type AdminDetailPageData struct {
 	ConnectorGrantTypes []string
 }
 
-// DiscoveryPageData is the provider's metadata document, in full.
+// DiscoveryPageData is what dex says about itself. It comes from the gRPC API's
+// GetDiscovery rather than the published document: same facts, from the
+// interface that answers for the server rather than for a client reading it.
 type DiscoveryPageData struct {
 	LogoURI      string
 	AdminEnabled bool
-	IssuerURL    string
-	Document     string
-	Summary      []DiscoveryEntry
+	Configured   bool
+	Error        string
+	Endpoints    []DiscoveryEntry
+	Capabilities []DiscoveryEntry
 }
 
 // DiscoveryEntry is one metadata field worth reading without scrolling.

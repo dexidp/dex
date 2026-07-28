@@ -298,44 +298,54 @@ func (s *Server) handleAdminUpdateConnector(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-// handleDiscovery shows the provider's metadata document. The app reads it at
-// startup to find endpoints; this is the rest of what it says.
+// handleDiscovery shows what dex says about itself, asked over the gRPC API.
 func (s *Server) handleDiscovery(w http.ResponseWriter, r *http.Request) {
 	data := DiscoveryPageData{
 		LogoURI:      dexLogoDataURI,
 		AdminEnabled: s.admin != nil,
-		IssuerURL:    s.provider.Endpoint().AuthURL,
+		Configured:   s.admin != nil,
+	}
+	if s.admin == nil {
+		s.renderer.RenderDiscoveryPage(w, data)
+		return
 	}
 
-	var raw map[string]any
-	if err := s.provider.Claims(&raw); err == nil {
-		data.Document = jsonOf(raw)
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
 
-		// The fields worth reading first, rather than hunting for in the
-		// document below.
-		for _, name := range []string{
-			"issuer", "authorization_endpoint", "token_endpoint", "userinfo_endpoint",
-			"jwks_uri", "device_authorization_endpoint", "introspection_endpoint",
-			"end_session_endpoint", "registration_endpoint",
-		} {
-			if value, ok := raw[name].(string); ok && value != "" {
-				data.Summary = append(data.Summary, DiscoveryEntry{Name: name, Value: value})
-			}
+	resp, err := s.admin.api.GetDiscovery(ctx, &api.DiscoveryReq{})
+	if err != nil {
+		data.Error = err.Error()
+		s.renderer.RenderDiscoveryPage(w, data)
+		return
+	}
+
+	for _, e := range []DiscoveryEntry{
+		{Name: "issuer", Value: resp.Issuer},
+		{Name: "authorization_endpoint", Value: resp.AuthorizationEndpoint},
+		{Name: "token_endpoint", Value: resp.TokenEndpoint},
+		{Name: "userinfo_endpoint", Value: resp.UserinfoEndpoint},
+		{Name: "jwks_uri", Value: resp.JwksUri},
+		{Name: "device_authorization_endpoint", Value: resp.DeviceAuthorizationEndpoint},
+		{Name: "introspection_endpoint", Value: resp.IntrospectionEndpoint},
+	} {
+		if e.Value != "" {
+			data.Endpoints = append(data.Endpoints, e)
 		}
-		for _, name := range []string{
-			"scopes_supported", "response_types_supported", "grant_types_supported",
-			"id_token_signing_alg_values_supported", "code_challenge_methods_supported",
-			"token_endpoint_auth_methods_supported", "claims_supported", "subject_types_supported",
-		} {
-			values, ok := raw[name].([]any)
-			if !ok || len(values) == 0 {
-				continue
-			}
-			entry := DiscoveryEntry{Name: name}
-			for _, v := range values {
-				entry.Values = append(entry.Values, fmt.Sprint(v))
-			}
-			data.Summary = append(data.Summary, entry)
+	}
+
+	for _, e := range []DiscoveryEntry{
+		{Name: "scopes_supported", Values: resp.ScopesSupported},
+		{Name: "grant_types_supported", Values: resp.GrantTypesSupported},
+		{Name: "response_types_supported", Values: resp.ResponseTypesSupported},
+		{Name: "claims_supported", Values: resp.ClaimsSupported},
+		{Name: "subject_types_supported", Values: resp.SubjectTypesSupported},
+		{Name: "id_token_signing_alg_values_supported", Values: resp.IdTokenSigningAlgValuesSupported},
+		{Name: "code_challenge_methods_supported", Values: resp.CodeChallengeMethodsSupported},
+		{Name: "token_endpoint_auth_methods_supported", Values: resp.TokenEndpointAuthMethodsSupported},
+	} {
+		if len(e.Values) > 0 {
+			data.Capabilities = append(data.Capabilities, e)
 		}
 	}
 

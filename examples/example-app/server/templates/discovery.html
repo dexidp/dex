@@ -1,20 +1,46 @@
 {{define "content"}}
 <div class="card">
-    <div class="card-title">Provider metadata</div>
+    <div class="card-title">What dex says about itself</div>
     <p class="hint">
-        What the issuer publishes at <span class="mono">/.well-known/openid-configuration</span>.
-        The app reads it at startup to find endpoints and to decide which flows to offer.
+        Asked over the gRPC API's GetDiscovery — the same facts the issuer publishes
+        at <span class="mono">/.well-known/openid-configuration</span>, from the
+        interface that answers for the server rather than for a client reading it.
     </p>
-    <div class="kv kv--metadata">
-        {{range .Summary}}
-        <div class="k mono">{{.Name}}</div>
-        <div class="v mono">{{if .Value}}{{.Value}}{{else}}{{range .Values}}{{.}}<br>{{end}}{{end}}</div>
-        {{end}}
-    </div>
+    {{if .Error}}<p class="verdict verdict-bad">{{.Error}}</p>{{end}}
+    {{if not .Configured}}
+    <p class="hint">Start this app with <span class="mono">--grpc-addr</span> to ask.</p>
+    {{end}}
 </div>
 
+{{if .Endpoints}}
 <div class="card">
-    <div class="card-title">The whole document</div>
-    <pre class="json">{{.Document}}</pre>
+    <div class="card-title">Endpoints</div>
+    <table class="table">
+        {{range .Endpoints}}
+        <tr>
+            <td class="mono small meta-name">{{.Name}}</td>
+            <td class="mono small">{{.Value}}</td>
+        </tr>
+        {{end}}
+    </table>
 </div>
+{{end}}
+
+{{if .Capabilities}}
+<div class="card">
+    <div class="card-title">What it supports</div>
+    <table class="table">
+        {{range .Capabilities}}
+        <tr>
+            <td class="mono small meta-name">{{.Name}}</td>
+            <td>
+                <div class="pills">
+                    {{range .Values}}<span class="pill mono">{{.}}</span>{{end}}
+                </div>
+            </td>
+        </tr>
+        {{end}}
+    </table>
+</div>
+{{end}}
 {{end}}

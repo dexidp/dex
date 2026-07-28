@@ -118,10 +118,9 @@
         {{if .LastLogin}}<div class="k">Last sign-in</div><div class="v">{{.LastLogin}}</div>{{end}}
     </div>
     <p class="note">
-        The API's UpdatePassword changes a username and a password; an email is
-        what a password entry is looked up by, so changing one means creating the
-        entry again. A connector's identity is not editable at all — dex records
-        what the connector said.
+        None of this is editable: it is what the connector said about the user at
+        their last sign-in, and dex re-records it at the next one. For the local
+        connector, the entry behind it is on the Passwords tab.
     </p>
 </div>
 
