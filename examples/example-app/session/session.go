@@ -98,8 +98,8 @@ func NewStore() *Store {
 }
 
 // FromRequest returns the session for this browser, creating one and setting
-// the cookie if the request carries none. The returned session must be handed
-// back to Save after any change.
+// the cookie if the request carries none. The returned session is the store's
+// own: the methods below change it in place.
 func (st *Store) FromRequest(w http.ResponseWriter, r *http.Request, secure bool) *Session {
 	st.mu.Lock()
 	defer st.mu.Unlock()
@@ -131,15 +131,6 @@ func (st *Store) FromRequest(w http.ResponseWriter, r *http.Request, secure bool
 	})
 
 	return s
-}
-
-// Save persists changes made to a session.
-func (st *Store) Save(s *Session) {
-	st.mu.Lock()
-	defer st.mu.Unlock()
-
-	s.expires = time.Now().Add(ttl)
-	st.sessions[s.ID] = s
 }
 
 // SignIn records a completed sign-in.
