@@ -257,11 +257,12 @@ body {
 }
 
 /* Overlay scrollbars stay invisible until touched, so a clipped list would read
- * as complete. The template adds this class only when the list actually
- * overflows, and the fade says the rest is below. */
+ * as complete. The template adds this class while there is more below, and the
+ * fade says so. It covers only the row the cap cuts through — a longer gradient
+ * would dim the readable rows above it too. */
 .dex-groups--clipped {
-  -webkit-mask-image: linear-gradient(to bottom, #000 86px, transparent);
-  mask-image: linear-gradient(to bottom, #000 86px, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent);
 }
 
 .dex-groups:focus-visible {

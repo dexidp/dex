@@ -76,10 +76,17 @@
 <script>
   (function () {
     // A long group list is capped by CSS; fade its bottom edge so the cut is
-    // visible on platforms whose scrollbars only appear while scrolling.
+    // visible on platforms whose scrollbars only appear while scrolling. The
+    // fade tracks the scroll position — left up permanently it would dim the
+    // last group even once you had scrolled down to read it.
     var groups = document.querySelector('.dex-groups');
-    if (groups && groups.scrollHeight > groups.clientHeight) {
-      groups.classList.add('dex-groups--clipped');
+    if (groups) {
+      var syncFade = function () {
+        var more = groups.scrollTop + groups.clientHeight < groups.scrollHeight - 1;
+        groups.classList.toggle('dex-groups--clipped', more);
+      };
+      syncFade();
+      groups.addEventListener('scroll', syncFade, {passive: true});
     }
 
     // The server sends Unix seconds; render them in the visitor's own timezone.
