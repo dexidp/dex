@@ -2,7 +2,9 @@ package session
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -100,6 +102,42 @@ func (m *Manager) ClearCookie(w http.ResponseWriter) {
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 	})
+}
+
+// SessionID derives the public session identifier — the OIDC "sid" claim — from a
+// session's nonce.
+//
+// The nonce itself is a secret: it authenticates the session cookie, so publishing
+// it in every ID token would hand each relying party the means to forge one. Hashing
+// gives a value that is just as stable and just as unique per session (the nonce is
+// generated once in CreateOrUpdateAuthSession and reused for the session's whole
+// life) without disclosing anything. That keeps sid free of storage changes — there
+// is no session-id column in any backend, and none is needed.
+func SessionID(nonce string) string {
+	if nonce == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(nonce))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
+}
+
+// SessionIDFor returns the sid of the stored session for the given user/connector
+// pair, or "" when sessions are disabled or no session exists. Callers that already
+// hold an AuthSession should use SessionID directly instead of paying for a lookup.
+func (m *Manager) SessionIDFor(ctx context.Context, userID, connectorID string) string {
+	if m == nil || m.Config == nil || userID == "" || connectorID == "" {
+		return ""
+	}
+
+	session, err := m.Storage.GetAuthSession(ctx, userID, connectorID)
+	if err != nil {
+		if !errors.Is(err, storage.ErrNotFound) {
+			m.Logger.ErrorContext(ctx, "failed to get auth session for sid", "err", err)
+		}
+		return ""
+	}
+
+	return SessionID(session.Nonce)
 }
 
 // ValidSession returns a valid, non-expired session or nil.

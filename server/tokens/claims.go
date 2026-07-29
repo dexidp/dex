@@ -70,6 +70,12 @@ type IDTokenClaims struct {
 	Nonce            string   `json:"nonce,omitempty"`
 	AuthTime         int64    `json:"auth_time,omitempty"`
 
+	// SessionID is the OIDC "sid" claim: the browser session this token was issued
+	// under. Present only when sessions are enabled. It lets an RP correlate a
+	// back-channel logout token with the session it holds, and lets dex tell a
+	// current id_token_hint from a stale one at the logout endpoint.
+	SessionID string `json:"sid,omitempty"`
+
 	AccessTokenHash string `json:"at_hash,omitempty"`
 	CodeHash        string `json:"c_hash,omitempty"`
 

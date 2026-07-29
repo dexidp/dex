@@ -6472,6 +6472,7 @@ type OAuth2ClientMutation struct {
 	appendpost_logout_redirect_uris []string
 	sso_shared_with                 *[]string
 	appendsso_shared_with           []string
+	backchannel_logout_uri          *string
 	client_credentials_claims       **storage.ClientCredentialsClaims
 	clearedFields                   map[string]struct{}
 	done                            bool
@@ -7117,6 +7118,55 @@ func (m *OAuth2ClientMutation) ResetSSOSharedWith() {
 	delete(m.clearedFields, oauth2client.FieldSSOSharedWith)
 }
 
+// SetBackchannelLogoutURI sets the "backchannel_logout_uri" field.
+func (m *OAuth2ClientMutation) SetBackchannelLogoutURI(s string) {
+	m.backchannel_logout_uri = &s
+}
+
+// BackchannelLogoutURI returns the value of the "backchannel_logout_uri" field in the mutation.
+func (m *OAuth2ClientMutation) BackchannelLogoutURI() (r string, exists bool) {
+	v := m.backchannel_logout_uri
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBackchannelLogoutURI returns the old "backchannel_logout_uri" field's value of the OAuth2Client entity.
+// If the OAuth2Client object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuth2ClientMutation) OldBackchannelLogoutURI(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBackchannelLogoutURI is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBackchannelLogoutURI requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBackchannelLogoutURI: %w", err)
+	}
+	return oldValue.BackchannelLogoutURI, nil
+}
+
+// ClearBackchannelLogoutURI clears the value of the "backchannel_logout_uri" field.
+func (m *OAuth2ClientMutation) ClearBackchannelLogoutURI() {
+	m.backchannel_logout_uri = nil
+	m.clearedFields[oauth2client.FieldBackchannelLogoutURI] = struct{}{}
+}
+
+// BackchannelLogoutURICleared returns if the "backchannel_logout_uri" field was cleared in this mutation.
+func (m *OAuth2ClientMutation) BackchannelLogoutURICleared() bool {
+	_, ok := m.clearedFields[oauth2client.FieldBackchannelLogoutURI]
+	return ok
+}
+
+// ResetBackchannelLogoutURI resets all changes to the "backchannel_logout_uri" field.
+func (m *OAuth2ClientMutation) ResetBackchannelLogoutURI() {
+	m.backchannel_logout_uri = nil
+	delete(m.clearedFields, oauth2client.FieldBackchannelLogoutURI)
+}
+
 // SetClientCredentialsClaims sets the "client_credentials_claims" field.
 func (m *OAuth2ClientMutation) SetClientCredentialsClaims(scc *storage.ClientCredentialsClaims) {
 	m.client_credentials_claims = &scc
@@ -7200,7 +7250,7 @@ func (m *OAuth2ClientMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *OAuth2ClientMutation) Fields() []string {
-	fields := make([]string, 0, 11)
+	fields := make([]string, 0, 12)
 	if m.secret != nil {
 		fields = append(fields, oauth2client.FieldSecret)
 	}
@@ -7230,6 +7280,9 @@ func (m *OAuth2ClientMutation) Fields() []string {
 	}
 	if m.sso_shared_with != nil {
 		fields = append(fields, oauth2client.FieldSSOSharedWith)
+	}
+	if m.backchannel_logout_uri != nil {
+		fields = append(fields, oauth2client.FieldBackchannelLogoutURI)
 	}
 	if m.client_credentials_claims != nil {
 		fields = append(fields, oauth2client.FieldClientCredentialsClaims)
@@ -7262,6 +7315,8 @@ func (m *OAuth2ClientMutation) Field(name string) (ent.Value, bool) {
 		return m.PostLogoutRedirectUris()
 	case oauth2client.FieldSSOSharedWith:
 		return m.SSOSharedWith()
+	case oauth2client.FieldBackchannelLogoutURI:
+		return m.BackchannelLogoutURI()
 	case oauth2client.FieldClientCredentialsClaims:
 		return m.ClientCredentialsClaims()
 	}
@@ -7293,6 +7348,8 @@ func (m *OAuth2ClientMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldPostLogoutRedirectUris(ctx)
 	case oauth2client.FieldSSOSharedWith:
 		return m.OldSSOSharedWith(ctx)
+	case oauth2client.FieldBackchannelLogoutURI:
+		return m.OldBackchannelLogoutURI(ctx)
 	case oauth2client.FieldClientCredentialsClaims:
 		return m.OldClientCredentialsClaims(ctx)
 	}
@@ -7374,6 +7431,13 @@ func (m *OAuth2ClientMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetSSOSharedWith(v)
 		return nil
+	case oauth2client.FieldBackchannelLogoutURI:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBackchannelLogoutURI(v)
+		return nil
 	case oauth2client.FieldClientCredentialsClaims:
 		v, ok := value.(*storage.ClientCredentialsClaims)
 		if !ok {
@@ -7429,6 +7493,9 @@ func (m *OAuth2ClientMutation) ClearedFields() []string {
 	if m.FieldCleared(oauth2client.FieldSSOSharedWith) {
 		fields = append(fields, oauth2client.FieldSSOSharedWith)
 	}
+	if m.FieldCleared(oauth2client.FieldBackchannelLogoutURI) {
+		fields = append(fields, oauth2client.FieldBackchannelLogoutURI)
+	}
 	if m.FieldCleared(oauth2client.FieldClientCredentialsClaims) {
 		fields = append(fields, oauth2client.FieldClientCredentialsClaims)
 	}
@@ -7463,6 +7530,9 @@ func (m *OAuth2ClientMutation) ClearField(name string) error {
 		return nil
 	case oauth2client.FieldSSOSharedWith:
 		m.ClearSSOSharedWith()
+		return nil
+	case oauth2client.FieldBackchannelLogoutURI:
+		m.ClearBackchannelLogoutURI()
 		return nil
 	case oauth2client.FieldClientCredentialsClaims:
 		m.ClearClientCredentialsClaims()
@@ -7504,6 +7574,9 @@ func (m *OAuth2ClientMutation) ResetField(name string) error {
 		return nil
 	case oauth2client.FieldSSOSharedWith:
 		m.ResetSSOSharedWith()
+		return nil
+	case oauth2client.FieldBackchannelLogoutURI:
+		m.ResetBackchannelLogoutURI()
 		return nil
 	case oauth2client.FieldClientCredentialsClaims:
 		m.ResetClientCredentialsClaims()

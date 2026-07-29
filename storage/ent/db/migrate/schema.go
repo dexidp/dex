@@ -165,6 +165,7 @@ var (
 		{Name: "mfa_chain", Type: field.TypeJSON, Nullable: true},
 		{Name: "post_logout_redirect_uris", Type: field.TypeJSON, Nullable: true},
 		{Name: "sso_shared_with", Type: field.TypeJSON, Nullable: true},
+		{Name: "backchannel_logout_uri", Type: field.TypeString, Nullable: true, Size: 2147483647, Default: "", SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "client_credentials_claims", Type: field.TypeJSON, Nullable: true},
 	}
 	// Oauth2clientsTable holds the schema information for the "oauth2clients" table.

@@ -175,6 +175,11 @@ type Client struct {
 	// parameter MUST match one of these values.
 	PostLogoutRedirectURIs []string `json:"postLogoutRedirectURIs"`
 
+	// BackchannelLogoutURI is where dex POSTs a logout token when the user's session
+	// ends, per OIDC Back-Channel Logout 1.0. Empty means the client does not
+	// participate: it simply will not be told, and its own session outlives dex's.
+	BackchannelLogoutURI string `json:"backchannelLogoutURI"`
+
 	// TrustedPeers are a list of peers which can issue tokens on this client's behalf using
 	// the dynamic "oauth2:server:client_id:(client_id)" scope. If a peer makes such a request,
 	// this client's ID will appear as the ID Token's audience.

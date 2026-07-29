@@ -29,7 +29,7 @@ func newTestIssuer(t *testing.T) (*Issuer, storage.Storage) {
 	issuerURL, err := url.Parse("https://issuer.example.com")
 	require.NoError(t, err)
 
-	return NewIssuer(store, sig, *issuerURL, time.Hour, time.Now, logger), store
+	return NewIssuer(store, sig, *issuerURL, time.Hour, time.Now, logger, nil), store
 }
 
 func testAuthorization() Authorization {

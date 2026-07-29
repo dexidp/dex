@@ -1,0 +1,175 @@
+package logout
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/google/uuid"
+
+	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/session"
+	"github.com/dexidp/dex/storage"
+)
+
+const (
+	// backchannelLogoutEvent is the event identifier a logout token must carry, per
+	// OIDC Back-Channel Logout 1.0 §2.4.
+	backchannelLogoutEvent = "http://schemas.openid.net/event/backchannel-logout"
+
+	// backchannelTokenLifetime bounds the replay window for a logout token. The spec
+	// recommends no more than two minutes.
+	backchannelTokenLifetime = 2 * time.Minute
+
+	// backchannelTimeout caps how long dex waits on one RP. Logout must not hang on a
+	// wedged relying party.
+	backchannelTimeout = 5 * time.Second
+)
+
+// logoutTokenClaims is the JWT dex POSTs to a relying party's backchannel_logout_uri.
+//
+// Note the absences: there is no "nonce" (the spec forbids it, to keep a logout token
+// from being mistaken for an ID token) and no "events" payload beyond an empty object.
+type logoutTokenClaims struct {
+	Issuer    string                     `json:"iss"`
+	Subject   string                     `json:"sub"`
+	Audience  string                     `json:"aud"`
+	IssuedAt  int64                      `json:"iat"`
+	Expiry    int64                      `json:"exp"`
+	JWTID     string                     `json:"jti"`
+	SessionID string                     `json:"sid"`
+	Events    map[string]json.RawMessage `json:"events"`
+}
+
+// notifyBackchannel tells every relying party in the session that it is over.
+//
+// Delivery is best-effort and fire-and-forget: RP-Initiated Logout treats notifying
+// other RPs as a courtesy, and a relying party that is down must not be able to block
+// or fail the user's logout. Failures are logged and dropped.
+//
+// ponytail: no retries and no durable queue. An RP that is unreachable for these few
+// seconds keeps its session until it expires on its own. If that becomes a real
+// problem, the upgrade path is to persist pending notifications and drain them from
+// the garbage collector, not to make the user wait here.
+func (h *Handler) notifyBackchannel(ctx context.Context, authSession *storage.AuthSession) {
+	if len(authSession.ClientStates) == 0 {
+		return
+	}
+
+	subject, err := internal.Marshal(&internal.IDTokenSubject{
+		UserId: authSession.UserID,
+		ConnId: authSession.ConnectorID,
+	})
+	if err != nil {
+		h.Logger.ErrorContext(ctx, "logout: failed to marshal backchannel subject", "err", err)
+		return
+	}
+
+	sid := session.SessionID(authSession.Nonce)
+
+	// The request context dies the moment we redirect the browser, so deliveries get
+	// their own bounded context rather than being canceled halfway through.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), backchannelTimeout)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	for clientID := range authSession.ClientStates {
+		client, err := h.Storage.GetClient(ctx, clientID)
+		if err != nil {
+			h.Logger.DebugContext(ctx, "logout: backchannel skipped, client not found",
+				"client_id", clientID, "err", err)
+			continue
+		}
+		if client.BackchannelLogoutURI == "" {
+			continue
+		}
+
+		wg.Go(func() { h.deliverLogoutToken(ctx, client, subject, sid) })
+	}
+	wg.Wait()
+}
+
+// deliverLogoutToken mints a logout token for one client and POSTs it.
+func (h *Handler) deliverLogoutToken(ctx context.Context, client storage.Client, subject, sid string) {
+	token, err := h.signLogoutToken(ctx, client.ID, subject, sid)
+	if err != nil {
+		h.Logger.ErrorContext(ctx, "logout: failed to sign logout token",
+			"client_id", client.ID, "err", err)
+		return
+	}
+
+	body := url.Values{"logout_token": {token}}.Encode()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, client.BackchannelLogoutURI, strings.NewReader(body))
+	if err != nil {
+		h.Logger.ErrorContext(ctx, "logout: failed to build backchannel request",
+			"client_id", client.ID, "err", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Cache-Control", "no-cache, no-store")
+
+	resp, err := h.backchannelClient().Do(req)
+	if err != nil {
+		h.Logger.WarnContext(ctx, "logout: backchannel delivery failed",
+			"client_id", client.ID, "uri", client.BackchannelLogoutURI, "err", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		h.Logger.WarnContext(ctx, "logout: backchannel delivery rejected",
+			"client_id", client.ID, "uri", client.BackchannelLogoutURI, "status", resp.StatusCode)
+		return
+	}
+
+	h.Logger.DebugContext(ctx, "logout: backchannel delivered", "client_id", client.ID)
+}
+
+// signLogoutToken builds and signs the logout token for one audience.
+func (h *Handler) signLogoutToken(ctx context.Context, clientID, subject, sid string) (string, error) {
+	now := time.Now()
+	if h.Now != nil {
+		now = h.Now()
+	}
+
+	claims := logoutTokenClaims{
+		Issuer:    h.IssuerURL.String(),
+		Subject:   subject,
+		Audience:  clientID,
+		IssuedAt:  now.Unix(),
+		Expiry:    now.Add(backchannelTokenLifetime).Unix(),
+		JWTID:     uuid.New().String(),
+		SessionID: sid,
+		Events:    map[string]json.RawMessage{backchannelLogoutEvent: json.RawMessage(`{}`)},
+	}
+
+	payload, err := json.Marshal(claims)
+	if err != nil {
+		return "", fmt.Errorf("marshal logout token: %w", err)
+	}
+
+	token, err := h.Signer.Sign(ctx, payload)
+	if err != nil {
+		return "", fmt.Errorf("sign logout token: %w", err)
+	}
+	return token, nil
+}
+
+// backchannelClient returns the HTTP client used for delivery, defaulting to one with
+// no redirect following: a logout token must reach the URI the client registered, not
+// wherever that URI happens to point today.
+func (h *Handler) backchannelClient() *http.Client {
+	if h.HTTPClient != nil {
+		return h.HTTPClient
+	}
+	return &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+}

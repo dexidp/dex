@@ -467,4 +467,11 @@ var migrations = []migration{
 				add column sso_shared_with bytea;`,
 		},
 	},
+	{
+		stmts: []string{
+			`
+			alter table client
+				add column backchannel_logout_uri text not null default '';`,
+		},
+	},
 }

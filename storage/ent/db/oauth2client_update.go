@@ -193,6 +193,26 @@ func (_u *OAuth2ClientUpdate) ClearSSOSharedWith() *OAuth2ClientUpdate {
 	return _u
 }
 
+// SetBackchannelLogoutURI sets the "backchannel_logout_uri" field.
+func (_u *OAuth2ClientUpdate) SetBackchannelLogoutURI(v string) *OAuth2ClientUpdate {
+	_u.mutation.SetBackchannelLogoutURI(v)
+	return _u
+}
+
+// SetNillableBackchannelLogoutURI sets the "backchannel_logout_uri" field if the given value is not nil.
+func (_u *OAuth2ClientUpdate) SetNillableBackchannelLogoutURI(v *string) *OAuth2ClientUpdate {
+	if v != nil {
+		_u.SetBackchannelLogoutURI(*v)
+	}
+	return _u
+}
+
+// ClearBackchannelLogoutURI clears the value of the "backchannel_logout_uri" field.
+func (_u *OAuth2ClientUpdate) ClearBackchannelLogoutURI() *OAuth2ClientUpdate {
+	_u.mutation.ClearBackchannelLogoutURI()
+	return _u
+}
+
 // SetClientCredentialsClaims sets the "client_credentials_claims" field.
 func (_u *OAuth2ClientUpdate) SetClientCredentialsClaims(v *storage.ClientCredentialsClaims) *OAuth2ClientUpdate {
 	_u.mutation.SetClientCredentialsClaims(v)
@@ -346,6 +366,12 @@ func (_u *OAuth2ClientUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if _u.mutation.SSOSharedWithCleared() {
 		_spec.ClearField(oauth2client.FieldSSOSharedWith, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.BackchannelLogoutURI(); ok {
+		_spec.SetField(oauth2client.FieldBackchannelLogoutURI, field.TypeString, value)
+	}
+	if _u.mutation.BackchannelLogoutURICleared() {
+		_spec.ClearField(oauth2client.FieldBackchannelLogoutURI, field.TypeString)
 	}
 	if value, ok := _u.mutation.ClientCredentialsClaims(); ok {
 		_spec.SetField(oauth2client.FieldClientCredentialsClaims, field.TypeJSON, value)
@@ -537,6 +563,26 @@ func (_u *OAuth2ClientUpdateOne) ClearSSOSharedWith() *OAuth2ClientUpdateOne {
 	return _u
 }
 
+// SetBackchannelLogoutURI sets the "backchannel_logout_uri" field.
+func (_u *OAuth2ClientUpdateOne) SetBackchannelLogoutURI(v string) *OAuth2ClientUpdateOne {
+	_u.mutation.SetBackchannelLogoutURI(v)
+	return _u
+}
+
+// SetNillableBackchannelLogoutURI sets the "backchannel_logout_uri" field if the given value is not nil.
+func (_u *OAuth2ClientUpdateOne) SetNillableBackchannelLogoutURI(v *string) *OAuth2ClientUpdateOne {
+	if v != nil {
+		_u.SetBackchannelLogoutURI(*v)
+	}
+	return _u
+}
+
+// ClearBackchannelLogoutURI clears the value of the "backchannel_logout_uri" field.
+func (_u *OAuth2ClientUpdateOne) ClearBackchannelLogoutURI() *OAuth2ClientUpdateOne {
+	_u.mutation.ClearBackchannelLogoutURI()
+	return _u
+}
+
 // SetClientCredentialsClaims sets the "client_credentials_claims" field.
 func (_u *OAuth2ClientUpdateOne) SetClientCredentialsClaims(v *storage.ClientCredentialsClaims) *OAuth2ClientUpdateOne {
 	_u.mutation.SetClientCredentialsClaims(v)
@@ -720,6 +766,12 @@ func (_u *OAuth2ClientUpdateOne) sqlSave(ctx context.Context) (_node *OAuth2Clie
 	}
 	if _u.mutation.SSOSharedWithCleared() {
 		_spec.ClearField(oauth2client.FieldSSOSharedWith, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.BackchannelLogoutURI(); ok {
+		_spec.SetField(oauth2client.FieldBackchannelLogoutURI, field.TypeString, value)
+	}
+	if _u.mutation.BackchannelLogoutURICleared() {
+		_spec.ClearField(oauth2client.FieldBackchannelLogoutURI, field.TypeString)
 	}
 	if value, ok := _u.mutation.ClientCredentialsClaims(); ok {
 		_spec.SetField(oauth2client.FieldClientCredentialsClaims, field.TypeJSON, value)
