@@ -17,6 +17,7 @@ import (
 
 	"github.com/dexidp/dex/server/discovery"
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
@@ -479,14 +480,23 @@ func newTestRefreshToken(t *testing.T, server *Server, userID, connectorID, clie
 	return id
 }
 
+// newTestIDToken mints a token the way a browser flow would: if the user has a
+// session, the token belongs to it.
 func newTestIDToken(t *testing.T, server *Server, clientID, userID, connectorID string) string {
 	t.Helper()
+
+	var sid string
+	if s, err := server.storage.GetAuthSession(t.Context(), userID, connectorID); err == nil {
+		sid = session.SessionID(s.Nonce)
+	}
+
 	idToken, _, err := server.issuer.SignIDToken(t.Context(), tokens.Authorization{
 		Client:      storage.Client{ID: clientID},
 		Claims:      storage.Claims{UserID: userID, Username: "testuser", Email: "test@example.com"},
 		Scopes:      []string{"openid"},
 		ConnectorID: connectorID,
 		AuthTime:    time.Now(),
+		SessionID:   sid,
 	}, "", "")
 	require.NoError(t, err)
 	return idToken
@@ -906,4 +916,76 @@ func TestIntrospectionIgnoresTokensWithoutSession(t *testing.T) {
 	}
 	require.NoError(t, json.NewDecoder(rr.Result().Body).Decode(&resp))
 	require.True(t, resp.Active)
+}
+
+// TestSIDOnlyFromBrowserFlows: the sid says which browser session a token belongs
+// to, so a flow that never passed through a browser must not acquire one. Resolving
+// it from the user's identity used to hand a password-grant token whatever session
+// that user happened to have open — and, with introspection now following the
+// session, signing out of the browser would then kill an unrelated token.
+func TestSIDOnlyFromBrowserFlows(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	const userID, connectorID = "test-user", "mock"
+	newTestAuthSession(t, server, userID, connectorID, "browsernonce")
+
+	// A browser flow supplies the session it belongs to.
+	browserToken, _, err := server.issuer.SignIDToken(t.Context(), tokens.Authorization{
+		Client:      storage.Client{ID: "web"},
+		Claims:      storage.Claims{UserID: userID},
+		Scopes:      []string{"openid"},
+		ConnectorID: connectorID,
+		SessionID:   session.SessionID("browsernonce"),
+	}, "", "")
+	require.NoError(t, err)
+	require.NotEmpty(t, idTokenClaims(t, browserToken)["sid"])
+
+	// Everything else leaves it unset, even for a user who is signed in elsewhere.
+	otherToken, _, err := server.issuer.SignIDToken(t.Context(), tokens.Authorization{
+		Client:      storage.Client{ID: "cli"},
+		Claims:      storage.Claims{UserID: userID},
+		Scopes:      []string{"openid"},
+		ConnectorID: connectorID,
+	}, "", "")
+	require.NoError(t, err)
+	require.NotContains(t, idTokenClaims(t, otherToken), "sid")
+}
+
+// TestRefreshSIDFollowsOrigin covers what a refresh does with the sid: it is kept
+// while the originating session lives, and dropped once it ends — never invented
+// for a token that was not part of one.
+func TestRefreshSIDFollowsOrigin(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	ctx := t.Context()
+	const userID, connectorID = "test-user", "mock"
+	newTestAuthSession(t, server, userID, connectorID, "browsernonce")
+	sid := session.SessionID("browsernonce")
+
+	// A refresh token from a browser flow records the session it came from; one
+	// from any other flow records nothing.
+	fromBrowser, err := server.issuer.Refresh.Create(ctx, tokens.Authorization{
+		Client:      storage.Client{ID: "web"},
+		Claims:      storage.Claims{UserID: userID},
+		Scopes:      []string{"openid", "offline_access"},
+		ConnectorID: connectorID,
+		SessionID:   sid,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, fromBrowser)
+
+	_, err = server.issuer.Refresh.Create(ctx, tokens.Authorization{
+		Client:      storage.Client{ID: "cli"},
+		Claims:      storage.Claims{UserID: userID},
+		Scopes:      []string{"openid", "offline_access"},
+		ConnectorID: connectorID,
+	})
+	require.NoError(t, err)
+
+	offline, err := server.storage.GetOfflineSessions(ctx, userID, connectorID)
+	require.NoError(t, err)
+	require.Equal(t, sid, offline.Refresh["web"].SessionID, "browser flow records its session")
+	require.Empty(t, offline.Refresh["cli"].SessionID, "other flows record none")
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/oauth2"
+	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
@@ -18,6 +19,7 @@ type authorizationCode struct {
 	issuer     *tokens.Issuer
 	storage    storage.Storage
 	connectors *connectors.Cache
+	sessions   *session.Manager
 	now        func() time.Time
 	logger     *slog.Logger
 }
@@ -65,7 +67,7 @@ func (g *authorizationCode) Authorize(ctx context.Context, req *Request, client 
 		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "redirect_uri did not match URI from initial request.", Status: http.StatusBadRequest}
 	}
 
-	auth, withRefresh, err := ExchangeAuthCode(ctx, g.storage, g.connectors, g.logger, authCode, client)
+	auth, withRefresh, err := ExchangeAuthCode(ctx, g.storage, g.connectors, g.logger, authCode, client, g.sessions)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +85,9 @@ func (g *authorizationCode) Authorize(ctx context.Context, req *Request, client 
 // and is rejected — a code yields tokens at most once. Consuming it before
 // minting means a signing failure afterwards leaves the code spent, which is the
 // right trade: replay safety over a retry on a rare signer outage.
-func ExchangeAuthCode(ctx context.Context, s storage.Storage, conns *connectors.Cache, logger *slog.Logger, authCode storage.AuthCode, client storage.Client) (tokens.Authorization, bool, error) {
+// sessions may be nil, in which case the authorization carries no session and the
+// tokens it produces no sid.
+func ExchangeAuthCode(ctx context.Context, s storage.Storage, conns *connectors.Cache, logger *slog.Logger, authCode storage.AuthCode, client storage.Client, sessions *session.Manager) (tokens.Authorization, bool, error) {
 	if err := s.DeleteAuthCode(ctx, authCode.ID); err != nil {
 		if err == storage.ErrNotFound {
 			return tokens.Authorization{}, false, &oauth2.Error{Type: oauth2.InvalidGrant, Description: "Invalid or expired code parameter.", Status: http.StatusBadRequest}
@@ -100,6 +104,12 @@ func ExchangeAuthCode(ctx context.Context, s storage.Storage, conns *connectors.
 		Nonce:         authCode.Nonce,
 		AuthTime:      authCode.AuthTime,
 		ConnectorData: authCode.ConnectorData,
+
+		// An auth code only ever comes from a browser flow, so the user's current
+		// session is the one it belongs to. A user who signed out between receiving
+		// the code and redeeming it gets a token with no sid, which is right: there
+		// is no session left for it to name.
+		SessionID: sessions.SessionIDFor(ctx, authCode.Claims.UserID, authCode.ConnectorID),
 	}
 
 	// A refresh token is only issued when the connector supports it, the grant

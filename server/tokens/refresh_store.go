@@ -65,6 +65,7 @@ func (rt *RefreshStore) Create(ctx context.Context, auth Authorization) (string,
 		ClientID:  refresh.ClientID,
 		CreatedAt: refresh.CreatedAt,
 		LastUsed:  refresh.LastUsed,
+		SessionID: auth.SessionID,
 	}
 
 	session, err := rt.storage.GetOfflineSessions(ctx, refresh.Claims.UserID, refresh.ConnectorID)

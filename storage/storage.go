@@ -388,6 +388,12 @@ type RefreshTokenRef struct {
 
 	CreatedAt time.Time
 	LastUsed  time.Time
+
+	// SessionID is the browser session this token was issued under, empty for
+	// tokens from flows that never touched a browser. It records origin, not
+	// lifetime: the token outlives the session, but a token that was never part of
+	// one must not start claiming a session on refresh.
+	SessionID string
 }
 
 // MFASecret stores the enrollment state and secret for an MFA authenticator.

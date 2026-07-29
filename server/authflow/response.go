@@ -182,6 +182,7 @@ func (h *Handler) issueAccessToken(ctx context.Context, w http.ResponseWriter, r
 		ConnectorID: authReq.ConnectorID,
 		Nonce:       authReq.Nonce,
 		AuthTime:    authReq.AuthTime,
+		SessionID:   h.Sessions.SessionIDFor(ctx, authReq.Claims.UserID, authReq.ConnectorID),
 	})
 	if err != nil {
 		h.Logger.ErrorContext(r.Context(), "failed to create new access token", "err", err)
@@ -206,6 +207,7 @@ func (h *Handler) issueIDToken(ctx context.Context, w http.ResponseWriter, r *ht
 		ConnectorID: authReq.ConnectorID,
 		Nonce:       authReq.Nonce,
 		AuthTime:    authReq.AuthTime,
+		SessionID:   h.Sessions.SessionIDFor(ctx, authReq.Claims.UserID, authReq.ConnectorID),
 	}, resp.accessToken, resp.code.ID)
 	if err != nil {
 		h.Logger.ErrorContext(r.Context(), "failed to create ID token", "err", err)

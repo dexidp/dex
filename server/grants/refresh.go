@@ -12,6 +12,7 @@ import (
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
+	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
@@ -21,6 +22,7 @@ import (
 // issues a fresh token set. Its response reuses the rotated refresh token rather
 // than minting a new one, so it mints its own instead of the standard Issue.
 type refresh struct {
+	sessions        *session.Manager
 	storage         storage.Storage
 	issuer          *tokens.Issuer
 	policy          *tokens.RefreshStrategy
@@ -118,6 +120,7 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 		ConnectorID: refreshToken.ConnectorID,
 		Nonce:       refreshToken.Nonce,
 		AuthTime:    authTime,
+		SessionID:   g.sessionID(ctx, refreshToken),
 	}
 
 	accessToken, _, err := g.issuer.SignAccessToken(ctx, auth)
@@ -133,6 +136,32 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 
 	ts := tokens.TokenSet{AccessToken: accessToken, IDToken: idToken, RefreshToken: rawNewToken, Expiry: expiry}
 	return ts.Response(g.now()), nil
+}
+
+// sessionID returns the sid to put on the refreshed tokens, or "" for none.
+//
+// Origin comes from the stored reference and liveness from the session itself,
+// and both have to hold. A token minted outside a browser flow carries no origin
+// and must never acquire one — resolving the sid from the user's identity would
+// hand it whatever session that user happens to have open. A token whose session
+// has since ended keeps working, by design, but stops naming it: the alternative
+// is a token carrying a dead sid, which introspection would then report inactive,
+// undoing the very thing that lets a CLI credential outlive a browser logout.
+func (g *refresh) sessionID(ctx context.Context, refreshToken *storage.RefreshToken) string {
+	offlineSessions, err := g.storage.GetOfflineSessions(ctx, refreshToken.Claims.UserID, refreshToken.ConnectorID)
+	if err != nil {
+		return ""
+	}
+
+	ref, ok := offlineSessions.Refresh[refreshToken.ClientID]
+	if !ok || ref.SessionID == "" {
+		return ""
+	}
+
+	if ref.SessionID != g.sessions.SessionIDFor(ctx, refreshToken.Claims.UserID, refreshToken.ConnectorID) {
+		return ""
+	}
+	return ref.SessionID
 }
 
 // refreshScopes resolves the scopes for this refresh. Per RFC 6749 §6 the client

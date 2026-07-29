@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 )
@@ -26,16 +25,12 @@ type Issuer struct {
 	now              func() time.Time
 	logger           *slog.Logger
 
-	// sessions resolves the "sid" claim. Nil when sessions are disabled, in which
-	// case no ID token carries a sid.
-	sessions *session.Manager
-
 	// Refresh persists and rotates refresh tokens.
 	Refresh *RefreshStore
 }
 
 // NewIssuer wires an issuer from the shared dependencies.
-func NewIssuer(storage storage.Storage, sig signer.Signer, issuerURL url.URL, idTokensValidFor time.Duration, now func() time.Time, logger *slog.Logger, sessions *session.Manager) *Issuer {
+func NewIssuer(storage storage.Storage, sig signer.Signer, issuerURL url.URL, idTokensValidFor time.Duration, now func() time.Time, logger *slog.Logger) *Issuer {
 	return &Issuer{
 		storage:          storage,
 		signer:           sig,
@@ -43,7 +38,6 @@ func NewIssuer(storage storage.Storage, sig signer.Signer, issuerURL url.URL, id
 		idTokensValidFor: idTokensValidFor,
 		now:              now,
 		logger:           logger,
-		sessions:         sessions,
 		Refresh:          NewRefreshStore(storage, now, logger),
 	}
 }
@@ -120,11 +114,7 @@ func (i *Issuer) SignIDToken(ctx context.Context, auth Authorization, accessToke
 		tok.AuthTime = auth.AuthTime.Unix()
 	}
 
-	// The sid is looked up rather than threaded through Authorization: it has to be
-	// identical on the initial mint and on every refresh, and the session is the only
-	// place that stays authoritative across both. Costs one read, and only when
-	// sessions are enabled.
-	tok.SessionID = i.sessions.SessionIDFor(ctx, auth.Claims.UserID, auth.ConnectorID)
+	tok.SessionID = auth.SessionID
 
 	signingAlg, err := i.signer.Algorithm(ctx)
 	if err != nil {
