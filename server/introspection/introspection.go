@@ -88,6 +88,15 @@ type Introspection struct {
 type IntrospectionExtra struct {
 	AuthorizingParty string `json:"azp,omitempty"`
 
+	// SessionID is the "sid" claim carried by tokens issued under a browser
+	// session. Absent for tokens minted without one — client credentials, or any
+	// token at all when sessions are disabled.
+	//
+	// Note what this does not mean: introspection reports on the token, not on the
+	// session. A token from a session that has since ended still introspects as
+	// active until it expires, because nothing here consults session storage.
+	SessionID string `json:"sid,omitempty"`
+
 	Email         string `json:"email,omitempty"`
 	EmailVerified *bool  `json:"email_verified,omitempty"`
 
