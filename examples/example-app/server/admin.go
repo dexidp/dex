@@ -156,15 +156,16 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		if resp, err := s.admin.api.ListClients(ctx, &api.ListClientReq{}); err == nil {
 			for _, c := range resp.Clients {
 				data.Clients = append(data.Clients, AdminClient{
-					ID:                   c.Id,
-					Name:                 c.Name,
-					RedirectURIs:         c.RedirectUris,
-					TrustedPeers:         c.TrustedPeers,
-					Public:               c.Public,
-					LogoURL:              c.LogoUrl,
-					AllowedConnectors:    c.AllowedConnectors,
-					SSOSharedWith:        c.SsoSharedWith,
-					BackchannelLogoutURI: c.BackchannelLogoutUri,
+					ID:                     c.Id,
+					Name:                   c.Name,
+					RedirectURIs:           c.RedirectUris,
+					TrustedPeers:           c.TrustedPeers,
+					Public:                 c.Public,
+					LogoURL:                c.LogoUrl,
+					AllowedConnectors:      c.AllowedConnectors,
+					SSOSharedWith:          c.SsoSharedWith,
+					BackchannelLogoutURI:   c.BackchannelLogoutUri,
+					PostLogoutRedirectURIs: c.PostLogoutRedirectUris,
 				})
 			}
 		} else {
@@ -268,15 +269,16 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		if resp, err := s.admin.api.GetClient(ctx, &api.GetClientReq{Id: id}); err == nil && resp.Client != nil {
 			c := resp.Client
 			data.EditClient = &AdminClient{
-				ID:                   c.Id,
-				Name:                 c.Name,
-				RedirectURIs:         c.RedirectUris,
-				TrustedPeers:         c.TrustedPeers,
-				Public:               c.Public,
-				LogoURL:              c.LogoUrl,
-				AllowedConnectors:    c.AllowedConnectors,
-				SSOSharedWith:        c.SsoSharedWith,
-				BackchannelLogoutURI: c.BackchannelLogoutUri,
+				ID:                     c.Id,
+				Name:                   c.Name,
+				RedirectURIs:           c.RedirectUris,
+				TrustedPeers:           c.TrustedPeers,
+				Public:                 c.Public,
+				LogoURL:                c.LogoUrl,
+				AllowedConnectors:      c.AllowedConnectors,
+				SSOSharedWith:          c.SsoSharedWith,
+				BackchannelLogoutURI:   c.BackchannelLogoutUri,
+				PostLogoutRedirectURIs: c.PostLogoutRedirectUris,
 			}
 		} else if err != nil {
 			fail(err)
@@ -316,16 +318,17 @@ func (s *Server) handleAdminCreateClient(w http.ResponseWriter, r *http.Request)
 
 	req := &api.CreateClientReq{
 		Client: &api.Client{
-			Id:                   r.FormValue("id"),
-			Name:                 r.FormValue("name"),
-			Secret:               r.FormValue("secret"),
-			LogoUrl:              r.FormValue("logo_url"),
-			RedirectUris:         r.Form["redirect_uris"],
-			TrustedPeers:         r.Form["trusted_peers"],
-			AllowedConnectors:    r.Form["allowed_connectors"],
-			SsoSharedWith:        r.Form["sso_shared_with"],
-			BackchannelLogoutUri: r.FormValue("backchannel_logout_uri"),
-			Public:               r.FormValue("public") != "",
+			Id:                     r.FormValue("id"),
+			Name:                   r.FormValue("name"),
+			Secret:                 r.FormValue("secret"),
+			LogoUrl:                r.FormValue("logo_url"),
+			RedirectUris:           r.Form["redirect_uris"],
+			TrustedPeers:           r.Form["trusted_peers"],
+			AllowedConnectors:      r.Form["allowed_connectors"],
+			SsoSharedWith:          r.Form["sso_shared_with"],
+			BackchannelLogoutUri:   r.FormValue("backchannel_logout_uri"),
+			PostLogoutRedirectUris: r.Form["post_logout_redirect_uris"],
+			Public:                 r.FormValue("public") != "",
 		},
 	}
 
@@ -502,14 +505,15 @@ func (s *Server) handleAdminUpdateClient(w http.ResponseWriter, r *http.Request)
 	backchannelLogoutURI := r.FormValue("backchannel_logout_uri")
 
 	resp, err := s.admin.api.UpdateClient(ctx, &api.UpdateClientReq{
-		Id:                   id,
-		Name:                 r.FormValue("name"),
-		LogoUrl:              r.FormValue("logo_url"),
-		RedirectUris:         r.Form["redirect_uris"],
-		TrustedPeers:         r.Form["trusted_peers"],
-		AllowedConnectors:    r.Form["allowed_connectors"],
-		SsoSharedWith:        r.Form["sso_shared_with"],
-		BackchannelLogoutUri: &backchannelLogoutURI,
+		Id:                     id,
+		Name:                   r.FormValue("name"),
+		LogoUrl:                r.FormValue("logo_url"),
+		RedirectUris:           r.Form["redirect_uris"],
+		TrustedPeers:           r.Form["trusted_peers"],
+		AllowedConnectors:      r.Form["allowed_connectors"],
+		SsoSharedWith:          r.Form["sso_shared_with"],
+		BackchannelLogoutUri:   &backchannelLogoutURI,
+		PostLogoutRedirectUris: r.Form["post_logout_redirect_uris"],
 	})
 	switch {
 	case err != nil:

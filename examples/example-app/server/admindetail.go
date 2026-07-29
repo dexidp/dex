@@ -39,16 +39,17 @@ func (s *Server) handleAdminClientDetail(w http.ResponseWriter, r *http.Request)
 	default:
 		c := resp.Client
 		data.Client = &AdminClient{
-			ID:                   c.Id,
-			Name:                 c.Name,
-			Secret:               c.Secret,
-			RedirectURIs:         c.RedirectUris,
-			TrustedPeers:         c.TrustedPeers,
-			Public:               c.Public,
-			LogoURL:              c.LogoUrl,
-			AllowedConnectors:    c.AllowedConnectors,
-			SSOSharedWith:        c.SsoSharedWith,
-			BackchannelLogoutURI: c.BackchannelLogoutUri,
+			ID:                     c.Id,
+			Name:                   c.Name,
+			Secret:                 c.Secret,
+			RedirectURIs:           c.RedirectUris,
+			TrustedPeers:           c.TrustedPeers,
+			Public:                 c.Public,
+			LogoURL:                c.LogoUrl,
+			AllowedConnectors:      c.AllowedConnectors,
+			SSOSharedWith:          c.SsoSharedWith,
+			BackchannelLogoutURI:   c.BackchannelLogoutUri,
+			PostLogoutRedirectURIs: c.PostLogoutRedirectUris,
 		}
 	}
 

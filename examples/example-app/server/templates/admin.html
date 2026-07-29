@@ -148,6 +148,18 @@
             </div>
         </div>
         <div class="form-row form-row--wide">
+            <label for="post_logout_redirect_uris_input">Post-logout redirect URIs</label>
+            <div class="form-control">
+                <div class="chips" data-name="post_logout_redirect_uris">
+                </div>
+                <div class="inline-input">
+                    <input type="text" id="post_logout_redirect_uris_input" class="chip-input" autocomplete="off">
+                    <button type="button" class="button button-small chip-add">Add</button>
+                </div>
+                <small class="hint">Where the browser may be sent after logging out. Anything not listed is refused.</small>
+            </div>
+        </div>
+        <div class="form-row form-row--wide">
             <label for="c_backchannel_logout_uri">Back-channel logout URI</label>
             <div class="form-control">
                 <input type="text" id="c_backchannel_logout_uri" name="backchannel_logout_uri" placeholder="https://app.example.com/backchannel-logout" autocomplete="off">
@@ -233,6 +245,19 @@
                     <button type="button" class="button button-small chip-add">Add</button>
                 </div>
                 <small class="hint">Which clients may reuse this one's session. * for all.</small>
+            </div>
+        </div>
+        <div class="form-row form-row--wide">
+            <label for="post_logout_redirect_uris_input">Post-logout redirect URIs</label>
+            <div class="form-control">
+                <div class="chips" data-name="post_logout_redirect_uris">
+                {{range .PostLogoutRedirectURIs}}<span class="chip"><span>{{.}}</span><input type="hidden" name="post_logout_redirect_uris" value="{{.}}"><button type="button" class="chip-remove">&times;</button></span>{{end}}
+                </div>
+                <div class="inline-input">
+                    <input type="text" id="post_logout_redirect_uris_input" class="chip-input" autocomplete="off">
+                    <button type="button" class="button button-small chip-add">Add</button>
+                </div>
+                <small class="hint">Where the browser may be sent after logging out. Anything not listed is refused.</small>
             </div>
         </div>
         <div class="form-row form-row--wide">
