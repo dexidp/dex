@@ -223,15 +223,16 @@ type AdminRefreshToken struct {
 // AdminClient is one OAuth2 client as the API reports it — every field it has,
 // since a list that shows three of nine invites you to guess the rest.
 type AdminClient struct {
-	ID                string
-	Name              string
-	Secret            string
-	RedirectURIs      []string
-	TrustedPeers      []string
-	Public            bool
-	LogoURL           string
-	AllowedConnectors []string
-	SSOSharedWith     []string
+	ID                   string
+	Name                 string
+	Secret               string
+	RedirectURIs         []string
+	TrustedPeers         []string
+	Public               bool
+	LogoURL              string
+	AllowedConnectors    []string
+	SSOSharedWith        []string
+	BackchannelLogoutURI string
 }
 
 // AdminPassword is one local password entry as the API reports it.

@@ -147,6 +147,13 @@
                 <small class="hint">Which clients may reuse this one's session. * for all.</small>
             </div>
         </div>
+        <div class="form-row form-row--wide">
+            <label for="c_backchannel_logout_uri">Back-channel logout URI</label>
+            <div class="form-control">
+                <input type="text" id="c_backchannel_logout_uri" name="backchannel_logout_uri" placeholder="https://app.example.com/backchannel-logout" autocomplete="off">
+                <small class="hint">Where dex POSTs a logout token when a session ends. Empty means this client is never told.</small>
+            </div>
+        </div>
         <div class="form-row">
             <label for="c_public">Public</label>
             <div class="form-control">
@@ -226,6 +233,13 @@
                     <button type="button" class="button button-small chip-add">Add</button>
                 </div>
                 <small class="hint">Which clients may reuse this one's session. * for all.</small>
+            </div>
+        </div>
+        <div class="form-row form-row--wide">
+            <label for="e_backchannel_logout_uri">Back-channel logout URI</label>
+            <div class="form-control">
+                <input type="text" id="e_backchannel_logout_uri" name="backchannel_logout_uri" value="{{.BackchannelLogoutURI}}" placeholder="https://app.example.com/backchannel-logout" autocomplete="off">
+                <small class="hint">Clearing the box removes it, and dex stops sending this client logout tokens.</small>
             </div>
         </div>
         <p class="note">
