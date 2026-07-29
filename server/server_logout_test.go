@@ -832,3 +832,78 @@ func TestBackchannelLogoutSSOSharesOneSID(t *testing.T) {
 	_, err = server.storage.GetRefresh(ctx, bRefresh)
 	require.NoError(t, err)
 }
+
+// TestIntrospectionFollowsSession is the gateway-side half of logout: RFC 7662 §4
+// requires an authorization server to report a revoked token as inactive, and once
+// a token is bound to a session, ending the session is what revokes it.
+func TestIntrospectionFollowsSession(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	ctx := t.Context()
+	const clientID, userID, connectorID = "test-client", "test-user", "mock"
+
+	require.NoError(t, server.storage.CreateClient(ctx, storage.Client{
+		ID: clientID, Secret: "secret",
+		RedirectURIs: []string{"https://example.com/callback"},
+	}))
+	newTestAuthSession(t, server, userID, connectorID, "testnonce")
+
+	accessToken := newTestIDToken(t, server, clientID, userID, connectorID)
+	require.NotEmpty(t, idTokenClaims(t, accessToken)["sid"])
+
+	introspect := func(t *testing.T) bool {
+		t.Helper()
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/token/introspect",
+			strings.NewReader(url.Values{"token": {accessToken}}.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.SetBasicAuth(clientID, "secret")
+		server.ServeHTTP(rr, req)
+
+		var resp struct {
+			Active bool `json:"active"`
+		}
+		require.NoError(t, json.NewDecoder(rr.Result().Body).Decode(&resp))
+		return resp.Active
+	}
+
+	require.True(t, introspect(t), "a token of a live session is active")
+
+	require.NoError(t, server.storage.DeleteAuthSession(ctx, userID, connectorID))
+	require.False(t, introspect(t), "ending the session revokes the token")
+
+	// Signing in again creates a session with a new nonce, so a new sid. The old
+	// token names the old one and must not come back to life.
+	newTestAuthSession(t, server, userID, connectorID, "anothernonce")
+	require.False(t, introspect(t), "a fresh session must not revive an old token")
+}
+
+// TestIntrospectionIgnoresTokensWithoutSession: a token minted without a session
+// carries no sid, so there is nothing to check and nothing changes for it.
+func TestIntrospectionIgnoresTokensWithoutSession(t *testing.T) {
+	httpServer, server := newTestServer(t, nil)
+	defer httpServer.Close()
+
+	const clientID = "test-client"
+	require.NoError(t, server.storage.CreateClient(t.Context(), storage.Client{
+		ID: clientID, Secret: "secret",
+		RedirectURIs: []string{"https://example.com/callback"},
+	}))
+
+	accessToken := newTestIDToken(t, server, clientID, "test-user", "mock")
+	require.NotContains(t, idTokenClaims(t, accessToken), "sid")
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/token/introspect",
+		strings.NewReader(url.Values{"token": {accessToken}}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth(clientID, "secret")
+	server.ServeHTTP(rr, req)
+
+	var resp struct {
+		Active bool `json:"active"`
+	}
+	require.NoError(t, json.NewDecoder(rr.Result().Body).Decode(&resp))
+	require.True(t, resp.Active)
+}

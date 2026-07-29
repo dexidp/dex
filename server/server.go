@@ -240,6 +240,7 @@ func (s *Server) mount(routes router.Mux, c Config, rc resolvedConfig) {
 			Storage:       s.storage,
 			Logger:        s.logger,
 			RefreshPolicy: c.RefreshTokenPolicy,
+			Sessions:      sessions,
 		},
 		&device.Handler{
 			IssuerURL:        s.issuerURL,
