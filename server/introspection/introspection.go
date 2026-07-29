@@ -172,6 +172,12 @@ func (h *Handler) guessTokenType(ctx context.Context, token string) (TokenTypeEn
 		SkipExpiryCheck:   true,
 		SkipIssuerCheck:   true,
 
+		// go-oidc validates the token's alg against SupportedSigningAlgs before
+		// honoring InsecureSkipSignatureCheck; without this it defaults to RS256
+		// only and rejects ES256/EdDSA access tokens, mis-classifying them as
+		// refresh tokens.
+		SupportedSigningAlgs: signer.SupportedSigningAlgStrings(),
+
 		// We skip signature checks to avoid database calls;
 		InsecureSkipSignatureCheck: true,
 	}
@@ -271,7 +277,10 @@ func (h *Handler) introspectRefreshToken(ctx context.Context, token string) (*In
 }
 
 func (h *Handler) introspectAccessToken(ctx context.Context, token string) (*Introspection, error) {
-	verifier := oidc.NewVerifier(h.Issuer, &signer.KeySet{Signer: h.Signer}, &oidc.Config{SkipClientIDCheck: true})
+	verifier := oidc.NewVerifier(h.Issuer, &signer.KeySet{Signer: h.Signer}, &oidc.Config{
+		SupportedSigningAlgs: signer.SupportedSigningAlgStrings(),
+		SkipClientIDCheck:    true,
+	})
 	idToken, err := verifier.Verify(ctx, token)
 	if err != nil {
 		return nil, newIntrospectInactiveTokenError()

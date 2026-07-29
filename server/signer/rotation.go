@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
@@ -34,7 +35,7 @@ type rotationStrategy struct {
 	// Algorithm used for newly generated signing keys.
 	algorithm jose.SignatureAlgorithm
 
-	// Local signer keys can be RSA or ECDSA depending on the configured algorithm.
+	// Local signer keys can be RSA, ECDSA, or Ed25519 depending on the configured algorithm.
 	key func() (crypto.Signer, error)
 }
 
@@ -46,7 +47,7 @@ func rotationStrategyForAlgorithm(rotationFrequency, idTokenValidFor time.Durati
 		idTokenValidFor:   idTokenValidFor,
 		algorithm:         algorithm,
 	}
-	// Only RS256 and ES256 are supported for local key rotation; all other algorithms are handled by the default case.
+	// Only RS256, ES256, and EdDSA are supported for local key rotation; all other algorithms are handled by the default case.
 	switch algorithm { //nolint:exhaustive
 	case jose.RS256:
 		strategy.key = func() (crypto.Signer, error) {
@@ -55,6 +56,11 @@ func rotationStrategyForAlgorithm(rotationFrequency, idTokenValidFor time.Durati
 	case jose.ES256:
 		strategy.key = func() (crypto.Signer, error) {
 			return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		}
+	case jose.EdDSA:
+		strategy.key = func() (crypto.Signer, error) {
+			_, priv, err := ed25519.GenerateKey(rand.Reader)
+			return priv, err
 		}
 	default:
 		return rotationStrategy{}, fmt.Errorf("unsupported local signer algorithm %q", algorithm)

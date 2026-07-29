@@ -19,7 +19,7 @@ type LocalConfig struct {
 	// Algorithm defines the signing algorithm used for newly generated local keys.
 	// Changing it does not replace the current signing key immediately. The new
 	// algorithm is applied when Dex generates the next signing key during rotation.
-	// Supported values are RS256 and ES256.
+	// Supported values are RS256, ES256, and EdDSA.
 	Algorithm jose.SignatureAlgorithm `json:"algorithm"`
 }
 
@@ -27,7 +27,7 @@ func (c *LocalConfig) signingAlgorithm() (jose.SignatureAlgorithm, error) {
 	if c.Algorithm == "" {
 		return jose.RS256, nil
 	}
-	if c.Algorithm == jose.RS256 || c.Algorithm == jose.ES256 {
+	if c.Algorithm == jose.RS256 || c.Algorithm == jose.ES256 || c.Algorithm == jose.EdDSA {
 		return c.Algorithm, nil
 	}
 	return "", fmt.Errorf("unsupported local signer algorithm %q", c.Algorithm)
