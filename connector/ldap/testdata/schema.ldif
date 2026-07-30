@@ -527,3 +527,49 @@ sn: doe
 cn: jane
 mail: janedoe@example.com
 userpassword: foo
+
+########################################################################
+
+# Mock AD Attrs: objectGUID & objectSid
+
+dn: cn=mock_ad_attributes,cn=schema,cn=config
+objectClass: olcSchemaConfig
+cn: mock_ad_attributes
+olcAttributeTypes: ( 1.2.840.113556.1.4.2
+  NAME 'objectGUID'
+  DESC 'Microsoft Active Directory uuid'
+  EQUALITY octetStringMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.40
+  SINGLE-VALUE )
+olcAttributeTypes: ( 1.2.840.113556.1.4.146
+  NAME 'objectSid'
+  DESC 'Microsoft Active Directory SID'
+  EQUALITY octetStringMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.40
+  SINGLE-VALUE )
+olcObjectClasses: ( 1.2.3.4.56789.1.0.200
+  NAME 'mockAdAttributes'
+  SUP inetOrgPerson
+  STRUCTURAL
+  MAY ( objectGUID $ objectSid ) )
+
+
+dn: ou=TestAdObjects,dc=example,dc=org
+objectClass: organizationalUnit
+ou: TestAdObjects
+
+dn: ou=People,ou=TestAdObjects,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+
+dn: cn=jane,ou=People,ou=TestAdObjects,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+objectClass: top
+objectClass: mockAdAttributes
+sn: doe
+cn: jane
+mail: janedoe@example.com
+userpassword: foo
+objectSid:: AQUAAAAAAAUVAAAA3PTcO4M9K0aCi6Yo0gQAAA==
+objectGUID:: Ej5FZ+ibEtOkVkJmFBdAAA==
