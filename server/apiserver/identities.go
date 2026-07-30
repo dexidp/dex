@@ -116,7 +116,8 @@ func (d dexAPI) DeleteUserIdentity(ctx context.Context, req *api.DeleteUserIdent
 		return nil, fmt.Errorf("purge auth session: %v", err)
 	}
 
-	// Cascade: revoke all refresh tokens (best-effort, consistent with logout flow).
+	// Cascade: revoke all refresh tokens (best-effort). A purge has to take every
+	// credential with it, so the unscoped revoke is the right one here.
 	d.revokeUserRefreshTokens(ctx, req.UserId, req.ConnectorId)
 
 	// Cascade: delete offline sessions.

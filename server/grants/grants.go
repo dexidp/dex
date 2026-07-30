@@ -16,6 +16,7 @@ import (
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/router"
+	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
@@ -157,6 +158,7 @@ type Handler struct {
 	Logger              *slog.Logger
 	PasswordConnector   string
 	RefreshPolicy       *tokens.RefreshStrategy
+	Sessions            *session.Manager
 	SessionsEnabled     bool
 	SupportedGrantTypes []string
 
@@ -180,8 +182,8 @@ func (h *Handler) Mount(m router.Mux) {
 		&clientCredentials{issuer: h.Issuer, logger: h.Logger},
 		&password{issuer: h.Issuer, logger: h.Logger, connectorID: h.PasswordConnector},
 		&tokenExchange{issuer: h.Issuer, logger: h.Logger},
-		&authorizationCode{issuer: h.Issuer, storage: h.Storage, connectors: h.Connectors, now: h.Now, logger: h.Logger},
-		&refresh{storage: h.Storage, issuer: h.Issuer, policy: h.RefreshPolicy, sessionsEnabled: h.SessionsEnabled, now: h.Now, logger: h.Logger},
+		&authorizationCode{issuer: h.Issuer, storage: h.Storage, connectors: h.Connectors, sessions: h.Sessions, now: h.Now, logger: h.Logger},
+		&refresh{storage: h.Storage, issuer: h.Issuer, policy: h.RefreshPolicy, sessions: h.Sessions, sessionsEnabled: h.SessionsEnabled, now: h.Now, logger: h.Logger},
 		&deviceCode{storage: h.Storage, now: h.Now, logger: h.Logger},
 	)
 	m.HandleCORS("/token", h.handleToken)

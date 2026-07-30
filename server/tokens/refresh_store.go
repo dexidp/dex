@@ -65,6 +65,7 @@ func (rt *RefreshStore) Create(ctx context.Context, auth Authorization) (string,
 		ClientID:  refresh.ClientID,
 		CreatedAt: refresh.CreatedAt,
 		LastUsed:  refresh.LastUsed,
+		SessionID: auth.SessionID,
 	}
 
 	session, err := rt.storage.GetOfflineSessions(ctx, refresh.Claims.UserID, refresh.ConnectorID)
@@ -249,15 +250,32 @@ func (rt *RefreshStore) updateOfflineSession(ctx context.Context, refresh *stora
 	return nil
 }
 
-// Revoke deletes every refresh token for the user/connector pair and clears the
-// references in the offline session, keeping the session object. Errors are
-// logged but not returned: revocation is best-effort.
+// Revoke deletes the refresh token issued to clientID for the user/connector pair.
+// Every other client's token is left alone. See RevokeAll for the unscoped variant.
+func (rt *RefreshStore) Revoke(ctx context.Context, userID, connectorID, clientID string) {
+	if clientID == "" {
+		return
+	}
+	rt.revoke(ctx, userID, connectorID, func(id string) bool { return id == clientID })
+}
+
+// RevokeAll deletes every refresh token for the user/connector pair. This is the
+// administrative hammer, reached through the gRPC API when an operator terminates a
+// user's sessions or deletes their identity — not something an ordinary RP-initiated
+// logout does.
+func (rt *RefreshStore) RevokeAll(ctx context.Context, userID, connectorID string) {
+	rt.revoke(ctx, userID, connectorID, func(string) bool { return true })
+}
+
+// revoke deletes the refresh tokens of every client matching the predicate and
+// clears their references in the offline session, keeping the session object.
+// Errors are logged but not returned: revocation is best-effort.
 //
 // To avoid a race where a token issued between the snapshot and the offline
 // session update would have its reference wiped, we snapshot the token IDs,
 // remove only those references (the updater sees the latest state, so a
 // concurrently added reference survives), then delete the tokens.
-func (rt *RefreshStore) Revoke(ctx context.Context, userID, connectorID string) {
+func (rt *RefreshStore) revoke(ctx context.Context, userID, connectorID string, match func(clientID string) bool) {
 	offlineSessions, err := rt.storage.GetOfflineSessions(ctx, userID, connectorID)
 	if err != nil {
 		if !errors.Is(err, storage.ErrNotFound) {
@@ -267,8 +285,14 @@ func (rt *RefreshStore) Revoke(ctx context.Context, userID, connectorID string) 
 	}
 
 	tokenIDs := make(map[string]struct{}, len(offlineSessions.Refresh))
-	for _, ref := range offlineSessions.Refresh {
-		tokenIDs[ref.ID] = struct{}{}
+	for clientID, ref := range offlineSessions.Refresh {
+		if match(clientID) {
+			tokenIDs[ref.ID] = struct{}{}
+		}
+	}
+
+	if len(tokenIDs) == 0 {
+		return
 	}
 
 	if err := rt.storage.UpdateOfflineSessions(ctx, userID, connectorID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {

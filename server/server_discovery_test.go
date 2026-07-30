@@ -80,6 +80,8 @@ func TestHandleDiscovery(t *testing.T) {
 			"name",
 			"preferred_username",
 			"at_hash",
+			"groups",
+			"federated_claims",
 		},
 	}, res)
 }

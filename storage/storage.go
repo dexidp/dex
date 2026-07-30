@@ -175,6 +175,11 @@ type Client struct {
 	// parameter MUST match one of these values.
 	PostLogoutRedirectURIs []string `json:"postLogoutRedirectURIs"`
 
+	// BackchannelLogoutURI is where dex POSTs a logout token when the user's session
+	// ends, per OIDC Back-Channel Logout 1.0. Empty means the client does not
+	// participate: it simply will not be told, and its own session outlives dex's.
+	BackchannelLogoutURI string `json:"backchannelLogoutURI"`
+
 	// TrustedPeers are a list of peers which can issue tokens on this client's behalf using
 	// the dynamic "oauth2:server:client_id:(client_id)" scope. If a peer makes such a request,
 	// this client's ID will appear as the ID Token's audience.
@@ -383,6 +388,12 @@ type RefreshTokenRef struct {
 
 	CreatedAt time.Time
 	LastUsed  time.Time
+
+	// SessionID is the browser session this token was issued under, empty for
+	// tokens from flows that never touched a browser. It records origin, not
+	// lifetime: the token outlives the session, but a token that was never part of
+	// one must not start claiming a session on refresh.
+	SessionID string
 }
 
 // MFASecret stores the enrollment state and secret for an MFA authenticator.

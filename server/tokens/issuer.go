@@ -114,6 +114,8 @@ func (i *Issuer) SignIDToken(ctx context.Context, auth Authorization, accessToke
 		tok.AuthTime = auth.AuthTime.Unix()
 	}
 
+	tok.SessionID = auth.SessionID
+
 	signingAlg, err := i.signer.Algorithm(ctx)
 	if err != nil {
 		i.logger.ErrorContext(ctx, "failed to get signing algorithm", "err", err)

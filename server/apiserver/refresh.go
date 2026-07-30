@@ -96,6 +96,21 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 // revokeUserRefreshTokens revokes all refresh tokens for a user/connector pair
 // and cleans up offline session references. Errors are logged but not returned
 // (best-effort).
+//
+// This is deliberately broader than what RP-initiated logout does. That flow revokes
+// only the client that asked for it, because it has a requesting client to scope to
+// and no mandate to touch anyone else's credentials (see revokeRequestingClient in
+// server/logout). An administrative call has neither: there is no client_id in the
+// request, and ending access is the entire point of the operation. Callers that want
+// one client's token gone use RevokeRefresh.
+//
+// TODO(nabokihms): notify relying parties over back-channel logout here too. Today
+// only the HTTP logout endpoint fans out logout tokens, so an administrator who
+// terminates a session ends it in dex and revokes the refresh tokens, but every RP
+// keeps serving the user from its own cookie until that cookie expires or its next
+// refresh fails. Fixing it means lifting the notifier out of logout.Handler into
+// something the apiserver can hold, and calling it before the session is deleted in
+// DeleteAuthSession, terminateSessions and DeleteUserIdentity.
 func (d dexAPI) revokeUserRefreshTokens(ctx context.Context, userID, connectorID string) {
-	d.refresh.Revoke(ctx, userID, connectorID)
+	d.refresh.RevokeAll(ctx, userID, connectorID)
 }

@@ -306,3 +306,60 @@ document.querySelectorAll(".chip-remove").forEach(function (btn) {
         if (chip) chip.remove();
     });
 });
+
+// Back-channel logout arrives over an event stream rather than on the next page
+// load, because when it arrives is the whole point: a push that only surfaces
+// when you reload is indistinguishable from the prompt=none check this app
+// already runs on every load.
+(function () {
+    if (!window.EventSource) return;
+
+    const stream = new EventSource("/events");
+
+    stream.addEventListener("backchannel-logout", function (event) {
+        let notice = {};
+        try {
+            notice = JSON.parse(event.data);
+        } catch (e) {
+            return;
+        }
+
+        const container = document.querySelector(".container");
+        if (!container || document.getElementById("backchannel-banner")) return;
+
+        // The session is over, so the page must stop showing one. Leaving the
+        // signed-in card up next to a notice saying you are signed out is the
+        // page contradicting itself.
+        document.getElementById("signed-in-card")?.remove();
+        document.getElementById("signed-out-card")?.removeAttribute("hidden");
+
+        const card = document.createElement("div");
+        card.className = "card";
+        card.id = "backchannel-banner";
+
+        const title = document.createElement("div");
+        title.className = "card-title";
+        title.textContent = "Signed out by back-channel logout";
+
+        const hint = document.createElement("p");
+        hint.className = "hint";
+        const at = notice.at ? new Date(notice.at).toLocaleTimeString() : "just now";
+        hint.textContent =
+            "dex pushed a logout token to this app at " + at +
+            ". Nothing was loaded here to find that out" +
+            (notice.sid ? " — session " + notice.sid : "") + ".";
+
+        const actions = document.createElement("div");
+        actions.className = "form-actions";
+
+        const dismiss = document.createElement("button");
+        dismiss.type = "button";
+        dismiss.className = "button button-secondary";
+        dismiss.textContent = "Dismiss";
+        dismiss.addEventListener("click", function () { card.remove(); });
+
+        actions.append(dismiss);
+        card.append(title, hint, actions);
+        container.insertBefore(card, container.querySelector(".card"));
+    });
+})();

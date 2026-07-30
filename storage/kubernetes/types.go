@@ -293,6 +293,8 @@ type Client struct {
 	PostLogoutRedirectURIs []string `json:"postLogoutRedirectURIs,omitempty"`
 
 	SSOSharedWith []string `json:"ssoSharedWith"`
+
+	BackchannelLogoutURI string `json:"backchannelLogoutURI,omitempty"`
 }
 
 // ClientList is a list of Clients.
@@ -323,6 +325,7 @@ func (cli *client) fromStorageClient(c storage.Client) Client {
 		MFAChain:               c.MFAChain,
 		PostLogoutRedirectURIs: c.PostLogoutRedirectURIs,
 		SSOSharedWith:          c.SSOSharedWith,
+		BackchannelLogoutURI:   c.BackchannelLogoutURI,
 	}
 }
 
@@ -339,6 +342,7 @@ func toStorageClient(c Client) storage.Client {
 		MFAChain:               c.MFAChain,
 		PostLogoutRedirectURIs: c.PostLogoutRedirectURIs,
 		SSOSharedWith:          c.SSOSharedWith,
+		BackchannelLogoutURI:   c.BackchannelLogoutURI,
 	}
 }
 

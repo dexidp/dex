@@ -38,6 +38,8 @@ type OAuth2Client struct {
 	PostLogoutRedirectUris []string `json:"post_logout_redirect_uris,omitempty"`
 	// SSOSharedWith holds the value of the "sso_shared_with" field.
 	SSOSharedWith []string `json:"sso_shared_with,omitempty"`
+	// BackchannelLogoutURI holds the value of the "backchannel_logout_uri" field.
+	BackchannelLogoutURI string `json:"backchannel_logout_uri,omitempty"`
 	// ClientCredentialsClaims holds the value of the "client_credentials_claims" field.
 	ClientCredentialsClaims *storage.ClientCredentialsClaims `json:"client_credentials_claims,omitempty"`
 	selectValues            sql.SelectValues
@@ -52,7 +54,7 @@ func (*OAuth2Client) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case oauth2client.FieldPublic:
 			values[i] = new(sql.NullBool)
-		case oauth2client.FieldID, oauth2client.FieldSecret, oauth2client.FieldName, oauth2client.FieldLogoURL:
+		case oauth2client.FieldID, oauth2client.FieldSecret, oauth2client.FieldName, oauth2client.FieldLogoURL, oauth2client.FieldBackchannelLogoutURI:
 			values[i] = new(sql.NullString)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -147,6 +149,12 @@ func (_m *OAuth2Client) assignValues(columns []string, values []any) error {
 					return fmt.Errorf("unmarshal field sso_shared_with: %w", err)
 				}
 			}
+		case oauth2client.FieldBackchannelLogoutURI:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field backchannel_logout_uri", values[i])
+			} else if value.Valid {
+				_m.BackchannelLogoutURI = value.String
+			}
 		case oauth2client.FieldClientCredentialsClaims:
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field client_credentials_claims", values[i])
@@ -220,6 +228,9 @@ func (_m *OAuth2Client) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("sso_shared_with=")
 	builder.WriteString(fmt.Sprintf("%v", _m.SSOSharedWith))
+	builder.WriteString(", ")
+	builder.WriteString("backchannel_logout_uri=")
+	builder.WriteString(_m.BackchannelLogoutURI)
 	builder.WriteString(", ")
 	builder.WriteString("client_credentials_claims=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ClientCredentialsClaims))

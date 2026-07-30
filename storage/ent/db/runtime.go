@@ -210,6 +210,10 @@ func init() {
 	oauth2clientDescLogoURL := oauth2clientFields[6].Descriptor()
 	// oauth2client.LogoURLValidator is a validator for the "logo_url" field. It is called by the builders before save.
 	oauth2client.LogoURLValidator = oauth2clientDescLogoURL.Validators[0].(func(string) error)
+	// oauth2clientDescBackchannelLogoutURI is the schema descriptor for backchannel_logout_uri field.
+	oauth2clientDescBackchannelLogoutURI := oauth2clientFields[11].Descriptor()
+	// oauth2client.DefaultBackchannelLogoutURI holds the default value on creation for the backchannel_logout_uri field.
+	oauth2client.DefaultBackchannelLogoutURI = oauth2clientDescBackchannelLogoutURI.Default.(string)
 	// oauth2clientDescID is the schema descriptor for id field.
 	oauth2clientDescID := oauth2clientFields[0].Descriptor()
 	// oauth2client.IDValidator is a validator for the "id" field. It is called by the builders before save.

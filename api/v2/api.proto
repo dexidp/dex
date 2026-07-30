@@ -16,6 +16,13 @@ message Client {
   string logo_url = 7;
   repeated string allowed_connectors = 8;
   repeated string sso_shared_with = 9;
+  // Where dex POSTs a logout token when a session this client took part in
+  // ends, per OIDC Back-Channel Logout 1.0. Empty means the client is not
+  // notified.
+  string backchannel_logout_uri = 10;
+  // Where the browser may be sent after an RP-initiated logout. A
+  // post_logout_redirect_uri that is not listed here is refused.
+  repeated string post_logout_redirect_uris = 11;
 }
 
 // ClientInfo represents an OAuth2 client without sensitive information.
@@ -28,6 +35,8 @@ message ClientInfo {
   string logo_url = 6;
   repeated string allowed_connectors = 7;
   repeated string sso_shared_with = 8;
+  string backchannel_logout_uri = 9;
+  repeated string post_logout_redirect_uris = 10;
 }
 
 // GetClientReq is a request to retrieve client details.
@@ -72,6 +81,11 @@ message UpdateClientReq {
     string logo_url = 5;
     repeated string allowed_connectors = 6;
     repeated string sso_shared_with = 7;
+    // Optional so that an empty value clears the URI. Without explicit presence
+    // a client could be given a back-channel endpoint but never relieved of one,
+    // leaving dex posting logout tokens at something that no longer exists.
+    optional string backchannel_logout_uri = 8;
+    repeated string post_logout_redirect_uris = 9;
 }
 
 // UpdateClientResp returns the response from updating a client.

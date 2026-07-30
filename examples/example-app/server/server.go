@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -199,6 +200,12 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("POST /login", s.handleLogin)
 	mux.HandleFunc("GET /logout", s.handleLogout)
 
+	// Back-channel logout. The provider POSTs here directly, so it takes no
+	// session cookie and belongs to no browser. The event stream is the other
+	// half: it is how an open page finds out, without waiting to be reloaded.
+	mux.HandleFunc("POST /backchannel-logout", s.handleBackchannelLogout)
+	mux.HandleFunc("GET /events", s.handleEvents)
+
 	// Parse redirect URI to register callback on the correct path.
 	callbackPath := "/callback"
 	if u, err := url.Parse(s.redirectURI); err == nil && u.Path != "" {
@@ -266,9 +273,17 @@ func (s *Server) Run(listenAddr, tlsCert, tlsKey string) error {
 		return fmt.Errorf("parse listen address: %v", err)
 	}
 
+	// Shutdown waits for handlers to return and does not cancel their contexts, so
+	// a response that never ends on its own — the event stream — would hold it open
+	// forever. Deriving every request from a context cancelled below is what lets
+	// those handlers notice and finish.
+	baseCtx, cancelRequests := context.WithCancel(context.Background())
+	defer cancelRequests()
+
 	srv := &http.Server{
-		Addr:    u.Host,
-		Handler: s.routes(),
+		Addr:        u.Host,
+		Handler:     s.routes(),
+		BaseContext: func(net.Listener) context.Context { return baseCtx },
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -295,6 +310,14 @@ func (s *Server) Run(listenAddr, tlsCert, tlsKey string) error {
 		if s.admin != nil {
 			s.admin.close()
 		}
-		return srv.Shutdown(context.Background())
+
+		// Cut the long-lived handlers loose, then give the rest a moment to drain.
+		// The deadline matters: a second interrupt will not help, because
+		// NotifyContext has already taken the signal away from the default handler.
+		cancelRequests()
+
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return srv.Shutdown(shutdownCtx)
 	}
 }

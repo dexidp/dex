@@ -55,6 +55,10 @@ func (OAuth2Client) Fields() []ent.Field {
 			Optional(),
 		field.JSON("sso_shared_with", []string{}).
 			Optional(),
+		field.Text("backchannel_logout_uri").
+			SchemaType(textSchema).
+			Default("").
+			Optional(),
 		field.JSON("client_credentials_claims", &storage.ClientCredentialsClaims{}).
 			Optional(),
 	}

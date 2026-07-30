@@ -27,6 +27,11 @@ type UserClaims struct {
 	Name              string `json:"name"`
 	Email             string `json:"email"`
 	PreferredUsername string `json:"preferred_username"`
+
+	// SessionID is the "sid" claim: the provider's session this token was issued
+	// under. The app keeps it so a back-channel logout token, which carries the
+	// same value, can be matched to the browser it is about.
+	SessionID string `json:"sid"`
 }
 
 // PendingAuth is one authorization the app has started and not yet finished.
@@ -76,6 +81,10 @@ type Session struct {
 	// the session there still exists. Without it the app would keep showing a
 	// user who signed out of the provider in another tab.
 	LastProviderCheck time.Time
+
+	// watchers are open SSE streams for this session, notified when a logout
+	// token arrives for it.
+	watchers []chan Notice
 
 	pending map[string]*PendingAuth
 	expires time.Time
@@ -169,6 +178,96 @@ func (st *Store) SignOut(s *Session) string {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 
+	return signOutLocked(s)
+}
+
+// Notice is what a browser watching its session is told when a logout token
+// ends it. It travels to the page over SSE, which is the only way an application
+// can show a back channel doing its job: a message that waits for the next page
+// load proves nothing, since a page load is exactly when the app's own
+// prompt=none check would have noticed anyway.
+type Notice struct {
+	At        time.Time `json:"at"`
+	SessionID string    `json:"sid,omitempty"`
+}
+
+// Watch returns a channel carrying notices for one session, and a function that
+// stops watching. Every open page gets its own.
+func (st *Store) Watch(sessionID string) (<-chan Notice, func()) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+
+	ch := make(chan Notice, 1)
+	if s, ok := st.sessions[sessionID]; ok {
+		s.watchers = append(s.watchers, ch)
+	}
+
+	return ch, func() {
+		st.mu.Lock()
+		defer st.mu.Unlock()
+
+		s, ok := st.sessions[sessionID]
+		if !ok {
+			return
+		}
+		for i, w := range s.watchers {
+			if w == ch {
+				s.watchers = append(s.watchers[:i], s.watchers[i+1:]...)
+				break
+			}
+		}
+	}
+}
+
+// SignOutByBackchannel ends every session the provider's logout token is about
+// and returns how many it ended. A token carrying a sid names one session, which
+// is the precise case; matching on the subject alone is the fallback for a
+// provider that sends only sub, and ends every session that user has here.
+//
+// Any page watching an ended session is told at once.
+func (st *Store) SignOutByBackchannel(sid, subject string) int {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+
+	now := time.Now()
+	matched := 0
+	for _, s := range st.sessions {
+		if s.Claims == nil {
+			continue
+		}
+
+		switch {
+		case sid != "" && s.Claims.SessionID != "":
+			if s.Claims.SessionID != sid {
+				continue
+			}
+		case subject != "":
+			if s.Claims.Subject != subject {
+				continue
+			}
+		default:
+			continue
+		}
+
+		// Read the sid before signing out, which drops the claims it lives on.
+		notice := Notice{At: now, SessionID: s.Claims.SessionID}
+		signOutLocked(s)
+		matched++
+
+		// Non-blocking: a page that has not drained its last notice is already
+		// being told, and a wedged reader must not stall the logout.
+		for _, w := range s.watchers {
+			select {
+			case w <- notice:
+			default:
+			}
+		}
+	}
+	return matched
+}
+
+// signOutLocked clears the user from a session. Callers hold the store's lock.
+func signOutLocked(s *Session) string {
 	idToken := s.IDToken
 	s.Claims = nil
 	s.Token = nil

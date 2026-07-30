@@ -51,6 +51,10 @@ type Server struct {
 	// issuer turns an Authorization into a TokenSet.
 	issuer *tokens.Issuer
 
+	// sessions owns the session cookie, SSO and auth-session CRUD. Built before the
+	// issuer because the issuer reads it to resolve the "sid" claim.
+	sessions *session.Manager
+
 	// discovery is built once from config and shared by the mounted HTTP handler
 	// and the gRPC API's Discovery accessor.
 	discovery *discovery.Handler
@@ -81,6 +85,13 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		storage:   newKeyCacher(c.Storage, rc.now),
 		templates: rc.templates,
 		logger:    c.Logger,
+	}
+	s.sessions = &session.Manager{
+		Storage:   s.storage,
+		Config:    c.SessionConfig,
+		Now:       rc.now,
+		Logger:    s.logger,
+		IssuerURL: s.issuerURL,
 	}
 	s.issuer = tokens.NewIssuer(s.storage, c.Signer, s.issuerURL.URL, rc.idTokensValidFor, rc.now, s.logger)
 	s.connectors = connectors.NewCache(s.storage, connectors.Resolver(s.storage, s.logger, ConnectorsConfig))
@@ -203,13 +214,7 @@ func (s *Server) mount(routes router.Mux, c Config, rc resolvedConfig) {
 	// reference to one another; the /auth dispatcher decides MFA and consent from
 	// persisted state and config, so mfa and consent are mounted inline like the
 	// rest.
-	sessions := &session.Manager{
-		Storage:   s.storage,
-		Config:    c.SessionConfig,
-		Now:       rc.now,
-		Logger:    s.logger,
-		IssuerURL: s.issuerURL,
-	}
+	sessions := s.sessions
 
 	for _, h := range []router.Handler{
 		s.discovery,
@@ -221,6 +226,7 @@ func (s *Server) mount(routes router.Mux, c Config, rc resolvedConfig) {
 			Logger:              s.logger,
 			PasswordConnector:   c.PasswordConnector,
 			RefreshPolicy:       c.RefreshTokenPolicy,
+			Sessions:            sessions,
 			SessionsEnabled:     c.SessionConfig != nil,
 			SupportedGrantTypes: rc.grantTypes,
 		},
@@ -235,6 +241,7 @@ func (s *Server) mount(routes router.Mux, c Config, rc resolvedConfig) {
 			Storage:       s.storage,
 			Logger:        s.logger,
 			RefreshPolicy: c.RefreshTokenPolicy,
+			Sessions:      sessions,
 		},
 		&device.Handler{
 			IssuerURL:        s.issuerURL,
@@ -245,6 +252,7 @@ func (s *Server) mount(routes router.Mux, c Config, rc resolvedConfig) {
 			Logger:           s.logger,
 			Issuer:           s.issuer,
 			Connectors:       s.connectors,
+			Sessions:         sessions,
 		},
 		&home.Handler{
 			IssuerURL: s.issuerURL,
@@ -298,6 +306,7 @@ func (s *Server) mount(routes router.Mux, c Config, rc resolvedConfig) {
 			Issuer:     s.issuer,
 			Signer:     c.Signer,
 			IssuerURL:  s.issuerURL,
+			Now:        rc.now,
 		},
 	} {
 		h.Mount(routes)

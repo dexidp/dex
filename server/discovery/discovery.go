@@ -50,22 +50,27 @@ func (h *Handler) Mount(m router.Mux) {
 
 // Document is the OIDC discovery document.
 type Document struct {
-	Issuer            string   `json:"issuer"`
-	Auth              string   `json:"authorization_endpoint"`
-	Token             string   `json:"token_endpoint"`
-	Keys              string   `json:"jwks_uri"`
-	UserInfo          string   `json:"userinfo_endpoint"`
-	DeviceEndpoint    string   `json:"device_authorization_endpoint"`
-	Introspect        string   `json:"introspection_endpoint"`
-	EndSession        string   `json:"end_session_endpoint,omitempty"`
-	GrantTypes        []string `json:"grant_types_supported"`
-	ResponseTypes     []string `json:"response_types_supported"`
-	Subjects          []string `json:"subject_types_supported"`
-	IDTokenAlgs       []string `json:"id_token_signing_alg_values_supported"`
-	CodeChallengeAlgs []string `json:"code_challenge_methods_supported"`
-	Scopes            []string `json:"scopes_supported"`
-	AuthMethods       []string `json:"token_endpoint_auth_methods_supported"`
-	Claims            []string `json:"claims_supported"`
+	Issuer         string `json:"issuer"`
+	Auth           string `json:"authorization_endpoint"`
+	Token          string `json:"token_endpoint"`
+	Keys           string `json:"jwks_uri"`
+	UserInfo       string `json:"userinfo_endpoint"`
+	DeviceEndpoint string `json:"device_authorization_endpoint"`
+	Introspect     string `json:"introspection_endpoint"`
+	EndSession     string `json:"end_session_endpoint,omitempty"`
+	// BackchannelLogout and BackchannelLogoutSession advertise OIDC Back-Channel
+	// Logout 1.0. Both are omitted rather than sent as false when sessions are off,
+	// matching how end_session_endpoint disappears with them.
+	BackchannelLogout        bool     `json:"backchannel_logout_supported,omitempty"`
+	BackchannelLogoutSession bool     `json:"backchannel_logout_session_supported,omitempty"`
+	GrantTypes               []string `json:"grant_types_supported"`
+	ResponseTypes            []string `json:"response_types_supported"`
+	Subjects                 []string `json:"subject_types_supported"`
+	IDTokenAlgs              []string `json:"id_token_signing_alg_values_supported"`
+	CodeChallengeAlgs        []string `json:"code_challenge_methods_supported"`
+	Scopes                   []string `json:"scopes_supported"`
+	AuthMethods              []string `json:"token_endpoint_auth_methods_supported"`
+	Claims                   []string `json:"claims_supported"`
 }
 
 // Keys serves the JSON Web Key Set.
@@ -142,7 +147,8 @@ func (h *Handler) Construct(ctx context.Context) Document {
 		AuthMethods:       []string{"client_secret_basic", "client_secret_post"},
 		Claims: []string{
 			"iss", "sub", "aud", "iat", "exp", "email", "email_verified",
-			"locale", "name", "preferred_username", "at_hash",
+			"locale", "name", "preferred_username", "at_hash", "groups",
+			"federated_claims",
 		},
 	}
 
@@ -163,6 +169,11 @@ func (h *Handler) Construct(ctx context.Context) Document {
 
 	if h.SessionsEnabled {
 		d.EndSession = h.IssuerURL.AbsURL("/logout")
+		d.BackchannelLogout = true
+		// Dex always puts a sid in its logout tokens, so clients never need to set
+		// backchannel_logout_session_required to get one.
+		d.BackchannelLogoutSession = true
+		d.Claims = append(d.Claims, "sid")
 	}
 
 	return d

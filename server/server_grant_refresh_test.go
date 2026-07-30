@@ -515,3 +515,109 @@ func TestHandleRefreshTokenAllowedConnectors(t *testing.T) {
 		})
 	}
 }
+
+// TestRefreshTokenSID pins what a refresh does with the sid claim.
+//
+// The claim names the browser session a token belongs to, so a refresh must keep
+// it while that session lives and drop it once the session ends — and must never
+// hand one to a token that was minted outside a browser flow. Resolving it from
+// the user's identity, as an earlier version did, did exactly that: a
+// password-grant token inherited whatever session its user happened to have open,
+// and signing out of the browser then killed it.
+func TestRefreshTokenSID(t *testing.T) {
+	const nonce = "sessionnonce"
+	sid := session.SessionID(nonce)
+
+	tests := []struct {
+		name string
+		// origin is the sid recorded on the offline-session reference: what flow
+		// the refresh token came from.
+		origin string
+		// live is the nonce of the session that exists at refresh time, empty for
+		// none.
+		live    string
+		wantSID any
+	}{
+		{
+			name:    "browser flow, session alive",
+			origin:  sid,
+			live:    nonce,
+			wantSID: sid,
+		},
+		{
+			name:    "browser flow, session ended",
+			origin:  sid,
+			live:    "",
+			wantSID: nil,
+		},
+		{
+			name:    "browser flow, user signed in again",
+			origin:  sid,
+			live:    "anothernonce",
+			wantSID: nil,
+		},
+		{
+			name:    "token from a flow with no browser",
+			origin:  "",
+			live:    nonce,
+			wantSID: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			httpServer, s := newTestServerWithSessions(t, nil)
+			defer httpServer.Close()
+
+			ctx := t.Context()
+			mockRefreshTokenTestStorage(t, s.storage, false)
+
+			require.NoError(t, s.storage.UpdateOfflineSessions(ctx, "1", "test",
+				func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
+					old.Refresh["test"].SessionID = tc.origin
+					return old, nil
+				}))
+
+			require.NoError(t, s.storage.CreateUserIdentity(ctx, storage.UserIdentity{
+				UserID: "1", ConnectorID: "test",
+				Claims:    storage.Claims{UserID: "1", Username: "jane"},
+				LastLogin: time.Now(),
+			}))
+
+			if tc.live != "" {
+				require.NoError(t, s.storage.CreateAuthSession(ctx, storage.AuthSession{
+					UserID: "1", ConnectorID: "test", Nonce: tc.live,
+					CreatedAt: time.Now(), LastActivity: time.Now(),
+				}))
+			}
+
+			tokenData, err := internal.Marshal(&internal.RefreshToken{RefreshId: "test", Token: "bar"})
+			require.NoError(t, err)
+
+			u, err := url.Parse(s.issuerURL.String())
+			require.NoError(t, err)
+			u.Path = path.Join(u.Path, "/token")
+
+			v := url.Values{}
+			v.Add("grant_type", "refresh_token")
+			v.Add("refresh_token", tokenData)
+
+			req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(v.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.SetBasicAuth("test", "barfoo")
+
+			rr := httptest.NewRecorder()
+			s.ServeHTTP(rr, req)
+			require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+			var resp struct {
+				AccessToken string `json:"access_token"`
+				IDToken     string `json:"id_token"`
+			}
+			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+
+			assert.Equal(t, tc.wantSID, decodeJWTClaims(t, resp.AccessToken)["sid"])
+			assert.Equal(t, tc.wantSID, decodeJWTClaims(t, resp.IDToken)["sid"])
+		})
+	}
+}

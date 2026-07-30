@@ -27,6 +27,10 @@
         <div class="v mono">{{range .AllowedConnectors}}{{.}}<br>{{else}}<span class="hint">all</span>{{end}}</div>
         <div class="k">SSO shared with</div>
         <div class="v mono">{{range .SSOSharedWith}}{{.}}<br>{{else}}<span class="hint">the sessions default</span>{{end}}</div>
+        <div class="k">Post-logout redirect URIs</div>
+        <div class="v mono">{{range .PostLogoutRedirectURIs}}{{.}}<br>{{else}}<span class="hint">none — logout cannot redirect back</span>{{end}}</div>
+        <div class="k">Back-channel logout URI</div>
+        <div class="v mono">{{if .BackchannelLogoutURI}}{{.BackchannelLogoutURI}}{{else}}<span class="hint">not set — this client is not notified when a session ends</span>{{end}}</div>
     </div>
     <div class="form-actions">
         <a href="/admin?section=clients&amp;mode=edit&amp;edit={{.ID}}" class="button button-primary">Edit</a>

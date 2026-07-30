@@ -111,15 +111,27 @@ func TestRefreshStoreRevoke(t *testing.T) {
 		},
 	}))
 
-	rt.Revoke(ctx, "u1", "mock")
+	// Revoke is scoped to one client and leaves the rest of the user's tokens alone.
+	rt.Revoke(ctx, "u1", "mock", "c1")
 
 	_, err := store.GetRefresh(ctx, "r1")
 	require.ErrorIs(t, err, storage.ErrNotFound)
 	_, err = store.GetRefresh(ctx, "r2")
+	require.NoError(t, err)
+
+	sess, err := store.GetOfflineSessions(ctx, "u1", "mock")
+	require.NoError(t, err)
+	require.NotContains(t, sess.Refresh, "c1")
+	require.Contains(t, sess.Refresh, "c2")
+
+	// RevokeAll is the unscoped variant. The offline session survives with its refs
+	// cleared and its connector data intact.
+	rt.RevokeAll(ctx, "u1", "mock")
+
+	_, err = store.GetRefresh(ctx, "r2")
 	require.ErrorIs(t, err, storage.ErrNotFound)
 
-	// The offline session is kept; its refs are cleared, connector data preserved.
-	sess, err := store.GetOfflineSessions(ctx, "u1", "mock")
+	sess, err = store.GetOfflineSessions(ctx, "u1", "mock")
 	require.NoError(t, err)
 	require.Empty(t, sess.Refresh)
 	require.Equal(t, []byte("cd"), sess.ConnectorData)

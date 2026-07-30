@@ -82,6 +82,11 @@ func LogoURL(v string) predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.FieldEQ(FieldLogoURL, v))
 }
 
+// BackchannelLogoutURI applies equality check predicate on the "backchannel_logout_uri" field. It's identical to BackchannelLogoutURIEQ.
+func BackchannelLogoutURI(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldEQ(FieldBackchannelLogoutURI, v))
+}
+
 // SecretEQ applies the EQ predicate on the "secret" field.
 func SecretEQ(v string) predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.FieldEQ(FieldSecret, v))
@@ -345,6 +350,81 @@ func SSOSharedWithIsNil() predicate.OAuth2Client {
 // SSOSharedWithNotNil applies the NotNil predicate on the "sso_shared_with" field.
 func SSOSharedWithNotNil() predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.FieldNotNull(FieldSSOSharedWith))
+}
+
+// BackchannelLogoutURIEQ applies the EQ predicate on the "backchannel_logout_uri" field.
+func BackchannelLogoutURIEQ(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldEQ(FieldBackchannelLogoutURI, v))
+}
+
+// BackchannelLogoutURINEQ applies the NEQ predicate on the "backchannel_logout_uri" field.
+func BackchannelLogoutURINEQ(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNEQ(FieldBackchannelLogoutURI, v))
+}
+
+// BackchannelLogoutURIIn applies the In predicate on the "backchannel_logout_uri" field.
+func BackchannelLogoutURIIn(vs ...string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldIn(FieldBackchannelLogoutURI, vs...))
+}
+
+// BackchannelLogoutURINotIn applies the NotIn predicate on the "backchannel_logout_uri" field.
+func BackchannelLogoutURINotIn(vs ...string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNotIn(FieldBackchannelLogoutURI, vs...))
+}
+
+// BackchannelLogoutURIGT applies the GT predicate on the "backchannel_logout_uri" field.
+func BackchannelLogoutURIGT(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldGT(FieldBackchannelLogoutURI, v))
+}
+
+// BackchannelLogoutURIGTE applies the GTE predicate on the "backchannel_logout_uri" field.
+func BackchannelLogoutURIGTE(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldGTE(FieldBackchannelLogoutURI, v))
+}
+
+// BackchannelLogoutURILT applies the LT predicate on the "backchannel_logout_uri" field.
+func BackchannelLogoutURILT(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldLT(FieldBackchannelLogoutURI, v))
+}
+
+// BackchannelLogoutURILTE applies the LTE predicate on the "backchannel_logout_uri" field.
+func BackchannelLogoutURILTE(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldLTE(FieldBackchannelLogoutURI, v))
+}
+
+// BackchannelLogoutURIContains applies the Contains predicate on the "backchannel_logout_uri" field.
+func BackchannelLogoutURIContains(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldContains(FieldBackchannelLogoutURI, v))
+}
+
+// BackchannelLogoutURIHasPrefix applies the HasPrefix predicate on the "backchannel_logout_uri" field.
+func BackchannelLogoutURIHasPrefix(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldHasPrefix(FieldBackchannelLogoutURI, v))
+}
+
+// BackchannelLogoutURIHasSuffix applies the HasSuffix predicate on the "backchannel_logout_uri" field.
+func BackchannelLogoutURIHasSuffix(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldHasSuffix(FieldBackchannelLogoutURI, v))
+}
+
+// BackchannelLogoutURIIsNil applies the IsNil predicate on the "backchannel_logout_uri" field.
+func BackchannelLogoutURIIsNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldIsNull(FieldBackchannelLogoutURI))
+}
+
+// BackchannelLogoutURINotNil applies the NotNil predicate on the "backchannel_logout_uri" field.
+func BackchannelLogoutURINotNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNotNull(FieldBackchannelLogoutURI))
+}
+
+// BackchannelLogoutURIEqualFold applies the EqualFold predicate on the "backchannel_logout_uri" field.
+func BackchannelLogoutURIEqualFold(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldEqualFold(FieldBackchannelLogoutURI, v))
+}
+
+// BackchannelLogoutURIContainsFold applies the ContainsFold predicate on the "backchannel_logout_uri" field.
+func BackchannelLogoutURIContainsFold(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldContainsFold(FieldBackchannelLogoutURI, v))
 }
 
 // ClientCredentialsClaimsIsNil applies the IsNil predicate on the "client_credentials_claims" field.

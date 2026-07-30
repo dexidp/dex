@@ -205,6 +205,9 @@ staticClients:
   - '/dex/device/callback'
   postLogoutRedirectURIs:
   - 'http://127.0.0.1:5555/'
+  # Where dex POSTs a logout token when this user's session ends, per OIDC
+  # Back-Channel Logout 1.0. Needs sessions enabled (see the sessions block).
+  backchannelLogoutURI: 'http://127.0.0.1:5555/backchannel-logout'
   name: 'Example App'
   secret: ZXhhbXBsZS1hcHAtc2VjcmV0
   # Optional: restrict which connectors this client can use for authentication.

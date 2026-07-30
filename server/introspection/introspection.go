@@ -13,6 +13,7 @@ import (
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/router"
+	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
@@ -88,6 +89,15 @@ type Introspection struct {
 type IntrospectionExtra struct {
 	AuthorizingParty string `json:"azp,omitempty"`
 
+	// SessionID is the "sid" claim carried by tokens issued under a browser
+	// session. Absent for tokens minted without one — client credentials, or any
+	// token at all when sessions are disabled.
+	//
+	// Note what this does not mean: introspection reports on the token, not on the
+	// session. A token from a session that has since ended still introspects as
+	// active until it expires, because nothing here consults session storage.
+	SessionID string `json:"sid,omitempty"`
+
 	Email         string `json:"email,omitempty"`
 	EmailVerified *bool  `json:"email_verified,omitempty"`
 
@@ -158,6 +168,11 @@ type Handler struct {
 	Storage       storage.Storage
 	Logger        *slog.Logger
 	RefreshPolicy *tokens.RefreshStrategy
+
+	// Sessions resolves whether the browser session a token was issued under is
+	// still alive. Nil when sessions are disabled, in which case no token carries
+	// a sid and there is nothing to check.
+	Sessions *session.Manager
 }
 
 // Mount registers the introspection route.
@@ -270,6 +285,38 @@ func (h *Handler) introspectRefreshToken(ctx context.Context, token string) (*In
 	}, nil
 }
 
+// sessionAlive reports whether the browser session a token names still exists.
+//
+// RFC 7662 §4 requires an authorization server to determine whether a revocable
+// token has been revoked, and §2.2 defines "active" to mean, among other things,
+// not revoked. Once a token is bound to a session, ending that session revokes it,
+// so introspection has to say so — this is what lets a gateway that introspects
+// stop honoring a token the moment its user signs out, which is otherwise
+// impossible with a signed token nobody can recall.
+//
+// Only access tokens are checked, and only those carrying a sid. A token minted
+// without a session — client credentials, or anything at all when sessions are
+// disabled — has nothing to look up and is left alone. Refresh tokens are
+// deliberately excluded: they outlive the session by design (see
+// revokeRequestingClient in server/logout).
+//
+// Comparing the sid rather than merely finding a session matters. A user who signs
+// out and back in has a new session under the same subject; the old token names the
+// old sid, and must not be revived by the new session's existence.
+func (h *Handler) sessionAlive(ctx context.Context, subject, sessionID string) bool {
+	if sessionID == "" {
+		return true
+	}
+
+	sub := new(internal.IDTokenSubject)
+	if err := internal.Unmarshal(subject, sub); err != nil {
+		h.Logger.ErrorContext(ctx, "introspect: failed to unmarshal subject", "err", err)
+		return false
+	}
+
+	return h.Sessions.SessionIDFor(ctx, sub.UserId, sub.ConnId) == sessionID
+}
+
 func (h *Handler) introspectAccessToken(ctx context.Context, token string) (*Introspection, error) {
 	verifier := oidc.NewVerifier(h.Issuer, &signer.KeySet{Signer: h.Signer}, &oidc.Config{SkipClientIDCheck: true})
 	idToken, err := verifier.Verify(ctx, token)
@@ -281,6 +328,10 @@ func (h *Handler) introspectAccessToken(ctx context.Context, token string) (*Int
 	if err := idToken.Claims(&claims); err != nil {
 		h.Logger.ErrorContext(ctx, "error while fetching token claims", "err", err.Error())
 		return nil, newIntrospectInternalServerError()
+	}
+
+	if !h.sessionAlive(ctx, idToken.Subject, claims.SessionID) {
+		return nil, newIntrospectInactiveTokenError()
 	}
 
 	clientID, err := tokens.GetClientID(idToken.Audience, claims.AuthorizingParty)
