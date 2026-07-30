@@ -121,9 +121,33 @@ func SessionID(nonce string) string {
 	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
-// SessionIDFor returns the sid of the stored session for the given user/connector
-// pair, or "" when sessions are disabled or no session exists. Callers that already
-// hold an AuthSession should use SessionID directly instead of paying for a lookup.
+// expiryReason names why a session is over, or "" while it is still live. Both
+// callers below need the same rule, and a sid that outlived its session would be
+// worse than no sid at all: token introspection treats one as proof the session is
+// still there.
+func expiryReason(session storage.AuthSession, now time.Time) string {
+	if !session.AbsoluteExpiry.IsZero() && now.After(session.AbsoluteExpiry) {
+		return "absolute lifetime"
+	}
+	if !session.IdleExpiry.IsZero() && now.After(session.IdleExpiry) {
+		return "idle timeout"
+	}
+	return ""
+}
+
+// SessionIDFor returns the sid of the live session for the given user/connector
+// pair, or "" when sessions are disabled, none exists, or the one that exists has
+// expired. Callers that already hold an AuthSession should use SessionID directly
+// instead of paying for a lookup.
+//
+// Expiry matters here as much as existence. Garbage collection removes expired
+// sessions only every GCFrequency, so between the two there is a window in which a
+// session is over but still stored — and reporting a sid for it would tell
+// introspection that tokens of an ended session are still good.
+//
+// Unlike ValidSession this does not delete what it finds. It is called from token
+// issuance and introspection, which are reads; leaving the row for the collector
+// keeps a write out of paths that have no business making one.
 func (m *Manager) SessionIDFor(ctx context.Context, userID, connectorID string) string {
 	if m == nil || m.Config == nil || userID == "" || connectorID == "" {
 		return ""
@@ -134,6 +158,12 @@ func (m *Manager) SessionIDFor(ctx context.Context, userID, connectorID string) 
 		if !errors.Is(err, storage.ErrNotFound) {
 			m.Logger.ErrorContext(ctx, "failed to get auth session for sid", "err", err)
 		}
+		return ""
+	}
+
+	if reason := expiryReason(session, m.Now()); reason != "" {
+		m.Logger.DebugContext(ctx, "auth session expired, no sid",
+			"user_id", userID, "connector_id", connectorID, "reason", reason)
 		return ""
 	}
 
@@ -179,23 +209,12 @@ func (m *Manager) ValidSession(ctx context.Context, w http.ResponseWriter, r *ht
 		return nil
 	}
 
-	now := m.Now()
-
-	// Check absolute lifetime using the stored expiry (set once at creation).
-	if !session.AbsoluteExpiry.IsZero() && now.After(session.AbsoluteExpiry) {
-		m.Logger.InfoContext(ctx, "auth session expired (absolute lifetime)",
-			"user_id", session.UserID, "connector_id", session.ConnectorID)
-		if err := m.Storage.DeleteAuthSession(ctx, session.UserID, session.ConnectorID); err != nil {
-			m.Logger.DebugContext(ctx, "failed to delete expired auth session", "err", err)
-		}
-		m.ClearCookie(w)
-		return nil
-	}
-
-	// Check idle timeout using the stored expiry (updated on every activity).
-	if !session.IdleExpiry.IsZero() && now.After(session.IdleExpiry) {
-		m.Logger.InfoContext(ctx, "auth session expired (idle timeout)",
-			"user_id", session.UserID, "connector_id", session.ConnectorID)
+	// A browser presenting an expired session is the one place worth spending a
+	// write on: the cookie is in hand, so the row can go now rather than waiting
+	// for the collector.
+	if reason := expiryReason(session, m.Now()); reason != "" {
+		m.Logger.InfoContext(ctx, "auth session expired",
+			"user_id", session.UserID, "connector_id", session.ConnectorID, "reason", reason)
 		if err := m.Storage.DeleteAuthSession(ctx, session.UserID, session.ConnectorID); err != nil {
 			m.Logger.DebugContext(ctx, "failed to delete expired auth session", "err", err)
 		}

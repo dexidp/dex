@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+
+	"github.com/dexidp/dex/examples/example-app/session"
 )
 
 // backchannelLogoutEvent is the member a logout token's "events" claim must
@@ -121,8 +123,16 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sess := s.session(w, r)
-	notices, stop := s.sessions.Watch(sess.ID)
+	// Watch an existing browser, never mint one. This endpoint is opened by a page
+	// that already has a session; handing a cookie to anything that connects would
+	// let a crawler fill the store with sessions nobody is behind.
+	cookie, err := r.Cookie(session.CookieName)
+	if err != nil || cookie.Value == "" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	notices, stop := s.sessions.Watch(cookie.Value)
 	defer stop()
 
 	w.Header().Set("Content-Type", "text/event-stream")

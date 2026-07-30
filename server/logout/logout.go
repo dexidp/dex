@@ -95,8 +95,10 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 	postLogoutRedirectURI := r.FormValue("post_logout_redirect_uri")
 	state := r.FormValue("state")
 
-	// The session named by the cookie is the one that will end, if any.
-	authSession := h.sessionFromCookie(ctx, r)
+	// The session named by the cookie is the one that will end, if any. ValidSession
+	// is the same check every other session-trusting path makes: nonce verified,
+	// expiry enforced, and a cookie that survived its session cleared on the way out.
+	authSession := h.Sessions.ValidSession(ctx, w, r)
 
 	var clientID string
 	hintMatchesSession := false
@@ -158,24 +160,27 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Nothing to end: no cookie, or a cookie for a session that is already gone. Drop
-	// the stale cookie anyway, and still honor the redirect so a repeated logout
-	// lands the user where they asked.
+	// Nothing to end: no cookie, or a cookie for a session that is gone or expired.
+	// ValidSession has already cleared the cookie if there was one worth clearing.
+	// Still honor the redirect, so a repeated logout lands the user where they asked.
 	if authSession == nil {
-		h.Sessions.ClearCookie(w)
 		h.finishLogout(w, r, postLogoutRedirectURI, state, false)
 		return
 	}
 
 	h.revokeRequestingClient(ctx, authSession, clientID)
 
-	// Tell the other RPs in this session before the session disappears — the fan-out
-	// reads ClientStates and the sid, both of which die with it.
-	h.notifyBackchannel(ctx, authSession)
-
-	// Try upstream logout. It needs a live auth session to park the logout parameters
-	// in, so it must happen before the session is deleted. RP-Initiated Logout treats
-	// upstream SLO as best-effort, so failure here just falls through.
+	// Try upstream logout first. It needs a live auth session to park the logout
+	// parameters in, so it must run before the session is deleted, and it finishes
+	// the flow in handleLogoutCallback.
+	//
+	// Nothing is announced to the relying parties on this branch. The session does
+	// not end here — it ends in the callback — and a user who abandons the upstream
+	// provider's logout page never comes back to it. Telling the RPs now would leave
+	// them signed out while dex's session and cookie live on, so the next visit to
+	// any of them would silently sign the user back in through SSO and the logout
+	// would appear to undo itself. Notifying only once the session is really gone
+	// costs a best-effort notification in the abandoned case and buys consistency.
 	if redirectURL, ok := h.tryUpstreamLogout(ctx, authSession, postLogoutRedirectURI, state, clientID); ok {
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 		return
@@ -183,6 +188,11 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 	h.Logger.DebugContext(ctx, "logout: completing",
 		"user_id", authSession.UserID, "connector_id", authSession.ConnectorID, "client_id", clientID)
+
+	// Tell the other RPs in this session before it disappears — the fan-out reads
+	// ClientStates and the sid, both of which die with it.
+	h.notifyBackchannel(ctx, authSession)
+
 	loggedOut := h.deleteAuthSession(ctx, authSession.UserID, authSession.ConnectorID)
 	h.Sessions.ClearCookie(w)
 	h.finishLogout(w, r, postLogoutRedirectURI, state, loggedOut)
@@ -222,30 +232,6 @@ func (h *Handler) revokeRequestingClient(ctx context.Context, authSession *stora
 		return
 	}
 	h.Issuer.Refresh.Revoke(ctx, authSession.UserID, authSession.ConnectorID, clientID)
-}
-
-// sessionFromCookie returns the stored session the request's cookie points at, or nil
-// when there is no cookie, no such session, or the nonce does not match.
-func (h *Handler) sessionFromCookie(ctx context.Context, r *http.Request) *storage.AuthSession {
-	userID, connectorID, nonce, ok := h.Sessions.ParseCookie(r)
-	if !ok {
-		return nil
-	}
-
-	authSession, err := h.Storage.GetAuthSession(ctx, userID, connectorID)
-	if err != nil {
-		if !errors.Is(err, storage.ErrNotFound) {
-			h.Logger.ErrorContext(ctx, "logout: failed to get auth session", "err", err)
-		}
-		return nil
-	}
-
-	if subtle.ConstantTimeCompare([]byte(authSession.Nonce), []byte(nonce)) != 1 {
-		h.Logger.DebugContext(ctx, "logout: session nonce mismatch")
-		return nil
-	}
-
-	return &authSession
 }
 
 // idTokenHint holds the parts of a verified id_token_hint that logout cares about.
@@ -361,6 +347,12 @@ func (h *Handler) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+
+	// This is where the session actually ends on the upstream path, so this is where
+	// the other relying parties are told. Announcing it back in handleLogout would
+	// have signed them out while dex's session was still alive, waiting for a
+	// callback that a user who closed the tab never sends.
+	h.notifyBackchannel(ctx, &session)
 
 	// Session kept alive until now — delete it and clear the cookie.
 	h.deleteAuthSession(ctx, userID, connectorID)

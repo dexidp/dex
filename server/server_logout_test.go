@@ -480,15 +480,13 @@ func newTestRefreshToken(t *testing.T, server *Server, userID, connectorID, clie
 	return id
 }
 
-// newTestIDToken mints a token the way a browser flow would: if the user has a
-// session, the token belongs to it.
+// newTestIDToken mints a token the way a browser flow would, resolving the session
+// through the same call the authorization code exchange uses so that the helper
+// cannot be more generous with the sid than production is.
 func newTestIDToken(t *testing.T, server *Server, clientID, userID, connectorID string) string {
 	t.Helper()
 
-	var sid string
-	if s, err := server.storage.GetAuthSession(t.Context(), userID, connectorID); err == nil {
-		sid = session.SessionID(s.Nonce)
-	}
+	sid := server.sessions.SessionIDFor(t.Context(), userID, connectorID)
 
 	idToken, _, err := server.issuer.SignIDToken(t.Context(), tokens.Authorization{
 		Client:      storage.Client{ID: clientID},
@@ -988,4 +986,82 @@ func TestRefreshSIDFollowsOrigin(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, sid, offline.Refresh["web"].SessionID, "browser flow records its session")
 	require.Empty(t, offline.Refresh["cli"].SessionID, "other flows record none")
+}
+
+// TestExpiredSessionHasNoSID: garbage collection removes an expired session only
+// every GCFrequency, so between expiry and collection the row is still there. A sid
+// resolved from it would tell introspection that tokens of an ended session are
+// still good, which is exactly the window this feature exists to close.
+func TestExpiredSessionHasNoSID(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	ctx := t.Context()
+	const clientID, userID, connectorID = "test-client", "test-user", "mock"
+	require.NoError(t, server.storage.CreateClient(ctx, storage.Client{
+		ID: clientID, Secret: "secret", RedirectURIs: []string{"https://example.com/cb"},
+	}))
+
+	past := time.Now().Add(-time.Hour)
+	for _, tc := range []struct {
+		name     string
+		absolute time.Time
+		idle     time.Time
+	}{
+		{"absolute lifetime", past, time.Now().Add(time.Hour)},
+		{"idle timeout", time.Now().Add(time.Hour), past},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := server.storage.DeleteAuthSession(ctx, userID, connectorID); err != nil {
+				require.ErrorIs(t, err, storage.ErrNotFound)
+			}
+			require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
+				UserID: userID, ConnectorID: connectorID, Nonce: "expirednonce",
+				CreatedAt: past, LastActivity: past,
+				AbsoluteExpiry: tc.absolute, IdleExpiry: tc.idle,
+			}))
+
+			// The session is still stored...
+			_, err := server.storage.GetAuthSession(ctx, userID, connectorID)
+			require.NoError(t, err)
+
+			// ...but it is over, so nothing may claim it.
+			require.Empty(t, server.sessions.SessionIDFor(ctx, userID, connectorID))
+			require.NotContains(t, idTokenClaims(t, newTestIDToken(t, server, clientID, userID, connectorID)), "sid")
+		})
+	}
+}
+
+// TestHandleLogoutExpiredSession: an expired session is nothing left to end, so
+// logout must not report otherwise or fan out logout tokens for it.
+func TestHandleLogoutExpiredSession(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	rp, calls := startBackchannelRP(t, http.StatusOK)
+
+	ctx := t.Context()
+	const userID, connectorID = "test-user", "mock"
+	require.NoError(t, server.storage.CreateClient(ctx, storage.Client{
+		ID: "web-a", Secret: "secret",
+		RedirectURIs:         []string{"https://example.com/cb"},
+		BackchannelLogoutURI: rp.URL + "/web-a",
+	}))
+
+	past := time.Now().Add(-time.Hour)
+	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
+		UserID: userID, ConnectorID: connectorID, Nonce: "expirednonce",
+		CreatedAt: past, LastActivity: past,
+		AbsoluteExpiry: past, IdleExpiry: past,
+		ClientStates: map[string]*storage.ClientAuthState{"web-a": {Active: true}},
+	}))
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/logout", nil)
+	req.AddCookie(testSessionCookie(userID, connectorID, "expirednonce"))
+	server.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	require.Contains(t, rr.Body.String(), "No active session")
+	require.Empty(t, calls(), "an expired session has no relying parties left to tell")
 }

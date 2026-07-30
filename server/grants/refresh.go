@@ -150,6 +150,12 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 func (g *refresh) sessionID(ctx context.Context, refreshToken *storage.RefreshToken) string {
 	offlineSessions, err := g.storage.GetOfflineSessions(ctx, refreshToken.Claims.UserID, refreshToken.ConnectorID)
 	if err != nil {
+		if !errors.Is(err, storage.ErrNotFound) {
+			// Failing open costs this one issuance its sid, which can only make the
+			// token look less bound than it is — never more. Refusing the refresh
+			// over a storage blip would be the worse trade.
+			g.logger.ErrorContext(ctx, "refresh: failed to read offline session for sid", "err", err)
+		}
 		return ""
 	}
 
