@@ -17,6 +17,7 @@ import (
 	"github.com/dexidp/dex/server/backchannel"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
+	subjecttokens "github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
 )
@@ -83,7 +84,7 @@ func TestTerminateSessionNotifiesRelyingParties(t *testing.T) {
 
 			d := NewAPI(s, logger, "test", nil, nil, &backchannel.Notifier{
 				Storage: s, Signer: sign, IssuerURL: issuerURL(t), Logger: logger,
-			})
+			}, subjecttokens.SubjectOrderUserConnector)
 
 			require.NoError(t, tc.call(ctx, d))
 

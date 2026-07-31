@@ -16,7 +16,6 @@ import (
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/backchannel"
 	"github.com/dexidp/dex/server/connectors"
-	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
@@ -30,15 +29,16 @@ import (
 // (sessions, storage, connectors, the token issuer), so it carries no login-flow
 // code.
 type Handler struct {
-	Storage    storage.Storage
-	Templates  *templates.Templates
-	Logger     *slog.Logger
-	Sessions   *session.Manager
-	Connectors *connectors.Cache
-	Issuer     *tokens.Issuer
-	Signer     signer.Signer
-	IssuerURL  oauth2.IssuerURL
-	Now        func() time.Time
+	Storage      storage.Storage
+	Templates    *templates.Templates
+	Logger       *slog.Logger
+	Sessions     *session.Manager
+	Connectors   *connectors.Cache
+	Issuer       *tokens.Issuer
+	Signer       signer.Signer
+	IssuerURL    oauth2.IssuerURL
+	SubjectOrder tokens.SubjectOrder
+	Now          func() time.Time
 
 	// Backchannel tells the session's relying parties that it ended. The same
 	// notifier serves the gRPC API, which ends sessions too.
@@ -255,8 +255,8 @@ func (h *Handler) parseIDTokenHint(ctx context.Context, raw string) (idTokenHint
 		return idTokenHint{}, err
 	}
 
-	sub := new(internal.IDTokenSubject)
-	if err := internal.Unmarshal(idToken.Subject, sub); err != nil {
+	userID, connectorID, err := tokens.ParseSubjectWithOrder(idToken.Subject, h.SubjectOrder)
+	if err != nil {
 		return idTokenHint{}, fmt.Errorf("unmarshal subject: %w", err)
 	}
 
@@ -271,8 +271,8 @@ func (h *Handler) parseIDTokenHint(ctx context.Context, raw string) (idTokenHint
 	}
 
 	hint := idTokenHint{
-		userID:      sub.UserId,
-		connectorID: sub.ConnId,
+		userID:      userID,
+		connectorID: connectorID,
 		sessionID:   claims.SessionID,
 	}
 

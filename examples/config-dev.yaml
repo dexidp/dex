@@ -134,6 +134,14 @@ oauth2:
   # The password grant is refused without this: dex needs to know which
   # connector checks the password.
   passwordConnector: local
+  # Format of the ID token "sub" claim.
+  # "base64" (default): protobuf+base64url encoded subject.
+  # "plain": url-escaped "<userID>|<connectorID>".
+  # subjectClaim: base64
+  # Field order for "plain" subject claims.
+  # "user-connector" (default): "<userID>|<connectorID>"
+  # "connector-user": "<connectorID>|<userID>"
+  # subjectClaimOrder: user-connector
 
 # Default values shown below
 # oauth2:
@@ -158,6 +166,14 @@ oauth2:
 #   alwaysShowLoginScreen: false
 #   # Uncomment the passwordConnector to use a specific connector for password grants
 #   passwordConnector: local
+#   # Format of the ID token "sub" claim.
+#   # "base64" (default): protobuf+base64url encoded subject.
+#   # "plain": url-escaped "<userID>|<connectorID>".
+#   # subjectClaim: base64
+#   # Field order for "plain" subject claims.
+#   # "user-connector" (default): "<userID>|<connectorID>"
+#   # "connector-user": "<connectorID>|<userID>"
+#   # subjectClaimOrder: user-connector
 #   # PKCE (Proof Key for Code Exchange) configuration
 #   pkce:
 #     # If true, PKCE is required for all authorization code flows (OAuth 2.1).

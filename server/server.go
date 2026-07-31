@@ -103,14 +103,17 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		Logger:    s.logger,
 		IssuerURL: s.issuerURL,
 	}
-	s.issuer = tokens.NewIssuer(s.storage, c.Signer, s.issuerURL.URL, rc.idTokensValidFor, rc.now, s.logger)
+	s.issuer = tokens.NewIssuer(s.storage, c.Signer, s.issuerURL.URL, rc.idTokensValidFor, c.SubjectClaimFormat, rc.now, s.logger)
+	s.issuer.SetSubjectOrder(c.SubjectClaimOrder)
 	s.connectors = connectors.NewCache(s.storage, connectors.Resolver(s.storage, s.logger, ConnectorsConfig))
 	s.backchannel = &backchannel.Notifier{
-		Storage:   s.storage,
-		Signer:    c.Signer,
-		IssuerURL: s.issuerURL,
-		Logger:    s.logger,
-		Now:       rc.now,
+		Storage:       s.storage,
+		Signer:        c.Signer,
+		IssuerURL:     s.issuerURL,
+		Logger:        s.logger,
+		SubjectFormat: c.SubjectClaimFormat,
+		SubjectOrder:  c.SubjectClaimOrder,
+		Now:           rc.now,
 	}
 	// Build the discovery handler once from config; both the mounted HTTP route
 	// and the gRPC API (via Discovery) serve this same handler.
@@ -258,6 +261,8 @@ func (s *Server) mount(routes router.Mux, c Config, rc resolvedConfig) {
 			Storage:       s.storage,
 			Logger:        s.logger,
 			RefreshPolicy: c.RefreshTokenPolicy,
+			SubjectFormat: c.SubjectClaimFormat,
+			SubjectOrder:  c.SubjectClaimOrder,
 			Sessions:      sessions,
 		},
 		&device.Handler{
@@ -291,6 +296,7 @@ func (s *Server) mount(routes router.Mux, c Config, rc resolvedConfig) {
 			AuthRequestsValidFor:   rc.authRequestsValidFor,
 			Sessions:               sessions,
 			Issuer:                 s.issuer,
+			SubjectOrder:           c.SubjectClaimOrder,
 			MFAEnabled:             len(c.MFAProviders) > 0,
 			DefaultMFAChain:        c.DefaultMFAChain,
 			SkipApproval:           c.SkipApprovalScreen,
@@ -314,16 +320,17 @@ func (s *Server) mount(routes router.Mux, c Config, rc resolvedConfig) {
 			SkipApproval: c.SkipApprovalScreen,
 		},
 		&logout.Handler{
-			Storage:     s.storage,
-			Templates:   s.templates,
-			Logger:      s.logger,
-			Sessions:    sessions,
-			Connectors:  s.connectors,
-			Issuer:      s.issuer,
-			Signer:      c.Signer,
-			IssuerURL:   s.issuerURL,
-			Now:         rc.now,
-			Backchannel: s.backchannel,
+			Storage:      s.storage,
+			Templates:    s.templates,
+			Logger:       s.logger,
+			Sessions:     sessions,
+			Connectors:   s.connectors,
+			Issuer:       s.issuer,
+			Signer:       c.Signer,
+			IssuerURL:    s.issuerURL,
+			Now:          rc.now,
+			Backchannel:  s.backchannel,
+			SubjectOrder: c.SubjectClaimOrder,
 		},
 	} {
 		h.Mount(routes)

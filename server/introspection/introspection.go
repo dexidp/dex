@@ -168,6 +168,8 @@ type Handler struct {
 	Storage       storage.Storage
 	Logger        *slog.Logger
 	RefreshPolicy *tokens.RefreshStrategy
+	SubjectFormat tokens.SubjectFormat
+	SubjectOrder  tokens.SubjectOrder
 
 	// Sessions resolves whether the browser session a token was issued under is
 	// still alive. Nil when sessions are disabled, in which case no token carries
@@ -254,7 +256,7 @@ func (h *Handler) introspectRefreshToken(ctx context.Context, token string) (*In
 		return nil, newIntrospectInternalServerError()
 	}
 
-	subjectString, sErr := tokens.GenSubject(refresh.Claims.UserID, refresh.ConnectorID)
+	subjectString, sErr := tokens.GenSubjectWithFormatAndOrder(refresh.Claims.UserID, refresh.ConnectorID, h.SubjectFormat, h.SubjectOrder)
 	if sErr != nil {
 		h.Logger.ErrorContext(ctx, "failed to marshal offline session ID", "err", sErr)
 		return nil, newIntrospectInternalServerError()

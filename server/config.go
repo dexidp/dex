@@ -88,6 +88,13 @@ type Config struct {
 	// Signer is used to sign tokens.
 	Signer signer.Signer
 
+	// SubjectClaimFormat configures how Dex formats the ID token "sub" claim.
+	// Defaults to "base64".
+	SubjectClaimFormat tokens.SubjectFormat
+	// SubjectClaimOrder configures the field order for plain subject claims.
+	// Defaults to "user-connector".
+	SubjectClaimOrder tokens.SubjectOrder
+
 	PrometheusRegistry *prometheus.Registry
 
 	HealthChecker gosundheit.Health
@@ -188,6 +195,16 @@ func normalizeConfig(c *Config) (resolvedConfig, error) {
 	if len(c.PKCE.CodeChallengeMethodsSupported) == 0 {
 		c.PKCE.CodeChallengeMethodsSupported = []string{oauth2.PKCEMethodS256, oauth2.PKCEMethodPlain}
 	}
+	subjectClaimFormat, err := tokens.ParseSubjectFormat(string(c.SubjectClaimFormat))
+	if err != nil {
+		return resolvedConfig{}, fmt.Errorf("unsupported subject claim format %q", c.SubjectClaimFormat)
+	}
+	c.SubjectClaimFormat = subjectClaimFormat
+	subjectClaimOrder, err := tokens.ParseSubjectOrder(string(c.SubjectClaimOrder))
+	if err != nil {
+		return resolvedConfig{}, fmt.Errorf("unsupported subject claim order %q", c.SubjectClaimOrder)
+	}
+	c.SubjectClaimOrder = subjectClaimOrder
 	for _, m := range c.PKCE.CodeChallengeMethodsSupported {
 		if m != oauth2.PKCEMethodS256 && m != oauth2.PKCEMethodPlain {
 			return resolvedConfig{}, fmt.Errorf("unsupported PKCE challenge method %q", m)

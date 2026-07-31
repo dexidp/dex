@@ -394,6 +394,16 @@ func runServe(options serveOptions) error {
 		MFAProviders:               buildMFAProviders(c.MFA.Authenticators, c.Issuer, logger),
 		DefaultMFAChain:            c.MFA.DefaultMFAChain,
 	}
+	subjectClaimFormat, err := tokens.ParseSubjectFormat(c.OAuth2.SubjectClaim)
+	if err != nil {
+		return fmt.Errorf("invalid config value %q for oauth2.subjectClaim: %v", c.OAuth2.SubjectClaim, err)
+	}
+	serverConfig.SubjectClaimFormat = subjectClaimFormat
+	subjectClaimOrder, err := tokens.ParseSubjectOrder(c.OAuth2.SubjectClaimOrder)
+	if err != nil {
+		return fmt.Errorf("invalid config value %q for oauth2.subjectClaimOrder: %v", c.OAuth2.SubjectClaimOrder, err)
+	}
+	serverConfig.SubjectClaimOrder = subjectClaimOrder
 
 	if c.Expiry.AuthRequests != "" {
 		authRequests, err := time.ParseDuration(c.Expiry.AuthRequests)
@@ -614,7 +624,7 @@ func runServe(options serveOptions) error {
 		}
 
 		grpcSrv := grpc.NewServer(grpcOptions...)
-		api.RegisterDexServer(grpcSrv, apiserver.NewAPI(serverConfig.Storage, logger, version, serv.Connectors(), serv.Discovery(), serv.Backchannel()))
+		api.RegisterDexServer(grpcSrv, apiserver.NewAPI(serverConfig.Storage, logger, version, serv.Connectors(), serv.Discovery(), serv.Backchannel(), serverConfig.SubjectClaimOrder))
 
 		grpcMetrics.InitializeMetrics(grpcSrv)
 		if c.GRPC.Reflection {
