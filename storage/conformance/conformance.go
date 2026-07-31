@@ -320,6 +320,11 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 		Name:              "dex client",
 		LogoURL:           "https://goo.gl/JIyzIC",
 		AllowedConnectors: []string{"github", "google"},
+		// Fields a backend has to carry explicitly rather than as part of a blob;
+		// left at their zero values they would round-trip even if dropped.
+		BackchannelLogoutURI:   "https://auth.example.com/backchannel-logout",
+		PostLogoutRedirectURIs: []string{"https://auth.example.com/"},
+		RefreshTokenLifetime:   storage.RefreshTokenLifetimeSession,
 	}
 	err := s.DeleteClient(ctx, id1)
 	mustBeErrNotFound(t, "client", err)
@@ -367,6 +372,19 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 		t.Errorf("update client: %v", err)
 	}
 	c1.Secret = newSecret
+	getAndCompare(id1, c1)
+
+	// An update must carry those same explicit fields, not just the one it changes.
+	err = s.UpdateClient(ctx, id1, func(old storage.Client) (storage.Client, error) {
+		old.RefreshTokenLifetime = storage.RefreshTokenLifetimeStandalone
+		old.BackchannelLogoutURI = "https://auth.example.com/logout-2"
+		return old, nil
+	})
+	if err != nil {
+		t.Errorf("update client: %v", err)
+	}
+	c1.RefreshTokenLifetime = storage.RefreshTokenLifetimeStandalone
+	c1.BackchannelLogoutURI = "https://auth.example.com/logout-2"
 	getAndCompare(id1, c1)
 
 	// Verify SSOSharedWith nil vs empty slice roundtrip.

@@ -78,10 +78,15 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 	}
 
 	// Resolved before anything is rotated or read from the connector: a token whose
-	// session has ended is not going to produce a token set.
-	sessionID, oerr := g.sessionID(ctx, refreshToken, client)
-	if oerr != nil {
-		return nil, oerr
+	// session has ended is not going to produce a token set. Skipped outright when
+	// sessions are off — nothing was ever bound to one, so the read would only
+	// confirm that, and refusing a refresh over it would be indefensible.
+	var sessionID string
+	if g.sessionsEnabled {
+		var oerr *oauth2.Error
+		if sessionID, oerr = g.sessionID(ctx, refreshToken, client); oerr != nil {
+			return nil, oerr
+		}
 	}
 
 	var userIdent *storage.UserIdentity
@@ -195,10 +200,12 @@ func (g *refresh) sessionID(ctx context.Context, refreshToken *storage.RefreshTo
 	}
 
 	if ref.SessionID != g.sessions.SessionIDFor(ctx, refreshToken.Claims.UserID, refreshToken.ConnectorID) {
-		if err := g.storage.DeleteRefresh(ctx, refreshToken.ID); err != nil && !errors.Is(err, storage.ErrNotFound) {
-			g.logger.ErrorContext(ctx, "refresh: failed to delete token of an ended session",
-				"client_id", refreshToken.ClientID, "err", err)
-		}
+		// Through the store, not storage.DeleteRefresh: the token and the offline
+		// session's reference to it have to go together, or the admin API lists a
+		// token that no longer exists and fails trying to revoke it.
+		g.issuer.Refresh.RevokeClients(ctx, refreshToken.Claims.UserID, refreshToken.ConnectorID,
+			[]string{refreshToken.ClientID})
+
 		g.logger.InfoContext(ctx, "refresh: refused, session ended",
 			"client_id", refreshToken.ClientID, "user_id", refreshToken.Claims.UserID)
 		return "", sessionEndedError()
