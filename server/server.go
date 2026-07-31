@@ -15,6 +15,7 @@ import (
 
 	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server/authflow"
+	"github.com/dexidp/dex/server/backchannel"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/consent"
 	"github.com/dexidp/dex/server/device"
@@ -58,6 +59,10 @@ type Server struct {
 	// discovery is built once from config and shared by the mounted HTTP handler
 	// and the gRPC API's Discovery accessor.
 	discovery *discovery.Handler
+
+	// backchannel notifies relying parties that a session ended. Shared with the
+	// gRPC API, which ends sessions too.
+	backchannel *backchannel.Notifier
 }
 
 // Connectors is the server's connector cache. The gRPC API needs it to
@@ -68,6 +73,11 @@ func (s *Server) Connectors() *connectors.Cache { return s.connectors }
 // API serves the same handler that is mounted for HTTP, so both return an
 // identical document.
 func (s *Server) Discovery() *discovery.Handler { return s.discovery }
+
+// Backchannel notifies a session's relying parties that it has ended. The gRPC
+// API terminates sessions as well, and an RP cannot tell — and has no reason to
+// care — whether a session ended by logout or by an operator's hand.
+func (s *Server) Backchannel() *backchannel.Notifier { return s.backchannel }
 
 // NewServer constructs a server from the provided config.
 func NewServer(ctx context.Context, c Config) (*Server, error) {
@@ -95,6 +105,13 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	}
 	s.issuer = tokens.NewIssuer(s.storage, c.Signer, s.issuerURL.URL, rc.idTokensValidFor, rc.now, s.logger)
 	s.connectors = connectors.NewCache(s.storage, connectors.Resolver(s.storage, s.logger, ConnectorsConfig))
+	s.backchannel = &backchannel.Notifier{
+		Storage:   s.storage,
+		Signer:    c.Signer,
+		IssuerURL: s.issuerURL,
+		Logger:    s.logger,
+		Now:       rc.now,
+	}
 	// Build the discovery handler once from config; both the mounted HTTP route
 	// and the gRPC API (via Discovery) serve this same handler.
 	s.discovery = &discovery.Handler{
@@ -298,15 +315,16 @@ func (s *Server) mount(routes router.Mux, c Config, rc resolvedConfig) {
 			SkipApproval: c.SkipApprovalScreen,
 		},
 		&logout.Handler{
-			Storage:    s.storage,
-			Templates:  s.templates,
-			Logger:     s.logger,
-			Sessions:   sessions,
-			Connectors: s.connectors,
-			Issuer:     s.issuer,
-			Signer:     c.Signer,
-			IssuerURL:  s.issuerURL,
-			Now:        rc.now,
+			Storage:     s.storage,
+			Templates:   s.templates,
+			Logger:      s.logger,
+			Sessions:    sessions,
+			Connectors:  s.connectors,
+			Issuer:      s.issuer,
+			Signer:      c.Signer,
+			IssuerURL:   s.issuerURL,
+			Now:         rc.now,
+			Backchannel: s.backchannel,
 		},
 	} {
 		h.Mount(routes)

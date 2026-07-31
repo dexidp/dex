@@ -166,6 +166,7 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 					SSOSharedWith:          c.SsoSharedWith,
 					BackchannelLogoutURI:   c.BackchannelLogoutUri,
 					PostLogoutRedirectURIs: c.PostLogoutRedirectUris,
+					RefreshTokenLifetime:   c.RefreshTokenLifetime,
 				})
 			}
 		} else {
@@ -279,6 +280,7 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 				SSOSharedWith:          c.SsoSharedWith,
 				BackchannelLogoutURI:   c.BackchannelLogoutUri,
 				PostLogoutRedirectURIs: c.PostLogoutRedirectUris,
+				RefreshTokenLifetime:   c.RefreshTokenLifetime,
 			}
 		} else if err != nil {
 			fail(err)
@@ -328,6 +330,7 @@ func (s *Server) handleAdminCreateClient(w http.ResponseWriter, r *http.Request)
 			SsoSharedWith:          r.Form["sso_shared_with"],
 			BackchannelLogoutUri:   r.FormValue("backchannel_logout_uri"),
 			PostLogoutRedirectUris: r.Form["post_logout_redirect_uris"],
+			RefreshTokenLifetime:   r.FormValue("refresh_token_lifetime"),
 			Public:                 r.FormValue("public") != "",
 		},
 	}
@@ -503,6 +506,7 @@ func (s *Server) handleAdminUpdateClient(w http.ResponseWriter, r *http.Request)
 	// would leave the old one in place, and the box would fill itself back in on
 	// the next load.
 	backchannelLogoutURI := r.FormValue("backchannel_logout_uri")
+	refreshTokenLifetime := r.FormValue("refresh_token_lifetime")
 
 	resp, err := s.admin.api.UpdateClient(ctx, &api.UpdateClientReq{
 		Id:                     id,
@@ -514,6 +518,7 @@ func (s *Server) handleAdminUpdateClient(w http.ResponseWriter, r *http.Request)
 		SsoSharedWith:          r.Form["sso_shared_with"],
 		BackchannelLogoutUri:   &backchannelLogoutURI,
 		PostLogoutRedirectUris: r.Form["post_logout_redirect_uris"],
+		RefreshTokenLifetime:   &refreshTokenLifetime,
 	})
 	switch {
 	case err != nil:

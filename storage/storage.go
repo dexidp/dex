@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/base32"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"strings"
@@ -180,6 +181,10 @@ type Client struct {
 	// participate: it simply will not be told, and its own session outlives dex's.
 	BackchannelLogoutURI string `json:"backchannelLogoutURI"`
 
+	// RefreshTokenLifetime says whether this client's refresh tokens outlive the
+	// session that issued them. See the constants below; empty means Standalone.
+	RefreshTokenLifetime string `json:"refreshTokenLifetime"`
+
 	// TrustedPeers are a list of peers which can issue tokens on this client's behalf using
 	// the dynamic "oauth2:server:client_id:(client_id)" scope. If a peer makes such a request,
 	// this client's ID will appear as the ID Token's audience.
@@ -213,6 +218,39 @@ type Client struct {
 	// client_credentials grant. Kept separate from core Client fields to avoid mixing
 	// application identity (ID, secret, redirect URIs) with user-like identity attributes.
 	ClientCredentialsClaims *ClientCredentialsClaims `json:"clientCredentialsClaims,omitempty"`
+}
+
+// Refresh token lifetimes, the values Client.RefreshTokenLifetime accepts.
+const (
+	// RefreshTokenLifetimeStandalone, the default, lets a refresh token live out its
+	// configured expiry whatever happens to the session that issued it. This is what
+	// keeps a kubectl credential working after the user signs out of a web app.
+	RefreshTokenLifetimeStandalone = "standalone"
+
+	// RefreshTokenLifetimeSession ends the token with that session: redeeming it then
+	// fails and deletes it. For clients that are a browser session and nothing else,
+	// such as an authenticating proxy, where a token outliving the session is a way
+	// back in after logout. Dex requires offline_access for every refresh token, so
+	// nothing in the request tells the two apart — the client has to say so.
+	RefreshTokenLifetimeSession = "session"
+)
+
+// ValidateRefreshTokenLifetime rejects unknown values, so that a typo fails at
+// configuration time instead of silently leaving the tokens standalone.
+func ValidateRefreshTokenLifetime(lifetime string) error {
+	switch lifetime {
+	case "", RefreshTokenLifetimeStandalone, RefreshTokenLifetimeSession:
+		return nil
+	default:
+		return fmt.Errorf("invalid refresh token lifetime %q: want %q or %q",
+			lifetime, RefreshTokenLifetimeStandalone, RefreshTokenLifetimeSession)
+	}
+}
+
+// RefreshBoundToSession reports whether this client's refresh tokens end with the
+// browser session that issued them.
+func (c Client) RefreshBoundToSession() bool {
+	return c.RefreshTokenLifetime == RefreshTokenLifetimeSession
 }
 
 // ClientCredentialsClaims contains claims that are included in tokens issued via

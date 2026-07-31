@@ -77,6 +77,18 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 		return nil, oerr
 	}
 
+	// Resolved before anything is rotated or read from the connector: a token whose
+	// session has ended is not going to produce a token set. Skipped outright when
+	// sessions are off — nothing was ever bound to one, so the read would only
+	// confirm that, and refusing a refresh over it would be indefensible.
+	var sessionID string
+	if g.sessionsEnabled {
+		var oerr *oauth2.Error
+		if sessionID, oerr = g.sessionID(ctx, refreshToken, client); oerr != nil {
+			return nil, oerr
+		}
+	}
+
 	var userIdent *storage.UserIdentity
 	if g.sessionsEnabled {
 		ui, err := g.storage.GetUserIdentity(ctx, refreshToken.Claims.UserID, refreshToken.ConnectorID)
@@ -120,7 +132,7 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 		ConnectorID: refreshToken.ConnectorID,
 		Nonce:       refreshToken.Nonce,
 		AuthTime:    authTime,
-		SessionID:   g.sessionID(ctx, refreshToken),
+		SessionID:   sessionID,
 	}
 
 	accessToken, _, err := g.issuer.SignAccessToken(ctx, auth)
@@ -138,36 +150,70 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 	return ts.Response(g.now()), nil
 }
 
-// sessionID returns the sid to put on the refreshed tokens, or "" for none.
+// sessionID returns the sid for the refreshed tokens, and refuses the refresh when
+// the session has ended and the client asked its tokens to end with it.
 //
-// Origin comes from the stored reference and liveness from the session itself,
-// and both have to hold. A token minted outside a browser flow carries no origin
-// and must never acquire one — resolving the sid from the user's identity would
-// hand it whatever session that user happens to have open. A token whose session
-// has since ended keeps working, by design, but stops naming it: the alternative
-// is a token carrying a dead sid, which introspection would then report inactive,
-// undoing the very thing that lets a CLI credential outlive a browser logout.
-func (g *refresh) sessionID(ctx context.Context, refreshToken *storage.RefreshToken) string {
+// The sid names where a token came from and is carried across refreshes unchanged,
+// dead session or not; stripping it would make the token active again at the next
+// refresh, undoing what introspection just reported. Whether the token is still good
+// for anything is the client's RefreshTokenLifetime, read the same way here and in
+// introspection (see sessionAlive in server/introspection).
+//
+// Origin comes from the stored reference and nowhere else: a token minted outside a
+// browser flow has none and must not acquire one from whatever session its user
+// happens to have open.
+func (g *refresh) sessionID(ctx context.Context, refreshToken *storage.RefreshToken, client storage.Client) (string, *oauth2.Error) {
+	bound := client.RefreshBoundToSession()
+
 	offlineSessions, err := g.storage.GetOfflineSessions(ctx, refreshToken.Claims.UserID, refreshToken.ConnectorID)
 	if err != nil {
 		if !errors.Is(err, storage.ErrNotFound) {
-			// Failing open costs this one issuance its sid, which can only make the
-			// token look less bound than it is — never more. Refusing the refresh
-			// over a storage blip would be the worse trade.
 			g.logger.ErrorContext(ctx, "refresh: failed to read offline session for sid", "err", err)
 		}
-		return ""
+		if bound {
+			// Nothing to check the token against. For a standalone token that costs
+			// only its sid, which can make it look less bound than it is but never
+			// more; for a bound one it would mean handing out a token whose whole
+			// validity rests on a session nobody could read.
+			return "", sessionEndedError()
+		}
+		return "", nil
 	}
 
 	ref, ok := offlineSessions.Refresh[refreshToken.ClientID]
 	if !ok || ref.SessionID == "" {
-		return ""
+		// Issued outside a browser flow — the password grant, or before sessions were
+		// turned on. There is no session to be bound to, so there is none to end.
+		return "", nil
+	}
+
+	if !bound {
+		return ref.SessionID, nil
 	}
 
 	if ref.SessionID != g.sessions.SessionIDFor(ctx, refreshToken.Claims.UserID, refreshToken.ConnectorID) {
-		return ""
+		// Through the store, not storage.DeleteRefresh: the token and the offline
+		// session's reference to it have to go together, or the admin API lists a
+		// token that no longer exists and fails trying to revoke it.
+		g.issuer.Refresh.RevokeClients(ctx, refreshToken.Claims.UserID, refreshToken.ConnectorID,
+			[]string{refreshToken.ClientID})
+
+		g.logger.InfoContext(ctx, "refresh: refused, session ended",
+			"client_id", refreshToken.ClientID, "user_id", refreshToken.Claims.UserID)
+		return "", sessionEndedError()
 	}
-	return ref.SessionID
+	return ref.SessionID, nil
+}
+
+// sessionEndedError reports a refused refresh as invalid_grant, the one code RFC
+// 6749 §5.2 has for a refresh token that is no longer good for anything. The client
+// owns the session in question, so the description names the reason.
+func sessionEndedError() *oauth2.Error {
+	return &oauth2.Error{
+		Type:        oauth2.InvalidGrant,
+		Description: "The session this refresh token belongs to has ended.",
+		Status:      http.StatusBadRequest,
+	}
 }
 
 // refreshScopes resolves the scopes for this refresh. Per RFC 6749 §6 the client

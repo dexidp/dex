@@ -14,6 +14,7 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/server/backchannel"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
@@ -39,9 +40,9 @@ type Handler struct {
 	IssuerURL  oauth2.IssuerURL
 	Now        func() time.Time
 
-	// HTTPClient delivers back-channel logout tokens. Nil uses a default client that
-	// does not follow redirects; tests substitute their own.
-	HTTPClient *http.Client
+	// Backchannel tells the session's relying parties that it ended. The same
+	// notifier serves the gRPC API, which ends sessions too.
+	Backchannel *backchannel.Notifier
 }
 
 // renderError renders a user-facing HTML error page.
@@ -78,7 +79,7 @@ func (h *Handler) Mount(mux router.Mux) {
 //     and cross-check its subject and sid against that session
 //  3. Ask the user to confirm unless the hint vouches for the current session
 //  4. Validate post_logout_redirect_uri against the client's registered URIs
-//  5. Revoke the requesting client's refresh token — and only that one
+//  5. Revoke the refresh tokens of the clients bound to this session
 //  6. Notify every client in the session over the back channel
 //  7. If the upstream connector implements LogoutCallbackConnector, redirect to it and
 //     finish in handleLogoutCallback; otherwise delete the session, clear the cookie,
@@ -168,19 +169,14 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.revokeRequestingClient(ctx, authSession, clientID)
-
 	// Try upstream logout first. It needs a live auth session to park the logout
 	// parameters in, so it must run before the session is deleted, and it finishes
 	// the flow in handleLogoutCallback.
 	//
-	// Nothing is announced to the relying parties on this branch. The session does
-	// not end here — it ends in the callback — and a user who abandons the upstream
-	// provider's logout page never comes back to it. Telling the RPs now would leave
-	// them signed out while dex's session and cookie live on, so the next visit to
-	// any of them would silently sign the user back in through SSO and the logout
-	// would appear to undo itself. Notifying only once the session is really gone
-	// costs a best-effort notification in the abandoned case and buys consistency.
+	// Nothing is announced or revoked on this branch: the session ends in the callback,
+	// not here. Acting now would sign the relying parties out while dex's session and
+	// cookie live on, so a user who abandons the upstream logout page would be signed
+	// straight back in through SSO.
 	if redirectURL, ok := h.tryUpstreamLogout(ctx, authSession, postLogoutRedirectURI, state, clientID); ok {
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 		return
@@ -189,49 +185,42 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 	h.Logger.DebugContext(ctx, "logout: completing",
 		"user_id", authSession.UserID, "connector_id", authSession.ConnectorID, "client_id", clientID)
 
-	// Tell the other RPs in this session before it disappears — the fan-out reads
-	// ClientStates and the sid, both of which die with it.
-	h.notifyBackchannel(ctx, authSession)
+	// Both read ClientStates, which dies with the session, so both run first.
+	h.revokeSessionBoundTokens(ctx, authSession)
+	h.Backchannel.Notify(ctx, authSession)
 
 	loggedOut := h.deleteAuthSession(ctx, authSession.UserID, authSession.ConnectorID)
 	h.Sessions.ClearCookie(w)
 	h.finishLogout(w, r, postLogoutRedirectURI, state, loggedOut)
 }
 
-// revokeRequestingClient deletes the refresh token dex issued to the client that
-// asked for this logout, and deliberately leaves every other client's token alone.
+// revokeSessionBoundTokens deletes the refresh tokens of the clients that declared
+// themselves bound to this session, and leaves every other client's token alone.
 //
-// The narrow scope is the whole point, so please read this before widening it back.
+// Dex requires offline_access for every refresh token it issues, so a browser proxy
+// and a kubectl credential reach the token endpoint looking identical. The client's
+// RefreshTokenLifetime is the only place that distinction exists — revoking on
+// behalf of the whole user is what used to destroy a kubectl login on every web
+// logout.
 //
-// No standard settles the question. RP-Initiated Logout says nothing at all about
-// refresh tokens — the OP's duties there are to end its own session and notify the
-// relying parties. OIDC Core §11 notes that "the use of Refresh Tokens is not
-// exclusive to the offline_access use case", and RFC 7009 puts revocation in the
-// client's hands, not the OP's. Implementations diverge accordingly: Ory Hydra and
-// Zitadel revoke nothing on logout and expose separate administrative APIs; Duende
-// IdentityServer hides it behind a per-client CoordinateLifetimeWithUserSession flag;
-// Keycloak tears down the SSO session but spares offline_access tokens; Auth0 revokes
-// and openly describes doing so as going beyond the OIDC logout standards.
-//
-// Dex cannot borrow Keycloak's rule, because dex requires offline_access for *every*
-// refresh token (see shouldIssueRefreshToken in server/grants). A browser RP and a
-// kubectl credential arrive at the token endpoint looking identical, so there is no
-// request-level signal to separate them — which is exactly how revoking on behalf of
-// the whole user used to destroy a user's kubectl login every time they signed out of
-// a web app.
-//
-// What remains is a narrow, concrete reason to revoke this one token: by the time the
-// browser reaches dex, the RP has already thrown its own refresh token away (an
-// oauth2-proxy /oauth2/sign_out drops its session before redirecting here). Leaving it
-// valid until its TTL means keeping a live credential that no legitimate party holds.
-// That argument covers the requesting client and nobody else.
-//
-// Logging the other RPs out is back-channel logout's job, deliberately not this one's.
-func (h *Handler) revokeRequestingClient(ctx context.Context, authSession *storage.AuthSession, clientID string) {
-	if clientID == "" {
-		return
+// Belt and braces: a bound token is refused and deleted at its next redemption
+// anyway (see sessionID in server/grants). Doing it here means the credential is
+// gone at logout rather than at the attacker's convenience.
+func (h *Handler) revokeSessionBoundTokens(ctx context.Context, authSession *storage.AuthSession) {
+	var bound []string
+	for clientID := range authSession.ClientStates {
+		client, err := h.Storage.GetClient(ctx, clientID)
+		if err != nil {
+			h.Logger.DebugContext(ctx, "logout: revocation skipped, client not found",
+				"client_id", clientID, "err", err)
+			continue
+		}
+		if client.RefreshBoundToSession() {
+			bound = append(bound, clientID)
+		}
 	}
-	h.Issuer.Refresh.Revoke(ctx, authSession.UserID, authSession.ConnectorID, clientID)
+
+	h.Issuer.Refresh.RevokeClients(ctx, authSession.UserID, authSession.ConnectorID, bound)
 }
 
 // idTokenHint holds the parts of a verified id_token_hint that logout cares about.
@@ -348,11 +337,10 @@ func (h *Handler) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// This is where the session actually ends on the upstream path, so this is where
-	// the other relying parties are told. Announcing it back in handleLogout would
-	// have signed them out while dex's session was still alive, waiting for a
-	// callback that a user who closed the tab never sends.
-	h.notifyBackchannel(ctx, &session)
+	// The session actually ends here on the upstream path, so this is where its bound
+	// tokens go and its relying parties are told.
+	h.revokeSessionBoundTokens(ctx, &session)
+	h.Backchannel.Notify(ctx, &session)
 
 	// Session kept alive until now — delete it and clear the cookie.
 	h.deleteAuthSession(ctx, userID, connectorID)

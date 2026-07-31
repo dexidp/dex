@@ -214,6 +214,10 @@ func init() {
 	oauth2clientDescBackchannelLogoutURI := oauth2clientFields[11].Descriptor()
 	// oauth2client.DefaultBackchannelLogoutURI holds the default value on creation for the backchannel_logout_uri field.
 	oauth2client.DefaultBackchannelLogoutURI = oauth2clientDescBackchannelLogoutURI.Default.(string)
+	// oauth2clientDescRefreshTokenLifetime is the schema descriptor for refresh_token_lifetime field.
+	oauth2clientDescRefreshTokenLifetime := oauth2clientFields[12].Descriptor()
+	// oauth2client.DefaultRefreshTokenLifetime holds the default value on creation for the refresh_token_lifetime field.
+	oauth2client.DefaultRefreshTokenLifetime = oauth2clientDescRefreshTokenLifetime.Default.(string)
 	// oauth2clientDescID is the schema descriptor for id field.
 	oauth2clientDescID := oauth2clientFields[0].Descriptor()
 	// oauth2client.IDValidator is a validator for the "id" field. It is called by the builders before save.

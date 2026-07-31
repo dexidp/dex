@@ -285,26 +285,19 @@ func (h *Handler) introspectRefreshToken(ctx context.Context, token string) (*In
 	}, nil
 }
 
-// sessionAlive reports whether the browser session a token names still exists.
+// sessionAlive reports whether a token's session still stands, for clients that
+// asked to be judged that way.
 //
-// RFC 7662 §4 requires an authorization server to determine whether a revocable
-// token has been revoked, and §2.2 defines "active" to mean, among other things,
-// not revoked. Once a token is bound to a session, ending that session revokes it,
-// so introspection has to say so — this is what lets a gateway that introspects
-// stop honoring a token the moment its user signs out, which is otherwise
-// impossible with a signed token nobody can recall.
+// RFC 7662 §4 requires the server to report a revoked token as inactive, and ending
+// a session revokes the tokens bound to it. Which tokens those are is the client's
+// RefreshTokenLifetime, the same declaration the refresh grant reads — the two must
+// agree, or a standalone client refreshes into a token that is inactive from birth.
 //
-// Only access tokens are checked, and only those carrying a sid. A token minted
-// without a session — client credentials, or anything at all when sessions are
-// disabled — has nothing to look up and is left alone. Refresh tokens are
-// deliberately excluded: they outlive the session by design (see
-// revokeRequestingClient in server/logout).
-//
-// Comparing the sid rather than merely finding a session matters. A user who signs
-// out and back in has a new session under the same subject; the old token names the
-// old sid, and must not be revived by the new session's existence.
-func (h *Handler) sessionAlive(ctx context.Context, subject, sessionID string) bool {
-	if sessionID == "" {
+// The comparison is against the sid, not merely the existence of a session: signing
+// out and back in makes a new session under the same subject, and the old token must
+// not be revived by it.
+func (h *Handler) sessionAlive(ctx context.Context, client storage.Client, subject, sessionID string) bool {
+	if sessionID == "" || !client.RefreshBoundToSession() {
 		return true
 	}
 
@@ -330,10 +323,6 @@ func (h *Handler) introspectAccessToken(ctx context.Context, token string) (*Int
 		return nil, newIntrospectInternalServerError()
 	}
 
-	if !h.sessionAlive(ctx, idToken.Subject, claims.SessionID) {
-		return nil, newIntrospectInactiveTokenError()
-	}
-
 	clientID, err := tokens.GetClientID(idToken.Audience, claims.AuthorizingParty)
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "error while fetching client_id from token:", "err", err.Error())
@@ -344,6 +333,10 @@ func (h *Handler) introspectAccessToken(ctx context.Context, token string) (*Int
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "error while fetching client from storage", "err", err.Error())
 		return nil, newIntrospectInternalServerError()
+	}
+
+	if !h.sessionAlive(ctx, client, idToken.Subject, claims.SessionID) {
+		return nil, newIntrospectInactiveTokenError()
 	}
 
 	return &Introspection{

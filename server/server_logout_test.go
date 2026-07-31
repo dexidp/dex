@@ -214,40 +214,60 @@ func TestHandleLogoutRedirectURIWithoutHint(t *testing.T) {
 	}
 }
 
-// TestHandleLogoutRevokesOnlyRequestingClient is the regression test for the bug
+// TestHandleLogoutRevokesOnlySessionBoundClients is the regression test for the bug
 // where signing out of a web app destroyed the user's kubectl credentials: logout
 // used to revoke every refresh token the user owned, across all clients.
-func TestHandleLogoutRevokesOnlyRequestingClient(t *testing.T) {
+//
+// The rule now is the client's own RefreshTokenLifetime, and it holds even for the
+// client that asked for the logout.
+func TestHandleLogoutRevokesOnlySessionBoundClients(t *testing.T) {
 	httpServer, server := newTestServerWithSessions(t, nil)
 	defer httpServer.Close()
 
 	ctx := t.Context()
 	const (
 		webClient   = "web-client"
+		proxyClient = "proxy"
 		cliClient   = "kubectl"
 		userID      = "test-user"
 		connectorID = "mock"
 		postLogout  = "https://example.com/done"
 	)
 
+	// Asks for the logout, but never declared its tokens tied to the session.
 	require.NoError(t, server.storage.CreateClient(ctx, storage.Client{
 		ID: webClient, Secret: "secret",
 		RedirectURIs:           []string{"https://example.com/callback"},
 		PostLogoutRedirectURIs: []string{postLogout},
 	}))
+	// Another client in the same session, this one bound to it.
+	require.NoError(t, server.storage.CreateClient(ctx, storage.Client{
+		ID: proxyClient, Secret: "secret",
+		RedirectURIs:         []string{"https://example.com/callback"},
+		RefreshTokenLifetime: storage.RefreshTokenLifetimeSession,
+	}))
 
 	webRefresh := newTestRefreshToken(t, server, userID, connectorID, webClient)
+	proxyRefresh := newTestRefreshToken(t, server, userID, connectorID, proxyClient)
 	cliRefresh := newTestRefreshToken(t, server, userID, connectorID, cliClient)
 
 	require.NoError(t, server.storage.CreateOfflineSessions(ctx, storage.OfflineSessions{
 		UserID: userID, ConnID: connectorID,
 		Refresh: map[string]*storage.RefreshTokenRef{
-			webClient: {ID: webRefresh, ClientID: webClient, CreatedAt: time.Now(), LastUsed: time.Now()},
-			cliClient: {ID: cliRefresh, ClientID: cliClient, CreatedAt: time.Now(), LastUsed: time.Now()},
+			webClient:   {ID: webRefresh, ClientID: webClient, CreatedAt: time.Now(), LastUsed: time.Now()},
+			proxyClient: {ID: proxyRefresh, ClientID: proxyClient, CreatedAt: time.Now(), LastUsed: time.Now()},
+			cliClient:   {ID: cliRefresh, ClientID: cliClient, CreatedAt: time.Now(), LastUsed: time.Now()},
 		},
 	}))
 
-	newTestAuthSession(t, server, userID, connectorID, "testnonce")
+	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
+		UserID: userID, ConnectorID: connectorID, Nonce: "testnonce",
+		CreatedAt: time.Now(), LastActivity: time.Now(),
+		ClientStates: map[string]*storage.ClientAuthState{
+			webClient:   {Active: true},
+			proxyClient: {Active: true},
+		},
+	}))
 	idToken := newTestIDToken(t, server, webClient, userID, connectorID)
 
 	rr := httptest.NewRecorder()
@@ -257,17 +277,22 @@ func TestHandleLogoutRevokesOnlyRequestingClient(t *testing.T) {
 	server.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusFound, rr.Code)
 
-	// The client that asked for the logout loses its token...
-	_, err := server.storage.GetRefresh(ctx, webRefresh)
+	// The client that declared itself part of the session loses its token...
+	_, err := server.storage.GetRefresh(ctx, proxyRefresh)
 	require.ErrorIs(t, err, storage.ErrNotFound)
 
-	// ...and every other client keeps its own.
+	// ...while the one that merely asked for the logout keeps its own...
+	_, err = server.storage.GetRefresh(ctx, webRefresh)
+	require.NoError(t, err)
+
+	// ...and so does a client that was never in this session at all.
 	_, err = server.storage.GetRefresh(ctx, cliRefresh)
 	require.NoError(t, err)
 
 	os, err := server.storage.GetOfflineSessions(ctx, userID, connectorID)
 	require.NoError(t, err)
-	require.NotContains(t, os.Refresh, webClient)
+	require.NotContains(t, os.Refresh, proxyClient)
+	require.Contains(t, os.Refresh, webClient)
 	require.Contains(t, os.Refresh, cliClient)
 }
 
@@ -648,8 +673,13 @@ type backchannelCall struct {
 }
 
 // startBackchannelRP returns a stub relying party that records the logout tokens it
-// receives, keyed by the client id passed in the path.
-func startBackchannelRP(t *testing.T, status int) (*httptest.Server, func() []backchannelCall) {
+// receives, keyed by the client id passed in the path, and a function that collects
+// them.
+//
+// Delivery runs off the request so that a slow relying party cannot hold up the
+// user's logout, which means the response can land before the tokens do. Callers say
+// how many they expect: wait(n) blocks until n arrive, wait(0) asserts none ever do.
+func startBackchannelRP(t *testing.T, status int) (*httptest.Server, func(n int) []backchannelCall) {
 	t.Helper()
 
 	var mu sync.Mutex
@@ -671,10 +701,19 @@ func startBackchannelRP(t *testing.T, status int) (*httptest.Server, func() []ba
 	}))
 	t.Cleanup(srv.Close)
 
-	return srv, func() []backchannelCall {
+	snapshot := func() []backchannelCall {
 		mu.Lock()
 		defer mu.Unlock()
 		return append([]backchannelCall(nil), calls...)
+	}
+
+	return srv, func(n int) []backchannelCall {
+		if n == 0 {
+			require.Never(t, func() bool { return len(snapshot()) > 0 }, 200*time.Millisecond, 10*time.Millisecond)
+		} else {
+			require.Eventually(t, func() bool { return len(snapshot()) >= n }, 2*time.Second, 10*time.Millisecond)
+		}
+		return snapshot()
 	}
 }
 
@@ -682,7 +721,7 @@ func TestBackchannelLogoutNotifiesSessionClients(t *testing.T) {
 	httpServer, server := newTestServerWithSessions(t, nil)
 	defer httpServer.Close()
 
-	rp, calls := startBackchannelRP(t, http.StatusOK)
+	rp, wait := startBackchannelRP(t, http.StatusOK)
 
 	ctx := t.Context()
 	const userID, connectorID = "test-user", "mock"
@@ -719,7 +758,7 @@ func TestBackchannelLogoutNotifiesSessionClients(t *testing.T) {
 	server.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
 
-	got := calls()
+	got := wait(2)
 	require.Len(t, got, 2, "only clients with a backchannel_logout_uri are notified")
 
 	seen := map[string]bool{}
@@ -749,7 +788,7 @@ func TestBackchannelLogoutToleratesFailingRP(t *testing.T) {
 	httpServer, server := newTestServerWithSessions(t, nil)
 	defer httpServer.Close()
 
-	rp, calls := startBackchannelRP(t, http.StatusInternalServerError)
+	rp, wait := startBackchannelRP(t, http.StatusInternalServerError)
 
 	ctx := t.Context()
 	const userID, connectorID = "test-user", "mock"
@@ -771,20 +810,20 @@ func TestBackchannelLogoutToleratesFailingRP(t *testing.T) {
 	server.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
-	require.Len(t, calls(), 1)
+	require.Len(t, wait(1), 1)
 
 	_, err := server.storage.GetAuthSession(ctx, userID, connectorID)
 	require.ErrorIs(t, err, storage.ErrNotFound, "logout completes despite the RP failing")
 }
 
 // TestBackchannelLogoutSSOSharesOneSID: clients reached through ssoSharedWith live in
-// the same AuthSession, so they share a sid and are all notified together. Only the
-// client that initiated the logout loses its refresh token.
+// the same AuthSession, so they share a sid and are all notified together, whatever
+// each of them declared about its refresh tokens.
 func TestBackchannelLogoutSSOSharesOneSID(t *testing.T) {
 	httpServer, server := newTestServerWithSessions(t, nil)
 	defer httpServer.Close()
 
-	rp, calls := startBackchannelRP(t, http.StatusOK)
+	rp, wait := startBackchannelRP(t, http.StatusOK)
 
 	ctx := t.Context()
 	const userID, connectorID = "test-user", "mock"
@@ -794,6 +833,7 @@ func TestBackchannelLogoutSSOSharesOneSID(t *testing.T) {
 		RedirectURIs:         []string{"https://example.com/callback"},
 		BackchannelLogoutURI: rp.URL + "/app-a",
 		SSOSharedWith:        []string{"app-b"},
+		RefreshTokenLifetime: storage.RefreshTokenLifetimeSession,
 	}))
 	require.NoError(t, server.storage.CreateClient(ctx, storage.Client{
 		ID: "app-b", Secret: "secret",
@@ -828,13 +868,13 @@ func TestBackchannelLogoutSSOSharesOneSID(t *testing.T) {
 	server.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
 
-	got := calls()
+	got := wait(2)
 	require.Len(t, got, 2)
 	require.Equal(t, idTokenClaims(t, got[0].token)["sid"], idTokenClaims(t, got[1].token)["sid"],
 		"one session, one sid, however many clients share it")
 
 	// The SSO peer is logged out over the back channel, not by having its credential
-	// pulled out from under it.
+	// pulled out from under it: it never asked to be bound to the session.
 	_, err := server.storage.GetRefresh(ctx, aRefresh)
 	require.ErrorIs(t, err, storage.ErrNotFound)
 	_, err = server.storage.GetRefresh(ctx, bRefresh)
@@ -854,6 +894,9 @@ func TestIntrospectionFollowsSession(t *testing.T) {
 	require.NoError(t, server.storage.CreateClient(ctx, storage.Client{
 		ID: clientID, Secret: "secret",
 		RedirectURIs: []string{"https://example.com/callback"},
+		// Only a client that declared its tokens session-bound is judged by its
+		// session here; see sessionAlive in server/introspection.
+		RefreshTokenLifetime: storage.RefreshTokenLifetimeSession,
 	}))
 	newTestAuthSession(t, server, userID, connectorID, "testnonce")
 
@@ -885,6 +928,15 @@ func TestIntrospectionFollowsSession(t *testing.T) {
 	// token names the old one and must not come back to life.
 	newTestAuthSession(t, server, userID, connectorID, "anothernonce")
 	require.False(t, introspect(t), "a fresh session must not revive an old token")
+
+	// The same token, for a client that never asked to be bound to the session, is
+	// still active: outliving the session is what standalone means, and it is the
+	// half of this that keeps a CLI signed in.
+	require.NoError(t, server.storage.UpdateClient(ctx, clientID, func(old storage.Client) (storage.Client, error) {
+		old.RefreshTokenLifetime = storage.RefreshTokenLifetimeStandalone
+		return old, nil
+	}))
+	require.True(t, introspect(t), "a standalone client's token is not judged by the session")
 }
 
 // TestIntrospectionIgnoresTokensWithoutSession: a token minted without a session
@@ -1038,7 +1090,7 @@ func TestHandleLogoutExpiredSession(t *testing.T) {
 	httpServer, server := newTestServerWithSessions(t, nil)
 	defer httpServer.Close()
 
-	rp, calls := startBackchannelRP(t, http.StatusOK)
+	rp, wait := startBackchannelRP(t, http.StatusOK)
 
 	ctx := t.Context()
 	const userID, connectorID = "test-user", "mock"
@@ -1063,5 +1115,5 @@ func TestHandleLogoutExpiredSession(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	require.Contains(t, rr.Body.String(), "No active session")
-	require.Empty(t, calls(), "an expired session has no relying parties left to tell")
+	require.Empty(t, wait(0), "an expired session has no relying parties left to tell")
 }

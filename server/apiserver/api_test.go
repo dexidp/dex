@@ -41,7 +41,7 @@ func newAPI(t *testing.T, s storage.Storage, logger *slog.Logger) *apiClient {
 	}
 
 	serv := grpc.NewServer()
-	api.RegisterDexServer(serv, NewAPI(s, logger, "test", nil, nil))
+	api.RegisterDexServer(serv, NewAPI(s, logger, "test", nil, nil, nil))
 	go serv.Serve(l)
 
 	// NewClient will retry automatically if the serv.Serve() goroutine

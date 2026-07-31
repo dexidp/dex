@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/dexidp/dex/api/v2"
+	"github.com/dexidp/dex/server/backchannel"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/discovery"
 	"github.com/dexidp/dex/server/tokens"
@@ -20,29 +21,32 @@ const apiVersion = 4
 
 // NewAPI returns a server which implements the gRPC API interface. It takes only
 // the narrow dependencies it needs — the connector cache to invalidate on
-// connector CRUD, and the discovery handler to serve the same document as HTTP —
+// connector CRUD, the discovery handler to serve the same document as HTTP, and
+// the back-channel notifier to tell relying parties about the sessions it ends —
 // rather than the whole Server.
-func NewAPI(s storage.Storage, logger *slog.Logger, version string, conns *connectors.Cache, disc *discovery.Handler) api.DexServer {
+func NewAPI(s storage.Storage, logger *slog.Logger, version string, conns *connectors.Cache, disc *discovery.Handler, bc *backchannel.Notifier) api.DexServer {
 	apiLogger := logger.With("component", "api")
 	return dexAPI{
-		s:          s,
-		logger:     apiLogger,
-		version:    version,
-		connectors: conns,
-		discovery:  disc,
-		refresh:    tokens.NewRefreshStore(s, time.Now, apiLogger),
+		s:           s,
+		logger:      apiLogger,
+		version:     version,
+		connectors:  conns,
+		discovery:   disc,
+		backchannel: bc,
+		refresh:     tokens.NewRefreshStore(s, time.Now, apiLogger),
 	}
 }
 
 type dexAPI struct {
 	api.UnimplementedDexServer
 
-	s          storage.Storage
-	logger     *slog.Logger
-	version    string
-	connectors *connectors.Cache
-	discovery  *discovery.Handler
-	refresh    *tokens.RefreshStore
+	s           storage.Storage
+	logger      *slog.Logger
+	version     string
+	connectors  *connectors.Cache
+	discovery   *discovery.Handler
+	backchannel *backchannel.Notifier
+	refresh     *tokens.RefreshStore
 }
 
 func (d dexAPI) GetVersion(ctx context.Context, req *api.VersionReq) (*api.VersionResp, error) {

@@ -94,6 +94,20 @@ func (_c *OAuth2ClientCreate) SetNillableBackchannelLogoutURI(v *string) *OAuth2
 	return _c
 }
 
+// SetRefreshTokenLifetime sets the "refresh_token_lifetime" field.
+func (_c *OAuth2ClientCreate) SetRefreshTokenLifetime(v string) *OAuth2ClientCreate {
+	_c.mutation.SetRefreshTokenLifetime(v)
+	return _c
+}
+
+// SetNillableRefreshTokenLifetime sets the "refresh_token_lifetime" field if the given value is not nil.
+func (_c *OAuth2ClientCreate) SetNillableRefreshTokenLifetime(v *string) *OAuth2ClientCreate {
+	if v != nil {
+		_c.SetRefreshTokenLifetime(*v)
+	}
+	return _c
+}
+
 // SetClientCredentialsClaims sets the "client_credentials_claims" field.
 func (_c *OAuth2ClientCreate) SetClientCredentialsClaims(v *storage.ClientCredentialsClaims) *OAuth2ClientCreate {
 	_c.mutation.SetClientCredentialsClaims(v)
@@ -144,6 +158,10 @@ func (_c *OAuth2ClientCreate) defaults() {
 	if _, ok := _c.mutation.BackchannelLogoutURI(); !ok {
 		v := oauth2client.DefaultBackchannelLogoutURI
 		_c.mutation.SetBackchannelLogoutURI(v)
+	}
+	if _, ok := _c.mutation.RefreshTokenLifetime(); !ok {
+		v := oauth2client.DefaultRefreshTokenLifetime
+		_c.mutation.SetRefreshTokenLifetime(v)
 	}
 }
 
@@ -259,6 +277,10 @@ func (_c *OAuth2ClientCreate) createSpec() (*OAuth2Client, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.BackchannelLogoutURI(); ok {
 		_spec.SetField(oauth2client.FieldBackchannelLogoutURI, field.TypeString, value)
 		_node.BackchannelLogoutURI = value
+	}
+	if value, ok := _c.mutation.RefreshTokenLifetime(); ok {
+		_spec.SetField(oauth2client.FieldRefreshTokenLifetime, field.TypeString, value)
+		_node.RefreshTokenLifetime = value
 	}
 	if value, ok := _c.mutation.ClientCredentialsClaims(); ok {
 		_spec.SetField(oauth2client.FieldClientCredentialsClaims, field.TypeJSON, value)

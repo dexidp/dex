@@ -2,6 +2,7 @@ package apiserver
 
 import (
 	"context"
+	"errors"
 
 	"github.com/dexidp/dex/api/v2"
 	"github.com/dexidp/dex/server/internal"
@@ -103,14 +104,26 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 // server/logout). An administrative call has neither: there is no client_id in the
 // request, and ending access is the entire point of the operation. Callers that want
 // one client's token gone use RevokeRefresh.
-//
-// TODO(nabokihms): notify relying parties over back-channel logout here too. Today
-// only the HTTP logout endpoint fans out logout tokens, so an administrator who
-// terminates a session ends it in dex and revokes the refresh tokens, but every RP
-// keeps serving the user from its own cookie until that cookie expires or its next
-// refresh fails. Fixing it means lifting the notifier out of logout.Handler into
-// something the apiserver can hold, and calling it before the session is deleted in
-// DeleteAuthSession, terminateSessions and DeleteUserIdentity.
 func (d dexAPI) revokeUserRefreshTokens(ctx context.Context, userID, connectorID string) {
 	d.refresh.RevokeAll(ctx, userID, connectorID)
+}
+
+// notifySessionEnded tells a session's relying parties that it is over, the same way
+// RP-initiated logout does: an RP cannot tell an operator's termination from a user
+// signing out, and has no reason to. Must run before the session row is deleted, as
+// the fan-out reads it.
+func (d dexAPI) notifySessionEnded(ctx context.Context, userID, connectorID string) {
+	if d.backchannel == nil {
+		return
+	}
+
+	session, err := d.s.GetAuthSession(ctx, userID, connectorID)
+	if err != nil {
+		if !errors.Is(err, storage.ErrNotFound) {
+			d.logger.Error("api: failed to read auth session for back-channel logout", "err", err)
+		}
+		return
+	}
+
+	d.backchannel.Notify(ctx, &session)
 }

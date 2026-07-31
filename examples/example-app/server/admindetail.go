@@ -50,6 +50,7 @@ func (s *Server) handleAdminClientDetail(w http.ResponseWriter, r *http.Request)
 			SSOSharedWith:          c.SsoSharedWith,
 			BackchannelLogoutURI:   c.BackchannelLogoutUri,
 			PostLogoutRedirectURIs: c.PostLogoutRedirectUris,
+			RefreshTokenLifetime:   c.RefreshTokenLifetime,
 		}
 	}
 

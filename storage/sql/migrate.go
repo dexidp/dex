@@ -472,6 +472,9 @@ var migrations = []migration{
 			`
 			alter table client
 				add column backchannel_logout_uri text not null default '';`,
+			`
+			alter table client
+				add column refresh_token_lifetime text not null default '';`,
 		},
 	},
 }
