@@ -868,6 +868,9 @@ func TestIntrospectionFollowsSession(t *testing.T) {
 	require.NoError(t, server.storage.CreateClient(ctx, storage.Client{
 		ID: clientID, Secret: "secret",
 		RedirectURIs: []string{"https://example.com/callback"},
+		// Only a client that declared its tokens session-bound is judged by its
+		// session here; see sessionAlive in server/introspection.
+		RefreshTokenLifetime: storage.RefreshTokenLifetimeSession,
 	}))
 	newTestAuthSession(t, server, userID, connectorID, "testnonce")
 
@@ -899,6 +902,15 @@ func TestIntrospectionFollowsSession(t *testing.T) {
 	// token names the old one and must not come back to life.
 	newTestAuthSession(t, server, userID, connectorID, "anothernonce")
 	require.False(t, introspect(t), "a fresh session must not revive an old token")
+
+	// The same token, for a client that never asked to be bound to the session, is
+	// still active: outliving the session is what standalone means, and it is the
+	// half of this that keeps a CLI signed in.
+	require.NoError(t, server.storage.UpdateClient(ctx, clientID, func(old storage.Client) (storage.Client, error) {
+		old.RefreshTokenLifetime = storage.RefreshTokenLifetimeStandalone
+		return old, nil
+	}))
+	require.True(t, introspect(t), "a standalone client's token is not judged by the session")
 }
 
 // TestIntrospectionIgnoresTokensWithoutSession: a token minted without a session

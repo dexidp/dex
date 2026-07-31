@@ -518,12 +518,15 @@ func TestHandleRefreshTokenAllowedConnectors(t *testing.T) {
 
 // TestRefreshTokenSID pins what a refresh does with the sid claim.
 //
-// The claim names the browser session a token belongs to, so a refresh must keep
-// it while that session lives and drop it once the session ends — and must never
-// hand one to a token that was minted outside a browser flow. Resolving it from
-// the user's identity, as an earlier version did, did exactly that: a
-// password-grant token inherited whatever session its user happened to have open,
-// and signing out of the browser then killed it.
+// The claim names the browser session a token came from, so a refresh carries it
+// across unchanged, alive session or not, and must never hand one to a token that
+// was minted outside a browser flow. Resolving it from the user's identity, as an
+// earlier version did, did exactly that: a password-grant token inherited whatever
+// session its user happened to have open, and signing out of the browser then
+// killed it.
+//
+// What the end of that session costs the token is the client's own declaration:
+// nothing for a standalone one, everything for a session-bound one.
 func TestRefreshTokenSID(t *testing.T) {
 	const nonce = "sessionnonce"
 	sid := session.SessionID(nonce)
@@ -550,16 +553,19 @@ func TestRefreshTokenSID(t *testing.T) {
 			wantSID: sid,
 		},
 		{
+			// The sid says where the token came from, not that the session is still
+			// there. Dropping it here used to make the token active again at the next
+			// refresh, undoing the revocation introspection had just reported.
 			name:    "browser flow, session ended",
 			origin:  sid,
 			live:    "",
-			wantSID: nil,
+			wantSID: sid,
 		},
 		{
 			name:    "browser flow, user signed in again",
 			origin:  sid,
 			live:    "anothernonce",
-			wantSID: nil,
+			wantSID: sid,
 		},
 		{
 			name:    "token from a flow with no browser",

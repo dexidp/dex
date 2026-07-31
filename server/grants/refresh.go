@@ -149,17 +149,22 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 // refuses the refresh outright when the token belongs to a session that has ended
 // and the client asked for its tokens to end with it.
 //
-// Origin comes from the stored reference and liveness from the session itself, and
-// both have to hold. A token minted outside a browser flow carries no origin and
-// must never acquire one — resolving the sid from the user's identity would hand it
-// whatever session that user happens to have open.
+// The sid names the session a token came from, and it is carried across every
+// refresh unchanged — including after that session is gone. A dead sid is not a
+// contradiction: it is what the token's history was. Whether the token is still good
+// for anything is a separate question, answered by the client's declared
+// RefreshTokenLifetime, and answered the same way here and in introspection (see
+// sessionAlive in server/introspection).
 //
-// What happens once the session is gone is the client's own declaration. Standalone
-// tokens keep working but stop naming a session, which is what lets a kubectl
-// credential outlive a browser logout. Session-bound tokens are refused and deleted:
-// for a client that is a browser session and nothing else, a token that still mints
-// fresh ones after logout is a way back in, and it would defeat introspection too —
-// the reissued token, having lost its sid, has nothing left to report as revoked.
+// Standalone, the default, means the session's end is none of this token's business:
+// it keeps refreshing and keeps naming its origin, which is what lets a kubectl
+// credential survive a browser logout. Session-bound means the refresh is refused
+// and the token deleted — for a client that is a browser session and nothing else,
+// a token that still mints fresh ones after logout is a way back in.
+//
+// Origin comes from the stored reference and nowhere else. A token minted outside a
+// browser flow carries none and must never acquire one: resolving the sid from the
+// user's identity would hand it whatever session that user happens to have open.
 func (g *refresh) sessionID(ctx context.Context, refreshToken *storage.RefreshToken, client storage.Client) (string, *oauth2.Error) {
 	bound := client.RefreshBoundToSession()
 
@@ -185,10 +190,11 @@ func (g *refresh) sessionID(ctx context.Context, refreshToken *storage.RefreshTo
 		return "", nil
 	}
 
+	if !bound {
+		return ref.SessionID, nil
+	}
+
 	if ref.SessionID != g.sessions.SessionIDFor(ctx, refreshToken.Claims.UserID, refreshToken.ConnectorID) {
-		if !bound {
-			return "", nil
-		}
 		if err := g.storage.DeleteRefresh(ctx, refreshToken.ID); err != nil && !errors.Is(err, storage.ErrNotFound) {
 			g.logger.ErrorContext(ctx, "refresh: failed to delete token of an ended session",
 				"client_id", refreshToken.ClientID, "err", err)

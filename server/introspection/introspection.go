@@ -285,26 +285,38 @@ func (h *Handler) introspectRefreshToken(ctx context.Context, token string) (*In
 	}, nil
 }
 
-// sessionAlive reports whether the browser session a token names still exists.
+// sessionAlive reports whether a token's browser session still stands, for clients
+// that asked to be judged that way.
 //
 // RFC 7662 §4 requires an authorization server to determine whether a revocable
 // token has been revoked, and §2.2 defines "active" to mean, among other things,
-// not revoked. Once a token is bound to a session, ending that session revokes it,
-// so introspection has to say so — this is what lets a gateway that introspects
-// stop honoring a token the moment its user signs out, which is otherwise
-// impossible with a signed token nobody can recall.
+// not revoked. Ending a session revokes the tokens bound to it, so introspection
+// has to say so — this is what lets a gateway stop honoring a token the moment its
+// user signs out, which is otherwise impossible with a signed token nobody can
+// recall.
 //
-// Only access tokens are checked, and only those carrying a sid. A token minted
-// without a session — client credentials, or anything at all when sessions are
-// disabled — has nothing to look up and is left alone. Refresh tokens are
-// deliberately excluded: they outlive the session by design (see
-// revokeRequestingClient in server/logout).
+// Which tokens are bound is the client's own declaration, the same
+// RefreshTokenLifetime the refresh grant reads, and the two have to agree. The sid
+// says which session a token came from and never changes, so if introspection
+// judged every token by its session while the refresh grant kept reissuing tokens
+// for standalone clients, a standalone client would refresh into a token that is
+// inactive from birth. The mirror of that, which is what dex did before the
+// declaration existed, was to strip the sid on refresh instead: the token then went
+// inactive at logout and active again at the next refresh, an hour of revocation
+// that the client cured by asking for a new token. Access that comes back on its
+// own was never revoked. So the client says it once, and both endpoints obey it.
+//
+// A standalone token is therefore not checked at all — outliving the session is the
+// whole point of the setting, and it is what keeps a kubectl credential working
+// after the user signs out of a web application. Nor is a token with no sid: minted
+// by client credentials, or before sessions were switched on, it names no session to
+// look up. Refresh tokens are not introspected here either.
 //
 // Comparing the sid rather than merely finding a session matters. A user who signs
 // out and back in has a new session under the same subject; the old token names the
 // old sid, and must not be revived by the new session's existence.
-func (h *Handler) sessionAlive(ctx context.Context, subject, sessionID string) bool {
-	if sessionID == "" {
+func (h *Handler) sessionAlive(ctx context.Context, client storage.Client, subject, sessionID string) bool {
+	if sessionID == "" || !client.RefreshBoundToSession() {
 		return true
 	}
 
@@ -330,10 +342,6 @@ func (h *Handler) introspectAccessToken(ctx context.Context, token string) (*Int
 		return nil, newIntrospectInternalServerError()
 	}
 
-	if !h.sessionAlive(ctx, idToken.Subject, claims.SessionID) {
-		return nil, newIntrospectInactiveTokenError()
-	}
-
 	clientID, err := tokens.GetClientID(idToken.Audience, claims.AuthorizingParty)
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "error while fetching client_id from token:", "err", err.Error())
@@ -344,6 +352,10 @@ func (h *Handler) introspectAccessToken(ctx context.Context, token string) (*Int
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "error while fetching client from storage", "err", err.Error())
 		return nil, newIntrospectInternalServerError()
+	}
+
+	if !h.sessionAlive(ctx, client, idToken.Subject, claims.SessionID) {
+		return nil, newIntrospectInactiveTokenError()
 	}
 
 	return &Introspection{
