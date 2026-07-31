@@ -168,19 +168,17 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.revokeRequestingClient(ctx, authSession, clientID)
-
 	// Try upstream logout first. It needs a live auth session to park the logout
 	// parameters in, so it must run before the session is deleted, and it finishes
 	// the flow in handleLogoutCallback.
 	//
-	// Nothing is announced to the relying parties on this branch. The session does
-	// not end here — it ends in the callback — and a user who abandons the upstream
-	// provider's logout page never comes back to it. Telling the RPs now would leave
-	// them signed out while dex's session and cookie live on, so the next visit to
-	// any of them would silently sign the user back in through SSO and the logout
-	// would appear to undo itself. Notifying only once the session is really gone
-	// costs a best-effort notification in the abandoned case and buys consistency.
+	// Nothing is announced or revoked on this branch. The session does not end here —
+	// it ends in the callback — and a user who abandons the upstream provider's logout
+	// page never comes back to it. Acting now would leave the relying parties signed
+	// out, and their credentials deleted, while dex's session and cookie live on, so
+	// the next visit to any of them would silently sign the user back in through SSO
+	// and the logout would appear to undo itself. Waiting until the session is really
+	// gone costs a best-effort notification in the abandoned case and buys consistency.
 	if redirectURL, ok := h.tryUpstreamLogout(ctx, authSession, postLogoutRedirectURI, state, clientID); ok {
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 		return
@@ -189,8 +187,8 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 	h.Logger.DebugContext(ctx, "logout: completing",
 		"user_id", authSession.UserID, "connector_id", authSession.ConnectorID, "client_id", clientID)
 
-	// Tell the other RPs in this session before it disappears — the fan-out reads
-	// ClientStates and the sid, both of which die with it.
+	// Both read ClientStates, which dies with the session, so both run before it does.
+	h.revokeSessionBoundTokens(ctx, authSession)
 	h.notifyBackchannel(ctx, authSession)
 
 	loggedOut := h.deleteAuthSession(ctx, authSession.UserID, authSession.ConnectorID)
@@ -198,8 +196,9 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 	h.finishLogout(w, r, postLogoutRedirectURI, state, loggedOut)
 }
 
-// revokeRequestingClient deletes the refresh token dex issued to the client that
-// asked for this logout, and deliberately leaves every other client's token alone.
+// revokeSessionBoundTokens deletes the refresh tokens of the clients in this session
+// that declared themselves bound to it, and deliberately leaves every other client's
+// token alone.
 //
 // The narrow scope is the whole point, so please read this before widening it back.
 //
@@ -218,20 +217,33 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 // kubectl credential arrive at the token endpoint looking identical, so there is no
 // request-level signal to separate them — which is exactly how revoking on behalf of
 // the whole user used to destroy a user's kubectl login every time they signed out of
-// a web app.
+// a web app. Dex's answer is the client's own RefreshTokenLifetime, which is the
+// only place that distinction exists, and this walks the session by it.
 //
-// What remains is a narrow, concrete reason to revoke this one token: by the time the
-// browser reaches dex, the RP has already thrown its own refresh token away (an
-// oauth2-proxy /oauth2/sign_out drops its session before redirecting here). Leaving it
-// valid until its TTL means keeping a live credential that no legitimate party holds.
-// That argument covers the requesting client and nobody else.
+// Redundant on its own: a session-bound token is refused and deleted the next time
+// it is redeemed anyway (see sessionID in server/grants). Doing it here means the
+// credential is gone at logout rather than at the attacker's convenience.
 //
-// Logging the other RPs out is back-channel logout's job, deliberately not this one's.
-func (h *Handler) revokeRequestingClient(ctx context.Context, authSession *storage.AuthSession, clientID string) {
-	if clientID == "" {
-		return
+// Standalone tokens survive, including the requesting client's. An earlier version
+// revoked that one on the grounds that the RP had already discarded it before
+// redirecting here, which is true but is now the client's call to make: a client that
+// wants its tokens to end with the session says so, and one that does not has said
+// the opposite. Logging the other RPs out remains back-channel logout's job.
+func (h *Handler) revokeSessionBoundTokens(ctx context.Context, authSession *storage.AuthSession) {
+	var bound []string
+	for clientID := range authSession.ClientStates {
+		client, err := h.Storage.GetClient(ctx, clientID)
+		if err != nil {
+			h.Logger.DebugContext(ctx, "logout: revocation skipped, client not found",
+				"client_id", clientID, "err", err)
+			continue
+		}
+		if client.RefreshBoundToSession() {
+			bound = append(bound, clientID)
+		}
 	}
-	h.Issuer.Refresh.Revoke(ctx, authSession.UserID, authSession.ConnectorID, clientID)
+
+	h.Issuer.Refresh.RevokeClients(ctx, authSession.UserID, authSession.ConnectorID, bound)
 }
 
 // idTokenHint holds the parts of a verified id_token_hint that logout cares about.
@@ -349,9 +361,10 @@ func (h *Handler) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// This is where the session actually ends on the upstream path, so this is where
-	// the other relying parties are told. Announcing it back in handleLogout would
-	// have signed them out while dex's session was still alive, waiting for a
-	// callback that a user who closed the tab never sends.
+	// the tokens bound to it go and the other relying parties are told. Doing either
+	// back in handleLogout would have signed them out while dex's session was still
+	// alive, waiting for a callback that a user who closed the tab never sends.
+	h.revokeSessionBoundTokens(ctx, &session)
 	h.notifyBackchannel(ctx, &session)
 
 	// Session kept alive until now — delete it and clear the cookie.

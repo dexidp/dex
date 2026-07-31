@@ -250,13 +250,25 @@ func (rt *RefreshStore) updateOfflineSession(ctx context.Context, refresh *stora
 	return nil
 }
 
-// Revoke deletes the refresh token issued to clientID for the user/connector pair.
-// Every other client's token is left alone. See RevokeAll for the unscoped variant.
-func (rt *RefreshStore) Revoke(ctx context.Context, userID, connectorID, clientID string) {
-	if clientID == "" {
+// RevokeClients deletes the refresh tokens issued to the named clients for the
+// user/connector pair, in one pass over the offline session. Every other client's
+// token is left alone. See RevokeAll for the unscoped variant.
+func (rt *RefreshStore) RevokeClients(ctx context.Context, userID, connectorID string, clientIDs []string) {
+	if len(clientIDs) == 0 {
 		return
 	}
-	rt.revoke(ctx, userID, connectorID, func(id string) bool { return id == clientID })
+
+	revoking := make(map[string]struct{}, len(clientIDs))
+	for _, id := range clientIDs {
+		if id != "" {
+			revoking[id] = struct{}{}
+		}
+	}
+
+	rt.revoke(ctx, userID, connectorID, func(id string) bool {
+		_, ok := revoking[id]
+		return ok
+	})
 }
 
 // RevokeAll deletes every refresh token for the user/connector pair. This is the

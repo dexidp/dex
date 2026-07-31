@@ -111,8 +111,9 @@ func TestRefreshStoreRevoke(t *testing.T) {
 		},
 	}))
 
-	// Revoke is scoped to one client and leaves the rest of the user's tokens alone.
-	rt.Revoke(ctx, "u1", "mock", "c1")
+	// RevokeClients is scoped to the named clients and leaves the rest of the user's
+	// tokens alone.
+	rt.RevokeClients(ctx, "u1", "mock", []string{"c1", "unknown"})
 
 	_, err := store.GetRefresh(ctx, "r1")
 	require.ErrorIs(t, err, storage.ErrNotFound)
