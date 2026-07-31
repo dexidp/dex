@@ -17,7 +17,6 @@ import (
 
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
-	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 )
@@ -92,7 +91,7 @@ func (n *Notifier) Notify(ctx context.Context, authSession *storage.AuthSession)
 		return
 	}
 
-	sid := session.SessionID(authSession.Nonce)
+	sid := authSession.ID
 	clientIDs := slices.Sorted(maps.Keys(authSession.ClientStates))
 
 	// Read above while the session is still in hand: the caller deletes it the moment

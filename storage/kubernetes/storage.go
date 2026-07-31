@@ -831,26 +831,25 @@ func (cli *client) CreateAuthSession(ctx context.Context, s storage.AuthSession)
 	return cli.post(resourceAuthSession, cli.fromStorageAuthSession(s))
 }
 
-func (cli *client) getAuthSession(userID, connectorID string) (AuthSession, error) {
+func (cli *client) getAuthSession(id string) (AuthSession, error) {
 	var s AuthSession
-	name := offlineTokenName(userID, connectorID, cli.hash)
-	if err := cli.get(resourceAuthSession, name, &s); err != nil {
+	if err := cli.get(resourceAuthSession, id, &s); err != nil {
 		return AuthSession{}, err
 	}
 	return s, nil
 }
 
-func (cli *client) GetAuthSession(ctx context.Context, userID, connectorID string) (storage.AuthSession, error) {
-	s, err := cli.getAuthSession(userID, connectorID)
+func (cli *client) GetAuthSession(ctx context.Context, id string) (storage.AuthSession, error) {
+	s, err := cli.getAuthSession(id)
 	if err != nil {
 		return storage.AuthSession{}, err
 	}
 	return toStorageAuthSession(s), nil
 }
 
-func (cli *client) UpdateAuthSession(ctx context.Context, userID, connectorID string, updater func(old storage.AuthSession) (storage.AuthSession, error)) error {
+func (cli *client) UpdateAuthSession(ctx context.Context, id string, updater func(old storage.AuthSession) (storage.AuthSession, error)) error {
 	return retryOnConflict(ctx, func() error {
-		s, err := cli.getAuthSession(userID, connectorID)
+		s, err := cli.getAuthSession(id)
 		if err != nil {
 			return err
 		}
@@ -880,8 +879,8 @@ func (cli *client) ListAuthSessions(ctx context.Context) ([]storage.AuthSession,
 	return sessions, nil
 }
 
-func (cli *client) DeleteAuthSession(ctx context.Context, userID, connectorID string) error {
-	s, err := cli.getAuthSession(userID, connectorID)
+func (cli *client) DeleteAuthSession(ctx context.Context, id string) error {
+	s, err := cli.getAuthSession(id)
 	if err != nil {
 		return err
 	}

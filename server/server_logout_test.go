@@ -17,7 +17,6 @@ import (
 
 	"github.com/dexidp/dex/server/discovery"
 	"github.com/dexidp/dex/server/internal"
-	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
@@ -62,7 +61,7 @@ func TestHandleLogoutNoHintGETShowsConfirmation(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/logout", nil)
-	req.AddCookie(testSessionCookie("test-user", "mock", "testnonce"))
+	req.AddCookie(testSessionCookie("testnonce"))
 	server.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
 	body := rr.Body.String()
@@ -81,7 +80,8 @@ func TestHandleLogoutNoHintPOSTPerformsLogout(t *testing.T) {
 	nonce := "testnonce"
 
 	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
-		UserID: userID, ConnectorID: connectorID, Nonce: nonce,
+		ID: nonce, Secret: testSessionSecret(nonce),
+		UserID: userID, ConnectorID: connectorID,
 		CreatedAt: time.Now(), LastActivity: time.Now(),
 	}))
 
@@ -89,7 +89,7 @@ func TestHandleLogoutNoHintPOSTPerformsLogout(t *testing.T) {
 	req := httptest.NewRequest("POST", "/logout", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  "dex_session",
-		Value: internal.SessionCookieValue(userID, connectorID, nonce, testSessionKey),
+		Value: internal.SessionCookieValue(nonce, testSessionSecret(nonce), testSessionKey),
 	})
 	server.ServeHTTP(rr, req)
 
@@ -97,7 +97,7 @@ func TestHandleLogoutNoHintPOSTPerformsLogout(t *testing.T) {
 	require.Contains(t, rr.Body.String(), "successfully logged out")
 
 	// Session should be deleted.
-	_, err := server.storage.GetAuthSession(ctx, userID, connectorID)
+	_, err := server.storage.GetAuthSession(ctx, "testnonce")
 	require.ErrorIs(t, err, storage.ErrNotFound)
 }
 
@@ -130,9 +130,10 @@ func TestHandleLogoutWithValidHint(t *testing.T) {
 	}))
 
 	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
+		ID:           "testnonce",
+		Secret:       testSessionSecret("testnonce"),
 		UserID:       userID,
 		ConnectorID:  connectorID,
-		Nonce:        "testnonce",
 		CreatedAt:    time.Now(),
 		LastActivity: time.Now(),
 	}))
@@ -151,7 +152,7 @@ func TestHandleLogoutWithValidHint(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", logoutURL, nil)
-	req.AddCookie(testSessionCookie(userID, connectorID, "testnonce"))
+	req.AddCookie(testSessionCookie("testnonce"))
 	server.ServeHTTP(rr, req)
 
 	// RP-Initiated Logout §4: a validated post_logout_redirect_uri is a redirect,
@@ -160,7 +161,7 @@ func TestHandleLogoutWithValidHint(t *testing.T) {
 	require.Equal(t, postLogoutURI+"?state=mystate", rr.Header().Get("Location"))
 
 	// Session deleted.
-	_, err = server.storage.GetAuthSession(ctx, userID, connectorID)
+	_, err = server.storage.GetAuthSession(ctx, "testnonce")
 	require.ErrorIs(t, err, storage.ErrNotFound)
 
 	// Cookie cleared.
@@ -261,19 +262,20 @@ func TestHandleLogoutRevokesOnlySessionBoundClients(t *testing.T) {
 	}))
 
 	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
-		UserID: userID, ConnectorID: connectorID, Nonce: "testnonce",
+		ID: "testnonce", Secret: testSessionSecret("testnonce"),
+		UserID: userID, ConnectorID: connectorID,
 		CreatedAt: time.Now(), LastActivity: time.Now(),
 		ClientStates: map[string]*storage.ClientAuthState{
-			webClient:   {Active: true},
-			proxyClient: {Active: true},
+			webClient:   {AuthenticatedAt: time.Now()},
+			proxyClient: {AuthenticatedAt: time.Now()},
 		},
 	}))
-	idToken := newTestIDToken(t, server, webClient, userID, connectorID)
+	idToken := newTestIDToken(t, server, webClient, userID, connectorID, "testnonce")
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", fmt.Sprintf("/logout?id_token_hint=%s&post_logout_redirect_uri=%s",
 		url.QueryEscape(idToken), url.QueryEscape(postLogout)), nil)
-	req.AddCookie(testSessionCookie(userID, connectorID, "testnonce"))
+	req.AddCookie(testSessionCookie("testnonce"))
 	server.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusFound, rr.Code)
 
@@ -313,7 +315,8 @@ func TestHandleLogoutRepeat(t *testing.T) {
 	}))
 
 	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
-		UserID: userID, ConnectorID: connectorID, Nonce: "testnonce",
+		ID: "testnonce", Secret: testSessionSecret("testnonce"),
+		UserID: userID, ConnectorID: connectorID,
 		CreatedAt: time.Now(), LastActivity: time.Now(),
 	}))
 
@@ -330,14 +333,14 @@ func TestHandleLogoutRepeat(t *testing.T) {
 		url.QueryEscape(idToken), url.QueryEscape(postLogoutURI))
 
 	req := httptest.NewRequest("GET", logoutURL, nil)
-	req.AddCookie(testSessionCookie(userID, connectorID, "testnonce"))
+	req.AddCookie(testSessionCookie("testnonce"))
 	rr := httptest.NewRecorder()
 	server.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusFound, rr.Code)
 
 	// Second logout — session already gone, but the RP still gets its redirect.
 	req = httptest.NewRequest("GET", logoutURL, nil)
-	req.AddCookie(testSessionCookie(userID, connectorID, "testnonce"))
+	req.AddCookie(testSessionCookie("testnonce"))
 	rr = httptest.NewRecorder()
 	server.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusFound, rr.Code)
@@ -399,7 +402,8 @@ func TestHandleLogoutFromCookie(t *testing.T) {
 	nonce := "testnonce"
 
 	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
-		UserID: userID, ConnectorID: connectorID, Nonce: nonce,
+		ID: nonce, Secret: testSessionSecret(nonce),
+		UserID: userID, ConnectorID: connectorID,
 		CreatedAt: time.Now(), LastActivity: time.Now(),
 	}))
 
@@ -408,7 +412,7 @@ func TestHandleLogoutFromCookie(t *testing.T) {
 	req := httptest.NewRequest("POST", "/logout", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  "dex_session",
-		Value: internal.SessionCookieValue(userID, connectorID, nonce, testSessionKey),
+		Value: internal.SessionCookieValue(nonce, testSessionSecret(nonce), testSessionKey),
 	})
 	server.ServeHTTP(rr, req)
 
@@ -416,7 +420,7 @@ func TestHandleLogoutFromCookie(t *testing.T) {
 	require.Contains(t, rr.Body.String(), "successfully logged out")
 
 	// Session should be deleted.
-	_, err := server.storage.GetAuthSession(ctx, userID, connectorID)
+	_, err := server.storage.GetAuthSession(ctx, "testnonce")
 	require.ErrorIs(t, err, storage.ErrNotFound)
 
 	// Cookie should be cleared.
@@ -438,7 +442,7 @@ func TestLogoutCallbackWithExpiredSession(t *testing.T) {
 	req := httptest.NewRequest("GET", "/logout/callback", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  "dex_session",
-		Value: internal.SessionCookieValue("user-1", "mock", "nonce", testSessionKey),
+		Value: internal.SessionCookieValue("nonce", testSessionSecret("nonce"), testSessionKey),
 	})
 	server.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusBadRequest, rr.Code)
@@ -478,17 +482,23 @@ func TestRevokeRefreshTokens(t *testing.T) {
 
 // --- helpers ---
 
-func testSessionCookie(userID, connectorID, nonce string) *http.Cookie {
+// testSessionSecret is the secret paired with a session id in these tests. Sessions
+// are named by an id the tokens publish, and proved by a secret only the cookie ever
+// carries, so tests need both.
+func testSessionSecret(sessionID string) string { return sessionID + "-secret" }
+
+func testSessionCookie(sessionID string) *http.Cookie {
 	return &http.Cookie{
 		Name:  "dex_session",
-		Value: internal.SessionCookieValue(userID, connectorID, nonce, testSessionKey),
+		Value: internal.SessionCookieValue(sessionID, testSessionSecret(sessionID), testSessionKey),
 	}
 }
 
-func newTestAuthSession(t *testing.T, server *Server, userID, connectorID, nonce string) {
+func newTestAuthSession(t *testing.T, server *Server, userID, connectorID, sessionID string) {
 	t.Helper()
 	require.NoError(t, server.storage.CreateAuthSession(t.Context(), storage.AuthSession{
-		UserID: userID, ConnectorID: connectorID, Nonce: nonce,
+		ID: sessionID, Secret: testSessionSecret(sessionID),
+		UserID: userID, ConnectorID: connectorID,
 		CreatedAt: time.Now(), LastActivity: time.Now(),
 	}))
 }
@@ -505,13 +515,10 @@ func newTestRefreshToken(t *testing.T, server *Server, userID, connectorID, clie
 	return id
 }
 
-// newTestIDToken mints a token the way a browser flow would, resolving the session
-// through the same call the authorization code exchange uses so that the helper
-// cannot be more generous with the sid than production is.
-func newTestIDToken(t *testing.T, server *Server, clientID, userID, connectorID string) string {
+// newTestIDToken mints a token the way a browser flow would: the sid names the
+// session the token came from, which is what the authorization code carries.
+func newTestIDToken(t *testing.T, server *Server, clientID, userID, connectorID, sessionID string) string {
 	t.Helper()
-
-	sid := server.sessions.SessionIDFor(t.Context(), userID, connectorID)
 
 	idToken, _, err := server.issuer.SignIDToken(t.Context(), tokens.Authorization{
 		Client:      storage.Client{ID: clientID},
@@ -519,7 +526,7 @@ func newTestIDToken(t *testing.T, server *Server, clientID, userID, connectorID 
 		Scopes:      []string{"openid"},
 		ConnectorID: connectorID,
 		AuthTime:    time.Now(),
-		SessionID:   sid,
+		SessionID:   sessionID,
 	}, "", "")
 	require.NoError(t, err)
 	return idToken
@@ -539,36 +546,31 @@ func idTokenClaims(t *testing.T, token string) map[string]any {
 
 // --- sid ---
 
-func TestIDTokenSIDIsStableAndSessionScoped(t *testing.T) {
+// TestIDTokenSIDNamesTheSession: the claim is the session's own identifier, and the
+// secret that proves the cookie never travels with it.
+func TestIDTokenSIDNamesTheSession(t *testing.T) {
 	httpServer, server := newTestServerWithSessions(t, nil)
 	defer httpServer.Close()
 
 	const userID, connectorID = "test-user", "mock"
-	newTestAuthSession(t, server, userID, connectorID, "testnonce")
+	newTestAuthSession(t, server, userID, connectorID, "session-a")
 
-	first := idTokenClaims(t, newTestIDToken(t, server, "c", userID, connectorID))["sid"]
-	require.NotEmpty(t, first)
+	claims := idTokenClaims(t, newTestIDToken(t, server, "c", userID, connectorID, "session-a"))
+	require.Equal(t, "session-a", claims["sid"])
+	require.NotContains(t, newTestIDToken(t, server, "c", userID, connectorID, "session-a"),
+		testSessionSecret("session-a"))
 
-	// The sid does not change while the session lives — an RP that stored it from an
-	// earlier token can still match a logout token against it.
-	second := idTokenClaims(t, newTestIDToken(t, server, "c", userID, connectorID))["sid"]
-	require.Equal(t, first, second)
-
-	// It is derived from the nonce, never equal to it: the nonce authenticates the
-	// cookie and must not leak into tokens handed to relying parties.
-	require.NotEqual(t, "testnonce", first)
-
-	// A new session is a new sid.
-	require.NoError(t, server.storage.DeleteAuthSession(t.Context(), userID, connectorID))
-	newTestAuthSession(t, server, userID, connectorID, "othernonce")
-	require.NotEqual(t, first, idTokenClaims(t, newTestIDToken(t, server, "c", userID, connectorID))["sid"])
+	// A second device is a second session, so its tokens name a different one.
+	newTestAuthSession(t, server, userID, connectorID, "session-b")
+	other := idTokenClaims(t, newTestIDToken(t, server, "c", userID, connectorID, "session-b"))
+	require.Equal(t, "session-b", other["sid"])
 }
 
 func TestIDTokenHasNoSIDWithoutSessions(t *testing.T) {
 	httpServer, server := newTestServer(t, nil)
 	defer httpServer.Close()
 
-	claims := idTokenClaims(t, newTestIDToken(t, server, "c", "test-user", "mock"))
+	claims := idTokenClaims(t, newTestIDToken(t, server, "c", "test-user", "mock", ""))
 	require.NotContains(t, claims, "sid")
 }
 
@@ -601,12 +603,12 @@ func TestHandleLogoutHintReplay(t *testing.T) {
 				clientID: {ID: refreshID, ClientID: clientID},
 			},
 		}))
-		return server, newTestIDToken(t, server, clientID, userID, connectorID), refreshID
+		return server, newTestIDToken(t, server, clientID, userID, connectorID, "testnonce"), refreshID
 	}
 
-	assertUntouched := func(t *testing.T, server *Server, refreshID string) {
+	assertUntouched := func(t *testing.T, server *Server, sessionID, refreshID string) {
 		t.Helper()
-		_, err := server.storage.GetAuthSession(t.Context(), userID, connectorID)
+		_, err := server.storage.GetAuthSession(t.Context(), sessionID)
 		require.NoError(t, err, "session must survive a replayed hint")
 		_, err = server.storage.GetRefresh(t.Context(), refreshID)
 		require.NoError(t, err, "refresh token must survive a replayed hint")
@@ -619,7 +621,7 @@ func TestHandleLogoutHintReplay(t *testing.T) {
 		server.ServeHTTP(rr, httptest.NewRequest("GET", "/logout?id_token_hint="+url.QueryEscape(idToken), nil))
 
 		require.Equal(t, http.StatusOK, rr.Code)
-		assertUntouched(t, server, refreshID)
+		assertUntouched(t, server, "testnonce", refreshID)
 	})
 
 	// A mismatched hint is refused on POST as well as GET, so a cross-site form
@@ -631,17 +633,17 @@ func TestHandleLogoutHintReplay(t *testing.T) {
 
 			rr := httptest.NewRecorder()
 			req := httptest.NewRequest(method, "/logout?id_token_hint="+url.QueryEscape(idToken), nil)
-			req.AddCookie(testSessionCookie("attacker", connectorID, "attackernonce"))
+			req.AddCookie(testSessionCookie("attackernonce"))
 			server.ServeHTTP(rr, req)
 
 			// The hint does not describe the session named by the cookie, so dex asks
 			// rather than acts — RP-Initiated Logout §2.
 			require.Equal(t, http.StatusOK, rr.Code)
 			require.Contains(t, rr.Body.String(), "Do you want to log out?")
-			assertUntouched(t, server, refreshID)
+			assertUntouched(t, server, "testnonce", refreshID)
 
 			// The attacker's own session is untouched too.
-			_, err := server.storage.GetAuthSession(t.Context(), "attacker", connectorID)
+			_, err := server.storage.GetAuthSession(t.Context(), "attackernonce")
 			require.NoError(t, err)
 		})
 	}
@@ -651,17 +653,17 @@ func TestHandleLogoutHintReplay(t *testing.T) {
 
 		// The user signed out and back in: same subject, new session, so the old
 		// token's sid no longer matches.
-		require.NoError(t, server.storage.DeleteAuthSession(t.Context(), userID, connectorID))
+		require.NoError(t, server.storage.DeleteAuthSession(t.Context(), "testnonce"))
 		newTestAuthSession(t, server, userID, connectorID, "newnonce")
 
 		rr := httptest.NewRecorder()
 		req := httptest.NewRequest("GET", "/logout?id_token_hint="+url.QueryEscape(idToken), nil)
-		req.AddCookie(testSessionCookie(userID, connectorID, "newnonce"))
+		req.AddCookie(testSessionCookie("newnonce"))
 		server.ServeHTTP(rr, req)
 
 		require.Equal(t, http.StatusOK, rr.Code)
 		require.Contains(t, rr.Body.String(), "Do you want to log out?")
-		assertUntouched(t, server, refreshID)
+		assertUntouched(t, server, "newnonce", refreshID)
 	})
 }
 
@@ -739,22 +741,23 @@ func TestBackchannelLogoutNotifiesSessionClients(t *testing.T) {
 	}))
 
 	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
-		UserID: userID, ConnectorID: connectorID, Nonce: "testnonce",
+		ID: "testnonce", Secret: testSessionSecret("testnonce"),
+		UserID: userID, ConnectorID: connectorID,
 		CreatedAt: time.Now(), LastActivity: time.Now(),
 		ClientStates: map[string]*storage.ClientAuthState{
-			"web-a":  {Active: true},
-			"web-b":  {Active: true},
-			"silent": {Active: true},
+			"web-a":  {AuthenticatedAt: time.Now()},
+			"web-b":  {AuthenticatedAt: time.Now()},
+			"silent": {AuthenticatedAt: time.Now()},
 		},
 	}))
 
-	idToken := newTestIDToken(t, server, "web-a", userID, connectorID)
+	idToken := newTestIDToken(t, server, "web-a", userID, connectorID, "testnonce")
 	wantSID, _ := idTokenClaims(t, idToken)["sid"].(string)
 	require.NotEmpty(t, wantSID)
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/logout?id_token_hint="+url.QueryEscape(idToken), nil)
-	req.AddCookie(testSessionCookie(userID, connectorID, "testnonce"))
+	req.AddCookie(testSessionCookie("testnonce"))
 	server.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
 
@@ -799,20 +802,21 @@ func TestBackchannelLogoutToleratesFailingRP(t *testing.T) {
 		BackchannelLogoutURI: rp.URL + "/web-a",
 	}))
 	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
-		UserID: userID, ConnectorID: connectorID, Nonce: "testnonce",
+		ID: "testnonce", Secret: testSessionSecret("testnonce"),
+		UserID: userID, ConnectorID: connectorID,
 		CreatedAt: time.Now(), LastActivity: time.Now(),
-		ClientStates: map[string]*storage.ClientAuthState{"web-a": {Active: true}},
+		ClientStates: map[string]*storage.ClientAuthState{"web-a": {AuthenticatedAt: time.Now()}},
 	}))
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/logout", nil)
-	req.AddCookie(testSessionCookie(userID, connectorID, "testnonce"))
+	req.AddCookie(testSessionCookie("testnonce"))
 	server.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	require.Len(t, wait(1), 1)
 
-	_, err := server.storage.GetAuthSession(ctx, userID, connectorID)
+	_, err := server.storage.GetAuthSession(ctx, "testnonce")
 	require.ErrorIs(t, err, storage.ErrNotFound, "logout completes despite the RP failing")
 }
 
@@ -852,19 +856,20 @@ func TestBackchannelLogoutSSOSharesOneSID(t *testing.T) {
 	}))
 
 	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
-		UserID: userID, ConnectorID: connectorID, Nonce: "testnonce",
+		ID: "testnonce", Secret: testSessionSecret("testnonce"),
+		UserID: userID, ConnectorID: connectorID,
 		CreatedAt: time.Now(), LastActivity: time.Now(),
 		ClientStates: map[string]*storage.ClientAuthState{
-			"app-a": {Active: true},
-			"app-b": {Active: true, ViaSSO: true},
+			"app-a": {AuthenticatedAt: time.Now()},
+			"app-b": {AuthenticatedAt: time.Now(), ViaSSO: true},
 		},
 	}))
 
-	idToken := newTestIDToken(t, server, "app-a", userID, connectorID)
+	idToken := newTestIDToken(t, server, "app-a", userID, connectorID, "testnonce")
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/logout?id_token_hint="+url.QueryEscape(idToken), nil)
-	req.AddCookie(testSessionCookie(userID, connectorID, "testnonce"))
+	req.AddCookie(testSessionCookie("testnonce"))
 	server.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
 
@@ -900,7 +905,7 @@ func TestIntrospectionFollowsSession(t *testing.T) {
 	}))
 	newTestAuthSession(t, server, userID, connectorID, "testnonce")
 
-	accessToken := newTestIDToken(t, server, clientID, userID, connectorID)
+	accessToken := newTestIDToken(t, server, clientID, userID, connectorID, "testnonce")
 	require.NotEmpty(t, idTokenClaims(t, accessToken)["sid"])
 
 	introspect := func(t *testing.T) bool {
@@ -921,7 +926,7 @@ func TestIntrospectionFollowsSession(t *testing.T) {
 
 	require.True(t, introspect(t), "a token of a live session is active")
 
-	require.NoError(t, server.storage.DeleteAuthSession(ctx, userID, connectorID))
+	require.NoError(t, server.storage.DeleteAuthSession(ctx, "testnonce"))
 	require.False(t, introspect(t), "ending the session revokes the token")
 
 	// Signing in again creates a session with a new nonce, so a new sid. The old
@@ -951,7 +956,7 @@ func TestIntrospectionIgnoresTokensWithoutSession(t *testing.T) {
 		RedirectURIs: []string{"https://example.com/callback"},
 	}))
 
-	accessToken := newTestIDToken(t, server, clientID, "test-user", "mock")
+	accessToken := newTestIDToken(t, server, clientID, "test-user", "mock", "")
 	require.NotContains(t, idTokenClaims(t, accessToken), "sid")
 
 	rr := httptest.NewRecorder()
@@ -986,7 +991,7 @@ func TestSIDOnlyFromBrowserFlows(t *testing.T) {
 		Claims:      storage.Claims{UserID: userID},
 		Scopes:      []string{"openid"},
 		ConnectorID: connectorID,
-		SessionID:   session.SessionID("browsernonce"),
+		SessionID:   "browsernonce",
 	}, "", "")
 	require.NoError(t, err)
 	require.NotEmpty(t, idTokenClaims(t, browserToken)["sid"])
@@ -1002,9 +1007,9 @@ func TestSIDOnlyFromBrowserFlows(t *testing.T) {
 	require.NotContains(t, idTokenClaims(t, otherToken), "sid")
 }
 
-// TestRefreshSIDFollowsOrigin covers what a refresh does with the sid: it is kept
-// while the originating session lives, and dropped once it ends — never invented
-// for a token that was not part of one.
+// TestRefreshSIDFollowsOrigin covers what a refresh does with the sid: it names the
+// session the token came from, and is never invented for a token that was not part
+// of one.
 func TestRefreshSIDFollowsOrigin(t *testing.T) {
 	httpServer, server := newTestServerWithSessions(t, nil)
 	defer httpServer.Close()
@@ -1012,7 +1017,7 @@ func TestRefreshSIDFollowsOrigin(t *testing.T) {
 	ctx := t.Context()
 	const userID, connectorID = "test-user", "mock"
 	newTestAuthSession(t, server, userID, connectorID, "browsernonce")
-	sid := session.SessionID("browsernonce")
+	const sid = "browsernonce"
 
 	// A refresh token from a browser flow records the session it came from; one
 	// from any other flow records nothing.
@@ -1064,22 +1069,23 @@ func TestExpiredSessionHasNoSID(t *testing.T) {
 		{"idle timeout", time.Now().Add(time.Hour), past},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if err := server.storage.DeleteAuthSession(ctx, userID, connectorID); err != nil {
+			if err := server.storage.DeleteAuthSession(ctx, "expirednonce"); err != nil {
 				require.ErrorIs(t, err, storage.ErrNotFound)
 			}
 			require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
-				UserID: userID, ConnectorID: connectorID, Nonce: "expirednonce",
+				ID: "expirednonce", Secret: testSessionSecret("expirednonce"),
+				UserID: userID, ConnectorID: connectorID,
 				CreatedAt: past, LastActivity: past,
 				AbsoluteExpiry: tc.absolute, IdleExpiry: tc.idle,
 			}))
 
 			// The session is still stored...
-			_, err := server.storage.GetAuthSession(ctx, userID, connectorID)
+			_, err := server.storage.GetAuthSession(ctx, "expirednonce")
 			require.NoError(t, err)
 
-			// ...but it is over, so nothing may claim it.
-			require.Empty(t, server.sessions.SessionIDFor(ctx, userID, connectorID))
-			require.NotContains(t, idTokenClaims(t, newTestIDToken(t, server, clientID, userID, connectorID)), "sid")
+			// ...but it is over, so nothing may claim it. Garbage collection runs on
+			// its own schedule; a token must not outlive its session by that window.
+			require.False(t, server.sessions.Alive(ctx, "expirednonce"))
 		})
 	}
 }
@@ -1102,15 +1108,16 @@ func TestHandleLogoutExpiredSession(t *testing.T) {
 
 	past := time.Now().Add(-time.Hour)
 	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
-		UserID: userID, ConnectorID: connectorID, Nonce: "expirednonce",
+		ID: "expirednonce", Secret: testSessionSecret("expirednonce"),
+		UserID: userID, ConnectorID: connectorID,
 		CreatedAt: past, LastActivity: past,
 		AbsoluteExpiry: past, IdleExpiry: past,
-		ClientStates: map[string]*storage.ClientAuthState{"web-a": {Active: true}},
+		ClientStates: map[string]*storage.ClientAuthState{"web-a": {AuthenticatedAt: time.Now()}},
 	}))
 
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/logout", nil)
-	req.AddCookie(testSessionCookie(userID, connectorID, "expirednonce"))
+	req.AddCookie(testSessionCookie("expirednonce"))
 	server.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)

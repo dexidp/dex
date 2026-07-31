@@ -74,9 +74,9 @@ func ConnectorID(v string) predicate.AuthSession {
 	return predicate.AuthSession(sql.FieldEQ(FieldConnectorID, v))
 }
 
-// Nonce applies equality check predicate on the "nonce" field. It's identical to NonceEQ.
-func Nonce(v string) predicate.AuthSession {
-	return predicate.AuthSession(sql.FieldEQ(FieldNonce, v))
+// Secret applies equality check predicate on the "secret" field. It's identical to SecretEQ.
+func Secret(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldEQ(FieldSecret, v))
 }
 
 // ClientStates applies equality check predicate on the "client_states" field. It's identical to ClientStatesEQ.
@@ -112,6 +112,11 @@ func AbsoluteExpiry(v time.Time) predicate.AuthSession {
 // IdleExpiry applies equality check predicate on the "idle_expiry" field. It's identical to IdleExpiryEQ.
 func IdleExpiry(v time.Time) predicate.AuthSession {
 	return predicate.AuthSession(sql.FieldEQ(FieldIdleExpiry, v))
+}
+
+// LogoutState applies equality check predicate on the "logout_state" field. It's identical to LogoutStateEQ.
+func LogoutState(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldEQ(FieldLogoutState, v))
 }
 
 // UserIDEQ applies the EQ predicate on the "user_id" field.
@@ -244,69 +249,69 @@ func ConnectorIDContainsFold(v string) predicate.AuthSession {
 	return predicate.AuthSession(sql.FieldContainsFold(FieldConnectorID, v))
 }
 
-// NonceEQ applies the EQ predicate on the "nonce" field.
-func NonceEQ(v string) predicate.AuthSession {
-	return predicate.AuthSession(sql.FieldEQ(FieldNonce, v))
+// SecretEQ applies the EQ predicate on the "secret" field.
+func SecretEQ(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldEQ(FieldSecret, v))
 }
 
-// NonceNEQ applies the NEQ predicate on the "nonce" field.
-func NonceNEQ(v string) predicate.AuthSession {
-	return predicate.AuthSession(sql.FieldNEQ(FieldNonce, v))
+// SecretNEQ applies the NEQ predicate on the "secret" field.
+func SecretNEQ(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldNEQ(FieldSecret, v))
 }
 
-// NonceIn applies the In predicate on the "nonce" field.
-func NonceIn(vs ...string) predicate.AuthSession {
-	return predicate.AuthSession(sql.FieldIn(FieldNonce, vs...))
+// SecretIn applies the In predicate on the "secret" field.
+func SecretIn(vs ...string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldIn(FieldSecret, vs...))
 }
 
-// NonceNotIn applies the NotIn predicate on the "nonce" field.
-func NonceNotIn(vs ...string) predicate.AuthSession {
-	return predicate.AuthSession(sql.FieldNotIn(FieldNonce, vs...))
+// SecretNotIn applies the NotIn predicate on the "secret" field.
+func SecretNotIn(vs ...string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldNotIn(FieldSecret, vs...))
 }
 
-// NonceGT applies the GT predicate on the "nonce" field.
-func NonceGT(v string) predicate.AuthSession {
-	return predicate.AuthSession(sql.FieldGT(FieldNonce, v))
+// SecretGT applies the GT predicate on the "secret" field.
+func SecretGT(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldGT(FieldSecret, v))
 }
 
-// NonceGTE applies the GTE predicate on the "nonce" field.
-func NonceGTE(v string) predicate.AuthSession {
-	return predicate.AuthSession(sql.FieldGTE(FieldNonce, v))
+// SecretGTE applies the GTE predicate on the "secret" field.
+func SecretGTE(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldGTE(FieldSecret, v))
 }
 
-// NonceLT applies the LT predicate on the "nonce" field.
-func NonceLT(v string) predicate.AuthSession {
-	return predicate.AuthSession(sql.FieldLT(FieldNonce, v))
+// SecretLT applies the LT predicate on the "secret" field.
+func SecretLT(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldLT(FieldSecret, v))
 }
 
-// NonceLTE applies the LTE predicate on the "nonce" field.
-func NonceLTE(v string) predicate.AuthSession {
-	return predicate.AuthSession(sql.FieldLTE(FieldNonce, v))
+// SecretLTE applies the LTE predicate on the "secret" field.
+func SecretLTE(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldLTE(FieldSecret, v))
 }
 
-// NonceContains applies the Contains predicate on the "nonce" field.
-func NonceContains(v string) predicate.AuthSession {
-	return predicate.AuthSession(sql.FieldContains(FieldNonce, v))
+// SecretContains applies the Contains predicate on the "secret" field.
+func SecretContains(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldContains(FieldSecret, v))
 }
 
-// NonceHasPrefix applies the HasPrefix predicate on the "nonce" field.
-func NonceHasPrefix(v string) predicate.AuthSession {
-	return predicate.AuthSession(sql.FieldHasPrefix(FieldNonce, v))
+// SecretHasPrefix applies the HasPrefix predicate on the "secret" field.
+func SecretHasPrefix(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldHasPrefix(FieldSecret, v))
 }
 
-// NonceHasSuffix applies the HasSuffix predicate on the "nonce" field.
-func NonceHasSuffix(v string) predicate.AuthSession {
-	return predicate.AuthSession(sql.FieldHasSuffix(FieldNonce, v))
+// SecretHasSuffix applies the HasSuffix predicate on the "secret" field.
+func SecretHasSuffix(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldHasSuffix(FieldSecret, v))
 }
 
-// NonceEqualFold applies the EqualFold predicate on the "nonce" field.
-func NonceEqualFold(v string) predicate.AuthSession {
-	return predicate.AuthSession(sql.FieldEqualFold(FieldNonce, v))
+// SecretEqualFold applies the EqualFold predicate on the "secret" field.
+func SecretEqualFold(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldEqualFold(FieldSecret, v))
 }
 
-// NonceContainsFold applies the ContainsFold predicate on the "nonce" field.
-func NonceContainsFold(v string) predicate.AuthSession {
-	return predicate.AuthSession(sql.FieldContainsFold(FieldNonce, v))
+// SecretContainsFold applies the ContainsFold predicate on the "secret" field.
+func SecretContainsFold(v string) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldContainsFold(FieldSecret, v))
 }
 
 // ClientStatesEQ applies the EQ predicate on the "client_states" field.
@@ -637,6 +642,56 @@ func IdleExpiryLT(v time.Time) predicate.AuthSession {
 // IdleExpiryLTE applies the LTE predicate on the "idle_expiry" field.
 func IdleExpiryLTE(v time.Time) predicate.AuthSession {
 	return predicate.AuthSession(sql.FieldLTE(FieldIdleExpiry, v))
+}
+
+// LogoutStateEQ applies the EQ predicate on the "logout_state" field.
+func LogoutStateEQ(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldEQ(FieldLogoutState, v))
+}
+
+// LogoutStateNEQ applies the NEQ predicate on the "logout_state" field.
+func LogoutStateNEQ(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldNEQ(FieldLogoutState, v))
+}
+
+// LogoutStateIn applies the In predicate on the "logout_state" field.
+func LogoutStateIn(vs ...[]byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldIn(FieldLogoutState, vs...))
+}
+
+// LogoutStateNotIn applies the NotIn predicate on the "logout_state" field.
+func LogoutStateNotIn(vs ...[]byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldNotIn(FieldLogoutState, vs...))
+}
+
+// LogoutStateGT applies the GT predicate on the "logout_state" field.
+func LogoutStateGT(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldGT(FieldLogoutState, v))
+}
+
+// LogoutStateGTE applies the GTE predicate on the "logout_state" field.
+func LogoutStateGTE(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldGTE(FieldLogoutState, v))
+}
+
+// LogoutStateLT applies the LT predicate on the "logout_state" field.
+func LogoutStateLT(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldLT(FieldLogoutState, v))
+}
+
+// LogoutStateLTE applies the LTE predicate on the "logout_state" field.
+func LogoutStateLTE(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldLTE(FieldLogoutState, v))
+}
+
+// LogoutStateIsNil applies the IsNil predicate on the "logout_state" field.
+func LogoutStateIsNil() predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldIsNull(FieldLogoutState))
+}
+
+// LogoutStateNotNil applies the NotNil predicate on the "logout_state" field.
+func LogoutStateNotNil() predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldNotNull(FieldLogoutState))
 }
 
 // And groups predicates with the AND operator between them.

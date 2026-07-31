@@ -62,9 +62,10 @@ func TestHomeLoggedIn(t *testing.T) {
 	absoluteExpiry := now.Add(21 * time.Hour)
 
 	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
+		ID:             nonce,
+		Secret:         testSessionSecret(nonce),
 		UserID:         userID,
 		ConnectorID:    connectorID,
-		Nonce:          nonce,
 		CreatedAt:      sessionStart,
 		LastActivity:   now,
 		IdleExpiry:     idleExpiry,
@@ -88,7 +89,7 @@ func TestHomeLoggedIn(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	req.AddCookie(&http.Cookie{
 		Name:  "dex_session",
-		Value: internal.SessionCookieValue(userID, connectorID, nonce, testSessionKey),
+		Value: internal.SessionCookieValue(nonce, testSessionSecret(nonce), testSessionKey),
 	})
 
 	rr := httptest.NewRecorder()

@@ -888,11 +888,10 @@ func TestGetAuthSession(t *testing.T) {
 	session := storage.AuthSession{
 		UserID:      "user1",
 		ConnectorID: "conn1",
-		Nonce:       "nonce123",
+		ID:          "nonce123", Secret: "nonce123",
 		ClientStates: map[string]*storage.ClientAuthState{
 			"client-a": {
-				Active:            true,
-				ExpiresAt:         now.Add(24 * time.Hour),
+				AuthenticatedAt:   now.Add(24 * time.Hour),
 				LastActivity:      now,
 				LastTokenIssuedAt: now,
 			},
@@ -909,10 +908,7 @@ func TestGetAuthSession(t *testing.T) {
 		t.Fatalf("create auth session: %v", err)
 	}
 
-	resp, err := client.GetAuthSession(ctx, &api.GetAuthSessionReq{
-		UserId:      "user1",
-		ConnectorId: "conn1",
-	})
+	resp, err := client.GetAuthSession(ctx, &api.GetAuthSessionReq{Id: "nonce123"})
 	if err != nil {
 		t.Fatalf("get auth session: %v", err)
 	}
@@ -930,15 +926,15 @@ func TestGetAuthSession(t *testing.T) {
 	if cs.ClientId != "client-a" {
 		t.Errorf("expected client_id 'client-a', got '%s'", cs.ClientId)
 	}
-	if !cs.Active {
-		t.Error("expected client state to be active")
+	if cs.AuthenticatedAt == 0 {
+		t.Error("expected client state to record an authentication")
+	}
+	if resp.Session.Id != "nonce123" {
+		t.Errorf("expected session id 'nonce123', got '%s'", resp.Session.Id)
 	}
 
 	// Not found case.
-	_, err = client.GetAuthSession(ctx, &api.GetAuthSessionReq{
-		UserId:      "nonexistent",
-		ConnectorId: "conn1",
-	})
+	_, err = client.GetAuthSession(ctx, &api.GetAuthSessionReq{Id: "nonexistent"})
 	if err == nil {
 		t.Fatal("expected error for non-existent session")
 	}
@@ -957,9 +953,9 @@ func TestListAuthSessions(t *testing.T) {
 
 	now := time.Now().UTC().Round(time.Second)
 	for _, sess := range []storage.AuthSession{
-		{UserID: "user1", ConnectorID: "conn1", Nonce: "n1", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
-		{UserID: "user1", ConnectorID: "conn2", Nonce: "n2", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
-		{UserID: "user2", ConnectorID: "conn1", Nonce: "n3", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
+		{UserID: "user1", ConnectorID: "conn1", ID: "n1", Secret: "n1", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
+		{UserID: "user1", ConnectorID: "conn2", ID: "n2", Secret: "n2", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
+		{UserID: "user2", ConnectorID: "conn1", ID: "n3", Secret: "n3", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
 	} {
 		if err := s.CreateAuthSession(ctx, sess); err != nil {
 			t.Fatalf("create auth session: %v", err)
@@ -1000,7 +996,7 @@ func TestDeleteAuthSession(t *testing.T) {
 
 	// Create session.
 	session := storage.AuthSession{
-		UserID: "user1", ConnectorID: "conn1", Nonce: "n1",
+		UserID: "user1", ConnectorID: "conn1", ID: "n1", Secret: "n1",
 		ClientStates:   map[string]*storage.ClientAuthState{},
 		CreatedAt:      now,
 		LastActivity:   now,
@@ -1030,9 +1026,7 @@ func TestDeleteAuthSession(t *testing.T) {
 	}
 
 	// Delete session.
-	resp, err := client.DeleteAuthSession(ctx, &api.DeleteAuthSessionReq{
-		UserId: "user1", ConnectorId: "conn1",
-	})
+	resp, err := client.DeleteAuthSession(ctx, &api.DeleteAuthSessionReq{Id: "n1"})
 	if err != nil {
 		t.Fatalf("delete auth session: %v", err)
 	}
@@ -1041,7 +1035,7 @@ func TestDeleteAuthSession(t *testing.T) {
 	}
 
 	// Verify session is gone.
-	_, err = s.GetAuthSession(ctx, "user1", "conn1")
+	_, err = s.GetAuthSession(ctx, "n1")
 	if err == nil {
 		t.Error("expected auth session to be deleted")
 	}
@@ -1053,9 +1047,7 @@ func TestDeleteAuthSession(t *testing.T) {
 	}
 
 	// Not found case.
-	resp, err = client.DeleteAuthSession(ctx, &api.DeleteAuthSessionReq{
-		UserId: "user1", ConnectorId: "conn1",
-	})
+	resp, err = client.DeleteAuthSession(ctx, &api.DeleteAuthSessionReq{Id: "n1"})
 	if err != nil {
 		t.Fatalf("delete auth session: %v", err)
 	}
@@ -1077,9 +1069,9 @@ func TestTerminateSessionsByConnector(t *testing.T) {
 
 	now := time.Now().UTC().Round(time.Second)
 	for _, sess := range []storage.AuthSession{
-		{UserID: "user1", ConnectorID: "target-conn", Nonce: "n1", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
-		{UserID: "user2", ConnectorID: "target-conn", Nonce: "n2", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
-		{UserID: "user3", ConnectorID: "other-conn", Nonce: "n3", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
+		{UserID: "user1", ConnectorID: "target-conn", ID: "n1", Secret: "n1", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
+		{UserID: "user2", ConnectorID: "target-conn", ID: "n2", Secret: "n2", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
+		{UserID: "user3", ConnectorID: "other-conn", ID: "n3", Secret: "n3", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
 	} {
 		if err := s.CreateAuthSession(ctx, sess); err != nil {
 			t.Fatalf("create auth session: %v", err)
@@ -1119,9 +1111,9 @@ func TestTerminateSessionsByUser(t *testing.T) {
 
 	now := time.Now().UTC().Round(time.Second)
 	for _, sess := range []storage.AuthSession{
-		{UserID: "target-user", ConnectorID: "conn1", Nonce: "n1", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
-		{UserID: "target-user", ConnectorID: "conn2", Nonce: "n2", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
-		{UserID: "other-user", ConnectorID: "conn1", Nonce: "n3", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
+		{UserID: "target-user", ConnectorID: "conn1", ID: "n1", Secret: "n1", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
+		{UserID: "target-user", ConnectorID: "conn2", ID: "n2", Secret: "n2", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
+		{UserID: "other-user", ConnectorID: "conn1", ID: "n3", Secret: "n3", ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour)},
 	} {
 		if err := s.CreateAuthSession(ctx, sess); err != nil {
 			t.Fatalf("create auth session: %v", err)
@@ -1261,7 +1253,7 @@ func TestDeleteUserIdentity(t *testing.T) {
 		t.Fatalf("create user identity: %v", err)
 	}
 	if err := s.CreateAuthSession(ctx, storage.AuthSession{
-		UserID: "user1", ConnectorID: "conn1", Nonce: "n",
+		UserID: "user1", ConnectorID: "conn1", ID: "n", Secret: "n",
 		ClientStates: map[string]*storage.ClientAuthState{}, CreatedAt: now, LastActivity: now,
 		AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour),
 	}); err != nil {
@@ -1305,7 +1297,7 @@ func TestDeleteUserIdentity(t *testing.T) {
 	if _, err := s.GetUserIdentity(ctx, "user1", "conn1"); err == nil {
 		t.Error("expected user identity to be deleted")
 	}
-	if _, err := s.GetAuthSession(ctx, "user1", "conn1"); err == nil {
+	if _, err := s.GetAuthSession(ctx, "n"); err == nil {
 		t.Error("expected auth session to be deleted")
 	}
 	if _, err := s.GetRefresh(ctx, refreshID); err == nil {
@@ -1629,13 +1621,13 @@ func TestMissingSessionsIdentitiesCRUDFeatureFlag(t *testing.T) {
 
 	ctx := t.Context()
 
-	if _, err := client.GetAuthSession(ctx, &api.GetAuthSessionReq{UserId: "u", ConnectorId: "c"}); err == nil {
+	if _, err := client.GetAuthSession(ctx, &api.GetAuthSessionReq{Id: "s"}); err == nil {
 		t.Error("GetAuthSession should fail without feature flag")
 	}
 	if _, err := client.ListAuthSessions(ctx, &api.ListAuthSessionsReq{}); err == nil {
 		t.Error("ListAuthSessions should fail without feature flag")
 	}
-	if _, err := client.DeleteAuthSession(ctx, &api.DeleteAuthSessionReq{UserId: "u", ConnectorId: "c"}); err == nil {
+	if _, err := client.DeleteAuthSession(ctx, &api.DeleteAuthSessionReq{Id: "s"}); err == nil {
 		t.Error("DeleteAuthSession should fail without feature flag")
 	}
 	if _, err := client.TerminateSessionsByConnector(ctx, &api.TerminateSessionsByConnectorReq{ConnectorId: "c"}); err == nil {
@@ -1688,16 +1680,16 @@ func TestSessionsIdentitiesZeroTimeConversion(t *testing.T) {
 
 	// Client authenticated but no token issued yet: LastTokenIssuedAt is zero.
 	if err := s.CreateAuthSession(ctx, storage.AuthSession{
-		UserID: "user1", ConnectorID: "conn1", Nonce: "n",
+		UserID: "user1", ConnectorID: "conn1", ID: "n", Secret: "n",
 		ClientStates: map[string]*storage.ClientAuthState{
-			"client-a": {Active: true, ExpiresAt: now.Add(time.Hour), LastActivity: now},
+			"client-a": {AuthenticatedAt: now, LastActivity: now},
 		},
 		CreatedAt: now, LastActivity: now, AbsoluteExpiry: now.Add(time.Hour), IdleExpiry: now.Add(time.Hour),
 	}); err != nil {
 		t.Fatalf("create auth session: %v", err)
 	}
 
-	sessResp, err := client.GetAuthSession(ctx, &api.GetAuthSessionReq{UserId: "user1", ConnectorId: "conn1"})
+	sessResp, err := client.GetAuthSession(ctx, &api.GetAuthSessionReq{Id: "n"})
 	if err != nil {
 		t.Fatalf("get auth session: %v", err)
 	}
@@ -1742,11 +1734,11 @@ func TestSessionsIdentitiesValidation(t *testing.T) {
 
 	ctx := t.Context()
 
-	if _, err := client.GetAuthSession(ctx, &api.GetAuthSessionReq{ConnectorId: "c"}); err == nil {
-		t.Error("GetAuthSession should reject empty user_id")
+	if _, err := client.GetAuthSession(ctx, &api.GetAuthSessionReq{}); err == nil {
+		t.Error("GetAuthSession should reject an empty id")
 	}
-	if _, err := client.GetAuthSession(ctx, &api.GetAuthSessionReq{UserId: "u"}); err == nil {
-		t.Error("GetAuthSession should reject empty connector_id")
+	if _, err := client.DeleteAuthSession(ctx, &api.DeleteAuthSessionReq{}); err == nil {
+		t.Error("DeleteAuthSession should reject an empty id")
 	}
 	if _, err := client.TerminateSessionsByConnector(ctx, &api.TerminateSessionsByConnectorReq{}); err == nil {
 		t.Error("TerminateSessionsByConnector should reject empty connector_id")

@@ -81,7 +81,8 @@ func toStorageAuthCode(a *db.AuthCode) storage.AuthCode {
 			CodeChallenge:       a.CodeChallenge,
 			CodeChallengeMethod: a.CodeChallengeMethod,
 		},
-		AuthTime: a.AuthTime,
+		AuthTime:  a.AuthTime,
+		SessionID: a.SessionID,
 	}
 }
 
@@ -236,9 +237,10 @@ func toStorageUserIdentity(u *db.UserIdentity) storage.UserIdentity {
 
 func toStorageAuthSession(s *db.AuthSession) storage.AuthSession {
 	result := storage.AuthSession{
+		ID:             s.ID,
+		Secret:         s.Secret,
 		UserID:         s.UserID,
 		ConnectorID:    s.ConnectorID,
-		Nonce:          s.Nonce,
 		CreatedAt:      s.CreatedAt,
 		LastActivity:   s.LastActivity,
 		IPAddress:      s.IPAddress,
@@ -256,6 +258,13 @@ func toStorageAuthSession(s *db.AuthSession) storage.AuthSession {
 		}
 	} else {
 		result.ClientStates = make(map[string]*storage.ClientAuthState)
+	}
+
+	if len(s.LogoutState) > 0 && string(s.LogoutState) != "null" {
+		result.LogoutState = new(storage.LogoutState)
+		if err := json.Unmarshal(s.LogoutState, result.LogoutState); err != nil {
+			panic(err)
+		}
 	}
 	return result
 }

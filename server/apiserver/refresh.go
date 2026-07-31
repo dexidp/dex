@@ -2,7 +2,6 @@ package apiserver
 
 import (
 	"context"
-	"errors"
 
 	"github.com/dexidp/dex/api/v2"
 	"github.com/dexidp/dex/server/internal"
@@ -106,24 +105,4 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 // one client's token gone use RevokeRefresh.
 func (d dexAPI) revokeUserRefreshTokens(ctx context.Context, userID, connectorID string) {
 	d.refresh.RevokeAll(ctx, userID, connectorID)
-}
-
-// notifySessionEnded tells a session's relying parties that it is over, the same way
-// RP-initiated logout does: an RP cannot tell an operator's termination from a user
-// signing out, and has no reason to. Must run before the session row is deleted, as
-// the fan-out reads it.
-func (d dexAPI) notifySessionEnded(ctx context.Context, userID, connectorID string) {
-	if d.backchannel == nil {
-		return
-	}
-
-	session, err := d.s.GetAuthSession(ctx, userID, connectorID)
-	if err != nil {
-		if !errors.Is(err, storage.ErrNotFound) {
-			d.logger.Error("api: failed to read auth session for back-channel logout", "err", err)
-		}
-		return
-	}
-
-	d.backchannel.Notify(ctx, &session)
 }

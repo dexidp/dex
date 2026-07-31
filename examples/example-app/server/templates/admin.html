@@ -595,11 +595,13 @@
     <div class="subhead">Sessions</div>
     {{if .Sessions}}
     <table class="table">
-        <tr><th>Connector</th><th>From</th><th>Started</th><th>Expires</th><th class="actions-col"></th></tr>
+        <tr><th>Session</th><th>Connector</th><th>From</th><th>Device</th><th>Started</th><th>Expires</th><th class="actions-col"></th></tr>
         {{range .Sessions}}
         <tr>
+            <td class="mono small">{{.ID}}</td>
             <td class="mono small">{{.ConnectorID}}</td>
             <td class="mono small">{{.IPAddress}}</td>
+            <td class="mono small">{{.UserAgent}}</td>
             <td class="small">{{.Created}}</td>
             <td class="small">{{.Expires}}</td>
             <td class="actions-col">
@@ -608,8 +610,7 @@
                         <input type="hidden" name="section" value="sessions">
                         <input type="hidden" name="list_user_id" value="{{$.UserID}}">
                         <input type="hidden" name="list_connector_id" value="{{$.ConnectorID}}">
-                        <input type="hidden" name="user_id" value="{{.UserID}}">
-                        <input type="hidden" name="connector_id" value="{{.ConnectorID}}">
+                        <input type="hidden" name="session_id" value="{{.ID}}">
                         <button type="submit" class="button button-small">Delete</button>
                     </form>
                 </div>

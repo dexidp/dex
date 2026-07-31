@@ -205,9 +205,11 @@ type DiscoveryEntry struct {
 
 // AdminSession is one of dex's own sessions as the API reports it.
 type AdminSession struct {
+	ID          string
 	UserID      string
 	ConnectorID string
 	IPAddress   string
+	UserAgent   string
 	Created     string
 	Expires     string
 }

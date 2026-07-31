@@ -523,16 +523,15 @@ func TestHandleRefreshTokenAllowedConnectors(t *testing.T) {
 // costs the token is the client's declaration: nothing for a standalone one,
 // everything for a session-bound one.
 func TestRefreshTokenSID(t *testing.T) {
-	const nonce = "sessionnonce"
-	sid := session.SessionID(nonce)
+	// The session's own id is the sid; nothing is derived any more.
+	const sid = "sessionid"
 
 	tests := []struct {
 		name string
 		// origin is the sid recorded on the offline-session reference: what flow
 		// the refresh token came from.
 		origin string
-		// live is the nonce of the session that exists at refresh time, empty for
-		// none.
+		// live is the id of the session that exists at refresh time, empty for none.
 		live string
 		// lifetime is the client's declared refresh token lifetime, empty for the
 		// default (standalone).
@@ -544,7 +543,7 @@ func TestRefreshTokenSID(t *testing.T) {
 		{
 			name:    "browser flow, session alive",
 			origin:  sid,
-			live:    nonce,
+			live:    sid,
 			wantSID: sid,
 		},
 		{
@@ -558,19 +557,19 @@ func TestRefreshTokenSID(t *testing.T) {
 		{
 			name:    "browser flow, user signed in again",
 			origin:  sid,
-			live:    "anothernonce",
+			live:    "anothersession",
 			wantSID: sid,
 		},
 		{
 			name:    "token from a flow with no browser",
 			origin:  "",
-			live:    nonce,
+			live:    sid,
 			wantSID: nil,
 		},
 		{
 			name:     "session-bound client, session alive",
 			origin:   sid,
-			live:     nonce,
+			live:     sid,
 			lifetime: storage.RefreshTokenLifetimeSession,
 			wantSID:  sid,
 		},
@@ -585,7 +584,7 @@ func TestRefreshTokenSID(t *testing.T) {
 		{
 			name:        "session-bound client, user signed in again",
 			origin:      sid,
-			live:        "anothernonce",
+			live:        "anothersession",
 			lifetime:    storage.RefreshTokenLifetimeSession,
 			wantRefused: true,
 		},
@@ -594,7 +593,7 @@ func TestRefreshTokenSID(t *testing.T) {
 			// session for it to have outlived.
 			name:     "session-bound client, token from a flow with no browser",
 			origin:   "",
-			live:     nonce,
+			live:     sid,
 			lifetime: storage.RefreshTokenLifetimeSession,
 			wantSID:  nil,
 		},
@@ -630,7 +629,8 @@ func TestRefreshTokenSID(t *testing.T) {
 
 			if tc.live != "" {
 				require.NoError(t, s.storage.CreateAuthSession(ctx, storage.AuthSession{
-					UserID: "1", ConnectorID: "test", Nonce: tc.live,
+					ID: tc.live, Secret: testSessionSecret(tc.live),
+					UserID: "1", ConnectorID: "test",
 					CreatedAt: time.Now(), LastActivity: time.Now(),
 				}))
 			}

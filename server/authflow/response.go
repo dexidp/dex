@@ -134,6 +134,17 @@ type authResponse struct {
 // (after writing an error or OOB page itself) to abort the response.
 type responseTypeHandler func(ctx context.Context, w http.ResponseWriter, r *http.Request, authReq storage.AuthRequest, resp *authResponse) bool
 
+// sessionID names the browser session this response is being issued from, or "" when
+// there is none. The browser is on the other end of this request, so its cookie is
+// the answer — a lookup by user would pick whichever session that user has open,
+// which on a second device is somebody else's.
+func (h *Handler) sessionID(ctx context.Context, w http.ResponseWriter, r *http.Request) string {
+	if s := h.Sessions.ValidSession(ctx, w, r); s != nil {
+		return s.ID
+	}
+	return ""
+}
+
 // issueCode handles the "code" response_type: it mints and stores an auth code.
 func (h *Handler) issueCode(ctx context.Context, w http.ResponseWriter, r *http.Request, authReq storage.AuthRequest, resp *authResponse) bool {
 	if !slices.Contains(authReq.ResponseTypes, oauth2.ResponseTypeCode) {
@@ -141,6 +152,7 @@ func (h *Handler) issueCode(ctx context.Context, w http.ResponseWriter, r *http.
 	}
 	resp.code = storage.AuthCode{
 		ID:            storage.NewID(),
+		SessionID:     h.sessionID(ctx, w, r),
 		ClientID:      authReq.ClientID,
 		ConnectorID:   authReq.ConnectorID,
 		Nonce:         authReq.Nonce,
@@ -182,7 +194,7 @@ func (h *Handler) issueAccessToken(ctx context.Context, w http.ResponseWriter, r
 		ConnectorID: authReq.ConnectorID,
 		Nonce:       authReq.Nonce,
 		AuthTime:    authReq.AuthTime,
-		SessionID:   h.Sessions.SessionIDFor(ctx, authReq.Claims.UserID, authReq.ConnectorID),
+		SessionID:   h.sessionID(ctx, w, r),
 	})
 	if err != nil {
 		h.Logger.ErrorContext(r.Context(), "failed to create new access token", "err", err)
@@ -207,7 +219,7 @@ func (h *Handler) issueIDToken(ctx context.Context, w http.ResponseWriter, r *ht
 		ConnectorID: authReq.ConnectorID,
 		Nonce:       authReq.Nonce,
 		AuthTime:    authReq.AuthTime,
-		SessionID:   h.Sessions.SessionIDFor(ctx, authReq.Claims.UserID, authReq.ConnectorID),
+		SessionID:   h.sessionID(ctx, w, r),
 	}, resp.accessToken, resp.code.ID)
 	if err != nil {
 		h.Logger.ErrorContext(r.Context(), "failed to create ID token", "err", err)

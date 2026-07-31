@@ -23,7 +23,7 @@ func New(logger *slog.Logger) storage.Storage {
 		passwords:       make(map[string]storage.Password),
 		offlineSessions: make(map[compositeKeyID]storage.OfflineSessions),
 		userIdentities:  make(map[compositeKeyID]storage.UserIdentity),
-		authSessions:    make(map[compositeKeyID]storage.AuthSession),
+		authSessions:    make(map[string]storage.AuthSession),
 		connectors:      make(map[string]storage.Connector),
 		deviceRequests:  make(map[string]storage.DeviceRequest),
 		deviceTokens:    make(map[string]storage.DeviceToken),
@@ -52,7 +52,7 @@ type memStorage struct {
 	passwords       map[string]storage.Password
 	offlineSessions map[compositeKeyID]storage.OfflineSessions
 	userIdentities  map[compositeKeyID]storage.UserIdentity
-	authSessions    map[compositeKeyID]storage.AuthSession
+	authSessions    map[string]storage.AuthSession
 	connectors      map[string]storage.Connector
 	deviceRequests  map[string]storage.DeviceRequest
 	deviceTokens    map[string]storage.DeviceToken
@@ -264,7 +264,7 @@ func (s *memStorage) ListAuthSessions(ctx context.Context) (sessions []storage.A
 }
 
 func (s *memStorage) CreateAuthSession(ctx context.Context, session storage.AuthSession) (err error) {
-	id := compositeKeyID{userID: session.UserID, connID: session.ConnectorID}
+	id := session.ID
 	s.tx(func() {
 		if _, ok := s.authSessions[id]; ok {
 			err = storage.ErrAlreadyExists
@@ -275,8 +275,7 @@ func (s *memStorage) CreateAuthSession(ctx context.Context, session storage.Auth
 	return
 }
 
-func (s *memStorage) GetAuthSession(ctx context.Context, userID, connectorID string) (session storage.AuthSession, err error) {
-	id := compositeKeyID{userID: userID, connID: connectorID}
+func (s *memStorage) GetAuthSession(ctx context.Context, id string) (session storage.AuthSession, err error) {
 	s.tx(func() {
 		var ok bool
 		if session, ok = s.authSessions[id]; !ok {
@@ -286,8 +285,7 @@ func (s *memStorage) GetAuthSession(ctx context.Context, userID, connectorID str
 	return
 }
 
-func (s *memStorage) UpdateAuthSession(ctx context.Context, userID, connectorID string, updater func(s storage.AuthSession) (storage.AuthSession, error)) (err error) {
-	id := compositeKeyID{userID: userID, connID: connectorID}
+func (s *memStorage) UpdateAuthSession(ctx context.Context, id string, updater func(s storage.AuthSession) (storage.AuthSession, error)) (err error) {
 	s.tx(func() {
 		r, ok := s.authSessions[id]
 		if !ok {
@@ -301,8 +299,7 @@ func (s *memStorage) UpdateAuthSession(ctx context.Context, userID, connectorID 
 	return
 }
 
-func (s *memStorage) DeleteAuthSession(ctx context.Context, userID, connectorID string) (err error) {
-	id := compositeKeyID{userID: userID, connID: connectorID}
+func (s *memStorage) DeleteAuthSession(ctx context.Context, id string) (err error) {
 	s.tx(func() {
 		if _, ok := s.authSessions[id]; !ok {
 			err = storage.ErrNotFound

@@ -301,13 +301,7 @@ func (h *Handler) sessionAlive(ctx context.Context, client storage.Client, subje
 		return true
 	}
 
-	sub := new(internal.IDTokenSubject)
-	if err := internal.Unmarshal(subject, sub); err != nil {
-		h.Logger.ErrorContext(ctx, "introspect: failed to unmarshal subject", "err", err)
-		return false
-	}
-
-	return h.Sessions.SessionIDFor(ctx, sub.UserId, sub.ConnId) == sessionID
+	return h.Sessions.Alive(ctx, sessionID)
 }
 
 func (h *Handler) introspectAccessToken(ctx context.Context, token string) (*Introspection, error) {

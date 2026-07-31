@@ -105,11 +105,10 @@ func ExchangeAuthCode(ctx context.Context, s storage.Storage, conns *connectors.
 		AuthTime:      authCode.AuthTime,
 		ConnectorData: authCode.ConnectorData,
 
-		// An auth code only ever comes from a browser flow, so the user's current
-		// session is the one it belongs to. A user who signed out between receiving
-		// the code and redeeming it gets a token with no sid, which is right: there
-		// is no session left for it to name.
-		SessionID: sessions.SessionIDFor(ctx, authCode.Claims.UserID, authCode.ConnectorID),
+		// Stamped on the code while the browser was still here. The token endpoint
+		// has no cookie to consult, and resolving the session from the user would
+		// hand this token whichever session that user has open elsewhere.
+		SessionID: authCode.SessionID,
 	}
 
 	// A refresh token is only issued when the connector supports it, the grant

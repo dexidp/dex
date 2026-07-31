@@ -26,7 +26,7 @@ import (
 func TestTerminateSessionNotifiesRelyingParties(t *testing.T) {
 	t.Setenv("DEX_"+strings.ToUpper(featureflags.APISessionsIdentitiesCRUD.Name), "true")
 
-	const userID, connectorID, clientID = "u1", "mock", "web"
+	const userID, connectorID, clientID, sessionID = "u1", "mock", "web", "s1"
 
 	tests := []struct {
 		name string
@@ -35,9 +35,7 @@ func TestTerminateSessionNotifiesRelyingParties(t *testing.T) {
 		{
 			name: "delete one session",
 			call: func(ctx context.Context, d api.DexServer) error {
-				_, err := d.DeleteAuthSession(ctx, &api.DeleteAuthSessionReq{
-					UserId: userID, ConnectorId: connectorID,
-				})
+				_, err := d.DeleteAuthSession(ctx, &api.DeleteAuthSessionReq{Id: sessionID})
 				return err
 			},
 		},
@@ -74,9 +72,10 @@ func TestTerminateSessionNotifiesRelyingParties(t *testing.T) {
 				BackchannelLogoutURI: rp.URL,
 			}))
 			require.NoError(t, s.CreateAuthSession(ctx, storage.AuthSession{
-				UserID: userID, ConnectorID: connectorID, Nonce: "nonce",
+				ID: sessionID, Secret: "session-secret",
+				UserID: userID, ConnectorID: connectorID,
 				CreatedAt: time.Now(), LastActivity: time.Now(),
-				ClientStates: map[string]*storage.ClientAuthState{clientID: {Active: true}},
+				ClientStates: map[string]*storage.ClientAuthState{clientID: {AuthenticatedAt: time.Now()}},
 			}))
 
 			sign, err := (&signer.MockConfig{}).Open(ctx)
@@ -95,7 +94,7 @@ func TestTerminateSessionNotifiesRelyingParties(t *testing.T) {
 				return len(tokens) == 1
 			}, 2*time.Second, 10*time.Millisecond)
 
-			_, err = s.GetAuthSession(ctx, userID, connectorID)
+			_, err = s.GetAuthSession(ctx, sessionID)
 			require.ErrorIs(t, err, storage.ErrNotFound)
 		})
 	}

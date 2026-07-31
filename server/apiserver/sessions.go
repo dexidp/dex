@@ -18,14 +18,15 @@ func storageAuthSessionToAPI(s storage.AuthSession) *api.AuthSession {
 		}
 		clientStates = append(clientStates, &api.ClientAuthState{
 			ClientId:          clientID,
-			Active:            state.Active,
-			ExpiresAt:         unixOrZero(state.ExpiresAt),
+			AuthenticatedAt:   unixOrZero(state.AuthenticatedAt),
 			LastActivity:      unixOrZero(state.LastActivity),
 			LastTokenIssuedAt: unixOrZero(state.LastTokenIssuedAt),
+			ViaSso:            state.ViaSSO,
 		})
 	}
 
 	return &api.AuthSession{
+		Id:             s.ID,
 		UserId:         s.UserID,
 		ConnectorId:    s.ConnectorID,
 		ClientStates:   clientStates,
@@ -43,14 +44,11 @@ func (d dexAPI) GetAuthSession(ctx context.Context, req *api.GetAuthSessionReq) 
 		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APISessionsIdentitiesCRUD.Name)
 	}
 
-	if req.UserId == "" {
-		return nil, errors.New("no user_id supplied")
-	}
-	if req.ConnectorId == "" {
-		return nil, errors.New("no connector_id supplied")
+	if req.Id == "" {
+		return nil, errors.New("no id supplied")
 	}
 
-	session, err := d.s.GetAuthSession(ctx, req.UserId, req.ConnectorId)
+	session, err := d.s.GetAuthSession(ctx, req.Id)
 	if err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
 			return nil, storage.ErrNotFound
@@ -93,21 +91,29 @@ func (d dexAPI) DeleteAuthSession(ctx context.Context, req *api.DeleteAuthSessio
 		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APISessionsIdentitiesCRUD.Name)
 	}
 
-	if req.UserId == "" {
-		return nil, errors.New("no user_id supplied")
-	}
-	if req.ConnectorId == "" {
-		return nil, errors.New("no connector_id supplied")
+	if req.Id == "" {
+		return nil, errors.New("no id supplied")
 	}
 
-	d.notifySessionEnded(ctx, req.UserId, req.ConnectorId)
+	session, err := d.s.GetAuthSession(ctx, req.Id)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return &api.DeleteAuthSessionResp{NotFound: true}, nil
+		}
+		d.logger.Error("api: failed to get auth session", "err", err)
+		return nil, fmt.Errorf("get auth session: %v", err)
+	}
+
+	if d.backchannel != nil {
+		d.backchannel.Notify(ctx, &session)
+	}
 
 	// Revoke every refresh token the user holds on this connector, not just one
 	// client's. See revokeUserRefreshTokens for why the administrative path is
 	// deliberately broader than RP-initiated logout.
-	d.revokeUserRefreshTokens(ctx, req.UserId, req.ConnectorId)
+	d.revokeUserRefreshTokens(ctx, session.UserID, session.ConnectorID)
 
-	if err := d.s.DeleteAuthSession(ctx, req.UserId, req.ConnectorId); err != nil {
+	if err := d.s.DeleteAuthSession(ctx, req.Id); err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
 			return &api.DeleteAuthSessionResp{NotFound: true}, nil
 		}
@@ -115,7 +121,7 @@ func (d dexAPI) DeleteAuthSession(ctx context.Context, req *api.DeleteAuthSessio
 		return nil, fmt.Errorf("delete auth session: %v", err)
 	}
 
-	d.logger.Info("api: deleted auth session", "user_id", req.UserId, "connector_id", req.ConnectorId)
+	d.logger.Info("api: deleted auth session", "session_id", req.Id, "user_id", session.UserID)
 	return &api.DeleteAuthSessionResp{}, nil
 }
 
@@ -137,9 +143,9 @@ func (d dexAPI) terminateSessions(ctx context.Context, match func(storage.AuthSe
 		}
 		d.revokeUserRefreshTokens(ctx, s.UserID, s.ConnectorID)
 
-		if err := d.s.DeleteAuthSession(ctx, s.UserID, s.ConnectorID); err != nil {
+		if err := d.s.DeleteAuthSession(ctx, s.ID); err != nil {
 			d.logger.Error("api: failed to delete auth session during batch terminate",
-				"user_id", s.UserID, "connector_id", s.ConnectorID, "err", err)
+				"session_id", s.ID, "user_id", s.UserID, "err", err)
 			continue
 		}
 		terminated++

@@ -206,11 +206,12 @@ func TestHandleAuthorizationSessionSkipsConnectorSelection(t *testing.T) {
 	createSession := func(t *testing.T, s *Server, connectorID string) *http.Cookie {
 		t.Helper()
 		now := time.Now()
-		nonce := "test-nonce"
+		sessionID := "test-session"
 		session := storage.AuthSession{
+			ID:             sessionID,
+			Secret:         testSessionSecret(sessionID),
 			UserID:         "user1",
 			ConnectorID:    connectorID,
-			Nonce:          nonce,
 			ClientStates:   map[string]*storage.ClientAuthState{},
 			CreatedAt:      now.Add(-30 * time.Minute),
 			LastActivity:   now.Add(-5 * time.Minute),
@@ -222,7 +223,7 @@ func TestHandleAuthorizationSessionSkipsConnectorSelection(t *testing.T) {
 		require.NoError(t, s.storage.CreateAuthSession(ctx, session))
 		return &http.Cookie{
 			Name:  "dex_session",
-			Value: internal.SessionCookieValue("user1", connectorID, nonce, nil),
+			Value: internal.SessionCookieValue(sessionID, testSessionSecret(sessionID), nil),
 		}
 	}
 

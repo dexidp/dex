@@ -233,9 +233,11 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 			if resp, err := s.admin.api.ListAuthSessions(ctx, &api.ListAuthSessionsReq{UserId: data.UserID}); err == nil {
 				for _, sess := range resp.Sessions {
 					data.Sessions = append(data.Sessions, AdminSession{
+						ID:          sess.Id,
 						UserID:      sess.UserId,
 						ConnectorID: sess.ConnectorId,
 						IPAddress:   sess.IpAddress,
+						UserAgent:   sess.UserAgent,
 						Created:     epochText(sess.CreatedAt),
 						Expires:     epochText(sess.AbsoluteExpiry),
 					})
@@ -680,18 +682,16 @@ func (s *Server) handleAdminDeleteSession(w http.ResponseWriter, r *http.Request
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	userID := r.FormValue("user_id")
-	resp, err := s.admin.api.DeleteAuthSession(ctx, &api.DeleteAuthSessionReq{
-		UserId:      userID,
-		ConnectorId: r.FormValue("connector_id"),
-	})
+	// One session is one signed-in browser, so this ends that device and no other.
+	sessionID := r.FormValue("session_id")
+	resp, err := s.admin.api.DeleteAuthSession(ctx, &api.DeleteAuthSessionReq{Id: sessionID})
 	switch {
 	case err != nil:
 		s.adminRedirect(w, r, "", err.Error())
 	case resp.NotFound:
-		s.adminRedirect(w, r, "", fmt.Sprintf("no session for user %q", userID))
+		s.adminRedirect(w, r, "", fmt.Sprintf("no session %q", sessionID))
 	default:
-		s.adminRedirect(w, r, fmt.Sprintf("deleted session for user %q", userID), "")
+		s.adminRedirect(w, r, fmt.Sprintf("deleted session %q", sessionID), "")
 	}
 }
 

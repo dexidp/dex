@@ -17,11 +17,11 @@ message IDTokenSubject {
   string conn_id = 2;
 }
 
-// SessionCookie holds session identity encoded into the session cookie value.
+// SessionCookie holds what the session cookie names: which session, and the
+// secret proving the bearer is the browser that session was issued to.
 message SessionCookie {
-  string user_id = 1;
-  string connector_id = 2;
-  string nonce = 3;
+  string session_id = 1;
+  string secret = 2;
 }
 
 // HMACPayload is the structured message used as HMAC input.

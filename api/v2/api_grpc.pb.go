@@ -96,7 +96,7 @@ type DexClient interface {
 	RevokeRefresh(ctx context.Context, in *RevokeRefreshReq, opts ...grpc.CallOption) (*RevokeRefreshResp, error)
 	// VerifyPassword returns whether a password matches a hash for a specific email or not.
 	VerifyPassword(ctx context.Context, in *VerifyPasswordReq, opts ...grpc.CallOption) (*VerifyPasswordResp, error)
-	// GetAuthSession returns an auth session by user and connector ID.
+	// GetAuthSession returns an auth session by its ID.
 	GetAuthSession(ctx context.Context, in *GetAuthSessionReq, opts ...grpc.CallOption) (*GetAuthSessionResp, error)
 	// ListAuthSessions lists auth sessions, optionally filtered by user_id.
 	ListAuthSessions(ctx context.Context, in *ListAuthSessionsReq, opts ...grpc.CallOption) (*ListAuthSessionsResp, error)
@@ -487,7 +487,7 @@ type DexServer interface {
 	RevokeRefresh(context.Context, *RevokeRefreshReq) (*RevokeRefreshResp, error)
 	// VerifyPassword returns whether a password matches a hash for a specific email or not.
 	VerifyPassword(context.Context, *VerifyPasswordReq) (*VerifyPasswordResp, error)
-	// GetAuthSession returns an auth session by user and connector ID.
+	// GetAuthSession returns an auth session by its ID.
 	GetAuthSession(context.Context, *GetAuthSessionReq) (*GetAuthSessionResp, error)
 	// ListAuthSessions lists auth sessions, optionally filtered by user_id.
 	ListAuthSessions(context.Context, *ListAuthSessionsReq) (*ListAuthSessionsResp, error)

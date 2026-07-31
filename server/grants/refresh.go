@@ -191,7 +191,7 @@ func (g *refresh) sessionID(ctx context.Context, refreshToken *storage.RefreshTo
 		return ref.SessionID, nil
 	}
 
-	if ref.SessionID != g.sessions.SessionIDFor(ctx, refreshToken.Claims.UserID, refreshToken.ConnectorID) {
+	if !g.sessions.Alive(ctx, ref.SessionID) {
 		// Through the store, not storage.DeleteRefresh: the token and the offline
 		// session's reference to it have to go together, or the admin API lists a
 		// token that no longer exists and fails trying to revoke it.
