@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -71,27 +73,35 @@ func (h *Handler) notifyBackchannel(ctx context.Context, authSession *storage.Au
 	}
 
 	sid := session.SessionID(authSession.Nonce)
+	clientIDs := slices.Sorted(maps.Keys(authSession.ClientStates))
 
-	// The request context dies the moment we redirect the browser, so deliveries get
-	// their own bounded context rather than being canceled halfway through.
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), backchannelTimeout)
-	defer cancel()
+	// Everything the fan-out needs is read above, while the session is still in hand,
+	// because the caller deletes it the moment this returns. Delivery itself runs off
+	// the request: the browser is waiting on a redirect, and one wedged relying party
+	// would otherwise hold that redirect for the whole timeout. The request context
+	// dies at that redirect too, so deliveries get their own bounded one.
+	ctx = context.WithoutCancel(ctx)
+	go func() {
+		ctx, cancel := context.WithTimeout(ctx, backchannelTimeout)
+		defer cancel()
 
-	var wg sync.WaitGroup
-	for clientID := range authSession.ClientStates {
-		client, err := h.Storage.GetClient(ctx, clientID)
-		if err != nil {
-			h.Logger.DebugContext(ctx, "logout: backchannel skipped, client not found",
-				"client_id", clientID, "err", err)
-			continue
+		var wg sync.WaitGroup
+		for _, clientID := range clientIDs {
+			wg.Go(func() {
+				client, err := h.Storage.GetClient(ctx, clientID)
+				if err != nil {
+					h.Logger.DebugContext(ctx, "logout: backchannel skipped, client not found",
+						"client_id", clientID, "err", err)
+					return
+				}
+				if client.BackchannelLogoutURI == "" {
+					return
+				}
+				h.deliverLogoutToken(ctx, client, subject, sid)
+			})
 		}
-		if client.BackchannelLogoutURI == "" {
-			continue
-		}
-
-		wg.Go(func() { h.deliverLogoutToken(ctx, client, subject, sid) })
-	}
-	wg.Wait()
+		wg.Wait()
+	}()
 }
 
 // deliverLogoutToken mints a logout token for one client and POSTs it.

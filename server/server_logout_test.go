@@ -648,8 +648,13 @@ type backchannelCall struct {
 }
 
 // startBackchannelRP returns a stub relying party that records the logout tokens it
-// receives, keyed by the client id passed in the path.
-func startBackchannelRP(t *testing.T, status int) (*httptest.Server, func() []backchannelCall) {
+// receives, keyed by the client id passed in the path, and a function that collects
+// them.
+//
+// Delivery runs off the request so that a slow relying party cannot hold up the
+// user's logout, which means the response can land before the tokens do. Callers say
+// how many they expect: wait(n) blocks until n arrive, wait(0) asserts none ever do.
+func startBackchannelRP(t *testing.T, status int) (*httptest.Server, func(n int) []backchannelCall) {
 	t.Helper()
 
 	var mu sync.Mutex
@@ -671,10 +676,19 @@ func startBackchannelRP(t *testing.T, status int) (*httptest.Server, func() []ba
 	}))
 	t.Cleanup(srv.Close)
 
-	return srv, func() []backchannelCall {
+	snapshot := func() []backchannelCall {
 		mu.Lock()
 		defer mu.Unlock()
 		return append([]backchannelCall(nil), calls...)
+	}
+
+	return srv, func(n int) []backchannelCall {
+		if n == 0 {
+			require.Never(t, func() bool { return len(snapshot()) > 0 }, 200*time.Millisecond, 10*time.Millisecond)
+		} else {
+			require.Eventually(t, func() bool { return len(snapshot()) >= n }, 2*time.Second, 10*time.Millisecond)
+		}
+		return snapshot()
 	}
 }
 
@@ -682,7 +696,7 @@ func TestBackchannelLogoutNotifiesSessionClients(t *testing.T) {
 	httpServer, server := newTestServerWithSessions(t, nil)
 	defer httpServer.Close()
 
-	rp, calls := startBackchannelRP(t, http.StatusOK)
+	rp, wait := startBackchannelRP(t, http.StatusOK)
 
 	ctx := t.Context()
 	const userID, connectorID = "test-user", "mock"
@@ -719,7 +733,7 @@ func TestBackchannelLogoutNotifiesSessionClients(t *testing.T) {
 	server.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
 
-	got := calls()
+	got := wait(2)
 	require.Len(t, got, 2, "only clients with a backchannel_logout_uri are notified")
 
 	seen := map[string]bool{}
@@ -749,7 +763,7 @@ func TestBackchannelLogoutToleratesFailingRP(t *testing.T) {
 	httpServer, server := newTestServerWithSessions(t, nil)
 	defer httpServer.Close()
 
-	rp, calls := startBackchannelRP(t, http.StatusInternalServerError)
+	rp, wait := startBackchannelRP(t, http.StatusInternalServerError)
 
 	ctx := t.Context()
 	const userID, connectorID = "test-user", "mock"
@@ -771,7 +785,7 @@ func TestBackchannelLogoutToleratesFailingRP(t *testing.T) {
 	server.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
-	require.Len(t, calls(), 1)
+	require.Len(t, wait(1), 1)
 
 	_, err := server.storage.GetAuthSession(ctx, userID, connectorID)
 	require.ErrorIs(t, err, storage.ErrNotFound, "logout completes despite the RP failing")
@@ -784,7 +798,7 @@ func TestBackchannelLogoutSSOSharesOneSID(t *testing.T) {
 	httpServer, server := newTestServerWithSessions(t, nil)
 	defer httpServer.Close()
 
-	rp, calls := startBackchannelRP(t, http.StatusOK)
+	rp, wait := startBackchannelRP(t, http.StatusOK)
 
 	ctx := t.Context()
 	const userID, connectorID = "test-user", "mock"
@@ -828,7 +842,7 @@ func TestBackchannelLogoutSSOSharesOneSID(t *testing.T) {
 	server.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
 
-	got := calls()
+	got := wait(2)
 	require.Len(t, got, 2)
 	require.Equal(t, idTokenClaims(t, got[0].token)["sid"], idTokenClaims(t, got[1].token)["sid"],
 		"one session, one sid, however many clients share it")
@@ -1038,7 +1052,7 @@ func TestHandleLogoutExpiredSession(t *testing.T) {
 	httpServer, server := newTestServerWithSessions(t, nil)
 	defer httpServer.Close()
 
-	rp, calls := startBackchannelRP(t, http.StatusOK)
+	rp, wait := startBackchannelRP(t, http.StatusOK)
 
 	ctx := t.Context()
 	const userID, connectorID = "test-user", "mock"
@@ -1063,5 +1077,5 @@ func TestHandleLogoutExpiredSession(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	require.Contains(t, rr.Body.String(), "No active session")
-	require.Empty(t, calls(), "an expired session has no relying parties left to tell")
+	require.Empty(t, wait(0), "an expired session has no relying parties left to tell")
 }
