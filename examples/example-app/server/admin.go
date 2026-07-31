@@ -448,9 +448,11 @@ func (s *Server) handleAdminRevokeRefresh(w http.ResponseWriter, r *http.Request
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
+	// The API keys refresh tokens by the sub claim, not by the user id the
+	// connector gave — the same encoding the listing above uses.
 	userID, clientID := r.FormValue("user_id"), r.FormValue("client_id")
 	resp, err := s.admin.api.RevokeRefresh(ctx, &api.RevokeRefreshReq{
-		UserId:   userID,
+		UserId:   idTokenSubject(userID, r.FormValue("connector_id")),
 		ClientId: clientID,
 	})
 	switch {

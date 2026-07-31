@@ -314,7 +314,19 @@ document.querySelectorAll(".chip-remove").forEach(function (btn) {
 (function () {
     if (!window.EventSource) return;
 
+    // Only where the notice has something to say. A stream is a connection held
+    // open for as long as the page lives, and a browser allows six of them per
+    // host, so opening one from every page — the admin screens included — is how
+    // you starve the rest of the site of connections.
+    if (!document.getElementById("signed-in-card")) return;
+
     const stream = new EventSource("/events");
+
+    // Release the connection as the page goes away rather than waiting for the
+    // browser to notice, so a reload does not briefly hold two.
+    window.addEventListener("pagehide", function () {
+        stream.close();
+    });
 
     stream.addEventListener("backchannel-logout", function (event) {
         let notice = {};
