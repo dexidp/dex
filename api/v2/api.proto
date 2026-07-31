@@ -23,6 +23,9 @@ message Client {
   // Where the browser may be sent after an RP-initiated logout. A
   // post_logout_redirect_uri that is not listed here is refused.
   repeated string post_logout_redirect_uris = 11;
+  // Whether this client's refresh tokens outlive the browser session that
+  // issued them: "standalone" (the default) or "session".
+  string refresh_token_lifetime = 12;
 }
 
 // ClientInfo represents an OAuth2 client without sensitive information.
@@ -37,6 +40,7 @@ message ClientInfo {
   repeated string sso_shared_with = 8;
   string backchannel_logout_uri = 9;
   repeated string post_logout_redirect_uris = 10;
+  string refresh_token_lifetime = 11;
 }
 
 // GetClientReq is a request to retrieve client details.
@@ -86,6 +90,10 @@ message UpdateClientReq {
     // leaving dex posting logout tokens at something that no longer exists.
     optional string backchannel_logout_uri = 8;
     repeated string post_logout_redirect_uris = 9;
+    // Optional for the same reason as backchannel_logout_uri: an empty value has
+    // to be tellable apart from "leave it alone" to put a client back on the
+    // default lifetime.
+    optional string refresh_token_lifetime = 10;
 }
 
 // UpdateClientResp returns the response from updating a client.

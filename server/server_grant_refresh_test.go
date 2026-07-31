@@ -535,8 +535,13 @@ func TestRefreshTokenSID(t *testing.T) {
 		origin string
 		// live is the nonce of the session that exists at refresh time, empty for
 		// none.
-		live    string
-		wantSID any
+		live string
+		// lifetime is the client's declared refresh token lifetime, empty for the
+		// default (standalone).
+		lifetime string
+		wantSID  any
+		// wantRefused expects the refresh to be turned away instead of issuing.
+		wantRefused bool
 	}{
 		{
 			name:    "browser flow, session alive",
@@ -562,6 +567,38 @@ func TestRefreshTokenSID(t *testing.T) {
 			live:    nonce,
 			wantSID: nil,
 		},
+		{
+			name:     "session-bound client, session alive",
+			origin:   sid,
+			live:     nonce,
+			lifetime: storage.RefreshTokenLifetimeSession,
+			wantSID:  sid,
+		},
+		{
+			// The whole point of the setting: no minting a fresh token set out of a
+			// session that has ended.
+			name:        "session-bound client, session ended",
+			origin:      sid,
+			live:        "",
+			lifetime:    storage.RefreshTokenLifetimeSession,
+			wantRefused: true,
+		},
+		{
+			name:        "session-bound client, user signed in again",
+			origin:      sid,
+			live:        "anothernonce",
+			lifetime:    storage.RefreshTokenLifetimeSession,
+			wantRefused: true,
+		},
+		{
+			// Nothing bound it to a session in the first place, so there is no
+			// session for it to have outlived.
+			name:     "session-bound client, token from a flow with no browser",
+			origin:   "",
+			live:     nonce,
+			lifetime: storage.RefreshTokenLifetimeSession,
+			wantSID:  nil,
+		},
 	}
 
 	for _, tc := range tests {
@@ -577,6 +614,14 @@ func TestRefreshTokenSID(t *testing.T) {
 					old.Refresh["test"].SessionID = tc.origin
 					return old, nil
 				}))
+
+			if tc.lifetime != "" {
+				require.NoError(t, s.storage.UpdateClient(ctx, "test",
+					func(old storage.Client) (storage.Client, error) {
+						old.RefreshTokenLifetime = tc.lifetime
+						return old, nil
+					}))
+			}
 
 			require.NoError(t, s.storage.CreateUserIdentity(ctx, storage.UserIdentity{
 				UserID: "1", ConnectorID: "test",
@@ -608,6 +653,18 @@ func TestRefreshTokenSID(t *testing.T) {
 
 			rr := httptest.NewRecorder()
 			s.ServeHTTP(rr, req)
+
+			if tc.wantRefused {
+				require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+				require.Contains(t, rr.Body.String(), "invalid_grant")
+
+				// The token is spent, not merely refused: leaving it in storage would
+				// leave a credential that only fails while the check holds.
+				_, err := s.storage.GetRefresh(ctx, "test")
+				require.ErrorIs(t, err, storage.ErrNotFound)
+				return
+			}
+
 			require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 
 			var resp struct {

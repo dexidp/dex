@@ -28,6 +28,7 @@ func (d dexAPI) GetClient(ctx context.Context, req *api.GetClientReq) (*api.GetC
 			SsoSharedWith:          c.SSOSharedWith,
 			BackchannelLogoutUri:   c.BackchannelLogoutURI,
 			PostLogoutRedirectUris: c.PostLogoutRedirectURIs,
+			RefreshTokenLifetime:   c.RefreshTokenLifetime,
 		},
 	}, nil
 }
@@ -44,6 +45,10 @@ func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*ap
 		req.Client.Secret = storage.NewID() + storage.NewID()
 	}
 
+	if err := storage.ValidateRefreshTokenLifetime(req.Client.RefreshTokenLifetime); err != nil {
+		return nil, err
+	}
+
 	c := storage.Client{
 		ID:                     req.Client.Id,
 		Secret:                 req.Client.Secret,
@@ -56,6 +61,7 @@ func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*ap
 		SSOSharedWith:          req.Client.SsoSharedWith,
 		BackchannelLogoutURI:   req.Client.BackchannelLogoutUri,
 		PostLogoutRedirectURIs: req.Client.PostLogoutRedirectUris,
+		RefreshTokenLifetime:   req.Client.RefreshTokenLifetime,
 	}
 	if err := d.s.CreateClient(ctx, c); err != nil {
 		if err == storage.ErrAlreadyExists {
@@ -73,6 +79,9 @@ func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*ap
 func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*api.UpdateClientResp, error) {
 	if req.Id == "" {
 		return nil, errors.New("update client: no client ID supplied")
+	}
+	if err := storage.ValidateRefreshTokenLifetime(req.GetRefreshTokenLifetime()); err != nil {
+		return nil, err
 	}
 
 	err := d.s.UpdateClient(ctx, req.Id, func(old storage.Client) (storage.Client, error) {
@@ -101,6 +110,9 @@ func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*ap
 		}
 		if req.PostLogoutRedirectUris != nil {
 			old.PostLogoutRedirectURIs = req.PostLogoutRedirectUris
+		}
+		if req.RefreshTokenLifetime != nil {
+			old.RefreshTokenLifetime = req.GetRefreshTokenLifetime()
 		}
 		return old, nil
 	})
@@ -146,6 +158,7 @@ func (d dexAPI) ListClients(ctx context.Context, req *api.ListClientReq) (*api.L
 			SsoSharedWith:          client.SSOSharedWith,
 			BackchannelLogoutUri:   client.BackchannelLogoutURI,
 			PostLogoutRedirectUris: client.PostLogoutRedirectURIs,
+			RefreshTokenLifetime:   client.RefreshTokenLifetime,
 		}
 		clients = append(clients, &c)
 	}

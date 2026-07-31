@@ -99,6 +99,7 @@ func toStorageClient(c *db.OAuth2Client) storage.Client {
 		PostLogoutRedirectURIs:  c.PostLogoutRedirectUris,
 		SSOSharedWith:           c.SSOSharedWith,
 		BackchannelLogoutURI:    c.BackchannelLogoutURI,
+		RefreshTokenLifetime:    c.RefreshTokenLifetime,
 		ClientCredentialsClaims: c.ClientCredentialsClaims,
 	}
 }

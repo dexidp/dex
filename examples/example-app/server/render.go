@@ -234,6 +234,7 @@ type AdminClient struct {
 	SSOSharedWith          []string
 	BackchannelLogoutURI   string
 	PostLogoutRedirectURIs []string
+	RefreshTokenLifetime   string
 }
 
 // AdminPassword is one local password entry as the API reports it.

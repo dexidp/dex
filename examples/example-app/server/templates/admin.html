@@ -167,6 +167,16 @@
             </div>
         </div>
         <div class="form-row">
+            <label for="c_refresh_token_lifetime">Refresh token lifetime</label>
+            <div class="form-control">
+                <select id="c_refresh_token_lifetime" name="refresh_token_lifetime">
+                    <option value="standalone">standalone</option>
+                    <option value="session">session</option>
+                </select>
+                <small class="hint">standalone tokens outlive the browser session, which is what keeps a CLI signed in. session tokens stop refreshing the moment that session ends.</small>
+            </div>
+        </div>
+        <div class="form-row">
             <label for="c_public">Public</label>
             <div class="form-control">
                 <label class="checkbox"><input id="c_public" type="checkbox" name="public" value="1"> no client secret</label>
@@ -265,6 +275,16 @@
             <div class="form-control">
                 <input type="text" id="e_backchannel_logout_uri" name="backchannel_logout_uri" value="{{.BackchannelLogoutURI}}" placeholder="https://app.example.com/backchannel-logout" autocomplete="off">
                 <small class="hint">Clearing the box removes it, and dex stops sending this client logout tokens.</small>
+            </div>
+        </div>
+        <div class="form-row">
+            <label for="e_refresh_token_lifetime">Refresh token lifetime</label>
+            <div class="form-control">
+                <select id="e_refresh_token_lifetime" name="refresh_token_lifetime">
+                    <option value="standalone"{{if ne .RefreshTokenLifetime "session"}} selected{{end}}>standalone</option>
+                    <option value="session"{{if eq .RefreshTokenLifetime "session"}} selected{{end}}>session</option>
+                </select>
+                <small class="hint">Switching to session ends this client's refresh tokens with the browser session they came from.</small>
             </div>
         </div>
         <p class="note">

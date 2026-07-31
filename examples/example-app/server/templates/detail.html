@@ -31,6 +31,8 @@
         <div class="v mono">{{range .PostLogoutRedirectURIs}}{{.}}<br>{{else}}<span class="hint">none — logout cannot redirect back</span>{{end}}</div>
         <div class="k">Back-channel logout URI</div>
         <div class="v mono">{{if .BackchannelLogoutURI}}{{.BackchannelLogoutURI}}{{else}}<span class="hint">not set — this client is not notified when a session ends</span>{{end}}</div>
+        <div class="k">Refresh token lifetime</div>
+        <div class="v mono">{{if eq .RefreshTokenLifetime "session"}}session — refreshing stops when the browser session ends{{else}}standalone — refresh tokens outlive the browser session{{end}}</div>
     </div>
     <div class="form-actions">
         <a href="/admin?section=clients&amp;mode=edit&amp;edit={{.ID}}" class="button button-primary">Edit</a>

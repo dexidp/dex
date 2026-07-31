@@ -131,6 +131,12 @@ func (c Config) Validate() error {
 		return err
 	}
 
+	for _, client := range c.StaticClients {
+		if err := storage.ValidateRefreshTokenLifetime(client.RefreshTokenLifetime); err != nil {
+			return fmt.Errorf("staticClients: client %q: %w", client.ID, err)
+		}
+	}
+
 	return nil
 }
 
