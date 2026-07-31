@@ -33,11 +33,26 @@ func NewRefreshStrategy(rotate bool, absoluteLifetime, validIfNotUsedFor, reuseI
 	}
 }
 
+// defaultReuseInterval is the reuse window applied when the configuration leaves
+// reuseInterval unset.
+//
+// Rotation is on by default, and with no window at all a refresh token is claimable
+// exactly once: a client that never saw the response to its refresh — a timeout, a
+// dropped connection, a second replica refreshing the same stored token — retries,
+// is told invalid_grant, and has to send its user back through login. Within the
+// window Rotate hands the retry the same token the first call minted, which makes
+// the request idempotent. Three seconds is what the sample configuration has always
+// suggested: long enough for concurrent requests to converge, short enough that a
+// stolen token is not a durable credential. Set "0s" to keep the old behavior.
+const defaultReuseInterval = 3 * time.Second
+
 // NewRefreshTokenPolicy parses the refresh-token configuration into a rotation
 // strategy — the config-reading adapter over NewRefreshStrategy.
 func NewRefreshTokenPolicy(logger *slog.Logger, rotation bool, validIfNotUsedFor, absoluteLifetime, reuseInterval string) (*RefreshStrategy, error) {
-	var validDur, absoluteDur, reuseDur time.Duration
+	var validDur, absoluteDur time.Duration
 	var err error
+
+	reuseDur := defaultReuseInterval
 
 	if validIfNotUsedFor != "" {
 		validDur, err = time.ParseDuration(validIfNotUsedFor)
@@ -60,8 +75,8 @@ func NewRefreshTokenPolicy(logger *slog.Logger, rotation bool, validIfNotUsedFor
 		if err != nil {
 			return nil, fmt.Errorf("invalid config value %q for refresh tokens reuse interval: %v", reuseInterval, err)
 		}
-		logger.Info("config refresh tokens", "reuse_interval", reuseInterval)
 	}
+	logger.Info("config refresh tokens", "reuse_interval", reuseDur)
 
 	rotate := !rotation
 	logger.Info("config refresh tokens rotation", "enabled", rotate)
