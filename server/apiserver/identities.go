@@ -110,6 +110,9 @@ func (d dexAPI) DeleteUserIdentity(ctx context.Context, req *api.DeleteUserIdent
 	// an error so the caller is never told a GDPR purge succeeded while data was
 	// left behind.
 
+	// Cascade: tell the relying parties, while the session is still readable.
+	d.notifySessionEnded(ctx, req.UserId, req.ConnectorId)
+
 	// Cascade: delete auth session.
 	if err := d.s.DeleteAuthSession(ctx, req.UserId, req.ConnectorId); err != nil && !errors.Is(err, storage.ErrNotFound) {
 		d.logger.Error("api: failed to delete auth session during identity purge", "err", err)

@@ -14,6 +14,7 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/server/backchannel"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
@@ -39,9 +40,9 @@ type Handler struct {
 	IssuerURL  oauth2.IssuerURL
 	Now        func() time.Time
 
-	// HTTPClient delivers back-channel logout tokens. Nil uses a default client that
-	// does not follow redirects; tests substitute their own.
-	HTTPClient *http.Client
+	// Backchannel tells the session's relying parties that it ended. The same
+	// notifier serves the gRPC API, which ends sessions too.
+	Backchannel *backchannel.Notifier
 }
 
 // renderError renders a user-facing HTML error page.
@@ -78,7 +79,7 @@ func (h *Handler) Mount(mux router.Mux) {
 //     and cross-check its subject and sid against that session
 //  3. Ask the user to confirm unless the hint vouches for the current session
 //  4. Validate post_logout_redirect_uri against the client's registered URIs
-//  5. Revoke the requesting client's refresh token — and only that one
+//  5. Revoke the refresh tokens of the clients bound to this session
 //  6. Notify every client in the session over the back channel
 //  7. If the upstream connector implements LogoutCallbackConnector, redirect to it and
 //     finish in handleLogoutCallback; otherwise delete the session, clear the cookie,
@@ -189,7 +190,7 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 	// Both read ClientStates, which dies with the session, so both run before it does.
 	h.revokeSessionBoundTokens(ctx, authSession)
-	h.notifyBackchannel(ctx, authSession)
+	h.Backchannel.Notify(ctx, authSession)
 
 	loggedOut := h.deleteAuthSession(ctx, authSession.UserID, authSession.ConnectorID)
 	h.Sessions.ClearCookie(w)
@@ -365,7 +366,7 @@ func (h *Handler) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 	// back in handleLogout would have signed them out while dex's session was still
 	// alive, waiting for a callback that a user who closed the tab never sends.
 	h.revokeSessionBoundTokens(ctx, &session)
-	h.notifyBackchannel(ctx, &session)
+	h.Backchannel.Notify(ctx, &session)
 
 	// Session kept alive until now — delete it and clear the cookie.
 	h.deleteAuthSession(ctx, userID, connectorID)

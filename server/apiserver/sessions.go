@@ -100,6 +100,8 @@ func (d dexAPI) DeleteAuthSession(ctx context.Context, req *api.DeleteAuthSessio
 		return nil, errors.New("no connector_id supplied")
 	}
 
+	d.notifySessionEnded(ctx, req.UserId, req.ConnectorId)
+
 	// Revoke every refresh token the user holds on this connector, not just one
 	// client's. See revokeUserRefreshTokens for why the administrative path is
 	// deliberately broader than RP-initiated logout.
@@ -130,6 +132,9 @@ func (d dexAPI) terminateSessions(ctx context.Context, match func(storage.AuthSe
 			continue
 		}
 
+		if d.backchannel != nil {
+			d.backchannel.Notify(ctx, &s)
+		}
 		d.revokeUserRefreshTokens(ctx, s.UserID, s.ConnectorID)
 
 		if err := d.s.DeleteAuthSession(ctx, s.UserID, s.ConnectorID); err != nil {
