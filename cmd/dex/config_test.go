@@ -80,7 +80,6 @@ func TestInvalidRefreshTokenLifetime(t *testing.T) {
 			{ID: "proxy", RefreshTokenLifetime: "sessions"},
 		},
 	}
-
 	err := configuration.Validate()
 	require.Error(t, err)
 	require.Contains(t, err.Error(), `client "proxy"`)
@@ -103,6 +102,57 @@ func TestInvalidTLSPreferences(t *testing.T) {
 	require.Contains(t, err.Error(), "no issuer specified in config file")
 	require.Contains(t, err.Error(), `invalid TLS cipher suites: unsupported cipher suite "TLS_FAKE_CIPHER"`)
 	require.Contains(t, err.Error(), `invalid TLS curve preferences: unknown curve: "UnknownCurve"`)
+}
+
+func TestInvalidSubjectClaimConfiguration(t *testing.T) {
+	configuration := Config{
+		Issuer: "http://127.0.0.1:5556/dex",
+		Storage: Storage{
+			Type: "sqlite3",
+			Config: &sql.SQLite3{
+				File: "examples/dex.db",
+			},
+		},
+		Web: Web{
+			HTTP: "127.0.0.1:5556",
+		},
+		OAuth2: OAuth2{
+			SubjectClaim: "nope",
+		},
+	}
+	err := configuration.Validate()
+	if err == nil {
+		t.Fatal("this configuration should be invalid")
+	}
+	if !strings.Contains(err.Error(), `invalid oauth2.subjectClaim value "nope"`) {
+		t.Fatalf("expected subject claim validation error, got %q", err.Error())
+	}
+}
+
+func TestInvalidSubjectClaimOrderConfiguration(t *testing.T) {
+	configuration := Config{
+		Issuer: "http://127.0.0.1:5556/dex",
+		Storage: Storage{
+			Type: "sqlite3",
+			Config: &sql.SQLite3{
+				File: "examples/dex.db",
+			},
+		},
+		Web: Web{
+			HTTP: "127.0.0.1:5556",
+		},
+		OAuth2: OAuth2{
+			SubjectClaimOrder: "backwards",
+		},
+	}
+
+	err := configuration.Validate()
+	if err == nil {
+		t.Fatal("this configuration should be invalid")
+	}
+	if !strings.Contains(err.Error(), `invalid oauth2.subjectClaimOrder value "backwards"`) {
+		t.Fatalf("expected subject claim order validation error, got %q", err.Error())
+	}
 }
 
 func TestUnmarshalConfig(t *testing.T) {
@@ -138,6 +188,8 @@ staticClients:
 
 oauth2:
   alwaysShowLoginScreen: true
+  subjectClaim: plain
+  subjectClaimOrder: connector-user
   grantTypes:
   - refresh_token
   - "urn:ietf:params:oauth:grant-type:token-exchange"
@@ -233,6 +285,8 @@ additionalFeatures: [
 		},
 		OAuth2: OAuth2{
 			AlwaysShowLoginScreen: true,
+			SubjectClaim:          "plain",
+			SubjectClaimOrder:     "connector-user",
 			GrantTypes: []string{
 				"refresh_token",
 				"urn:ietf:params:oauth:grant-type:token-exchange",

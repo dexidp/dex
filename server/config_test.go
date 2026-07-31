@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/server/oauth2"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage/memory"
 )
 
@@ -28,6 +29,8 @@ func TestNormalizeConfigDefaults(t *testing.T) {
 	require.Equal(t, []string{oauth2.ResponseTypeCode}, c.SupportedResponseTypes)
 	require.Equal(t, []string{"Authorization"}, c.AllowedHeaders)
 	require.Equal(t, []string{oauth2.PKCEMethodS256, oauth2.PKCEMethodPlain}, c.PKCE.CodeChallengeMethodsSupported)
+	require.Equal(t, tokens.SubjectFormatBase64, c.SubjectClaimFormat)
+	require.Equal(t, tokens.SubjectOrderUserConnector, c.SubjectClaimOrder)
 
 	require.Equal(t, "https://dex.example.com", rc.issuerURL.String())
 	require.NotNil(t, rc.now)
@@ -102,6 +105,20 @@ func TestNormalizeConfigRejects(t *testing.T) {
 				c.PKCE.CodeChallengeMethodsSupported = []string{"S512"}
 			},
 			errMsg: `unsupported PKCE challenge method "S512"`,
+		},
+		{
+			name: "unknown subject claim format",
+			mutate: func(c *Config) {
+				c.SubjectClaimFormat = "unsupported"
+			},
+			errMsg: `unsupported subject claim format "unsupported"`,
+		},
+		{
+			name: "unknown subject claim order",
+			mutate: func(c *Config) {
+				c.SubjectClaimOrder = "backwards"
+			},
+			errMsg: `unsupported subject claim order "backwards"`,
 		},
 	}
 
