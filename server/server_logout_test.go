@@ -234,8 +234,7 @@ func TestHandleLogoutRevokesOnlySessionBoundClients(t *testing.T) {
 		postLogout  = "https://example.com/done"
 	)
 
-	// The client that asks for the logout, and does not want its tokens tied to the
-	// session — asking is not the same as declaring.
+	// Asks for the logout, but never declared its tokens tied to the session.
 	require.NoError(t, server.storage.CreateClient(ctx, storage.Client{
 		ID: webClient, Secret: "secret",
 		RedirectURIs:           []string{"https://example.com/callback"},

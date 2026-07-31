@@ -518,15 +518,10 @@ func TestHandleRefreshTokenAllowedConnectors(t *testing.T) {
 
 // TestRefreshTokenSID pins what a refresh does with the sid claim.
 //
-// The claim names the browser session a token came from, so a refresh carries it
-// across unchanged, alive session or not, and must never hand one to a token that
-// was minted outside a browser flow. Resolving it from the user's identity, as an
-// earlier version did, did exactly that: a password-grant token inherited whatever
-// session its user happened to have open, and signing out of the browser then
-// killed it.
-//
-// What the end of that session costs the token is the client's own declaration:
-// nothing for a standalone one, everything for a session-bound one.
+// A refresh carries the claim across unchanged, alive session or not, and never
+// hands one to a token minted outside a browser flow. What the end of that session
+// costs the token is the client's declaration: nothing for a standalone one,
+// everything for a session-bound one.
 func TestRefreshTokenSID(t *testing.T) {
 	const nonce = "sessionnonce"
 	sid := session.SessionID(nonce)
@@ -554,8 +549,7 @@ func TestRefreshTokenSID(t *testing.T) {
 		},
 		{
 			// The sid says where the token came from, not that the session is still
-			// there. Dropping it here used to make the token active again at the next
-			// refresh, undoing the revocation introspection had just reported.
+			// there. Dropping it made the token active again at the next refresh.
 			name:    "browser flow, session ended",
 			origin:  sid,
 			live:    "",
@@ -581,8 +575,7 @@ func TestRefreshTokenSID(t *testing.T) {
 			wantSID:  sid,
 		},
 		{
-			// The whole point of the setting: no minting a fresh token set out of a
-			// session that has ended.
+			// The whole point of the setting.
 			name:        "session-bound client, session ended",
 			origin:      sid,
 			live:        "",
@@ -664,8 +657,8 @@ func TestRefreshTokenSID(t *testing.T) {
 				require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
 				require.Contains(t, rr.Body.String(), "invalid_grant")
 
-				// The token is spent, not merely refused: leaving it in storage would
-				// leave a credential that only fails while the check holds.
+				// Spent, not merely refused: a token left in storage only fails for
+				// as long as the check holds.
 				_, err := s.storage.GetRefresh(ctx, "test")
 				require.ErrorIs(t, err, storage.ErrNotFound)
 				return

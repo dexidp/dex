@@ -69,9 +69,8 @@ func TestInvalidConfiguration(t *testing.T) {
 	}
 }
 
-// TestInvalidRefreshTokenLifetime: a misspelled lifetime must not be read as the
-// default, which would leave a client's tokens outliving the session it asked them
-// to be bound to.
+// TestInvalidRefreshTokenLifetime: a misspelled lifetime must not read as the
+// default, leaving tokens the client wanted bound outliving the session.
 func TestInvalidRefreshTokenLifetime(t *testing.T) {
 	configuration := Config{
 		Issuer:  "http://127.0.0.1:5556/dex",

@@ -150,26 +150,18 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 	return ts.Response(g.now()), nil
 }
 
-// sessionID returns the sid to put on the refreshed tokens, or "" for none, and
-// refuses the refresh outright when the token belongs to a session that has ended
-// and the client asked for its tokens to end with it.
+// sessionID returns the sid for the refreshed tokens, and refuses the refresh when
+// the session has ended and the client asked its tokens to end with it.
 //
-// The sid names the session a token came from, and it is carried across every
-// refresh unchanged — including after that session is gone. A dead sid is not a
-// contradiction: it is what the token's history was. Whether the token is still good
-// for anything is a separate question, answered by the client's declared
-// RefreshTokenLifetime, and answered the same way here and in introspection (see
-// sessionAlive in server/introspection).
+// The sid names where a token came from and is carried across refreshes unchanged,
+// dead session or not; stripping it would make the token active again at the next
+// refresh, undoing what introspection just reported. Whether the token is still good
+// for anything is the client's RefreshTokenLifetime, read the same way here and in
+// introspection (see sessionAlive in server/introspection).
 //
-// Standalone, the default, means the session's end is none of this token's business:
-// it keeps refreshing and keeps naming its origin, which is what lets a kubectl
-// credential survive a browser logout. Session-bound means the refresh is refused
-// and the token deleted — for a client that is a browser session and nothing else,
-// a token that still mints fresh ones after logout is a way back in.
-//
-// Origin comes from the stored reference and nowhere else. A token minted outside a
-// browser flow carries none and must never acquire one: resolving the sid from the
-// user's identity would hand it whatever session that user happens to have open.
+// Origin comes from the stored reference and nowhere else: a token minted outside a
+// browser flow has none and must not acquire one from whatever session its user
+// happens to have open.
 func (g *refresh) sessionID(ctx context.Context, refreshToken *storage.RefreshToken, client storage.Client) (string, *oauth2.Error) {
 	bound := client.RefreshBoundToSession()
 

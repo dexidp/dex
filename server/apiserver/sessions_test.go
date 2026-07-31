@@ -21,9 +21,8 @@ import (
 	"github.com/dexidp/dex/storage/memory"
 )
 
-// TestTerminateSessionNotifiesRelyingParties: an operator ending a session leaves
-// the relying parties as the only thing keeping the user signed in, so they are told
-// the same way they are told about a logout.
+// TestTerminateSessionNotifiesRelyingParties: an operator ending a session leaves the
+// relying parties as the only thing keeping the user signed in, so they are told.
 func TestTerminateSessionNotifiesRelyingParties(t *testing.T) {
 	t.Setenv("DEX_"+strings.ToUpper(featureflags.APISessionsIdentitiesCRUD.Name), "true")
 

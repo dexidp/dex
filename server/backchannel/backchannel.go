@@ -38,10 +38,8 @@ const (
 
 // Notifier posts logout tokens to the relying parties of a session that has ended.
 //
-// It lives here rather than in server/logout because a session ends in more than one
-// way: a user signs out, an operator terminates the session over the gRPC API, or
-// deletes the identity behind it. An RP has no way to tell those apart and no reason
-// to care, so every path that ends a session goes through this.
+// It lives outside server/logout because a session also ends by an operator's hand
+// over the gRPC API, and every path that ends one goes through here.
 type Notifier struct {
 	Storage   storage.Storage
 	Signer    signer.Signer
@@ -97,11 +95,10 @@ func (n *Notifier) Notify(ctx context.Context, authSession *storage.AuthSession)
 	sid := session.SessionID(authSession.Nonce)
 	clientIDs := slices.Sorted(maps.Keys(authSession.ClientStates))
 
-	// Everything the fan-out needs is read above, while the session is still in hand,
-	// because the caller deletes it the moment this returns. Delivery itself runs off
-	// the request: the browser is waiting on a redirect, and one wedged relying party
-	// would otherwise hold that redirect for the whole timeout. The request context
-	// dies at that redirect too, so deliveries get their own bounded one.
+	// Read above while the session is still in hand: the caller deletes it the moment
+	// this returns. Delivery runs off the request — one wedged relying party would
+	// otherwise hold the user's redirect for the whole timeout — so it gets a context
+	// that outlives the one dying at that redirect.
 	ctx = context.WithoutCancel(ctx)
 	go func() {
 		ctx, cancel := context.WithTimeout(ctx, backchannelTimeout)

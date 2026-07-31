@@ -109,13 +109,9 @@ func (d dexAPI) revokeUserRefreshTokens(ctx context.Context, userID, connectorID
 }
 
 // notifySessionEnded tells a session's relying parties that it is over, the same way
-// RP-initiated logout does. An RP cannot tell an operator's termination from a user
-// signing out, and has no reason to: either way its own session is now the only thing
-// keeping that user signed in.
-//
-// Must run before the session row is deleted — the fan-out reads it. Best-effort, as
-// everywhere: what makes the termination real is the deletion and the revocation
-// above, not the notification.
+// RP-initiated logout does: an RP cannot tell an operator's termination from a user
+// signing out, and has no reason to. Must run before the session row is deleted, as
+// the fan-out reads it.
 func (d dexAPI) notifySessionEnded(ctx context.Context, userID, connectorID string) {
 	if d.backchannel == nil {
 		return

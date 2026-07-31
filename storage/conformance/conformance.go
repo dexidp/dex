@@ -320,8 +320,8 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 		Name:              "dex client",
 		LogoURL:           "https://goo.gl/JIyzIC",
 		AllowedConnectors: []string{"github", "google"},
-		// Fields a backend has to carry explicitly rather than as part of a blob;
-		// left at their zero values they would round-trip even if dropped.
+		// Explicitly persisted fields: at their zero values they round-trip even
+		// when a backend drops them.
 		BackchannelLogoutURI:   "https://auth.example.com/backchannel-logout",
 		PostLogoutRedirectURIs: []string{"https://auth.example.com/"},
 		RefreshTokenLifetime:   storage.RefreshTokenLifetimeSession,
@@ -374,7 +374,7 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 	c1.Secret = newSecret
 	getAndCompare(id1, c1)
 
-	// An update must carry those same explicit fields, not just the one it changes.
+	// An update carries those same fields, not just the one it changes.
 	err = s.UpdateClient(ctx, id1, func(old storage.Client) (storage.Client, error) {
 		old.RefreshTokenLifetime = storage.RefreshTokenLifetimeStandalone
 		old.BackchannelLogoutURI = "https://auth.example.com/logout-2"

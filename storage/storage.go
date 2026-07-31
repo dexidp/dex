@@ -182,8 +182,7 @@ type Client struct {
 	BackchannelLogoutURI string `json:"backchannelLogoutURI"`
 
 	// RefreshTokenLifetime says whether this client's refresh tokens outlive the
-	// browser session that issued them. See the RefreshTokenLifetime constants;
-	// empty means Standalone.
+	// session that issued them. See the constants below; empty means Standalone.
 	RefreshTokenLifetime string `json:"refreshTokenLifetime"`
 
 	// TrustedPeers are a list of peers which can issue tokens on this client's behalf using
@@ -224,25 +223,20 @@ type Client struct {
 // Refresh token lifetimes, the values Client.RefreshTokenLifetime accepts.
 const (
 	// RefreshTokenLifetimeStandalone, the default, lets a refresh token live out its
-	// configured expiry no matter what happens to the browser session that issued it.
-	// This is what keeps a kubectl credential working after the user signs out of a
-	// web application.
+	// configured expiry whatever happens to the session that issued it. This is what
+	// keeps a kubectl credential working after the user signs out of a web app.
 	RefreshTokenLifetimeStandalone = "standalone"
 
-	// RefreshTokenLifetimeSession ties the refresh token to that session: once the
-	// session ends, redeeming the token fails and it is deleted. Set this on clients
-	// that are a browser session and nothing else — an authenticating proxy in front
-	// of an application — where a token that outlives the session is a way back in
-	// after logout rather than a credential in its own right.
-	//
-	// Dex requires offline_access for any refresh token at all, so nothing in the
-	// request distinguishes such a proxy from a CLI. The client has to say so.
+	// RefreshTokenLifetimeSession ends the token with that session: redeeming it then
+	// fails and deletes it. For clients that are a browser session and nothing else,
+	// such as an authenticating proxy, where a token outliving the session is a way
+	// back in after logout. Dex requires offline_access for every refresh token, so
+	// nothing in the request tells the two apart — the client has to say so.
 	RefreshTokenLifetimeSession = "session"
 )
 
-// ValidateRefreshTokenLifetime rejects values Client.RefreshTokenLifetime does not
-// accept, so that a typo fails loudly at configuration time instead of silently
-// leaving the tokens standalone.
+// ValidateRefreshTokenLifetime rejects unknown values, so that a typo fails at
+// configuration time instead of silently leaving the tokens standalone.
 func ValidateRefreshTokenLifetime(lifetime string) error {
 	switch lifetime {
 	case "", RefreshTokenLifetimeStandalone, RefreshTokenLifetimeSession:
