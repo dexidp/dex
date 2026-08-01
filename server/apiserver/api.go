@@ -27,6 +27,10 @@ const apiVersion = 4
 // whole Server.
 func NewAPI(s storage.Storage, logger *slog.Logger, version string, conns *connectors.Cache, disc *discovery.Handler, bc *backchannel.Notifier, expiry *tokens.ExpiryPolicy) api.DexServer {
 	apiLogger := logger.With("component", "api")
+	if expiry == nil {
+		// Tests may omit the policy; default to one with no ceilings.
+		expiry = tokens.NewExpiryPolicy(0, nil)
+	}
 	return dexAPI{
 		s:           s,
 		logger:      apiLogger,

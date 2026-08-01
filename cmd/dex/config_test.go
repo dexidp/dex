@@ -229,9 +229,9 @@ additionalFeatures: [
 				ID:     "mock",
 				Name:   "Example",
 				Config: &mock.CallbackConfig{},
-				Expiry: &ConnectorExpiry{
+				Expiry: &storage.ConnectorExpiry{
 					IDTokens: "15m",
-					RefreshTokens: &ConnectorRefreshExpiry{
+					RefreshTokens: &storage.ConnectorRefreshExpiry{
 						AbsoluteLifetime: "24h",
 					},
 				},
@@ -705,29 +705,18 @@ enablePasswordDB: true
 }
 
 func TestToStorageConnectorCarriesExpiry(t *testing.T) {
-	disable := true
-	sc, err := ToStorageConnector(Connector{
-		ID: "c1", Type: "mockCallback", Name: "c1",
-		Expiry: &ConnectorExpiry{
-			IDTokens: "15m",
-			RefreshTokens: &ConnectorRefreshExpiry{
-				DisableRotation:   &disable,
-				AbsoluteLifetime:  "24h",
-				ValidIfNotUsedFor: "1h",
-				ReuseInterval:     "3s",
-			},
-		},
-	})
-	require.NoError(t, err)
-	require.Equal(t, &storage.ConnectorExpiry{
+	expiry := &storage.ConnectorExpiry{
 		IDTokens: "15m",
 		RefreshTokens: &storage.ConnectorRefreshExpiry{
-			DisableRotation:   &disable,
+			DisableRotation:   boolPtr(true),
 			AbsoluteLifetime:  "24h",
 			ValidIfNotUsedFor: "1h",
 			ReuseInterval:     "3s",
 		},
-	}, sc.Expiry)
+	}
+	sc, err := ToStorageConnector(Connector{ID: "c1", Type: "mockCallback", Name: "c1", Expiry: expiry})
+	require.NoError(t, err)
+	require.Equal(t, expiry, sc.Expiry)
 
 	sc, err = ToStorageConnector(Connector{ID: "c1", Type: "mockCallback", Name: "c1"})
 	require.NoError(t, err)

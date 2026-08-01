@@ -570,23 +570,7 @@ type Connector struct {
 	// Expiry, when set, overrides the corresponding fields of the top-level
 	// expiry config for tokens issued through this connector. Any field left
 	// unset falls back to the global value.
-	Expiry *ConnectorExpiry `json:"expiry"`
-}
-
-// ConnectorExpiry mirrors the top-level expiry config; fields left unset
-// inherit the global value.
-type ConnectorExpiry struct {
-	IDTokens      string                  `json:"idTokens"`
-	RefreshTokens *ConnectorRefreshExpiry `json:"refreshTokens"`
-}
-
-// ConnectorRefreshExpiry mirrors RefreshToken; DisableRotation is a pointer
-// so that "unset" (inherit) can be distinguished from "false".
-type ConnectorRefreshExpiry struct {
-	DisableRotation   *bool  `json:"disableRotation"`
-	ReuseInterval     string `json:"reuseInterval"`
-	AbsoluteLifetime  string `json:"absoluteLifetime"`
-	ValidIfNotUsedFor string `json:"validIfNotUsedFor"`
+	Expiry *storage.ConnectorExpiry `json:"expiry"`
 }
 
 // UnmarshalJSON allows Connector to implement the unmarshaler interface to
@@ -597,9 +581,9 @@ func (c *Connector) UnmarshalJSON(b []byte) error {
 		Name string `json:"name"`
 		ID   string `json:"id"`
 
-		Config     json.RawMessage  `json:"config"`
-		GrantTypes []string         `json:"grantTypes"`
-		Expiry     *ConnectorExpiry `json:"expiry"`
+		Config     json.RawMessage          `json:"config"`
+		GrantTypes []string                 `json:"grantTypes"`
+		Expiry     *storage.ConnectorExpiry `json:"expiry"`
 	}
 	if err := configUnmarshaller(b, &conn); err != nil {
 		return fmt.Errorf("parse connector: %v", err)
@@ -654,25 +638,14 @@ func ToStorageConnector(c Connector) (storage.Connector, error) {
 		return storage.Connector{}, fmt.Errorf("failed to marshal connector config: %v", err)
 	}
 
-	sc := storage.Connector{
+	return storage.Connector{
 		ID:         c.ID,
 		Type:       c.Type,
 		Name:       c.Name,
 		Config:     data,
 		GrantTypes: c.GrantTypes,
-	}
-	if c.Expiry != nil {
-		sc.Expiry = &storage.ConnectorExpiry{IDTokens: c.Expiry.IDTokens}
-		if rt := c.Expiry.RefreshTokens; rt != nil {
-			sc.Expiry.RefreshTokens = &storage.ConnectorRefreshExpiry{
-				DisableRotation:   rt.DisableRotation,
-				ReuseInterval:     rt.ReuseInterval,
-				AbsoluteLifetime:  rt.AbsoluteLifetime,
-				ValidIfNotUsedFor: rt.ValidIfNotUsedFor,
-			}
-		}
-	}
-	return sc, nil
+		Expiry:     c.Expiry,
+	}, nil
 }
 
 // Expiry holds configuration for the validity period of components.
