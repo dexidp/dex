@@ -3,34 +3,24 @@ package tokens
 import (
 	"errors"
 	"fmt"
-	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/dexidp/dex/storage"
 )
 
-// ExpiryCeilings holds the parsed global expiry values that per-connector
-// overrides must not loosen. A zero duration field means "no ceiling".
+// expiryCeilings holds the global expiry values that per-connector overrides
+// must not loosen. A zero duration field means "no ceiling".
 //
-// RefreshRotationDisabled blocks the asymmetric case where the global enables
+// refreshRotationDisabled blocks the asymmetric case where the global enables
 // rotation: a per-connector override cannot disable it, since rotation-enabled
 // is the stricter policy. The reverse direction is permitted.
-type ExpiryCeilings struct {
-	IDTokens                 time.Duration
-	RefreshAbsoluteLifetime  time.Duration
-	RefreshValidIfNotUsedFor time.Duration
-	RefreshReuseInterval     time.Duration
-	RefreshRotationDisabled  bool
-}
-
-// RefreshTokenDefaults are the inheritance roots for per-connector overrides
-// that leave fields unset.
-type RefreshTokenDefaults struct {
-	DisableRotation   bool
-	ValidIfNotUsedFor string
-	AbsoluteLifetime  string
-	ReuseInterval     string
+type expiryCeilings struct {
+	idTokens                 time.Duration
+	refreshAbsoluteLifetime  time.Duration
+	refreshValidIfNotUsedFor time.Duration
+	refreshReuseInterval     time.Duration
+	refreshRotationDisabled  bool
 }
 
 // connectorExpiryOverride carries per-connector token lifetime overrides.
@@ -47,25 +37,30 @@ type connectorExpiryOverride struct {
 type ExpiryPolicy struct {
 	idTokensValidFor time.Duration
 	refreshStrategy  *RefreshStrategy
-	ceilings         ExpiryCeilings
-	refreshDefaults  RefreshTokenDefaults
+	ceilings         expiryCeilings
 	now              func() time.Time
 
 	mu        sync.Mutex
 	overrides map[string]connectorExpiryOverride
 }
 
-// NewExpiryPolicy returns a registry that resolves to the given global values until
-// per-connector overrides are installed. ceilings bound how loose an override
-// may be; defaults seed override fields left unset. now is the clock installed
-// into override refresh strategies, defaulting to time.Now when nil; pass the
-// same clock the global strategy uses so both age tokens identically.
-func NewExpiryPolicy(idTokensValidFor time.Duration, refresh *RefreshStrategy, ceilings ExpiryCeilings, defaults RefreshTokenDefaults, now func() time.Time) *ExpiryPolicy {
+// NewExpiryPolicy returns a registry that resolves to the given global values
+// until per-connector overrides are installed. The same global values are the
+// ceilings an override may not loosen. now is the clock installed into
+// override refresh strategies, defaulting to time.Now when nil; pass the same
+// clock the global strategy uses so both age tokens identically.
+func NewExpiryPolicy(idTokensValidFor time.Duration, refresh *RefreshStrategy, now func() time.Time) *ExpiryPolicy {
+	c := expiryCeilings{idTokens: idTokensValidFor}
+	if refresh != nil {
+		c.refreshAbsoluteLifetime = refresh.absoluteLifetime
+		c.refreshValidIfNotUsedFor = refresh.validIfNotUsedFor
+		c.refreshReuseInterval = refresh.reuseInterval
+		c.refreshRotationDisabled = !refresh.rotate
+	}
 	return &ExpiryPolicy{
 		idTokensValidFor: idTokensValidFor,
 		refreshStrategy:  refresh,
-		ceilings:         ceilings,
-		refreshDefaults:  defaults,
+		ceilings:         c,
 		now:              now,
 		overrides:        make(map[string]connectorExpiryOverride),
 	}
@@ -110,7 +105,7 @@ func (e *ExpiryPolicy) Upsert(connID string, ce *storage.ConnectorExpiry) error 
 	if err := validateConnectorExpiry(ce, e.ceilings); err != nil {
 		return err
 	}
-	override, err := buildConnectorExpiryOverride(ce, e.refreshDefaults, e.now)
+	override, err := buildConnectorExpiryOverride(ce, e.refreshStrategy, e.now)
 	if err != nil {
 		return err
 	}
@@ -124,17 +119,15 @@ func (e *ExpiryPolicy) Upsert(connID string, ce *storage.ConnectorExpiry) error 
 	return nil
 }
 
-var discardLogger = slog.New(slog.DiscardHandler)
-
 // validateConnectorExpiry rejects per-connector overrides that loosen the
 // global policy. Called from the static YAML load path and from every gRPC
 // API write.
-func validateConnectorExpiry(e *storage.ConnectorExpiry, c ExpiryCeilings) error {
+func validateConnectorExpiry(e *storage.ConnectorExpiry, c expiryCeilings) error {
 	if e == nil {
 		return nil
 	}
 	// idTokens="" means "inherit"; IDTokensValidFor falls back to the global.
-	if err := checkCeiling("expiry.idTokens", e.IDTokens, c.IDTokens, false); err != nil {
+	if err := checkCeiling("expiry.idTokens", e.IDTokens, c.idTokens, false); err != nil {
 		return err
 	}
 	if e.RefreshTokens == nil {
@@ -146,15 +139,15 @@ func validateConnectorExpiry(e *storage.ConnectorExpiry, c ExpiryCeilings) error
 		ceiling      time.Duration
 		zeroDisables bool // RefreshStrategy treats 0 as "expiration disabled" for this field
 	}{
-		{"expiry.refreshTokens.absoluteLifetime", e.RefreshTokens.AbsoluteLifetime, c.RefreshAbsoluteLifetime, true},
-		{"expiry.refreshTokens.validIfNotUsedFor", e.RefreshTokens.ValidIfNotUsedFor, c.RefreshValidIfNotUsedFor, true},
-		{"expiry.refreshTokens.reuseInterval", e.RefreshTokens.ReuseInterval, c.RefreshReuseInterval, false},
+		{"expiry.refreshTokens.absoluteLifetime", e.RefreshTokens.AbsoluteLifetime, c.refreshAbsoluteLifetime, true},
+		{"expiry.refreshTokens.validIfNotUsedFor", e.RefreshTokens.ValidIfNotUsedFor, c.refreshValidIfNotUsedFor, true},
+		{"expiry.refreshTokens.reuseInterval", e.RefreshTokens.ReuseInterval, c.refreshReuseInterval, false},
 	} {
 		if err := checkCeiling(f.name, f.value, f.ceiling, f.zeroDisables); err != nil {
 			return err
 		}
 	}
-	if dr := e.RefreshTokens.DisableRotation; dr != nil && *dr && !c.RefreshRotationDisabled {
+	if dr := e.RefreshTokens.DisableRotation; dr != nil && *dr && !c.refreshRotationDisabled {
 		return errors.New("expiry.refreshTokens.disableRotation cannot disable rotation when it is enabled globally")
 	}
 	return nil
@@ -185,10 +178,10 @@ func checkCeiling(field, value string, ceiling time.Duration, zeroDisables bool)
 }
 
 // buildConnectorExpiryOverride parses a (pre-validated) storage.ConnectorExpiry
-// into a connectorExpiryOverride. Unset string fields inherit from the global
-// refresh defaults so the resulting RefreshStrategy carries the correct
-// effective values, and now becomes the strategy's clock.
-func buildConnectorExpiryOverride(e *storage.ConnectorExpiry, defaults RefreshTokenDefaults, now func() time.Time) (connectorExpiryOverride, error) {
+// into a connectorExpiryOverride. Fields left unset inherit from the global
+// strategy so the resulting RefreshStrategy carries the correct effective
+// values, and now becomes the strategy's clock.
+func buildConnectorExpiryOverride(e *storage.ConnectorExpiry, global *RefreshStrategy, now func() time.Time) (connectorExpiryOverride, error) {
 	var override connectorExpiryOverride
 	if e == nil {
 		return override, nil
@@ -207,31 +200,32 @@ func buildConnectorExpiryOverride(e *storage.ConnectorExpiry, defaults RefreshTo
 		return override, nil
 	}
 
-	disableRotation := defaults.DisableRotation
+	rotate := true
+	var absolute, valid, reuse time.Duration
+	if global != nil {
+		rotate, absolute, valid, reuse = global.rotate, global.absoluteLifetime, global.validIfNotUsedFor, global.reuseInterval
+	}
 	if rt.DisableRotation != nil {
-		disableRotation = *rt.DisableRotation
+		rotate = !*rt.DisableRotation
 	}
-	// NewRefreshTokenPolicy logs each field at Info; discard that here so
-	// API writes don't spam the log.
-	strategy, err := NewRefreshTokenPolicy(
-		discardLogger,
-		disableRotation,
-		defaultTo(rt.ValidIfNotUsedFor, defaults.ValidIfNotUsedFor),
-		defaultTo(rt.AbsoluteLifetime, defaults.AbsoluteLifetime),
-		defaultTo(rt.ReuseInterval, defaults.ReuseInterval),
-		now,
-	)
-	if err != nil {
-		return override, fmt.Errorf("refresh token policy: %v", err)
+	for _, f := range []struct {
+		name  string
+		value string
+		dst   *time.Duration
+	}{
+		{"expiry.refreshTokens.absoluteLifetime", rt.AbsoluteLifetime, &absolute},
+		{"expiry.refreshTokens.validIfNotUsedFor", rt.ValidIfNotUsedFor, &valid},
+		{"expiry.refreshTokens.reuseInterval", rt.ReuseInterval, &reuse},
+	} {
+		if f.value == "" {
+			continue
+		}
+		d, err := time.ParseDuration(f.value)
+		if err != nil {
+			return override, fmt.Errorf("parse %s: %v", f.name, err)
+		}
+		*f.dst = d
 	}
-	override.RefreshStrategy = strategy
+	override.RefreshStrategy = NewRefreshStrategy(rotate, absolute, valid, reuse, now)
 	return override, nil
-}
-
-func defaultTo[T comparable](v, def T) T {
-	var zero T
-	if v == zero {
-		return def
-	}
-	return v
 }

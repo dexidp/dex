@@ -15,19 +15,19 @@ func TestValidateConnectorExpiry(t *testing.T) {
 	tests := []struct {
 		name            string
 		expiry          *storage.ConnectorExpiry
-		ceilings        ExpiryCeilings
+		ceilings        expiryCeilings
 		wantErrContains string
 	}{
 		{name: "nil expiry"},
 		{
 			name:     "idTokens within ceiling",
 			expiry:   &storage.ConnectorExpiry{IDTokens: "10m"},
-			ceilings: ExpiryCeilings{IDTokens: time.Hour},
+			ceilings: expiryCeilings{idTokens: time.Hour},
 		},
 		{
 			name:            "idTokens exceeds ceiling",
 			expiry:          &storage.ConnectorExpiry{IDTokens: "48h"},
-			ceilings:        ExpiryCeilings{IDTokens: 24 * time.Hour},
+			ceilings:        expiryCeilings{idTokens: 24 * time.Hour},
 			wantErrContains: "expiry.idTokens (48h0m0s) exceeds the global value",
 		},
 		{
@@ -42,25 +42,25 @@ func TestValidateConnectorExpiry(t *testing.T) {
 		{
 			name:            "refresh absoluteLifetime exceeds ceiling",
 			expiry:          &storage.ConnectorExpiry{RefreshTokens: &storage.ConnectorRefreshExpiry{AbsoluteLifetime: "100h"}},
-			ceilings:        ExpiryCeilings{RefreshAbsoluteLifetime: 24 * time.Hour},
+			ceilings:        expiryCeilings{refreshAbsoluteLifetime: 24 * time.Hour},
 			wantErrContains: "expiry.refreshTokens.absoluteLifetime (100h0m0s) exceeds the global value",
 		},
 		{
 			name:            "refresh absoluteLifetime of zero disables and is rejected",
 			expiry:          &storage.ConnectorExpiry{RefreshTokens: &storage.ConnectorRefreshExpiry{AbsoluteLifetime: "0s"}},
-			ceilings:        ExpiryCeilings{RefreshAbsoluteLifetime: 24 * time.Hour},
+			ceilings:        expiryCeilings{refreshAbsoluteLifetime: 24 * time.Hour},
 			wantErrContains: "expiry.refreshTokens.absoluteLifetime cannot be 0",
 		},
 		{
 			name:            "refresh validIfNotUsedFor of zero disables and is rejected",
 			expiry:          &storage.ConnectorExpiry{RefreshTokens: &storage.ConnectorRefreshExpiry{ValidIfNotUsedFor: "0s"}},
-			ceilings:        ExpiryCeilings{RefreshValidIfNotUsedFor: time.Hour},
+			ceilings:        expiryCeilings{refreshValidIfNotUsedFor: time.Hour},
 			wantErrContains: "expiry.refreshTokens.validIfNotUsedFor cannot be 0",
 		},
 		{
 			name:     "refresh reuseInterval of zero is stricter, accepted",
 			expiry:   &storage.ConnectorExpiry{RefreshTokens: &storage.ConnectorRefreshExpiry{ReuseInterval: "0s"}},
-			ceilings: ExpiryCeilings{RefreshReuseInterval: 3 * time.Second},
+			ceilings: expiryCeilings{refreshReuseInterval: 3 * time.Second},
 		},
 		{
 			name:            "disableRotation cannot loosen global",
@@ -70,7 +70,7 @@ func TestValidateConnectorExpiry(t *testing.T) {
 		{
 			name:     "enabling rotation when globally disabled is a tightening",
 			expiry:   &storage.ConnectorExpiry{RefreshTokens: &storage.ConnectorRefreshExpiry{DisableRotation: &enableRotation}},
-			ceilings: ExpiryCeilings{RefreshRotationDisabled: true},
+			ceilings: expiryCeilings{refreshRotationDisabled: true},
 		},
 	}
 	for _, tc := range tests {
@@ -91,7 +91,7 @@ func TestBuildConnectorExpiryOverride(t *testing.T) {
 	tests := []struct {
 		name           string
 		expiry         *storage.ConnectorExpiry
-		defaults       RefreshTokenDefaults
+		global         *RefreshStrategy
 		wantIDTokens   time.Duration
 		wantStrategy   bool
 		wantRotationOn bool
@@ -103,21 +103,19 @@ func TestBuildConnectorExpiryOverride(t *testing.T) {
 			wantIDTokens: 5 * time.Minute,
 		},
 		{
-			name: "refresh override inherits unset fields from defaults",
+			name: "refresh override inherits unset fields from the global strategy",
 			expiry: &storage.ConnectorExpiry{RefreshTokens: &storage.ConnectorRefreshExpiry{
 				DisableRotation:  &disableRotation,
 				AbsoluteLifetime: "1h",
 			}},
-			defaults: RefreshTokenDefaults{
-				ValidIfNotUsedFor: "30m", AbsoluteLifetime: "100h", ReuseInterval: "3s",
-			},
+			global:         NewRefreshStrategy(true, 100*time.Hour, 30*time.Minute, 3*time.Second, nil),
 			wantStrategy:   true,
 			wantRotationOn: false,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := buildConnectorExpiryOverride(tc.expiry, tc.defaults, nil)
+			got, err := buildConnectorExpiryOverride(tc.expiry, tc.global, nil)
 			require.NoError(t, err)
 			require.Equal(t, tc.wantIDTokens, got.IDTokensValidFor)
 			if !tc.wantStrategy {
@@ -131,7 +129,7 @@ func TestBuildConnectorExpiryOverride(t *testing.T) {
 }
 
 func TestExpiryIDTokensValidFor(t *testing.T) {
-	e := NewExpiryPolicy(time.Hour, nil, ExpiryCeilings{}, RefreshTokenDefaults{}, nil)
+	e := NewExpiryPolicy(time.Hour, nil, nil)
 	require.NoError(t, e.Upsert("shortlived", &storage.ConnectorExpiry{IDTokens: "5m"}))
 	require.NoError(t, e.Upsert("refreshonly", &storage.ConnectorExpiry{
 		RefreshTokens: &storage.ConnectorRefreshExpiry{AbsoluteLifetime: "1h"},
@@ -148,7 +146,7 @@ func TestExpiryIDTokensValidFor(t *testing.T) {
 func TestExpiryRefreshStrategy(t *testing.T) {
 	global := NewRefreshStrategy(true, 0, 0, 0, nil)
 
-	e := NewExpiryPolicy(time.Hour, global, ExpiryCeilings{}, RefreshTokenDefaults{}, nil)
+	e := NewExpiryPolicy(time.Hour, global, nil)
 	require.NoError(t, e.Upsert("custom", &storage.ConnectorExpiry{
 		RefreshTokens: &storage.ConnectorRefreshExpiry{AbsoluteLifetime: "1h"},
 	}))
@@ -164,7 +162,7 @@ func TestExpiryRefreshStrategy(t *testing.T) {
 }
 
 func TestExpiryUpsert(t *testing.T) {
-	e := NewExpiryPolicy(time.Hour, nil, ExpiryCeilings{IDTokens: time.Hour}, RefreshTokenDefaults{}, nil)
+	e := NewExpiryPolicy(time.Hour, nil, nil)
 
 	// Accept a tighter override.
 	require.NoError(t, e.Upsert("c1", &storage.ConnectorExpiry{IDTokens: "5m"}))
@@ -187,7 +185,7 @@ func TestExpiryOverrideUsesInjectedClock(t *testing.T) {
 	t0 := time.Date(2050, 1, 1, 0, 0, 0, 0, time.UTC)
 	now := func() time.Time { return t0.Add(2 * time.Minute) }
 
-	e := NewExpiryPolicy(time.Hour, nil, ExpiryCeilings{}, RefreshTokenDefaults{}, now)
+	e := NewExpiryPolicy(time.Hour, nil, now)
 	require.NoError(t, e.Upsert("c", &storage.ConnectorExpiry{
 		RefreshTokens: &storage.ConnectorRefreshExpiry{ValidIfNotUsedFor: "1m"},
 	}))

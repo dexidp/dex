@@ -34,9 +34,8 @@ func NewRefreshStrategy(rotate bool, absoluteLifetime, validIfNotUsedFor, reuseI
 }
 
 // NewRefreshTokenPolicy parses the refresh-token configuration into a rotation
-// strategy — the config-reading adapter over NewRefreshStrategy. now defaults
-// to time.Now when nil.
-func NewRefreshTokenPolicy(logger *slog.Logger, rotation bool, validIfNotUsedFor, absoluteLifetime, reuseInterval string, now func() time.Time) (*RefreshStrategy, error) {
+// strategy — the config-reading adapter over NewRefreshStrategy.
+func NewRefreshTokenPolicy(logger *slog.Logger, rotation bool, validIfNotUsedFor, absoluteLifetime, reuseInterval string) (*RefreshStrategy, error) {
 	var validDur, absoluteDur, reuseDur time.Duration
 	var err error
 
@@ -44,6 +43,9 @@ func NewRefreshTokenPolicy(logger *slog.Logger, rotation bool, validIfNotUsedFor
 		validDur, err = time.ParseDuration(validIfNotUsedFor)
 		if err != nil {
 			return nil, fmt.Errorf("invalid config value %q for refresh token valid if not used for: %v", validIfNotUsedFor, err)
+		}
+		if validDur < 0 {
+			return nil, fmt.Errorf("invalid config value %q for refresh token valid if not used for: must not be negative", validIfNotUsedFor)
 		}
 		logger.Info("config refresh tokens", "valid_if_not_used_for", validIfNotUsedFor)
 	}
@@ -53,6 +55,9 @@ func NewRefreshTokenPolicy(logger *slog.Logger, rotation bool, validIfNotUsedFor
 		if err != nil {
 			return nil, fmt.Errorf("invalid config value %q for refresh tokens absolute lifetime: %v", absoluteLifetime, err)
 		}
+		if absoluteDur < 0 {
+			return nil, fmt.Errorf("invalid config value %q for refresh tokens absolute lifetime: must not be negative", absoluteLifetime)
+		}
 		logger.Info("config refresh tokens", "absolute_lifetime", absoluteLifetime)
 	}
 
@@ -61,12 +66,15 @@ func NewRefreshTokenPolicy(logger *slog.Logger, rotation bool, validIfNotUsedFor
 		if err != nil {
 			return nil, fmt.Errorf("invalid config value %q for refresh tokens reuse interval: %v", reuseInterval, err)
 		}
+		if reuseDur < 0 {
+			return nil, fmt.Errorf("invalid config value %q for refresh tokens reuse interval: must not be negative", reuseInterval)
+		}
 		logger.Info("config refresh tokens", "reuse_interval", reuseInterval)
 	}
 
 	rotate := !rotation
 	logger.Info("config refresh tokens rotation", "enabled", rotate)
-	return NewRefreshStrategy(rotate, absoluteDur, validDur, reuseDur, now), nil
+	return NewRefreshStrategy(rotate, absoluteDur, validDur, reuseDur, time.Now), nil
 }
 
 // RotationEnabled reports whether refresh tokens are rotated on use.
