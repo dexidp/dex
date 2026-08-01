@@ -30,10 +30,16 @@ type connectorExpiryOverride struct {
 	RefreshStrategy  *RefreshStrategy
 }
 
-// ExpiryPolicy resolves the effective token lifetimes for a connector: the global
-// values, unless an override installed with Upsert says otherwise. It is
-// shared by the issuer, the refresh grant, introspection and the gRPC API, so
-// an override written through any of them is immediately live everywhere.
+// ExpiryPolicy resolves the effective token lifetimes for a connector: the
+// global values, unless an override installed with Upsert says otherwise. The
+// issuer, the refresh grant, introspection and the gRPC API all resolve
+// through it, so an override installed through the gRPC API is immediately
+// visible to all of them.
+//
+// Overrides are installed at startup from storage and kept current by the
+// gRPC API on connector writes. A change written by another replica or
+// out-of-band (for example a Connector custom resource applied directly)
+// becomes visible here at the next restart.
 type ExpiryPolicy struct {
 	idTokensValidFor time.Duration
 	refreshStrategy  *RefreshStrategy
@@ -46,16 +52,17 @@ type ExpiryPolicy struct {
 
 // NewExpiryPolicy returns a registry that resolves to the given global values
 // until per-connector overrides are installed. The same global values are the
-// ceilings an override may not loosen. now is the clock installed into
-// override refresh strategies, defaulting to time.Now when nil; pass the same
-// clock the global strategy uses so both age tokens identically.
-func NewExpiryPolicy(idTokensValidFor time.Duration, refresh *RefreshStrategy, now func() time.Time) *ExpiryPolicy {
+// ceilings an override may not loosen, and override refresh strategies run on
+// the global strategy's clock, so both age tokens identically.
+func NewExpiryPolicy(idTokensValidFor time.Duration, refresh *RefreshStrategy) *ExpiryPolicy {
 	c := expiryCeilings{idTokens: idTokensValidFor}
+	now := time.Now
 	if refresh != nil {
 		c.refreshAbsoluteLifetime = refresh.absoluteLifetime
 		c.refreshValidIfNotUsedFor = refresh.validIfNotUsedFor
 		c.refreshReuseInterval = refresh.reuseInterval
 		c.refreshRotationDisabled = !refresh.rotate
+		now = refresh.now
 	}
 	return &ExpiryPolicy{
 		idTokensValidFor: idTokensValidFor,
@@ -94,7 +101,8 @@ func (e *ExpiryPolicy) RefreshStrategy(connID string) *RefreshStrategy {
 // without installing it. The gRPC API uses it to fail a write before anything
 // is persisted.
 func (e *ExpiryPolicy) Validate(ce *storage.ConnectorExpiry) error {
-	return validateConnectorExpiry(ce, e.ceilings)
+	_, err := e.build(ce)
+	return err
 }
 
 // Upsert validates the given storage.ConnectorExpiry and, on success, updates
@@ -102,10 +110,7 @@ func (e *ExpiryPolicy) Validate(ce *storage.ConnectorExpiry) error {
 // path that can change a connector's expiry must go through this method so the
 // live token-issuance path reflects the change.
 func (e *ExpiryPolicy) Upsert(connID string, ce *storage.ConnectorExpiry) error {
-	if err := validateConnectorExpiry(ce, e.ceilings); err != nil {
-		return err
-	}
-	override, err := buildConnectorExpiryOverride(ce, e.refreshStrategy, e.now)
+	override, err := e.build(ce)
 	if err != nil {
 		return err
 	}
@@ -119,113 +124,86 @@ func (e *ExpiryPolicy) Upsert(connID string, ce *storage.ConnectorExpiry) error 
 	return nil
 }
 
-// validateConnectorExpiry rejects per-connector overrides that loosen the
-// global policy. Called from the static YAML load path and from every gRPC
-// API write.
-func validateConnectorExpiry(e *storage.ConnectorExpiry, c expiryCeilings) error {
-	if e == nil {
-		return nil
-	}
-	// idTokens="" means "inherit"; IDTokensValidFor falls back to the global.
-	if err := checkCeiling("expiry.idTokens", e.IDTokens, c.idTokens, false); err != nil {
-		return err
-	}
-	if e.RefreshTokens == nil {
-		return nil
-	}
-	for _, f := range []struct {
-		name         string
-		value        string
-		ceiling      time.Duration
-		zeroDisables bool // RefreshStrategy treats 0 as "expiration disabled" for this field
-	}{
-		{"expiry.refreshTokens.absoluteLifetime", e.RefreshTokens.AbsoluteLifetime, c.refreshAbsoluteLifetime, true},
-		{"expiry.refreshTokens.validIfNotUsedFor", e.RefreshTokens.ValidIfNotUsedFor, c.refreshValidIfNotUsedFor, true},
-		{"expiry.refreshTokens.reuseInterval", e.RefreshTokens.ReuseInterval, c.refreshReuseInterval, false},
-	} {
-		if err := checkCeiling(f.name, f.value, f.ceiling, f.zeroDisables); err != nil {
-			return err
-		}
-	}
-	if dr := e.RefreshTokens.DisableRotation; dr != nil && *dr && !c.refreshRotationDisabled {
-		return errors.New("expiry.refreshTokens.disableRotation cannot disable rotation when it is enabled globally")
-	}
-	return nil
-}
-
-// checkCeiling enforces that a per-connector duration is at least as strict as
-// the global ceiling. When zeroDisables is true, an override of 0 is rejected
-// in the presence of a positive ceiling because RefreshStrategy treats 0 as
-// "no expiration" for that field — strictly looser than any positive global.
-func checkCeiling(field, value string, ceiling time.Duration, zeroDisables bool) error {
-	if value == "" {
-		return nil
-	}
-	d, err := time.ParseDuration(value)
-	if err != nil {
-		return fmt.Errorf("parse %s: %v", field, err)
-	}
-	if ceiling <= 0 {
-		return nil
-	}
-	if d > ceiling {
-		return fmt.Errorf("%s (%s) exceeds the global value (%s)", field, d, ceiling)
-	}
-	if zeroDisables && d == 0 {
-		return fmt.Errorf("%s cannot be 0 (disables expiration) when the global value (%s) is set", field, ceiling)
-	}
-	return nil
-}
-
-// buildConnectorExpiryOverride parses a (pre-validated) storage.ConnectorExpiry
-// into a connectorExpiryOverride. Fields left unset inherit from the global
-// strategy so the resulting RefreshStrategy carries the correct effective
-// values, and now becomes the strategy's clock.
-func buildConnectorExpiryOverride(e *storage.ConnectorExpiry, global *RefreshStrategy, now func() time.Time) (connectorExpiryOverride, error) {
+// build validates a per-connector override against the ceilings and parses it
+// into a connectorExpiryOverride, with fields left unset inheriting from the
+// global strategy so the resulting RefreshStrategy carries the correct
+// effective values.
+func (e *ExpiryPolicy) build(ce *storage.ConnectorExpiry) (connectorExpiryOverride, error) {
 	var override connectorExpiryOverride
-	if e == nil {
+	if ce == nil {
 		return override, nil
 	}
 
-	if e.IDTokens != "" {
-		d, err := time.ParseDuration(e.IDTokens)
-		if err != nil {
-			return override, fmt.Errorf("parse expiry.idTokens: %v", err)
-		}
-		override.IDTokensValidFor = d
+	// idTokens="" means "inherit", resolved by IDTokensValidFor.
+	d, err := checkCeiling("expiry.idTokens", ce.IDTokens, e.ceilings.idTokens, false)
+	if err != nil {
+		return override, err
 	}
+	override.IDTokensValidFor = d
 
-	rt := e.RefreshTokens
+	rt := ce.RefreshTokens
 	if rt == nil {
 		return override, nil
 	}
 
 	rotate := true
 	var absolute, valid, reuse time.Duration
-	if global != nil {
-		rotate, absolute, valid, reuse = global.rotate, global.absoluteLifetime, global.validIfNotUsedFor, global.reuseInterval
+	if g := e.refreshStrategy; g != nil {
+		rotate, absolute, valid, reuse = g.rotate, g.absoluteLifetime, g.validIfNotUsedFor, g.reuseInterval
 	}
 	if rt.DisableRotation != nil {
+		if *rt.DisableRotation && !e.ceilings.refreshRotationDisabled {
+			return override, errors.New("expiry.refreshTokens.disableRotation cannot disable rotation when it is enabled globally")
+		}
 		rotate = !*rt.DisableRotation
 	}
 	for _, f := range []struct {
-		name  string
-		value string
-		dst   *time.Duration
+		name         string
+		value        string
+		ceiling      time.Duration
+		zeroDisables bool // RefreshStrategy treats 0 as "expiration disabled" for this field
+		dst          *time.Duration
 	}{
-		{"expiry.refreshTokens.absoluteLifetime", rt.AbsoluteLifetime, &absolute},
-		{"expiry.refreshTokens.validIfNotUsedFor", rt.ValidIfNotUsedFor, &valid},
-		{"expiry.refreshTokens.reuseInterval", rt.ReuseInterval, &reuse},
+		{"expiry.refreshTokens.absoluteLifetime", rt.AbsoluteLifetime, e.ceilings.refreshAbsoluteLifetime, true, &absolute},
+		{"expiry.refreshTokens.validIfNotUsedFor", rt.ValidIfNotUsedFor, e.ceilings.refreshValidIfNotUsedFor, true, &valid},
+		{"expiry.refreshTokens.reuseInterval", rt.ReuseInterval, e.ceilings.refreshReuseInterval, false, &reuse},
 	} {
-		if f.value == "" {
-			continue
-		}
-		d, err := time.ParseDuration(f.value)
+		d, err := checkCeiling(f.name, f.value, f.ceiling, f.zeroDisables)
 		if err != nil {
-			return override, fmt.Errorf("parse %s: %v", f.name, err)
+			return override, err
 		}
-		*f.dst = d
+		if f.value != "" {
+			*f.dst = d
+		}
 	}
-	override.RefreshStrategy = NewRefreshStrategy(rotate, absolute, valid, reuse, now)
+	override.RefreshStrategy = NewRefreshStrategy(rotate, absolute, valid, reuse, e.now)
 	return override, nil
+}
+
+// checkCeiling parses a per-connector duration and enforces that it is at
+// least as strict as the global ceiling, returning 0 for an unset value. When
+// zeroDisables is true, an override of 0 is rejected in the presence of a
+// positive ceiling because RefreshStrategy treats 0 as "no expiration" for
+// that field — strictly looser than any positive global.
+func checkCeiling(field, value string, ceiling time.Duration, zeroDisables bool) (time.Duration, error) {
+	if value == "" {
+		return 0, nil
+	}
+	d, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s: %v", field, err)
+	}
+	if d < 0 {
+		return 0, fmt.Errorf("%s must not be negative, got %v", field, d)
+	}
+	if ceiling <= 0 {
+		return d, nil
+	}
+	if d > ceiling {
+		return 0, fmt.Errorf("%s (%s) exceeds the global value (%s)", field, d, ceiling)
+	}
+	if zeroDisables && d == 0 {
+		return 0, fmt.Errorf("%s cannot be 0 (disables expiration) when the global value (%s) is set", field, ceiling)
+	}
+	return d, nil
 }
