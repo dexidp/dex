@@ -193,6 +193,7 @@ web:
 #
 # For LDAP nested group resolution, set groupSearch.userMatchers[].recursionGroupAttr
 # in the connector config. See: https://dexidp.io/docs/connectors/ldap/
+#
 # Per-connector expiry overrides. Any field left unset inherits the top-level
 # `expiry` configuration. Overrides must be at least as strict as the effective
 # global value: a duration that exceeds its global counterpart, or

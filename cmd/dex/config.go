@@ -573,14 +573,15 @@ type Connector struct {
 	Expiry *ConnectorExpiry `json:"expiry"`
 }
 
+// ConnectorExpiry mirrors the top-level expiry config; fields left unset
+// inherit the global value.
 type ConnectorExpiry struct {
 	IDTokens      string                  `json:"idTokens"`
 	RefreshTokens *ConnectorRefreshExpiry `json:"refreshTokens"`
 }
 
-// ConnectorRefreshExpiry mirrors RefreshToken but uses a pointer for
-// DisableRotation so that "unset" can be distinguished from "false",
-// allowing the field to inherit the global value when nil.
+// ConnectorRefreshExpiry mirrors RefreshToken; DisableRotation is a pointer
+// so that "unset" (inherit) can be distinguished from "false".
 type ConnectorRefreshExpiry struct {
 	DisableRotation   *bool  `json:"disableRotation"`
 	ReuseInterval     string `json:"reuseInterval"`

@@ -47,7 +47,7 @@ type Server struct {
 
 	templates *templates.Templates
 
-	// expiry resolves effective token lifetimes, including the per-connector
+	// expiryPolicy resolves effective token lifetimes, including the per-connector
 	// overrides installed at startup and through the gRPC API.
 	expiryPolicy *tokens.ExpiryPolicy
 

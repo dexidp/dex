@@ -117,10 +117,8 @@ func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq
 		}
 	}
 
-	// The proto has three states (absent / present-with-nil / present-with-value);
-	// *storage.ConnectorExpiry only has two. expiryUpdated bridges the gap: false
-	// means "leave alone", true with nil newExpiry means "clear", true with a
-	// non-nil newExpiry means "install this".
+	// req.NewExpiry has three states (absent / set-without-value / set-with-value)
+	// but *storage.ConnectorExpiry has two, so expiryUpdated carries "leave alone".
 	var (
 		expiryUpdated bool
 		newExpiry     *storage.ConnectorExpiry
