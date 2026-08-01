@@ -49,7 +49,7 @@ type Server struct {
 
 	// expiry resolves effective token lifetimes, including the per-connector
 	// overrides installed at startup and through the gRPC API.
-	expiry *tokens.Expiry
+	expiryPolicy *tokens.ExpiryPolicy
 
 	logger *slog.Logger
 
@@ -83,9 +83,9 @@ func (s *Server) Discovery() *discovery.Handler { return s.discovery }
 // care — whether a session ended by logout or by an operator's hand.
 func (s *Server) Backchannel() *backchannel.Notifier { return s.backchannel }
 
-// Expiry is the server's token-lifetime registry. The gRPC API needs it to
+// ExpiryPolicy is the server's token-lifetime registry. The gRPC API needs it to
 // validate and install per-connector expiry overrides on connector CRUD.
-func (s *Server) Expiry() *tokens.Expiry { return s.expiry }
+func (s *Server) ExpiryPolicy() *tokens.ExpiryPolicy { return s.expiryPolicy }
 
 // NewServer constructs a server from the provided config.
 func NewServer(ctx context.Context, c Config) (*Server, error) {
@@ -104,7 +104,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		templates: rc.templates,
 		logger:    c.Logger,
 	}
-	s.expiry = tokens.NewExpiry(rc.idTokensValidFor, c.RefreshTokenPolicy, c.ExpiryCeilings, c.RefreshTokenDefaults, rc.now)
+	s.expiryPolicy = tokens.NewExpiryPolicy(rc.idTokensValidFor, c.RefreshTokenPolicy, c.ExpiryCeilings, c.RefreshTokenDefaults, rc.now)
 	s.sessions = &session.Manager{
 		Storage:   s.storage,
 		Config:    c.SessionConfig,
@@ -112,7 +112,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		Logger:    s.logger,
 		IssuerURL: s.issuerURL,
 	}
-	s.issuer = tokens.NewIssuer(s.storage, c.Signer, s.issuerURL.URL, s.expiry, rc.now, s.logger)
+	s.issuer = tokens.NewIssuer(s.storage, c.Signer, s.issuerURL.URL, s.expiryPolicy, rc.now, s.logger)
 	s.connectors = connectors.NewCache(s.storage, connectors.Resolver(s.storage, s.logger, ConnectorsConfig))
 	s.backchannel = &backchannel.Notifier{
 		Storage:   s.storage,
@@ -179,7 +179,7 @@ func (s *Server) openConnectors(ctx context.Context, c Config) error {
 
 	var failedCount int
 	for _, conn := range storageConnectors {
-		if err := s.expiry.Upsert(conn.ID, conn.Expiry); err != nil {
+		if err := s.expiryPolicy.Upsert(conn.ID, conn.Expiry); err != nil {
 			failedCount++
 			if c.ContinueOnConnectorFailure {
 				s.logger.Error("server: invalid connector expiry", "id", conn.ID, "err", err)
@@ -262,7 +262,7 @@ func (s *Server) mount(routes router.Mux, c Config, rc resolvedConfig) {
 			Now:                 rc.now,
 			Logger:              s.logger,
 			PasswordConnector:   c.PasswordConnector,
-			Expiry:              s.expiry,
+			ExpiryPolicy:        s.expiryPolicy,
 			Sessions:            sessions,
 			SessionsEnabled:     c.SessionConfig != nil,
 			SupportedGrantTypes: rc.grantTypes,
@@ -273,12 +273,12 @@ func (s *Server) mount(routes router.Mux, c Config, rc resolvedConfig) {
 			Logger: s.logger,
 		},
 		&introspection.Handler{
-			Issuer:   s.issuerURL.String(),
-			Signer:   c.Signer,
-			Storage:  s.storage,
-			Logger:   s.logger,
-			Expiry:   s.expiry,
-			Sessions: sessions,
+			Issuer:       s.issuerURL.String(),
+			Signer:       c.Signer,
+			Storage:      s.storage,
+			Logger:       s.logger,
+			ExpiryPolicy: s.expiryPolicy,
+			Sessions:     sessions,
 		},
 		&device.Handler{
 			IssuerURL:        s.issuerURL,

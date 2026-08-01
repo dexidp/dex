@@ -41,7 +41,7 @@ func newAPI(t *testing.T, s storage.Storage, logger *slog.Logger) *apiClient {
 
 // newAPIWithExpiry is like newAPI but wires an expiry registry into the gRPC
 // handlers, enabling the validation paths for per-connector expiry overrides.
-func newAPIWithExpiry(t *testing.T, s storage.Storage, logger *slog.Logger, expiry *tokens.Expiry) *apiClient {
+func newAPIWithExpiry(t *testing.T, s storage.Storage, logger *slog.Logger, expiry *tokens.ExpiryPolicy) *apiClient {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -499,7 +499,7 @@ func TestCreateConnectorExpiryHierarchy(t *testing.T) {
 	logger := newLogger(t)
 	s := memory.New(logger)
 
-	expiry := tokens.NewExpiry(time.Hour, nil, tokens.ExpiryCeilings{IDTokens: time.Hour}, tokens.RefreshTokenDefaults{}, nil)
+	expiry := tokens.NewExpiryPolicy(time.Hour, nil, tokens.ExpiryCeilings{IDTokens: time.Hour}, tokens.RefreshTokenDefaults{}, nil)
 	client := newAPIWithExpiry(t, s, logger, expiry)
 	defer client.Close()
 
@@ -511,47 +511,44 @@ func TestCreateConnectorExpiryHierarchy(t *testing.T) {
 		Config: []byte(`{}`),
 	}
 
-	t.Run("override exceeding global is rejected", func(t *testing.T) {
-		req := &api.CreateConnectorReq{
-			Connector: &api.Connector{
-				Id: "looser", Name: base.Name, Type: base.Type, Config: base.Config,
-				Expiry: &api.ConnectorExpiry{IdTokens: "48h"},
-			},
-		}
-		if _, err := client.CreateConnector(ctx, req); err == nil {
-			t.Fatal("expected validation error for override above global")
-		} else if !strings.Contains(err.Error(), "exceeds the global value") {
-			t.Fatalf("unexpected error: %v", err)
-		}
-	})
+	// Test that an override exceeding the global value is rejected.
+	createReq := &api.CreateConnectorReq{
+		Connector: &api.Connector{
+			Id: "looser", Name: base.Name, Type: base.Type, Config: base.Config,
+			Expiry: &api.ConnectorExpiry{IdTokens: "48h"},
+		},
+	}
+	if _, err := client.CreateConnector(ctx, createReq); err == nil {
+		t.Fatal("expected validation error for override above global")
+	} else if !strings.Contains(err.Error(), "exceeds the global value") {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
-	t.Run("override within ceiling is accepted and installed", func(t *testing.T) {
-		req := &api.CreateConnectorReq{
-			Connector: &api.Connector{
-				Id: base.Id, Name: base.Name, Type: base.Type, Config: base.Config,
-				Expiry: &api.ConnectorExpiry{IdTokens: "10m"},
-			},
-		}
-		if _, err := client.CreateConnector(ctx, req); err != nil {
-			t.Fatalf("create connector: %v", err)
-		}
-		if got := expiry.IDTokensValidFor(base.Id); got != 10*time.Minute {
-			t.Fatalf("override not installed: got %s, want 10m", got)
-		}
-	})
+	// Test that an override within the ceiling is accepted and installed.
+	createReq = &api.CreateConnectorReq{
+		Connector: &api.Connector{
+			Id: base.Id, Name: base.Name, Type: base.Type, Config: base.Config,
+			Expiry: &api.ConnectorExpiry{IdTokens: "10m"},
+		},
+	}
+	if _, err := client.CreateConnector(ctx, createReq); err != nil {
+		t.Fatalf("create connector: %v", err)
+	}
+	if got := expiry.IDTokensValidFor(base.Id); got != 10*time.Minute {
+		t.Fatalf("override not installed: got %s, want 10m", got)
+	}
 
-	t.Run("update can clear the override", func(t *testing.T) {
-		req := &api.UpdateConnectorReq{
-			Id:        base.Id,
-			NewExpiry: &api.ConnectorExpiryUpdate{}, // present, Value nil = clear
-		}
-		if _, err := client.UpdateConnector(ctx, req); err != nil {
-			t.Fatalf("update connector: %v", err)
-		}
-		if got := expiry.IDTokensValidFor(base.Id); got != time.Hour {
-			t.Fatalf("override not cleared: got %s, want 1h", got)
-		}
-	})
+	// Test that an update can clear the override.
+	updateReq := &api.UpdateConnectorReq{
+		Id:        base.Id,
+		NewExpiry: &api.ConnectorExpiryUpdate{}, // set without a value = clear
+	}
+	if _, err := client.UpdateConnector(ctx, updateReq); err != nil {
+		t.Fatalf("update connector: %v", err)
+	}
+	if got := expiry.IDTokensValidFor(base.Id); got != time.Hour {
+		t.Fatalf("override not cleared: got %s, want 1h", got)
+	}
 }
 
 func TestUpdateConnector(t *testing.T) {

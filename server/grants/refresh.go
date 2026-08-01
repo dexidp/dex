@@ -25,7 +25,7 @@ type refresh struct {
 	sessions        *session.Manager
 	storage         storage.Storage
 	issuer          *tokens.Issuer
-	expiry          *tokens.Expiry
+	expiry          *tokens.ExpiryPolicy
 	sessionsEnabled bool
 	now             func() time.Time
 	logger          *slog.Logger

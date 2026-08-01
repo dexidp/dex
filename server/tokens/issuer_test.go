@@ -18,10 +18,10 @@ import (
 
 func newTestIssuer(t *testing.T) (*Issuer, storage.Storage) {
 	t.Helper()
-	return newTestIssuerWithExpiry(t, NewExpiry(time.Hour, nil, ExpiryCeilings{}, RefreshTokenDefaults{}, nil), time.Now)
+	return newTestIssuerWithExpiry(t, NewExpiryPolicy(time.Hour, nil, ExpiryCeilings{}, RefreshTokenDefaults{}, nil), time.Now)
 }
 
-func newTestIssuerWithExpiry(t *testing.T, expiry *Expiry, now func() time.Time) (*Issuer, storage.Storage) {
+func newTestIssuerWithExpiry(t *testing.T, expiry *ExpiryPolicy, now func() time.Time) (*Issuer, storage.Storage) {
 	t.Helper()
 	logger := slog.New(slog.DiscardHandler)
 	store := memory.New(logger)
@@ -84,7 +84,7 @@ func TestSignIDTokenUsesConnectorExpiryOverride(t *testing.T) {
 	ctx := t.Context()
 	now := time.Now().UTC()
 
-	expiry := NewExpiry(time.Hour, nil, ExpiryCeilings{IDTokens: time.Hour}, RefreshTokenDefaults{}, nil)
+	expiry := NewExpiryPolicy(time.Hour, nil, ExpiryCeilings{IDTokens: time.Hour}, RefreshTokenDefaults{}, nil)
 	require.NoError(t, expiry.Upsert("short", &storage.ConnectorExpiry{IDTokens: "5m"}))
 
 	iss, _ := newTestIssuerWithExpiry(t, expiry, func() time.Time { return now })

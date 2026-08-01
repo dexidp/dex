@@ -40,11 +40,11 @@ type connectorExpiryOverride struct {
 	RefreshStrategy  *RefreshStrategy
 }
 
-// Expiry resolves the effective token lifetimes for a connector: the global
+// ExpiryPolicy resolves the effective token lifetimes for a connector: the global
 // values, unless an override installed with Upsert says otherwise. It is
 // shared by the issuer, the refresh grant, introspection and the gRPC API, so
 // an override written through any of them is immediately live everywhere.
-type Expiry struct {
+type ExpiryPolicy struct {
 	idTokensValidFor time.Duration
 	refreshStrategy  *RefreshStrategy
 	ceilings         ExpiryCeilings
@@ -55,13 +55,13 @@ type Expiry struct {
 	overrides map[string]connectorExpiryOverride
 }
 
-// NewExpiry returns a registry that resolves to the given global values until
+// NewExpiryPolicy returns a registry that resolves to the given global values until
 // per-connector overrides are installed. ceilings bound how loose an override
 // may be; defaults seed override fields left unset. now is the clock installed
 // into override refresh strategies, defaulting to time.Now when nil; pass the
 // same clock the global strategy uses so both age tokens identically.
-func NewExpiry(idTokensValidFor time.Duration, refresh *RefreshStrategy, ceilings ExpiryCeilings, defaults RefreshTokenDefaults, now func() time.Time) *Expiry {
-	return &Expiry{
+func NewExpiryPolicy(idTokensValidFor time.Duration, refresh *RefreshStrategy, ceilings ExpiryCeilings, defaults RefreshTokenDefaults, now func() time.Time) *ExpiryPolicy {
+	return &ExpiryPolicy{
 		idTokensValidFor: idTokensValidFor,
 		refreshStrategy:  refresh,
 		ceilings:         ceilings,
@@ -73,7 +73,7 @@ func NewExpiry(idTokensValidFor time.Duration, refresh *RefreshStrategy, ceiling
 
 // IDTokensValidFor returns the lifetime of ID tokens issued through the given
 // connector.
-func (e *Expiry) IDTokensValidFor(connID string) time.Duration {
+func (e *ExpiryPolicy) IDTokensValidFor(connID string) time.Duration {
 	e.mu.Lock()
 	o := e.overrides[connID]
 	e.mu.Unlock()
@@ -85,7 +85,7 @@ func (e *Expiry) IDTokensValidFor(connID string) time.Duration {
 
 // RefreshStrategy returns the refresh-token strategy for tokens issued through
 // the given connector.
-func (e *Expiry) RefreshStrategy(connID string) *RefreshStrategy {
+func (e *ExpiryPolicy) RefreshStrategy(connID string) *RefreshStrategy {
 	e.mu.Lock()
 	o := e.overrides[connID]
 	e.mu.Unlock()
@@ -98,7 +98,7 @@ func (e *Expiry) RefreshStrategy(connID string) *RefreshStrategy {
 // Validate rejects a per-connector override that loosens the global policy,
 // without installing it. The gRPC API uses it to fail a write before anything
 // is persisted.
-func (e *Expiry) Validate(ce *storage.ConnectorExpiry) error {
+func (e *ExpiryPolicy) Validate(ce *storage.ConnectorExpiry) error {
 	return validateConnectorExpiry(ce, e.ceilings)
 }
 
@@ -106,7 +106,7 @@ func (e *Expiry) Validate(ce *storage.ConnectorExpiry) error {
 // the in-memory override map; nil clears the connector's override. Every code
 // path that can change a connector's expiry must go through this method so the
 // live token-issuance path reflects the change.
-func (e *Expiry) Upsert(connID string, ce *storage.ConnectorExpiry) error {
+func (e *ExpiryPolicy) Upsert(connID string, ce *storage.ConnectorExpiry) error {
 	if err := validateConnectorExpiry(ce, e.ceilings); err != nil {
 		return err
 	}

@@ -192,9 +192,9 @@ message ConnectorRefreshExpiry {
 }
 
 // ConnectorExpiryUpdate distinguishes "leave the override alone" from
-// "change it". An absent ConnectorExpiryUpdate leaves the existing value
-// in place; a present one with nil Value clears the override; a present
-// one with a non-nil Value installs that override.
+// "change it". If not set, the existing override is left in place; if set
+// without a value, the override is cleared; if set with a value, that
+// override is installed.
 message ConnectorExpiryUpdate {
   ConnectorExpiry value = 1;
 }

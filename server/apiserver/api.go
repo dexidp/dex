@@ -25,7 +25,7 @@ const apiVersion = 4
 // back-channel notifier to tell relying parties about the sessions it ends, and
 // the expiry registry to keep per-connector overrides live — rather than the
 // whole Server.
-func NewAPI(s storage.Storage, logger *slog.Logger, version string, conns *connectors.Cache, disc *discovery.Handler, bc *backchannel.Notifier, expiry *tokens.Expiry) api.DexServer {
+func NewAPI(s storage.Storage, logger *slog.Logger, version string, conns *connectors.Cache, disc *discovery.Handler, bc *backchannel.Notifier, expiry *tokens.ExpiryPolicy) api.DexServer {
 	apiLogger := logger.With("component", "api")
 	return dexAPI{
 		s:           s,
@@ -48,7 +48,7 @@ type dexAPI struct {
 	connectors  *connectors.Cache
 	discovery   *discovery.Handler
 	backchannel *backchannel.Notifier
-	expiry      *tokens.Expiry
+	expiry      *tokens.ExpiryPolicy
 	refresh     *tokens.RefreshStore
 }
 

@@ -131,7 +131,7 @@ func TestBuildConnectorExpiryOverride(t *testing.T) {
 }
 
 func TestExpiryIDTokensValidFor(t *testing.T) {
-	e := NewExpiry(time.Hour, nil, ExpiryCeilings{}, RefreshTokenDefaults{}, nil)
+	e := NewExpiryPolicy(time.Hour, nil, ExpiryCeilings{}, RefreshTokenDefaults{}, nil)
 	require.NoError(t, e.Upsert("shortlived", &storage.ConnectorExpiry{IDTokens: "5m"}))
 	require.NoError(t, e.Upsert("refreshonly", &storage.ConnectorExpiry{
 		RefreshTokens: &storage.ConnectorRefreshExpiry{AbsoluteLifetime: "1h"},
@@ -148,7 +148,7 @@ func TestExpiryIDTokensValidFor(t *testing.T) {
 func TestExpiryRefreshStrategy(t *testing.T) {
 	global := NewRefreshStrategy(true, 0, 0, 0, nil)
 
-	e := NewExpiry(time.Hour, global, ExpiryCeilings{}, RefreshTokenDefaults{}, nil)
+	e := NewExpiryPolicy(time.Hour, global, ExpiryCeilings{}, RefreshTokenDefaults{}, nil)
 	require.NoError(t, e.Upsert("custom", &storage.ConnectorExpiry{
 		RefreshTokens: &storage.ConnectorRefreshExpiry{AbsoluteLifetime: "1h"},
 	}))
@@ -164,7 +164,7 @@ func TestExpiryRefreshStrategy(t *testing.T) {
 }
 
 func TestExpiryUpsert(t *testing.T) {
-	e := NewExpiry(time.Hour, nil, ExpiryCeilings{IDTokens: time.Hour}, RefreshTokenDefaults{}, nil)
+	e := NewExpiryPolicy(time.Hour, nil, ExpiryCeilings{IDTokens: time.Hour}, RefreshTokenDefaults{}, nil)
 
 	// Accept a tighter override.
 	require.NoError(t, e.Upsert("c1", &storage.ConnectorExpiry{IDTokens: "5m"}))
@@ -187,7 +187,7 @@ func TestExpiryOverrideUsesInjectedClock(t *testing.T) {
 	t0 := time.Date(2050, 1, 1, 0, 0, 0, 0, time.UTC)
 	now := func() time.Time { return t0.Add(2 * time.Minute) }
 
-	e := NewExpiry(time.Hour, nil, ExpiryCeilings{}, RefreshTokenDefaults{}, now)
+	e := NewExpiryPolicy(time.Hour, nil, ExpiryCeilings{}, RefreshTokenDefaults{}, now)
 	require.NoError(t, e.Upsert("c", &storage.ConnectorExpiry{
 		RefreshTokens: &storage.ConnectorRefreshExpiry{ValidIfNotUsedFor: "1m"},
 	}))

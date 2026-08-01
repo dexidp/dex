@@ -1468,9 +1468,9 @@ func (x *ConnectorRefreshExpiry) GetValidIfNotUsedFor() string {
 }
 
 // ConnectorExpiryUpdate distinguishes "leave the override alone" from
-// "change it". An absent ConnectorExpiryUpdate leaves the existing value
-// in place; a present one with nil Value clears the override; a present
-// one with a non-nil Value installs that override.
+// "change it". If not set, the existing override is left in place; if set
+// without a value, the override is cleared; if set with a value, that
+// override is installed.
 type ConnectorExpiryUpdate struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Value         *ConnectorExpiry       `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`

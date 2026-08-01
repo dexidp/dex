@@ -26,7 +26,7 @@ var (
 // returns one of the Err* sentinels for a rejected token, or a wrapped storage
 // error for infrastructure failures. Both the refresh grant and token
 // introspection use it, so the validation lives in one place.
-func LookupRefreshToken(ctx context.Context, s storage.Storage, expiry *Expiry, logger *slog.Logger, clientID *string, token *internal.RefreshToken) (*storage.RefreshToken, error) {
+func LookupRefreshToken(ctx context.Context, s storage.Storage, expiry *ExpiryPolicy, logger *slog.Logger, clientID *string, token *internal.RefreshToken) (*storage.RefreshToken, error) {
 	refresh, err := s.GetRefresh(ctx, token.RefreshId)
 	if err != nil {
 		if err != storage.ErrNotFound {
