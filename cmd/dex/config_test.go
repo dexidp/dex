@@ -130,6 +130,10 @@ connectors:
   grantTypes:
   - authorization_code
   - "urn:ietf:params:oauth:grant-type:token-exchange"
+  expiry:
+    idTokens: "15m"
+    refreshTokens:
+      absoluteLifetime: "24h"
 - type: oidc
   id: google
   name: Google
@@ -225,6 +229,12 @@ additionalFeatures: [
 				ID:     "mock",
 				Name:   "Example",
 				Config: &mock.CallbackConfig{},
+				Expiry: &ConnectorExpiry{
+					IDTokens: "15m",
+					RefreshTokens: &ConnectorRefreshExpiry{
+						AbsoluteLifetime: "24h",
+					},
+				},
 				GrantTypes: []string{
 					"authorization_code",
 					"urn:ietf:params:oauth:grant-type:token-exchange",
@@ -692,4 +702,34 @@ enablePasswordDB: true
 			}
 		})
 	}
+}
+
+func TestToStorageConnectorCarriesExpiry(t *testing.T) {
+	disable := true
+	sc, err := ToStorageConnector(Connector{
+		ID: "c1", Type: "mockCallback", Name: "c1",
+		Expiry: &ConnectorExpiry{
+			IDTokens: "15m",
+			RefreshTokens: &ConnectorRefreshExpiry{
+				DisableRotation:   &disable,
+				AbsoluteLifetime:  "24h",
+				ValidIfNotUsedFor: "1h",
+				ReuseInterval:     "3s",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, &storage.ConnectorExpiry{
+		IDTokens: "15m",
+		RefreshTokens: &storage.ConnectorRefreshExpiry{
+			DisableRotation:   &disable,
+			AbsoluteLifetime:  "24h",
+			ValidIfNotUsedFor: "1h",
+			ReuseInterval:     "3s",
+		},
+	}, sc.Expiry)
+
+	sc, err = ToStorageConnector(Connector{ID: "c1", Type: "mockCallback", Name: "c1"})
+	require.NoError(t, err)
+	require.Nil(t, sc.Expiry)
 }

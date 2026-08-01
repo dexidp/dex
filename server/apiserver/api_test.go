@@ -537,9 +537,39 @@ func TestCreateConnectorExpiryHierarchy(t *testing.T) {
 	if got := expiry.IDTokensValidFor(base.Id); got != 10*time.Minute {
 		t.Fatalf("override not installed: got %s, want 10m", got)
 	}
+	stored, err := s.GetConnector(ctx, base.Id)
+	if err != nil {
+		t.Fatalf("get connector: %v", err)
+	}
+	if stored.Expiry == nil || stored.Expiry.IDTokens != "10m" {
+		t.Fatalf("override not persisted: got %+v, want idTokens 10m", stored.Expiry)
+	}
+
+	// Test that an update can install a new override.
+	updateReq := &api.UpdateConnectorReq{
+		Id:        base.Id,
+		NewExpiry: &api.ConnectorExpiryUpdate{Value: &api.ConnectorExpiry{IdTokens: "20m"}},
+	}
+	if _, err := client.UpdateConnector(ctx, updateReq); err != nil {
+		t.Fatalf("update connector: %v", err)
+	}
+	if got := expiry.IDTokensValidFor(base.Id); got != 20*time.Minute {
+		t.Fatalf("override not replaced: got %s, want 20m", got)
+	}
+	if stored, err = s.GetConnector(ctx, base.Id); err != nil || stored.Expiry == nil || stored.Expiry.IDTokens != "20m" {
+		t.Fatalf("replaced override not persisted: got %+v, %v", stored.Expiry, err)
+	}
+
+	// Test that an update without NewExpiry leaves the override alone.
+	if _, err := client.UpdateConnector(ctx, &api.UpdateConnectorReq{Id: base.Id, NewName: "renamed"}); err != nil {
+		t.Fatalf("update connector: %v", err)
+	}
+	if got := expiry.IDTokensValidFor(base.Id); got != 20*time.Minute {
+		t.Fatalf("override lost on unrelated update: got %s, want 20m", got)
+	}
 
 	// Test that an update can clear the override.
-	updateReq := &api.UpdateConnectorReq{
+	updateReq = &api.UpdateConnectorReq{
 		Id:        base.Id,
 		NewExpiry: &api.ConnectorExpiryUpdate{}, // set without a value = clear
 	}
@@ -548,6 +578,21 @@ func TestCreateConnectorExpiryHierarchy(t *testing.T) {
 	}
 	if got := expiry.IDTokensValidFor(base.Id); got != time.Hour {
 		t.Fatalf("override not cleared: got %s, want 1h", got)
+	}
+	if stored, err = s.GetConnector(ctx, base.Id); err != nil || stored.Expiry != nil {
+		t.Fatalf("cleared override still persisted: got %+v, %v", stored.Expiry, err)
+	}
+
+	// Test that deleting the connector drops its override.
+	updateReq.NewExpiry = &api.ConnectorExpiryUpdate{Value: &api.ConnectorExpiry{IdTokens: "10m"}}
+	if _, err := client.UpdateConnector(ctx, updateReq); err != nil {
+		t.Fatalf("update connector: %v", err)
+	}
+	if _, err := client.DeleteConnector(ctx, &api.DeleteConnectorReq{Id: base.Id}); err != nil {
+		t.Fatalf("delete connector: %v", err)
+	}
+	if got := expiry.IDTokensValidFor(base.Id); got != time.Hour {
+		t.Fatalf("override survived connector deletion: got %s, want 1h", got)
 	}
 }
 
