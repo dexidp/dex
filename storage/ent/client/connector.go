@@ -18,7 +18,8 @@ func (d *Database) CreateConnector(ctx context.Context, connector storage.Connec
 	if connector.Expiry != nil {
 		create = create.SetExpiry(connector.Expiry)
 	}
-	if _, err := create.Save(ctx); err != nil {
+	_, err := create.Save(ctx)
+	if err != nil {
 		return convertDBError("create connector: %w", err)
 	}
 	return nil
@@ -79,12 +80,13 @@ func (d *Database) UpdateConnector(ctx context.Context, id string, updater func(
 		SetResourceVersion(newConnector.ResourceVersion).
 		SetConfig(newConnector.Config).
 		SetGrantTypes(newConnector.GrantTypes)
-	if newConnector.Expiry == nil {
-		update = update.ClearExpiry()
-	} else {
+	if newConnector.Expiry != nil {
 		update = update.SetExpiry(newConnector.Expiry)
+	} else {
+		update = update.ClearExpiry()
 	}
-	if _, err = update.Save(ctx); err != nil {
+	_, err = update.Save(ctx)
+	if err != nil {
 		return rollback(tx, "update connector uploading: %w", err)
 	}
 

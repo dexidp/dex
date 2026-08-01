@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/storage"
@@ -138,11 +137,11 @@ func TestExpiryIDTokensValidFor(t *testing.T) {
 		RefreshTokens: &storage.ConnectorRefreshExpiry{AbsoluteLifetime: "1h"},
 	}))
 
-	assert.Equal(t, 5*time.Minute, e.IDTokensValidFor("shortlived"),
+	require.Equal(t, 5*time.Minute, e.IDTokensValidFor("shortlived"),
 		"per-connector override should win")
-	assert.Equal(t, time.Hour, e.IDTokensValidFor("refreshonly"),
+	require.Equal(t, time.Hour, e.IDTokensValidFor("refreshonly"),
 		"refresh-only override should fall back to global for ID tokens")
-	assert.Equal(t, time.Hour, e.IDTokensValidFor("unknown"),
+	require.Equal(t, time.Hour, e.IDTokensValidFor("unknown"),
 		"missing entry should fall back to global")
 }
 
@@ -156,11 +155,11 @@ func TestExpiryRefreshStrategy(t *testing.T) {
 	require.NoError(t, e.Upsert("idonly", &storage.ConnectorExpiry{IDTokens: "1m"}))
 
 	custom := e.RefreshStrategy("custom")
-	assert.NotSame(t, global, custom, "per-connector override should win")
-	assert.Equal(t, time.Hour, custom.AbsoluteLifetime())
-	assert.Same(t, global, e.RefreshStrategy("idonly"),
+	require.NotSame(t, global, custom, "per-connector override should win")
+	require.Equal(t, time.Hour, custom.AbsoluteLifetime())
+	require.Same(t, global, e.RefreshStrategy("idonly"),
 		"id-token-only override should fall back to global")
-	assert.Same(t, global, e.RefreshStrategy("unknown"),
+	require.Same(t, global, e.RefreshStrategy("unknown"),
 		"missing entry should fall back to global")
 }
 
@@ -194,7 +193,7 @@ func TestExpiryOverrideUsesInjectedClock(t *testing.T) {
 	}))
 
 	s := e.RefreshStrategy("c")
-	assert.True(t, s.ExpiredBecauseUnused(t0),
+	require.True(t, s.ExpiredBecauseUnused(t0),
 		"override strategy must age tokens on the injected clock")
-	assert.False(t, s.ExpiredBecauseUnused(t0.Add(90*time.Second)))
+	require.False(t, s.ExpiredBecauseUnused(t0.Add(90*time.Second)))
 }

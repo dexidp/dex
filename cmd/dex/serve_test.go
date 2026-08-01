@@ -35,12 +35,14 @@ func TestNewLogger(t *testing.T) {
 func TestBuildExpiryCeilings(t *testing.T) {
 	tests := []struct {
 		name            string
+		idTokens        time.Duration
 		refresh         RefreshToken
 		want            tokens.ExpiryCeilings
 		wantErrContains string
 	}{
 		{
-			name: "all fields set",
+			name:     "all fields set",
+			idTokens: 24 * time.Hour,
 			refresh: RefreshToken{
 				AbsoluteLifetime:  "100h",
 				ValidIfNotUsedFor: "24h",
@@ -54,12 +56,14 @@ func TestBuildExpiryCeilings(t *testing.T) {
 			},
 		},
 		{
-			name: "refresh unset",
-			want: tokens.ExpiryCeilings{IDTokens: 24 * time.Hour},
+			name:     "refresh unset",
+			idTokens: 24 * time.Hour,
+			want:     tokens.ExpiryCeilings{IDTokens: 24 * time.Hour},
 		},
 		{
-			name:    "rotation disabled propagates",
-			refresh: RefreshToken{DisableRotation: true},
+			name:     "rotation disabled propagates",
+			idTokens: 24 * time.Hour,
+			refresh:  RefreshToken{DisableRotation: true},
 			want: tokens.ExpiryCeilings{
 				IDTokens:                24 * time.Hour,
 				RefreshRotationDisabled: true,
@@ -67,18 +71,30 @@ func TestBuildExpiryCeilings(t *testing.T) {
 		},
 		{
 			name:            "invalid duration",
+			idTokens:        24 * time.Hour,
 			refresh:         RefreshToken{AbsoluteLifetime: "not-a-duration"},
-			wantErrContains: "parse expiry.refreshTokens.absoluteLifetime",
+			wantErrContains: `invalid config value "not-a-duration" for expiry.refreshTokens.absoluteLifetime`,
 		},
 		{
 			name:            "negative duration",
+			idTokens:        24 * time.Hour,
 			refresh:         RefreshToken{ValidIfNotUsedFor: "-1h"},
 			wantErrContains: "expiry.refreshTokens.validIfNotUsedFor must not be negative",
+		},
+		{
+			name:            "zero idTokens",
+			idTokens:        0,
+			wantErrContains: "expiry.idTokens must be positive",
+		},
+		{
+			name:            "negative idTokens",
+			idTokens:        -time.Hour,
+			wantErrContains: "expiry.idTokens must be positive",
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := buildExpiryCeilings(24*time.Hour, tc.refresh)
+			got, err := buildExpiryCeilings(tc.idTokens, tc.refresh)
 			if tc.wantErrContains != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.wantErrContains)
@@ -87,16 +103,6 @@ func TestBuildExpiryCeilings(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tc.want, got)
 		})
-	}
-}
-
-func TestBuildExpiryCeilingsRejectsNonPositiveIDTokens(t *testing.T) {
-	// A ceiling of 0 means "no ceiling", so a non-positive lifetime must be
-	// rejected instead of silently disabling per-connector validation.
-	for _, d := range []time.Duration{0, -time.Hour} {
-		_, err := buildExpiryCeilings(d, RefreshToken{})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "must be positive")
 	}
 }
 

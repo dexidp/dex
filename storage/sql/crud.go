@@ -1147,8 +1147,6 @@ func (c *conn) CreateConnector(ctx context.Context, connector storage.Connector)
 	}
 	var expiry []byte
 	if connector.Expiry != nil {
-		// Only marshal when set; an unset override must persist as SQL NULL,
-		// not the literal bytes "null" that json.Marshal(nil) would produce.
 		expiry, err = json.Marshal(connector.Expiry)
 		if err != nil {
 			return fmt.Errorf("marshal connector expiry: %v", err)
@@ -1245,8 +1243,6 @@ func scanConnector(s scanner) (c storage.Connector, err error) {
 		}
 	}
 	if len(expiry) > 0 {
-		// Unmarshal into the pointer so the JSON literal null maps to a nil
-		// override, matching SQL NULL and the other storage backends.
 		if err := json.Unmarshal(expiry, &c.Expiry); err != nil {
 			return c, fmt.Errorf("unmarshal connector expiry: %v", err)
 		}

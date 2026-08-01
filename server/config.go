@@ -74,9 +74,9 @@ type Config struct {
 	// expiry overrides are validated. A zero duration means "no ceiling".
 	ExpiryCeilings tokens.ExpiryCeilings
 
-	// GlobalRefreshDefaults provide the inheritance roots for per-connector
+	// RefreshTokenDefaults provide the inheritance roots for per-connector
 	// refresh-token overrides that leave fields unset.
-	GlobalRefreshDefaults tokens.RefreshTokenDefaults
+	RefreshTokenDefaults tokens.RefreshTokenDefaults
 
 	// If set, the server will use this connector to handle password grants
 	PasswordConnector string

@@ -753,7 +753,6 @@ func testConnectorCRUD(t *testing.T, s storage.Storage) {
 
 	id2 := storage.NewID()
 	config2 := []byte(`{"redirectURI": "http://127.0.0.1:5556/dex/callback"}`)
-	disableRotation := true
 	c2 := storage.Connector{
 		ID:     id2,
 		Type:   "Mock",
@@ -762,7 +761,7 @@ func testConnectorCRUD(t *testing.T, s storage.Storage) {
 		Expiry: &storage.ConnectorExpiry{
 			IDTokens: "5m",
 			RefreshTokens: &storage.ConnectorRefreshExpiry{
-				DisableRotation:  &disableRotation,
+				DisableRotation:  boolPtr(true),
 				AbsoluteLifetime: "24h",
 			},
 		},

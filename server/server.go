@@ -104,7 +104,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		templates: rc.templates,
 		logger:    c.Logger,
 	}
-	s.expiry = tokens.NewExpiry(rc.idTokensValidFor, c.RefreshTokenPolicy, c.ExpiryCeilings, c.GlobalRefreshDefaults, rc.now)
+	s.expiry = tokens.NewExpiry(rc.idTokensValidFor, c.RefreshTokenPolicy, c.ExpiryCeilings, c.RefreshTokenDefaults, rc.now)
 	s.sessions = &session.Manager{
 		Storage:   s.storage,
 		Config:    c.SessionConfig,

@@ -73,9 +73,7 @@ func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq
 	}
 
 	if d.expiry != nil {
-		// Validation already passed above, so reaching the error path here means
-		// a programmer bug. Log and let the storage write win; the inconsistency
-		// will self-heal on the next restart.
+		// Validated above; on error, log and let the storage write win.
 		if err := d.expiry.Upsert(req.Connector.Id, expiry); err != nil {
 			d.logger.Error("api: failed to install connector expiry override", "err", err)
 		}
@@ -174,8 +172,7 @@ func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq
 	}
 
 	if d.expiry != nil && expiryUpdated {
-		// See CreateConnector: an error here is a programmer bug; the storage
-		// write wins and the inconsistency self-heals on the next restart.
+		// Validated above; on error, log and let the storage write win.
 		if err := d.expiry.Upsert(req.Id, newExpiry); err != nil {
 			d.logger.Error("api: failed to refresh connector expiry override", "err", err)
 		}

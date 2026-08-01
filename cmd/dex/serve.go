@@ -417,7 +417,7 @@ func runServe(options serveOptions) error {
 		c.Expiry.RefreshTokens.ValidIfNotUsedFor,
 		c.Expiry.RefreshTokens.AbsoluteLifetime,
 		c.Expiry.RefreshTokens.ReuseInterval,
-		nil, // time.Now
+		time.Now,
 	)
 	if err != nil {
 		return fmt.Errorf("invalid refresh token expiration policy config: %v", err)
@@ -430,7 +430,7 @@ func runServe(options serveOptions) error {
 		return fmt.Errorf("invalid global expiry config: %v", err)
 	}
 	serverConfig.ExpiryCeilings = ceilings
-	serverConfig.GlobalRefreshDefaults = tokens.RefreshTokenDefaults{
+	serverConfig.RefreshTokenDefaults = tokens.RefreshTokenDefaults{
 		DisableRotation:   c.Expiry.RefreshTokens.DisableRotation,
 		ValidIfNotUsedFor: c.Expiry.RefreshTokens.ValidIfNotUsedFor,
 		AbsoluteLifetime:  c.Expiry.RefreshTokens.AbsoluteLifetime,
@@ -872,11 +872,10 @@ func parseSessionConfig(s *Sessions) (*session.Config, error) {
 // to validate per-connector overrides. The server uses these for both static
 // YAML connectors at startup and dynamic API writes at runtime.
 func buildExpiryCeilings(globalIDTokens time.Duration, globalRefresh RefreshToken) (tokens.ExpiryCeilings, error) {
-	// A ceiling of 0 means "no ceiling", so a non-positive lifetime would
-	// silently disable per-connector idTokens validation. The server would
-	// fall back to 24h anyway, so such a value never means what it says.
+	// A ceiling of 0 means "no ceiling"; reject values that would silently
+	// disable enforcement.
 	if globalIDTokens <= 0 {
-		return tokens.ExpiryCeilings{}, fmt.Errorf("expiry.idTokens must be positive, got %s", globalIDTokens)
+		return tokens.ExpiryCeilings{}, fmt.Errorf("expiry.idTokens must be positive, got %v", globalIDTokens)
 	}
 	c := tokens.ExpiryCeilings{
 		IDTokens:                globalIDTokens,
@@ -896,13 +895,12 @@ func buildExpiryCeilings(globalIDTokens time.Duration, globalRefresh RefreshToke
 		}
 		d, err := time.ParseDuration(f.value)
 		if err != nil {
-			return c, fmt.Errorf("parse %s: %v", f.name, err)
+			return c, fmt.Errorf("invalid config value %q for %s: %v", f.value, f.name, err)
 		}
-		// A negative duration would slip through checkCeiling's "no ceiling"
-		// skip and disable enforcement; zero legitimately means "no
-		// expiration", the loosest policy, so only negatives are rejected.
+		// A negative value would read as "no ceiling"; zero means "no
+		// expiration" and stays legal.
 		if d < 0 {
-			return c, fmt.Errorf("%s must not be negative, got %s", f.name, d)
+			return c, fmt.Errorf("%s must not be negative, got %v", f.name, d)
 		}
 		*f.dst = d
 	}

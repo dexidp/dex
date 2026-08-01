@@ -1,6 +1,7 @@
 package tokens
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -32,9 +33,9 @@ type RefreshTokenDefaults struct {
 	ReuseInterval     string
 }
 
-// ConnectorExpiryOverride carries per-connector token lifetime overrides.
+// connectorExpiryOverride carries per-connector token lifetime overrides.
 // A zero or nil field inherits the global value.
-type ConnectorExpiryOverride struct {
+type connectorExpiryOverride struct {
 	IDTokensValidFor time.Duration
 	RefreshStrategy  *RefreshStrategy
 }
@@ -51,7 +52,7 @@ type Expiry struct {
 	now              func() time.Time
 
 	mu        sync.Mutex
-	overrides map[string]ConnectorExpiryOverride
+	overrides map[string]connectorExpiryOverride
 }
 
 // NewExpiry returns a registry that resolves to the given global values until
@@ -66,7 +67,7 @@ func NewExpiry(idTokensValidFor time.Duration, refresh *RefreshStrategy, ceiling
 		ceilings:         ceilings,
 		refreshDefaults:  defaults,
 		now:              now,
-		overrides:        map[string]ConnectorExpiryOverride{},
+		overrides:        make(map[string]connectorExpiryOverride),
 	}
 }
 
@@ -123,8 +124,6 @@ func (e *Expiry) Upsert(connID string, ce *storage.ConnectorExpiry) error {
 	return nil
 }
 
-// discardLogger is used when a constructor logs at Info level for global
-// startup config but the call is part of a per-connector hot path.
 var discardLogger = slog.New(slog.DiscardHandler)
 
 // validateConnectorExpiry rejects per-connector overrides that loosen the
@@ -156,7 +155,7 @@ func validateConnectorExpiry(e *storage.ConnectorExpiry, c ExpiryCeilings) error
 		}
 	}
 	if dr := e.RefreshTokens.DisableRotation; dr != nil && *dr && !c.RefreshRotationDisabled {
-		return fmt.Errorf("expiry.refreshTokens.disableRotation cannot disable rotation when it is enabled globally")
+		return errors.New("expiry.refreshTokens.disableRotation cannot disable rotation when it is enabled globally")
 	}
 	return nil
 }
@@ -186,11 +185,11 @@ func checkCeiling(field, value string, ceiling time.Duration, zeroDisables bool)
 }
 
 // buildConnectorExpiryOverride parses a (pre-validated) storage.ConnectorExpiry
-// into a ConnectorExpiryOverride. Unset string fields inherit from the global
+// into a connectorExpiryOverride. Unset string fields inherit from the global
 // refresh defaults so the resulting RefreshStrategy carries the correct
 // effective values, and now becomes the strategy's clock.
-func buildConnectorExpiryOverride(e *storage.ConnectorExpiry, defaults RefreshTokenDefaults, now func() time.Time) (ConnectorExpiryOverride, error) {
-	var override ConnectorExpiryOverride
+func buildConnectorExpiryOverride(e *storage.ConnectorExpiry, defaults RefreshTokenDefaults, now func() time.Time) (connectorExpiryOverride, error) {
+	var override connectorExpiryOverride
 	if e == nil {
 		return override, nil
 	}
@@ -212,9 +211,8 @@ func buildConnectorExpiryOverride(e *storage.ConnectorExpiry, defaults RefreshTo
 	if rt.DisableRotation != nil {
 		disableRotation = *rt.DisableRotation
 	}
-	// NewRefreshTokenPolicy emits one Info line per field; useful for the single
-	// global policy but would spam logs at N connectors × 4 fields on every API
-	// write. Pass a discard logger and let the caller summarize.
+	// NewRefreshTokenPolicy logs each field at Info; discard that here so
+	// API writes don't spam the log.
 	strategy, err := NewRefreshTokenPolicy(
 		discardLogger,
 		disableRotation,
@@ -230,8 +228,9 @@ func buildConnectorExpiryOverride(e *storage.ConnectorExpiry, defaults RefreshTo
 	return override, nil
 }
 
-func defaultTo(v, def string) string {
-	if v == "" {
+func defaultTo[T comparable](v, def T) T {
+	var zero T
+	if v == zero {
 		return def
 	}
 	return v
