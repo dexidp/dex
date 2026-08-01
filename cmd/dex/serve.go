@@ -898,6 +898,12 @@ func buildExpiryCeilings(globalIDTokens time.Duration, globalRefresh RefreshToke
 		if err != nil {
 			return c, fmt.Errorf("parse %s: %v", f.name, err)
 		}
+		// A negative duration would slip through checkCeiling's "no ceiling"
+		// skip and disable enforcement; zero legitimately means "no
+		// expiration", the loosest policy, so only negatives are rejected.
+		if d < 0 {
+			return c, fmt.Errorf("%s must not be negative, got %s", f.name, d)
+		}
 		*f.dst = d
 	}
 	return c, nil

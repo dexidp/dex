@@ -70,6 +70,11 @@ func TestBuildExpiryCeilings(t *testing.T) {
 			refresh:         RefreshToken{AbsoluteLifetime: "not-a-duration"},
 			wantErrContains: "parse expiry.refreshTokens.absoluteLifetime",
 		},
+		{
+			name:            "negative duration",
+			refresh:         RefreshToken{ValidIfNotUsedFor: "-1h"},
+			wantErrContains: "expiry.refreshTokens.validIfNotUsedFor must not be negative",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
