@@ -52,7 +52,7 @@ func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity
 		return a, nil
 	}
 	if err := h.Storage.UpdateAuthRequest(ctx, authReq.ID, updater); err != nil {
-		return storage.AuthRequest{}, fmt.Errorf("failed to update auth request: %v", err)
+		return storage.AuthRequest{}, fmt.Errorf("failed to update auth request: %w", err)
 	}
 	// Keep the in-memory copy in sync with what was persisted so later reads
 	// (the next-step decision below) see the identity we just stored.

@@ -27,4 +27,11 @@ const (
 	// ErrMsgNotInRequiredGroups is shown when a user authenticates successfully
 	// but is not a member of any of the groups required by the connector.
 	ErrMsgNotInRequiredGroups = "You are not a member of any of the required groups to authenticate."
+
+	// ErrMsgRequestAlreadyCompleted is shown when a login request is resubmitted
+	// after its AuthRequest is no longer in storage: most commonly because it was
+	// already finalized by an earlier, still-in-flight submission (e.g. a
+	// double-submitted login form, or a stale page resubmitted via the browser
+	// back button), but also possible if the request expired in the meantime.
+	ErrMsgRequestAlreadyCompleted = "This login request is no longer valid. It may have already been completed, or it may have expired. Please close this tab, or go back and start over if you need to sign in again."
 )
