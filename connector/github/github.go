@@ -784,8 +784,8 @@ type org struct {
 // which inserts a bearer token as part of the request.
 func (c *githubConnector) teamsForOrg(ctx context.Context, client *http.Client, orgName string) ([]string, error) {
 	apiURL, groups := c.apiURL+"/user/teams", []string{}
+	warnedCaseMismatch := false
 	for {
-		// https://developer.github.com/v3/orgs/teams/#list-user-teams
 		var (
 			teams []team
 			err   error
@@ -795,7 +795,17 @@ func (c *githubConnector) teamsForOrg(ctx context.Context, client *http.Client, 
 		}
 
 		for _, t := range teams {
-			if t.Org.Login == orgName {
+			// GitHub org names are case-insensitive; the API returns canonical (lowercase) form.
+			// https://docs.github.com/en/rest/teams/teams?apiVersion=2026-03-10#list-teams-for-the-authenticated-user
+			if strings.EqualFold(t.Org.Login, orgName) {
+				if !warnedCaseMismatch && t.Org.Login != orgName {
+					c.logger.Warn(
+						"org name in config differs in case from GitHub canonical form; use lowercase in config to keep group claims consistent",
+						"org", orgName,
+						"canonical", t.Org.Login,
+					)
+					warnedCaseMismatch = true
+				}
 				groups = append(groups, c.teamGroupClaims(t)...)
 			}
 		}
