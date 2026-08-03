@@ -131,6 +131,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		verifier: provider.Verifier(
 			&oidc.Config{ClientID: clientID},
 		),
+		provider:                       provider,
 		logger:                         logger,
 		cancel:                         cancel,
 		hostedDomains:                  c.HostedDomains,
@@ -144,14 +145,16 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 }
 
 var (
-	_ connector.CallbackConnector = (*googleConnector)(nil)
-	_ connector.RefreshConnector  = (*googleConnector)(nil)
+	_ connector.CallbackConnector      = (*googleConnector)(nil)
+	_ connector.RefreshConnector       = (*googleConnector)(nil)
+	_ connector.TokenIdentityConnector = (*googleConnector)(nil)
 )
 
 type googleConnector struct {
 	redirectURI                    string
 	oauth2Config                   *oauth2.Config
 	verifier                       *oidc.IDTokenVerifier
+	provider                       *oidc.Provider
 	cancel                         context.CancelFunc
 	logger                         *slog.Logger
 	hostedDomains                  []string
@@ -227,6 +230,15 @@ func (c *googleConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 	return c.createIdentity(ctx, identity, s, token)
 }
 
+// googleClaims holds the claims read from either a verified Google ID Token
+// or the Google userinfo endpoint.
+type googleClaims struct {
+	Username      string `json:"name"`
+	Email         string `json:"email"`
+	EmailVerified bool   `json:"email_verified"`
+	HostedDomain  string `json:"hd"`
+}
+
 func (c *googleConnector) createIdentity(ctx context.Context, identity connector.Identity, s connector.Scopes, token *oauth2.Token) (connector.Identity, error) {
 	rawIDToken, ok := token.Extra("id_token").(string)
 	if !ok {
@@ -237,12 +249,7 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 		return identity, fmt.Errorf("google: failed to verify ID Token: %v", err)
 	}
 
-	var claims struct {
-		Username      string `json:"name"`
-		Email         string `json:"email"`
-		EmailVerified bool   `json:"email_verified"`
-		HostedDomain  string `json:"hd"`
-	}
+	var claims googleClaims
 	if err := idToken.Claims(&claims); err != nil {
 		return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
 	}
@@ -255,6 +262,54 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 	if claims.Username == "" {
 		claims.Username = identity.Username
 	}
+
+	return c.identityFromClaims(s, idToken.Subject, claims, token.RefreshToken)
+}
+
+// TokenIdentity implements token exchange (RFC 8693): it verifies a Google ID
+// Token or access token supplied by the client and returns the associated
+// identity, mirroring the behavior of the OIDC connector.
+func (c *googleConnector) TokenIdentity(ctx context.Context, subjectTokenType, subjectToken string) (connector.Identity, error) {
+	var (
+		identity connector.Identity
+		claims   googleClaims
+		subject  string
+	)
+
+	switch subjectTokenType {
+	case "urn:ietf:params:oauth:token-type:id_token":
+		idToken, err := c.provider.Verifier(&oidc.Config{SkipClientIDCheck: true}).Verify(ctx, subjectToken)
+		if err != nil {
+			return identity, fmt.Errorf("google: failed to verify ID Token: %v", err)
+		}
+		if err := idToken.Claims(&claims); err != nil {
+			return identity, fmt.Errorf("google: failed to decode claims: %v", err)
+		}
+		subject = idToken.Subject
+	case "urn:ietf:params:oauth:token-type:access_token":
+		userInfo, err := c.provider.UserInfo(ctx, oauth2.StaticTokenSource(&oauth2.Token{
+			AccessToken: subjectToken,
+			TokenType:   "Bearer", // The UserInfo endpoint requires a bearer token as per RFC6750
+		}))
+		if err != nil {
+			return identity, fmt.Errorf("google: error loading userinfo: %v", err)
+		}
+		if err := userInfo.Claims(&claims); err != nil {
+			return identity, fmt.Errorf("google: failed to decode userinfo claims: %v", err)
+		}
+		subject = userInfo.Subject
+	default:
+		return identity, fmt.Errorf("google: unknown token type for token exchange: %s", subjectTokenType)
+	}
+
+	// Groups are configured per connector rather than requested via scopes, so
+	// always attempt to fetch them here and let configuration gate it, same as
+	// the other token exchange enabled connectors.
+	return c.identityFromClaims(connector.Scopes{Groups: true}, subject, claims, "")
+}
+
+func (c *googleConnector) identityFromClaims(s connector.Scopes, subject string, claims googleClaims, refreshToken string) (connector.Identity, error) {
+	var identity connector.Identity
 
 	if len(c.hostedDomains) > 0 {
 		found := false
@@ -273,6 +328,7 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 	var groups []string
 	if s.Groups && len(c.adminSrv) > 0 {
 		checkedGroups := make(map[string]struct{})
+		var err error
 		groups, err = c.getGroups(claims.Email, c.fetchTransitiveGroupMembership, checkedGroups)
 		if err != nil {
 			return identity, fmt.Errorf("google: could not retrieve groups: %v", err)
@@ -287,11 +343,11 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 	}
 
 	identity = connector.Identity{
-		UserID:        idToken.Subject,
+		UserID:        subject,
 		Username:      claims.Username,
 		Email:         claims.Email,
 		EmailVerified: claims.EmailVerified,
-		ConnectorData: []byte(token.RefreshToken),
+		ConnectorData: []byte(refreshToken),
 		Groups:        groups,
 	}
 	return identity, nil
