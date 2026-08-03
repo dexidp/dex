@@ -578,7 +578,7 @@ func (c *microsoftConnector) getGroupIDs(ctx context.Context, client *http.Clien
 
 func (c *microsoftConnector) getGroupNames(ctx context.Context, client *http.Client, ids []string) (groups []string, err error) {
 	if len(ids) == 0 {
-		return
+		return nil, nil
 	}
 
 	// Graph API caps /directoryObjects/getByIds at 1000 identifiers per request.
@@ -624,7 +624,7 @@ func (c *microsoftConnector) getGroupNames(ctx context.Context, client *http.Cli
 			reqURL = next
 		}
 	}
-	return
+	return groups, err
 }
 
 func (c *microsoftConnector) post(ctx context.Context, client *http.Client, reqURL string, in interface{}, out interface{}) (string, error) {
