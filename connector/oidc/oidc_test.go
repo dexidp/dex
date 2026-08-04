@@ -64,6 +64,8 @@ func TestHandleCallback(t *testing.T) {
 		expectPreferredUsername   string
 		expectedEmailField        string
 		token                     map[string]interface{}
+		allowedGroups             []string
+		forwardAllGroups          bool
 		groupsRegex               string
 		newGroupFromClaims        []NewGroupFromClaims
 		groupsPrefix              string
@@ -487,6 +489,41 @@ func TestHandleCallback(t *testing.T) {
 			},
 		},
 		{
+			name:               "allowedGroups",
+			userIDKey:          "", // not configured
+			userNameKey:        "", // not configured
+			expectUserID:       "subvalue",
+			expectUserName:     "namevalue",
+			allowedGroups:      []string{"group1", "group2"},
+			expectGroups:       []string{"group1", "group2"},
+			expectedEmailField: "emailvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"groups":         []string{"group1", "group2", "groupA", "groupB"},
+				"email":          "emailvalue",
+				"email_verified": true,
+			},
+		},
+		{
+			name:               "allowedGroupsForwardAllGroups",
+			userIDKey:          "", // not configured
+			userNameKey:        "", // not configured
+			expectUserID:       "subvalue",
+			expectUserName:     "namevalue",
+			allowedGroups:      []string{"group1", "group2"},
+			forwardAllGroups:   true,
+			expectGroups:       []string{"group1", "group2", "groupA", "groupB"},
+			expectedEmailField: "emailvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"groups":         []string{"group1", "group2", "groupA", "groupB"},
+				"email":          "emailvalue",
+				"email_verified": true,
+			},
+		},
+		{
 			name:               "S256PKCEChallenge",
 			userIDKey:          "", // not configured
 			userNameKey:        "", // not configured
@@ -549,6 +586,8 @@ func TestHandleCallback(t *testing.T) {
 				UserNameKey:               tc.userNameKey,
 				InsecureSkipEmailVerified: tc.insecureSkipEmailVerified,
 				InsecureEnableGroups:      true,
+				AllowedGroups:             tc.allowedGroups,
+				ForwardAllGroups:          tc.forwardAllGroups,
 				BasicAuthUnsupported:      &basicAuth,
 				OverrideClaimMapping:      tc.overrideClaimMapping,
 				PKCEChallenge:             tc.pkceChallenge,
