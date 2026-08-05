@@ -67,7 +67,8 @@ type Config struct {
 	AuthRequestsValidFor   time.Duration // Defaults to 24 hours
 	DeviceRequestsValidFor time.Duration // Defaults to 5 minutes
 
-	// Refresh token expiration settings
+	// Refresh token expiration settings. Also the ceiling that per-connector
+	// expiry overrides may not loosen.
 	RefreshTokenPolicy *tokens.RefreshStrategy
 
 	// If set, the server will use this connector to handle password grants

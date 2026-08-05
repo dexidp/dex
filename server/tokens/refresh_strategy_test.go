@@ -1,6 +1,7 @@
 package tokens
 
 import (
+	"log/slog"
 	"testing"
 	"time"
 
@@ -31,4 +32,17 @@ func TestStrategy(t *testing.T) {
 		require.False(t, s.ExpiredBecauseUnused(lastTime.Add(-100*time.Hour)))
 		require.False(t, s.AllowedToReuse(lastTime))
 	})
+}
+
+func TestNewRefreshTokenPolicyRejectsNegativeDurations(t *testing.T) {
+	logger := slog.New(slog.DiscardHandler)
+	for _, tc := range []struct{ valid, absolute, reuse string }{
+		{valid: "-1h"},
+		{absolute: "-1h"},
+		{reuse: "-1s"},
+	} {
+		_, err := NewRefreshTokenPolicy(logger, false, tc.valid, tc.absolute, tc.reuse)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "must not be negative")
+	}
 }

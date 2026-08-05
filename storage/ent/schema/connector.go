@@ -3,6 +3,8 @@ package schema
 import (
 	"entgo.io/ent"
 	"entgo.io/ent/schema/field"
+
+	"github.com/dexidp/dex/storage"
 )
 
 /* Original SQL table:
@@ -39,6 +41,8 @@ func (Connector) Fields() []ent.Field {
 			SchemaType(textSchema),
 		field.Bytes("config"),
 		field.JSON("grant_types", []string{}).
+			Optional(),
+		field.JSON("expiry", &storage.ConnectorExpiry{}).
 			Optional(),
 	}
 }

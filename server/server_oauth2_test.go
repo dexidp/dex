@@ -180,7 +180,8 @@ func TestNewIDTokenUsesStoredAlgorithmUntilNextRotation(t *testing.T) {
 	issuerURL, err := url.Parse("https://issuer.example.com")
 	require.NoError(t, err)
 
-	issuer := tokens.NewIssuer(store, sig, *issuerURL, time.Hour, func() time.Time { return now }, logger)
+	clock := func() time.Time { return now }
+	issuer := tokens.NewIssuer(store, sig, *issuerURL, tokens.NewExpiryPolicy(time.Hour, nil), clock, logger)
 
 	accessToken := "test-access-token"
 	code := "test-auth-code"
@@ -259,7 +260,8 @@ func TestNewIDTokenContainsJTI(t *testing.T) {
 	issuerURL, err := url.Parse("https://issuer.example.com")
 	require.NoError(t, err)
 
-	issuer := tokens.NewIssuer(store, sig, *issuerURL, time.Hour, func() time.Time { return now }, logger)
+	clock := func() time.Time { return now }
+	issuer := tokens.NewIssuer(store, sig, *issuerURL, tokens.NewExpiryPolicy(time.Hour, nil), clock, logger)
 
 	keys, err := sig.ValidationKeys(ctx)
 	require.NoError(t, err)

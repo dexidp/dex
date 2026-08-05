@@ -9,6 +9,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
+	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/db/connector"
 )
 
@@ -26,7 +27,9 @@ type Connector struct {
 	// Config holds the value of the "config" field.
 	Config []byte `json:"config,omitempty"`
 	// GrantTypes holds the value of the "grant_types" field.
-	GrantTypes   []string `json:"grant_types,omitempty"`
+	GrantTypes []string `json:"grant_types,omitempty"`
+	// Expiry holds the value of the "expiry" field.
+	Expiry       *storage.ConnectorExpiry `json:"expiry,omitempty"`
 	selectValues sql.SelectValues
 }
 
@@ -35,7 +38,7 @@ func (*Connector) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case connector.FieldConfig, connector.FieldGrantTypes:
+		case connector.FieldConfig, connector.FieldGrantTypes, connector.FieldExpiry:
 			values[i] = new([]byte)
 		case connector.FieldID, connector.FieldType, connector.FieldName, connector.FieldResourceVersion:
 			values[i] = new(sql.NullString)
@@ -92,6 +95,14 @@ func (_m *Connector) assignValues(columns []string, values []any) error {
 					return fmt.Errorf("unmarshal field grant_types: %w", err)
 				}
 			}
+		case connector.FieldExpiry:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field expiry", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.Expiry); err != nil {
+					return fmt.Errorf("unmarshal field expiry: %w", err)
+				}
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -142,6 +153,9 @@ func (_m *Connector) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("grant_types=")
 	builder.WriteString(fmt.Sprintf("%v", _m.GrantTypes))
+	builder.WriteString(", ")
+	builder.WriteString("expiry=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Expiry))
 	builder.WriteByte(')')
 	return builder.String()
 }

@@ -21,11 +21,16 @@ const apiVersion = 4
 
 // NewAPI returns a server which implements the gRPC API interface. It takes only
 // the narrow dependencies it needs — the connector cache to invalidate on
-// connector CRUD, the discovery handler to serve the same document as HTTP, and
-// the back-channel notifier to tell relying parties about the sessions it ends —
-// rather than the whole Server.
-func NewAPI(s storage.Storage, logger *slog.Logger, version string, conns *connectors.Cache, disc *discovery.Handler, bc *backchannel.Notifier) api.DexServer {
+// connector CRUD, the discovery handler to serve the same document as HTTP, the
+// back-channel notifier to tell relying parties about the sessions it ends, and
+// the expiry registry to keep per-connector overrides live — rather than the
+// whole Server.
+func NewAPI(s storage.Storage, logger *slog.Logger, version string, conns *connectors.Cache, disc *discovery.Handler, bc *backchannel.Notifier, expiry *tokens.ExpiryPolicy) api.DexServer {
 	apiLogger := logger.With("component", "api")
+	if expiry == nil {
+		// Tests may omit the policy; default to one with no ceilings.
+		expiry = tokens.NewExpiryPolicy(0, nil)
+	}
 	return dexAPI{
 		s:           s,
 		logger:      apiLogger,
@@ -33,6 +38,7 @@ func NewAPI(s storage.Storage, logger *slog.Logger, version string, conns *conne
 		connectors:  conns,
 		discovery:   disc,
 		backchannel: bc,
+		expiry:      expiry,
 		refresh:     tokens.NewRefreshStore(s, time.Now, apiLogger),
 	}
 }
@@ -46,6 +52,7 @@ type dexAPI struct {
 	connectors  *connectors.Cache
 	discovery   *discovery.Handler
 	backchannel *backchannel.Notifier
+	expiry      *tokens.ExpiryPolicy
 	refresh     *tokens.RefreshStore
 }
 

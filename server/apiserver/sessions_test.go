@@ -84,7 +84,7 @@ func TestTerminateSessionNotifiesRelyingParties(t *testing.T) {
 
 			d := NewAPI(s, logger, "test", nil, nil, &backchannel.Notifier{
 				Storage: s, Signer: sign, IssuerURL: issuerURL(t), Logger: logger,
-			})
+			}, nil)
 
 			require.NoError(t, tc.call(ctx, d))
 

@@ -3968,6 +3968,7 @@ type ConnectorMutation struct {
 	_config           *[]byte
 	grant_types       *[]string
 	appendgrant_types []string
+	expiry            **storage.ConnectorExpiry
 	clearedFields     map[string]struct{}
 	done              bool
 	oldValue          func(context.Context) (*Connector, error)
@@ -4287,6 +4288,55 @@ func (m *ConnectorMutation) ResetGrantTypes() {
 	delete(m.clearedFields, connector.FieldGrantTypes)
 }
 
+// SetExpiry sets the "expiry" field.
+func (m *ConnectorMutation) SetExpiry(se *storage.ConnectorExpiry) {
+	m.expiry = &se
+}
+
+// Expiry returns the value of the "expiry" field in the mutation.
+func (m *ConnectorMutation) Expiry() (r *storage.ConnectorExpiry, exists bool) {
+	v := m.expiry
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExpiry returns the old "expiry" field's value of the Connector entity.
+// If the Connector object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ConnectorMutation) OldExpiry(ctx context.Context) (v *storage.ConnectorExpiry, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExpiry is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExpiry requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExpiry: %w", err)
+	}
+	return oldValue.Expiry, nil
+}
+
+// ClearExpiry clears the value of the "expiry" field.
+func (m *ConnectorMutation) ClearExpiry() {
+	m.expiry = nil
+	m.clearedFields[connector.FieldExpiry] = struct{}{}
+}
+
+// ExpiryCleared returns if the "expiry" field was cleared in this mutation.
+func (m *ConnectorMutation) ExpiryCleared() bool {
+	_, ok := m.clearedFields[connector.FieldExpiry]
+	return ok
+}
+
+// ResetExpiry resets all changes to the "expiry" field.
+func (m *ConnectorMutation) ResetExpiry() {
+	m.expiry = nil
+	delete(m.clearedFields, connector.FieldExpiry)
+}
+
 // Where appends a list predicates to the ConnectorMutation builder.
 func (m *ConnectorMutation) Where(ps ...predicate.Connector) {
 	m.predicates = append(m.predicates, ps...)
@@ -4321,7 +4371,7 @@ func (m *ConnectorMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ConnectorMutation) Fields() []string {
-	fields := make([]string, 0, 5)
+	fields := make([]string, 0, 6)
 	if m._type != nil {
 		fields = append(fields, connector.FieldType)
 	}
@@ -4336,6 +4386,9 @@ func (m *ConnectorMutation) Fields() []string {
 	}
 	if m.grant_types != nil {
 		fields = append(fields, connector.FieldGrantTypes)
+	}
+	if m.expiry != nil {
+		fields = append(fields, connector.FieldExpiry)
 	}
 	return fields
 }
@@ -4355,6 +4408,8 @@ func (m *ConnectorMutation) Field(name string) (ent.Value, bool) {
 		return m.Config()
 	case connector.FieldGrantTypes:
 		return m.GrantTypes()
+	case connector.FieldExpiry:
+		return m.Expiry()
 	}
 	return nil, false
 }
@@ -4374,6 +4429,8 @@ func (m *ConnectorMutation) OldField(ctx context.Context, name string) (ent.Valu
 		return m.OldConfig(ctx)
 	case connector.FieldGrantTypes:
 		return m.OldGrantTypes(ctx)
+	case connector.FieldExpiry:
+		return m.OldExpiry(ctx)
 	}
 	return nil, fmt.Errorf("unknown Connector field %s", name)
 }
@@ -4418,6 +4475,13 @@ func (m *ConnectorMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetGrantTypes(v)
 		return nil
+	case connector.FieldExpiry:
+		v, ok := value.(*storage.ConnectorExpiry)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExpiry(v)
+		return nil
 	}
 	return fmt.Errorf("unknown Connector field %s", name)
 }
@@ -4451,6 +4515,9 @@ func (m *ConnectorMutation) ClearedFields() []string {
 	if m.FieldCleared(connector.FieldGrantTypes) {
 		fields = append(fields, connector.FieldGrantTypes)
 	}
+	if m.FieldCleared(connector.FieldExpiry) {
+		fields = append(fields, connector.FieldExpiry)
+	}
 	return fields
 }
 
@@ -4467,6 +4534,9 @@ func (m *ConnectorMutation) ClearField(name string) error {
 	switch name {
 	case connector.FieldGrantTypes:
 		m.ClearGrantTypes()
+		return nil
+	case connector.FieldExpiry:
+		m.ClearExpiry()
 		return nil
 	}
 	return fmt.Errorf("unknown Connector nullable field %s", name)
@@ -4490,6 +4560,9 @@ func (m *ConnectorMutation) ResetField(name string) error {
 		return nil
 	case connector.FieldGrantTypes:
 		m.ResetGrantTypes()
+		return nil
+	case connector.FieldExpiry:
+		m.ResetExpiry()
 		return nil
 	}
 	return fmt.Errorf("unknown Connector field %s", name)

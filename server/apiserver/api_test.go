@@ -14,6 +14,7 @@ import (
 
 	"github.com/dexidp/dex/api/v2"
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
 )
@@ -35,13 +36,19 @@ func newLogger(t *testing.T) *slog.Logger {
 
 // newAPI constructs a gRCP client connected to a backing server.
 func newAPI(t *testing.T, s storage.Storage, logger *slog.Logger) *apiClient {
+	return newAPIWithExpiry(t, s, logger, nil)
+}
+
+// newAPIWithExpiry is like newAPI but wires an expiry registry into the gRPC
+// handlers, enabling the validation paths for per-connector expiry overrides.
+func newAPIWithExpiry(t *testing.T, s storage.Storage, logger *slog.Logger, expiry *tokens.ExpiryPolicy) *apiClient {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	serv := grpc.NewServer()
-	api.RegisterDexServer(serv, NewAPI(s, logger, "test", nil, nil, nil))
+	api.RegisterDexServer(serv, NewAPI(s, logger, "test", nil, nil, nil, expiry))
 	go serv.Serve(l)
 
 	// NewClient will retry automatically if the serv.Serve() goroutine
@@ -483,6 +490,109 @@ func TestCreateConnector(t *testing.T) {
 		t.Fatal("Expected an error for invalid JSON config, but none occurred")
 	} else if !strings.Contains(err.Error(), "invalid config supplied") {
 		t.Fatalf("Unexpected error: %v", err)
+	}
+}
+
+func TestCreateConnectorExpiryHierarchy(t *testing.T) {
+	t.Setenv("DEX_API_CONNECTORS_CRUD", "true")
+
+	logger := newLogger(t)
+	s := memory.New(logger)
+
+	expiry := tokens.NewExpiryPolicy(time.Hour, nil)
+	client := newAPIWithExpiry(t, s, logger, expiry)
+	defer client.Close()
+
+	ctx := t.Context()
+	base := &api.Connector{
+		Id:     "c1",
+		Name:   "c1",
+		Type:   "mockCallback",
+		Config: []byte(`{}`),
+	}
+
+	// Test that an override exceeding the global value is rejected.
+	createReq := &api.CreateConnectorReq{
+		Connector: &api.Connector{
+			Id: "looser", Name: base.Name, Type: base.Type, Config: base.Config,
+			Expiry: &api.ConnectorExpiry{IdTokens: "48h"},
+		},
+	}
+	if _, err := client.CreateConnector(ctx, createReq); err == nil {
+		t.Fatal("expected validation error for override above global")
+	} else if !strings.Contains(err.Error(), "exceeds the global value") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Test that an override within the ceiling is accepted and installed.
+	createReq = &api.CreateConnectorReq{
+		Connector: &api.Connector{
+			Id: base.Id, Name: base.Name, Type: base.Type, Config: base.Config,
+			Expiry: &api.ConnectorExpiry{IdTokens: "10m"},
+		},
+	}
+	if _, err := client.CreateConnector(ctx, createReq); err != nil {
+		t.Fatalf("create connector: %v", err)
+	}
+	if got := expiry.IDTokensValidFor(base.Id); got != 10*time.Minute {
+		t.Fatalf("override not installed: got %s, want 10m", got)
+	}
+	stored, err := s.GetConnector(ctx, base.Id)
+	if err != nil {
+		t.Fatalf("get connector: %v", err)
+	}
+	if stored.Expiry == nil || stored.Expiry.IDTokens != "10m" {
+		t.Fatalf("override not persisted: got %+v, want idTokens 10m", stored.Expiry)
+	}
+
+	// Test that an update can install a new override.
+	updateReq := &api.UpdateConnectorReq{
+		Id:        base.Id,
+		NewExpiry: &api.ConnectorExpiryUpdate{Value: &api.ConnectorExpiry{IdTokens: "20m"}},
+	}
+	if _, err := client.UpdateConnector(ctx, updateReq); err != nil {
+		t.Fatalf("update connector: %v", err)
+	}
+	if got := expiry.IDTokensValidFor(base.Id); got != 20*time.Minute {
+		t.Fatalf("override not replaced: got %s, want 20m", got)
+	}
+	if stored, err = s.GetConnector(ctx, base.Id); err != nil || stored.Expiry == nil || stored.Expiry.IDTokens != "20m" {
+		t.Fatalf("replaced override not persisted: got %+v, %v", stored.Expiry, err)
+	}
+
+	// Test that an update without NewExpiry leaves the override alone.
+	if _, err := client.UpdateConnector(ctx, &api.UpdateConnectorReq{Id: base.Id, NewName: "renamed"}); err != nil {
+		t.Fatalf("update connector: %v", err)
+	}
+	if got := expiry.IDTokensValidFor(base.Id); got != 20*time.Minute {
+		t.Fatalf("override lost on unrelated update: got %s, want 20m", got)
+	}
+
+	// Test that an update can clear the override.
+	updateReq = &api.UpdateConnectorReq{
+		Id:        base.Id,
+		NewExpiry: &api.ConnectorExpiryUpdate{}, // set without a value = clear
+	}
+	if _, err := client.UpdateConnector(ctx, updateReq); err != nil {
+		t.Fatalf("update connector: %v", err)
+	}
+	if got := expiry.IDTokensValidFor(base.Id); got != time.Hour {
+		t.Fatalf("override not cleared: got %s, want 1h", got)
+	}
+	if stored, err = s.GetConnector(ctx, base.Id); err != nil || stored.Expiry != nil {
+		t.Fatalf("cleared override still persisted: got %+v, %v", stored.Expiry, err)
+	}
+
+	// Test that deleting the connector drops its override.
+	updateReq.NewExpiry = &api.ConnectorExpiryUpdate{Value: &api.ConnectorExpiry{IdTokens: "10m"}}
+	if _, err := client.UpdateConnector(ctx, updateReq); err != nil {
+		t.Fatalf("update connector: %v", err)
+	}
+	if _, err := client.DeleteConnector(ctx, &api.DeleteConnectorReq{Id: base.Id}); err != nil {
+		t.Fatalf("delete connector: %v", err)
+	}
+	if got := expiry.IDTokensValidFor(base.Id); got != time.Hour {
+		t.Fatalf("override survived connector deletion: got %s, want 1h", got)
 	}
 }
 

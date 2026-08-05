@@ -317,6 +317,11 @@ func runServe(options serveOptions) error {
 		if err != nil {
 			return fmt.Errorf("invalid config value %q for id token expiry: %v", c.Expiry.IDTokens, err)
 		}
+		// The value doubles as the ceiling on per-connector overrides, where
+		// 0 would read as "no ceiling".
+		if idTokensValidFor <= 0 {
+			return fmt.Errorf("invalid config value %q for id token expiry: must be positive", c.Expiry.IDTokens)
+		}
 		logger.Info("config id tokens", "valid_for", idTokensValidFor)
 	}
 
@@ -614,7 +619,7 @@ func runServe(options serveOptions) error {
 		}
 
 		grpcSrv := grpc.NewServer(grpcOptions...)
-		api.RegisterDexServer(grpcSrv, apiserver.NewAPI(serverConfig.Storage, logger, version, serv.Connectors(), serv.Discovery(), serv.Backchannel()))
+		api.RegisterDexServer(grpcSrv, apiserver.NewAPI(serverConfig.Storage, logger, version, serv.Connectors(), serv.Discovery(), serv.Backchannel(), serv.ExpiryPolicy()))
 
 		grpcMetrics.InitializeMetrics(grpcSrv)
 		if c.GRPC.Reflection {

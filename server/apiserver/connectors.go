@@ -48,6 +48,11 @@ func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq
 		}
 	}
 
+	expiry := connectorExpiryFromProto(req.Connector.Expiry)
+	if err := d.expiry.Validate(expiry); err != nil {
+		return nil, fmt.Errorf("invalid expiry: %v", err)
+	}
+
 	c := storage.Connector{
 		ID:              req.Connector.Id,
 		Name:            req.Connector.Name,
@@ -55,6 +60,7 @@ func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq
 		ResourceVersion: "1",
 		Config:          req.Connector.Config,
 		GrantTypes:      req.Connector.GrantTypes,
+		Expiry:          expiry,
 	}
 	if err := d.s.CreateConnector(ctx, c); err != nil {
 		if err == storage.ErrAlreadyExists {
@@ -63,6 +69,9 @@ func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq
 		d.logger.Error("api: failed to create connector", "err", err)
 		return nil, fmt.Errorf("create connector: %v", err)
 	}
+
+	// Validated above, so Upsert cannot fail here.
+	_ = d.expiry.Upsert(req.Connector.Id, expiry)
 
 	// Make sure we don't reuse stale entries in the cache
 	if d.connectors != nil {
@@ -84,7 +93,8 @@ func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq
 	hasUpdate := len(req.NewConfig) != 0 ||
 		req.NewName != "" ||
 		req.NewType != "" ||
-		req.NewGrantTypes != nil
+		req.NewGrantTypes != nil ||
+		req.NewExpiry != nil
 	if !hasUpdate {
 		return nil, errors.New("nothing to update")
 	}
@@ -98,6 +108,16 @@ func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq
 			if !connectors.ConnectorGrantTypes[gt] {
 				return nil, fmt.Errorf("unknown grant type %q", gt)
 			}
+		}
+	}
+
+	// An absent req.NewExpiry leaves the override alone; one set without a
+	// value clears it (nil newExpiry), one set with a value replaces it.
+	var newExpiry *storage.ConnectorExpiry
+	if req.NewExpiry != nil {
+		newExpiry = connectorExpiryFromProto(req.NewExpiry.Value)
+		if err := d.expiry.Validate(newExpiry); err != nil {
+			return nil, fmt.Errorf("invalid expiry: %v", err)
 		}
 	}
 
@@ -118,6 +138,10 @@ func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq
 			old.GrantTypes = req.NewGrantTypes.GrantTypes
 		}
 
+		if req.NewExpiry != nil {
+			old.Expiry = newExpiry
+		}
+
 		if rev, err := strconv.Atoi(defaultTo(old.ResourceVersion, "0")); err == nil {
 			old.ResourceVersion = strconv.Itoa(rev + 1)
 		}
@@ -131,6 +155,11 @@ func (d dexAPI) UpdateConnector(ctx context.Context, req *api.UpdateConnectorReq
 		}
 		d.logger.Error("api: failed to update connector", "err", err)
 		return nil, fmt.Errorf("update connector: %v", err)
+	}
+
+	if req.NewExpiry != nil {
+		// Validated above, so Upsert cannot fail here.
+		_ = d.expiry.Upsert(req.Id, newExpiry)
 	}
 
 	return &api.UpdateConnectorResp{}, nil
@@ -153,6 +182,10 @@ func (d dexAPI) DeleteConnector(ctx context.Context, req *api.DeleteConnectorReq
 		d.logger.Error("api: failed to delete connector", "err", err)
 		return nil, fmt.Errorf("delete connector: %v", err)
 	}
+
+	// Drop any live override so a connector re-created with the same id
+	// starts fresh. Upsert(_, nil) cannot error.
+	_ = d.expiry.Upsert(req.Id, nil)
 
 	return &api.DeleteConnectorResp{}, nil
 }
@@ -177,6 +210,7 @@ func (d dexAPI) ListConnectors(ctx context.Context, req *api.ListConnectorReq) (
 			Config:     connector.Config,
 			GrantTypes: connector.GrantTypes,
 		}
+		c.Expiry = connectorExpiryToProto(connector.Expiry)
 		connectors = append(connectors, &c)
 	}
 
@@ -191,4 +225,36 @@ func defaultTo[T comparable](v, def T) T {
 		return def
 	}
 	return v
+}
+
+func connectorExpiryToProto(e *storage.ConnectorExpiry) *api.ConnectorExpiry {
+	if e == nil {
+		return nil
+	}
+	p := &api.ConnectorExpiry{IdTokens: e.IDTokens}
+	if e.RefreshTokens != nil {
+		p.RefreshTokens = &api.ConnectorRefreshExpiry{
+			DisableRotation:   e.RefreshTokens.DisableRotation,
+			ReuseInterval:     e.RefreshTokens.ReuseInterval,
+			AbsoluteLifetime:  e.RefreshTokens.AbsoluteLifetime,
+			ValidIfNotUsedFor: e.RefreshTokens.ValidIfNotUsedFor,
+		}
+	}
+	return p
+}
+
+func connectorExpiryFromProto(p *api.ConnectorExpiry) *storage.ConnectorExpiry {
+	if p == nil {
+		return nil
+	}
+	e := &storage.ConnectorExpiry{IDTokens: p.IdTokens}
+	if p.RefreshTokens != nil {
+		e.RefreshTokens = &storage.ConnectorRefreshExpiry{
+			DisableRotation:   p.RefreshTokens.DisableRotation,
+			ReuseInterval:     p.RefreshTokens.ReuseInterval,
+			AbsoluteLifetime:  p.RefreshTokens.AbsoluteLifetime,
+			ValidIfNotUsedFor: p.RefreshTokens.ValidIfNotUsedFor,
+		}
+	}
+	return e
 }

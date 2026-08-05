@@ -477,4 +477,9 @@ var migrations = []migration{
 				add column refresh_token_lifetime text not null default '';`,
 		},
 	},
+	{
+		stmts: []string{
+			`alter table connector add column expiry bytea;`,
+		},
+	},
 }
