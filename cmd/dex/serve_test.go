@@ -27,3 +27,26 @@ func TestNewLogger(t *testing.T) {
 		require.Equal(t, (*slog.Logger)(nil), logger)
 	})
 }
+
+func TestGetSocketType(t *testing.T) {
+	urls := [][]string{
+		{"tcp://127.0.0.1:8080", "tcp"},
+		{"unix:///tmp/my.sock", "unix"},
+		{"127.0.0.1:9000", "tcp"},
+		{"/var/run/app.sock", "unix"},
+		{"./socket.sock", "unix"},
+		{"relative.sock", "unix"},
+		{"example.com:80", "tcp"},
+		{"unix://./run/rel.sock", "unix"},
+		{"[::1]:443", "tcp"},
+		{"[::FFFF:129.144.52.38]:80", "tcp"},
+		{"a/b/c", "unix"},
+		{"/d/e/f", "unix"},
+		{"localhost:80", "tcp"},
+	}
+	for _, url := range urls {
+		t.Run(url[0], func(t *testing.T) {
+			require.Equal(t, url[1], getSocketType(url[0]))
+		})
+	}
+}
