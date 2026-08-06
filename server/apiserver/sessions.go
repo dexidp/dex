@@ -78,6 +78,9 @@ func (d dexAPI) ListAuthSessions(ctx context.Context, req *api.ListAuthSessionsR
 		if req.UserId != "" && s.UserID != req.UserId {
 			continue
 		}
+		if req.ConnectorId != "" && s.ConnectorID != req.ConnectorId {
+			continue
+		}
 		sessions = append(sessions, storageAuthSessionToAPI(s))
 	}
 

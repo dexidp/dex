@@ -891,7 +891,7 @@ func TestGetAuthSession(t *testing.T) {
 		ID:          "nonce123", Secret: "nonce123",
 		ClientStates: map[string]*storage.ClientAuthState{
 			"client-a": {
-				AuthenticatedAt:   now.Add(24 * time.Hour),
+				AuthenticatedAt:   now,
 				LastActivity:      now,
 				LastTokenIssuedAt: now,
 			},
@@ -978,6 +978,24 @@ func TestListAuthSessions(t *testing.T) {
 	}
 	if len(resp.Sessions) != 2 {
 		t.Fatalf("expected 2 sessions for user1, got %d", len(resp.Sessions))
+	}
+
+	// Filter by connector_id, and by both: one user signed in through two
+	// connectors is two sessions, and a caller may want either or one of them.
+	resp, err = client.ListAuthSessions(ctx, &api.ListAuthSessionsReq{ConnectorId: "conn1"})
+	if err != nil {
+		t.Fatalf("list auth sessions by connector: %v", err)
+	}
+	if len(resp.Sessions) != 2 {
+		t.Fatalf("expected 2 sessions on conn1, got %d", len(resp.Sessions))
+	}
+
+	resp, err = client.ListAuthSessions(ctx, &api.ListAuthSessionsReq{UserId: "user1", ConnectorId: "conn2"})
+	if err != nil {
+		t.Fatalf("list auth sessions by user and connector: %v", err)
+	}
+	if len(resp.Sessions) != 1 {
+		t.Fatalf("expected 1 session for user1 on conn2, got %d", len(resp.Sessions))
 	}
 }
 

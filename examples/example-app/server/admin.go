@@ -230,7 +230,8 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		// connector gave the user, refresh tokens under the encoded sub claim
 		// that ends up in tokens.
 		if data.UserID != "" {
-			if resp, err := s.admin.api.ListAuthSessions(ctx, &api.ListAuthSessionsReq{UserId: data.UserID}); err == nil {
+			req := &api.ListAuthSessionsReq{UserId: data.UserID, ConnectorId: data.ConnectorID}
+			if resp, err := s.admin.api.ListAuthSessions(ctx, req); err == nil {
 				for _, sess := range resp.Sessions {
 					data.Sessions = append(data.Sessions, AdminSession{
 						ID:          sess.Id,

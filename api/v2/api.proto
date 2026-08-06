@@ -574,7 +574,7 @@ service Dex {
   rpc VerifyPassword(VerifyPasswordReq) returns (VerifyPasswordResp) {};
   // GetAuthSession returns an auth session by its ID.
   rpc GetAuthSession(GetAuthSessionReq) returns (GetAuthSessionResp) {};
-  // ListAuthSessions lists auth sessions, optionally filtered by user_id.
+  // ListAuthSessions lists auth sessions, optionally filtered by user and connector.
   rpc ListAuthSessions(ListAuthSessionsReq) returns (ListAuthSessionsResp) {};
   // DeleteAuthSession deletes an auth session and revokes associated refresh tokens.
   rpc DeleteAuthSession(DeleteAuthSessionReq) returns (DeleteAuthSessionResp) {};

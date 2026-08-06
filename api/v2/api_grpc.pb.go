@@ -98,7 +98,7 @@ type DexClient interface {
 	VerifyPassword(ctx context.Context, in *VerifyPasswordReq, opts ...grpc.CallOption) (*VerifyPasswordResp, error)
 	// GetAuthSession returns an auth session by its ID.
 	GetAuthSession(ctx context.Context, in *GetAuthSessionReq, opts ...grpc.CallOption) (*GetAuthSessionResp, error)
-	// ListAuthSessions lists auth sessions, optionally filtered by user_id.
+	// ListAuthSessions lists auth sessions, optionally filtered by user and connector.
 	ListAuthSessions(ctx context.Context, in *ListAuthSessionsReq, opts ...grpc.CallOption) (*ListAuthSessionsResp, error)
 	// DeleteAuthSession deletes an auth session and revokes associated refresh tokens.
 	DeleteAuthSession(ctx context.Context, in *DeleteAuthSessionReq, opts ...grpc.CallOption) (*DeleteAuthSessionResp, error)
@@ -489,7 +489,7 @@ type DexServer interface {
 	VerifyPassword(context.Context, *VerifyPasswordReq) (*VerifyPasswordResp, error)
 	// GetAuthSession returns an auth session by its ID.
 	GetAuthSession(context.Context, *GetAuthSessionReq) (*GetAuthSessionResp, error)
-	// ListAuthSessions lists auth sessions, optionally filtered by user_id.
+	// ListAuthSessions lists auth sessions, optionally filtered by user and connector.
 	ListAuthSessions(context.Context, *ListAuthSessionsReq) (*ListAuthSessionsResp, error)
 	// DeleteAuthSession deletes an auth session and revokes associated refresh tokens.
 	DeleteAuthSession(context.Context, *DeleteAuthSessionReq) (*DeleteAuthSessionResp, error)

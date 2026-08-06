@@ -380,7 +380,7 @@ func TestCreateOrUpdateAuthSession(t *testing.T) {
 			ID:          nonce, Secret: nonce,
 			ClientStates: map[string]*storage.ClientAuthState{
 				"client-1": {
-					AuthenticatedAt: now.Add(24 * time.Hour),
+					AuthenticatedAt: now.Add(-10 * time.Minute),
 					LastActivity:    now.Add(-10 * time.Minute),
 				},
 			},
@@ -497,7 +497,7 @@ func setupSessionLoginFixture(t *testing.T, s *sessionTestServer) storage.AuthRe
 		ID:          "test-nonce", Secret: "test-nonce",
 		ClientStates: map[string]*storage.ClientAuthState{
 			"client-1": {
-				AuthenticatedAt: now.Add(24 * time.Hour),
+				AuthenticatedAt: now.Add(-1 * time.Minute),
 				LastActivity:    now.Add(-1 * time.Minute),
 			},
 		},
@@ -662,7 +662,7 @@ func setupSessionWithIdentity(t *testing.T, s *sessionTestServer, now time.Time,
 		ID:          nonce, Secret: nonce,
 		ClientStates: map[string]*storage.ClientAuthState{
 			"client-1": {
-				AuthenticatedAt: now.Add(24 * time.Hour),
+				AuthenticatedAt: now.Add(-1 * time.Minute),
 				LastActivity:    now.Add(-1 * time.Minute),
 			},
 		},
@@ -986,7 +986,7 @@ func TestFindSSOSession(t *testing.T) {
 			ConnectorID: "mock",
 			ClientStates: map[string]*storage.ClientAuthState{
 				"client-a": {
-					AuthenticatedAt: now.Add(24 * time.Hour),
+					AuthenticatedAt: now.Add(-5 * time.Minute),
 					LastActivity:    now.Add(-5 * time.Minute),
 				},
 			},
@@ -1011,7 +1011,7 @@ func TestFindSSOSession(t *testing.T) {
 			ConnectorID: "mock",
 			ClientStates: map[string]*storage.ClientAuthState{
 				"client-a": {
-					AuthenticatedAt: now.Add(24 * time.Hour),
+					AuthenticatedAt: now.Add(-5 * time.Minute),
 					LastActivity:    now.Add(-5 * time.Minute),
 				},
 			},
@@ -1038,7 +1038,7 @@ func TestFindSSOSession(t *testing.T) {
 			ConnectorID: "mock",
 			ClientStates: map[string]*storage.ClientAuthState{
 				"client-a": {
-					AuthenticatedAt: now.Add(24 * time.Hour),
+					AuthenticatedAt: now.Add(-5 * time.Minute),
 					LastActivity:    now.Add(-5 * time.Minute),
 				},
 			},
@@ -1071,7 +1071,7 @@ func TestTrySessionLogin_SSO(t *testing.T) {
 			ID:          "test-nonce", Secret: "test-nonce",
 			ClientStates: map[string]*storage.ClientAuthState{
 				"client-a": {
-					AuthenticatedAt: now.Add(24 * time.Hour),
+					AuthenticatedAt: now.Add(-1 * time.Minute),
 					LastActivity:    now.Add(-1 * time.Minute),
 				},
 			},
@@ -1217,7 +1217,7 @@ func TestTrySessionLogin_SSO(t *testing.T) {
 			ID:          "test-nonce", Secret: "test-nonce",
 			ClientStates: map[string]*storage.ClientAuthState{
 				"client-a": {
-					AuthenticatedAt: now.Add(24 * time.Hour),
+					AuthenticatedAt: now.Add(-1 * time.Minute),
 					LastActivity:    now.Add(-1 * time.Minute),
 				},
 			},
