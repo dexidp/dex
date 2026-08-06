@@ -582,6 +582,8 @@ type AuthCode struct {
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
 
 	AuthTime time.Time `json:"authTime,omitempty"`
+
+	SessionID string `json:"sessionID,omitempty"`
 }
 
 // AuthCodeList is a list of AuthCodes.
@@ -612,6 +614,7 @@ func (cli *client) fromStorageAuthCode(a storage.AuthCode) AuthCode {
 		CodeChallenge:       a.PKCE.CodeChallenge,
 		CodeChallengeMethod: a.PKCE.CodeChallengeMethod,
 		AuthTime:            a.AuthTime,
+		SessionID:           a.SessionID,
 	}
 }
 
@@ -630,7 +633,8 @@ func toStorageAuthCode(a AuthCode) storage.AuthCode {
 			CodeChallenge:       a.CodeChallenge,
 			CodeChallengeMethod: a.CodeChallengeMethod,
 		},
-		AuthTime: a.AuthTime,
+		AuthTime:  a.AuthTime,
+		SessionID: a.SessionID,
 	}
 }
 
@@ -1022,6 +1026,7 @@ type AuthSession struct {
 	UserID         string                              `json:"userID,omitempty"`
 	ConnectorID    string                              `json:"connectorID,omitempty"`
 	Nonce          string                              `json:"nonce,omitempty"`
+	Secret         string                              `json:"secret,omitempty"`
 	ClientStates   map[string]*storage.ClientAuthState `json:"clientStates,omitempty"`
 	CreatedAt      time.Time                           `json:"createdAt,omitempty"`
 	LastActivity   time.Time                           `json:"lastActivity,omitempty"`
@@ -1046,12 +1051,12 @@ func (cli *client) fromStorageAuthSession(s storage.AuthSession) AuthSession {
 			APIVersion: cli.apiVersion,
 		},
 		ObjectMeta: k8sapi.ObjectMeta{
-			Name:      offlineTokenName(s.UserID, s.ConnectorID, cli.hash),
+			Name:      s.ID,
 			Namespace: cli.namespace,
 		},
+		Secret:         s.Secret,
 		UserID:         s.UserID,
 		ConnectorID:    s.ConnectorID,
-		Nonce:          s.Nonce,
 		ClientStates:   s.ClientStates,
 		CreatedAt:      s.CreatedAt,
 		LastActivity:   s.LastActivity,
@@ -1065,9 +1070,10 @@ func (cli *client) fromStorageAuthSession(s storage.AuthSession) AuthSession {
 
 func toStorageAuthSession(s AuthSession) storage.AuthSession {
 	result := storage.AuthSession{
+		ID:             s.ObjectMeta.Name,
+		Secret:         s.Secret,
 		UserID:         s.UserID,
 		ConnectorID:    s.ConnectorID,
-		Nonce:          s.Nonce,
 		ClientStates:   s.ClientStates,
 		CreatedAt:      s.CreatedAt,
 		LastActivity:   s.LastActivity,

@@ -66,6 +66,10 @@ func init() {
 	authcodeDescCodeChallengeMethod := authcodeFields[15].Descriptor()
 	// authcode.DefaultCodeChallengeMethod holds the default value on creation for the code_challenge_method field.
 	authcode.DefaultCodeChallengeMethod = authcodeDescCodeChallengeMethod.Default.(string)
+	// authcodeDescSessionID is the schema descriptor for session_id field.
+	authcodeDescSessionID := authcodeFields[17].Descriptor()
+	// authcode.DefaultSessionID holds the default value on creation for the session_id field.
+	authcode.DefaultSessionID = authcodeDescSessionID.Default.(string)
 	// authcodeDescID is the schema descriptor for id field.
 	authcodeDescID := authcodeFields[0].Descriptor()
 	// authcode.IDValidator is a validator for the "id" field. It is called by the builders before save.
@@ -110,10 +114,10 @@ func init() {
 	authsessionDescConnectorID := authsessionFields[2].Descriptor()
 	// authsession.ConnectorIDValidator is a validator for the "connector_id" field. It is called by the builders before save.
 	authsession.ConnectorIDValidator = authsessionDescConnectorID.Validators[0].(func(string) error)
-	// authsessionDescNonce is the schema descriptor for nonce field.
-	authsessionDescNonce := authsessionFields[3].Descriptor()
-	// authsession.NonceValidator is a validator for the "nonce" field. It is called by the builders before save.
-	authsession.NonceValidator = authsessionDescNonce.Validators[0].(func(string) error)
+	// authsessionDescSecret is the schema descriptor for secret field.
+	authsessionDescSecret := authsessionFields[3].Descriptor()
+	// authsession.SecretValidator is a validator for the "secret" field. It is called by the builders before save.
+	authsession.SecretValidator = authsessionDescSecret.Validators[0].(func(string) error)
 	// authsessionDescIPAddress is the schema descriptor for ip_address field.
 	authsessionDescIPAddress := authsessionFields[7].Descriptor()
 	// authsession.DefaultIPAddress holds the default value on creation for the ip_address field.

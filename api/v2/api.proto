@@ -304,14 +304,19 @@ message VerifyPasswordResp {
 // The user_id and connector_id are on the parent AuthSession message.
 message ClientAuthState {
   string client_id = 1;
-  bool active = 2;
-  int64 expires_at = 3;
-  int64 last_activity = 4;
-  int64 last_token_issued_at = 5;
+  int64 authenticated_at = 2;
+  int64 last_activity = 3;
+  int64 last_token_issued_at = 4;
+  // Whether this client was reached through another client's SSO sharing rather
+  // than by authenticating directly.
+  bool via_sso = 5;
 }
 
 // AuthSession represents a user's authentication session.
 message AuthSession {
+  // Random identifier of the session, published to clients as the "sid" claim. One
+  // signed-in browser is one session, so a user has as many as they have devices.
+  string id = 10;
   string user_id = 1;
   string connector_id = 2;
   repeated ClientAuthState client_states = 3;
@@ -325,8 +330,7 @@ message AuthSession {
 
 // GetAuthSessionReq is a request to retrieve an auth session.
 message GetAuthSessionReq {
-  string user_id = 1;
-  string connector_id = 2;
+  string id = 1;
 }
 
 // GetAuthSessionResp returns the auth session details.
@@ -338,6 +342,8 @@ message GetAuthSessionResp {
 message ListAuthSessionsReq {
   // Optional filter: if set, only sessions for this user are returned.
   string user_id = 1;
+  // Optional filter: if set, only sessions from this connector are returned.
+  string connector_id = 2;
 }
 
 // ListAuthSessionsResp returns a list of auth sessions.
@@ -348,8 +354,7 @@ message ListAuthSessionsResp {
 // DeleteAuthSessionReq is a request to delete an auth session.
 // Deleting a session also revokes all associated refresh tokens (consistent with logout behavior).
 message DeleteAuthSessionReq {
-  string user_id = 1;
-  string connector_id = 2;
+  string id = 1;
 }
 
 // DeleteAuthSessionResp returns the result of deleting an auth session.
@@ -567,9 +572,9 @@ service Dex {
   rpc RevokeRefresh(RevokeRefreshReq) returns (RevokeRefreshResp) {};
   // VerifyPassword returns whether a password matches a hash for a specific email or not.
   rpc VerifyPassword(VerifyPasswordReq) returns (VerifyPasswordResp) {};
-  // GetAuthSession returns an auth session by user and connector ID.
+  // GetAuthSession returns an auth session by its ID.
   rpc GetAuthSession(GetAuthSessionReq) returns (GetAuthSessionResp) {};
-  // ListAuthSessions lists auth sessions, optionally filtered by user_id.
+  // ListAuthSessions lists auth sessions, optionally filtered by user and connector.
   rpc ListAuthSessions(ListAuthSessionsReq) returns (ListAuthSessionsResp) {};
   // DeleteAuthSession deletes an auth session and revokes associated refresh tokens.
   rpc DeleteAuthSession(DeleteAuthSessionReq) returns (DeleteAuthSessionResp) {};

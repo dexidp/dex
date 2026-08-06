@@ -2,9 +2,7 @@ package session
 
 import (
 	"context"
-	"crypto/sha256"
 	"crypto/subtle"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -77,10 +75,10 @@ func (m *Manager) cookiePath() string {
 	return m.IssuerURL.Path
 }
 
-func (m *Manager) SetCookie(w http.ResponseWriter, userID, connectorID, nonce string, rememberMe bool) {
+func (m *Manager) SetCookie(w http.ResponseWriter, sessionID, secret string, rememberMe bool) {
 	cookie := &http.Cookie{
 		Name:     m.Config.CookieName,
-		Value:    internal.SessionCookieValue(userID, connectorID, nonce, m.Config.CookieEncryptionKey),
+		Value:    internal.SessionCookieValue(sessionID, secret, m.Config.CookieEncryptionKey),
 		Path:     m.cookiePath(),
 		HttpOnly: true,
 		Secure:   m.IssuerURL.Scheme == "https",
@@ -104,27 +102,7 @@ func (m *Manager) ClearCookie(w http.ResponseWriter) {
 	})
 }
 
-// SessionID derives the public session identifier — the OIDC "sid" claim — from a
-// session's nonce.
-//
-// The nonce itself is a secret: it authenticates the session cookie, so publishing
-// it in every ID token would hand each relying party the means to forge one. Hashing
-// gives a value that is just as stable and just as unique per session (the nonce is
-// generated once in CreateOrUpdateAuthSession and reused for the session's whole
-// life) without disclosing anything. That keeps sid free of storage changes — there
-// is no session-id column in any backend, and none is needed.
-func SessionID(nonce string) string {
-	if nonce == "" {
-		return ""
-	}
-	sum := sha256.Sum256([]byte(nonce))
-	return base64.RawURLEncoding.EncodeToString(sum[:])
-}
-
-// expiryReason names why a session is over, or "" while it is still live. Both
-// callers below need the same rule, and a sid that outlived its session would be
-// worse than no sid at all: token introspection treats one as proof the session is
-// still there.
+// expiryReason names why a session is over, or "" while it is still live.
 func expiryReason(session storage.AuthSession, now time.Time) string {
 	if !session.AbsoluteExpiry.IsZero() && now.After(session.AbsoluteExpiry) {
 		return "absolute lifetime"
@@ -135,63 +113,48 @@ func expiryReason(session storage.AuthSession, now time.Time) string {
 	return ""
 }
 
-// SessionIDFor returns the sid of the live session for the given user/connector
-// pair, or "" when sessions are disabled, none exists, or the one that exists has
-// expired. Callers that already hold an AuthSession should use SessionID directly
-// instead of paying for a lookup.
+// Alive reports whether the session a token names is still there. Tokens carry the
+// session's ID as their "sid" claim, so this is a direct read — nothing has to be
+// resolved from the user's identity and compared.
 //
-// Expiry matters here as much as existence. Garbage collection removes expired
-// sessions only every GCFrequency, so between the two there is a window in which a
-// session is over but still stored — and reporting a sid for it would tell
-// introspection that tokens of an ended session are still good.
-//
-// Unlike ValidSession this does not delete what it finds. It is called from token
-// issuance and introspection, which are reads; leaving the row for the collector
-// keeps a write out of paths that have no business making one.
-func (m *Manager) SessionIDFor(ctx context.Context, userID, connectorID string) string {
-	if m == nil || m.Config == nil || userID == "" || connectorID == "" {
-		return ""
+// Expiry counts as gone. Garbage collection runs on its own schedule, so between a
+// session ending and its row disappearing there is a window in which reporting it
+// alive would keep the tokens of an ended session working.
+func (m *Manager) Alive(ctx context.Context, sessionID string) bool {
+	if m == nil || m.Config == nil || sessionID == "" {
+		return false
 	}
 
-	session, err := m.Storage.GetAuthSession(ctx, userID, connectorID)
+	session, err := m.Storage.GetAuthSession(ctx, sessionID)
 	if err != nil {
 		if !errors.Is(err, storage.ErrNotFound) {
-			m.Logger.ErrorContext(ctx, "failed to get auth session for sid", "err", err)
+			m.Logger.ErrorContext(ctx, "failed to get auth session", "err", err)
 		}
-		return ""
+		return false
 	}
 
-	if reason := expiryReason(session, m.Now()); reason != "" {
-		m.Logger.DebugContext(ctx, "auth session expired, no sid",
-			"user_id", userID, "connector_id", connectorID, "reason", reason)
-		return ""
-	}
-
-	return SessionID(session.Nonce)
+	return expiryReason(session, m.Now()) == ""
 }
 
-// ValidSession returns a valid, non-expired session or nil.
-// It parses the session cookie to extract (userID, connectorID, nonce),
-// looks up the session by composite key, and verifies the nonce.
-// Invalid or expired session cookies are cleared automatically.
+// ValidSession returns the live session the request's cookie names, or nil. The
+// cookie is cleared when it names nothing, names something expired, or fails to
+// prove itself.
 func (m *Manager) ValidSession(ctx context.Context, w http.ResponseWriter, r *http.Request) *storage.AuthSession {
 	if m.Config == nil {
 		return nil
 	}
 
-	cookie, err := r.Cookie(m.Config.CookieName)
-	if err != nil || cookie.Value == "" {
+	sessionID, secret, ok := m.ParseCookie(r)
+	if !ok {
+		// A cookie that cannot be decoded is still a cookie the browser will keep
+		// sending, so drop it. Nothing to drop when there was none.
+		if c, err := r.Cookie(m.Config.CookieName); err == nil && c.Value != "" {
+			m.ClearCookie(w)
+		}
 		return nil
 	}
 
-	userID, connectorID, nonce, err := internal.ParseSessionCookie(cookie.Value, m.Config.CookieEncryptionKey)
-	if err != nil {
-		m.Logger.DebugContext(ctx, "invalid session cookie format", "err", err)
-		m.ClearCookie(w)
-		return nil
-	}
-
-	session, err := m.Storage.GetAuthSession(ctx, userID, connectorID)
+	session, err := m.Storage.GetAuthSession(ctx, sessionID)
 	if err != nil {
 		if !errors.Is(err, storage.ErrNotFound) {
 			m.Logger.ErrorContext(ctx, "failed to get auth session", "err", err)
@@ -200,11 +163,10 @@ func (m *Manager) ValidSession(ctx context.Context, w http.ResponseWriter, r *ht
 		return nil
 	}
 
-	// Verify nonce to prevent cookie forgery.
-	// Use constant-time comparison to prevent timing attacks that could
-	// allow an attacker to recover the nonce byte-by-byte.
-	if subtle.ConstantTimeCompare([]byte(session.Nonce), []byte(nonce)) != 1 {
-		m.Logger.DebugContext(ctx, "auth session nonce mismatch")
+	// The ID is published in every token as "sid", so it proves nothing on its own.
+	// Constant-time, as a byte-by-byte comparison would leak the secret by timing.
+	if subtle.ConstantTimeCompare([]byte(session.Secret), []byte(secret)) != 1 {
+		m.Logger.DebugContext(ctx, "auth session secret mismatch", "session_id", sessionID)
 		m.ClearCookie(w)
 		return nil
 	}
@@ -214,8 +176,8 @@ func (m *Manager) ValidSession(ctx context.Context, w http.ResponseWriter, r *ht
 	// for the collector.
 	if reason := expiryReason(session, m.Now()); reason != "" {
 		m.Logger.InfoContext(ctx, "auth session expired",
-			"user_id", session.UserID, "connector_id", session.ConnectorID, "reason", reason)
-		if err := m.Storage.DeleteAuthSession(ctx, session.UserID, session.ConnectorID); err != nil {
+			"session_id", session.ID, "user_id", session.UserID, "reason", reason)
+		if err := m.Storage.DeleteAuthSession(ctx, session.ID); err != nil {
 			m.Logger.DebugContext(ctx, "failed to delete expired auth session", "err", err)
 		}
 		m.ClearCookie(w)
@@ -240,9 +202,14 @@ func (m *Manager) ValidAuthSession(ctx context.Context, w http.ResponseWriter, r
 	return session
 }
 
-// CreateOrUpdateAuthSession creates a new session or updates an existing one
-// after a successful login, and sets the session cookie.
-// rememberMe controls whether the cookie is persistent (survives browser close).
+// CreateOrUpdateAuthSession records a successful login on this browser's session
+// and sets the cookie. rememberMe makes that cookie persistent.
+//
+// The browser's own cookie decides whether there is a session to continue: a login
+// from a second device joins nothing, it starts its own session, which is what makes
+// signing out on one device leave the other alone. A cookie naming someone else's
+// session — another user, or another connector — is about to be overwritten, so the
+// session it named is deleted rather than left unreachable until it times out.
 func (m *Manager) CreateOrUpdateAuthSession(ctx context.Context, r *http.Request, w http.ResponseWriter, authReq storage.AuthRequest, rememberMe bool) error {
 	if m.Config == nil {
 		return nil
@@ -253,44 +220,43 @@ func (m *Manager) CreateOrUpdateAuthSession(ctx context.Context, r *http.Request
 	connectorID := authReq.ConnectorID
 
 	clientState := &storage.ClientAuthState{
-		Active:       true,
-		ExpiresAt:    now.Add(m.Config.AbsoluteLifetime),
-		LastActivity: now,
+		AuthenticatedAt: now,
+		LastActivity:    now,
 	}
 
-	// Try to reuse existing session for this (userID, connectorID).
-	session, err := m.Storage.GetAuthSession(ctx, userID, connectorID)
-	if err == nil {
-		// Session exists, update it.
-		m.Logger.DebugContext(ctx, "updating existing auth session",
-			"user_id", userID, "connector_id", connectorID, "client_id", authReq.ClientID)
+	if current := m.ValidSession(ctx, w, r); current != nil {
+		if current.UserID == userID && current.ConnectorID == connectorID {
+			m.Logger.DebugContext(ctx, "updating existing auth session",
+				"session_id", current.ID, "user_id", userID, "client_id", authReq.ClientID)
 
-		if err := m.Storage.UpdateAuthSession(ctx, userID, connectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
-			old.LastActivity = now
-			old.IdleExpiry = now.Add(m.Config.ValidIfNotUsedFor)
-			if old.ClientStates == nil {
-				old.ClientStates = make(map[string]*storage.ClientAuthState)
+			if err := m.Storage.UpdateAuthSession(ctx, current.ID, func(old storage.AuthSession) (storage.AuthSession, error) {
+				old.LastActivity = now
+				old.IdleExpiry = now.Add(m.Config.ValidIfNotUsedFor)
+				old.IPAddress = remoteIP(r)
+				old.UserAgent = r.UserAgent()
+				if old.ClientStates == nil {
+					old.ClientStates = make(map[string]*storage.ClientAuthState)
+				}
+				old.ClientStates[authReq.ClientID] = clientState
+				return old, nil
+			}); err != nil {
+				return fmt.Errorf("update auth session: %w", err)
 			}
-			old.ClientStates[authReq.ClientID] = clientState
-			return old, nil
-		}); err != nil {
-			return fmt.Errorf("update auth session: %w", err)
+
+			m.SetCookie(w, current.ID, current.Secret, rememberMe)
+			return nil
 		}
 
-		m.SetCookie(w, userID, connectorID, session.Nonce, rememberMe)
-		return nil
+		if err := m.Storage.DeleteAuthSession(ctx, current.ID); err != nil && !errors.Is(err, storage.ErrNotFound) {
+			m.Logger.ErrorContext(ctx, "failed to delete superseded auth session", "err", err)
+		}
 	}
 
-	// Unexpected error, exit the method.
-	if !errors.Is(err, storage.ErrNotFound) {
-		return fmt.Errorf("get auth session: %w", err)
-	}
-
-	nonce := storage.NewID()
 	newSession := storage.AuthSession{
+		ID:          storage.NewID(),
+		Secret:      storage.NewID(),
 		UserID:      userID,
 		ConnectorID: connectorID,
-		Nonce:       nonce,
 		ClientStates: map[string]*storage.ClientAuthState{
 			authReq.ClientID: clientState,
 		},
@@ -307,8 +273,8 @@ func (m *Manager) CreateOrUpdateAuthSession(ctx context.Context, r *http.Request
 	}
 
 	m.Logger.DebugContext(ctx, "created new auth session",
-		"user_id", userID, "connector_id", connectorID, "client_id", authReq.ClientID)
-	m.SetCookie(w, userID, connectorID, nonce, rememberMe)
+		"session_id", newSession.ID, "user_id", userID, "client_id", authReq.ClientID)
+	m.SetCookie(w, newSession.ID, newSession.Secret, rememberMe)
 	return nil
 }
 
@@ -350,13 +316,7 @@ func (m *Manager) ClientSharesWith(sourceClient storage.Client, targetClientID s
 // policies determine whether SSO is allowed. These are different clients,
 // so the GetClient calls below are not redundant.
 func (m *Manager) FindSSO(ctx context.Context, session *storage.AuthSession, targetClientID string) *storage.ClientAuthState {
-	now := m.Now()
-
 	for sourceClientID, state := range session.ClientStates {
-		if !state.Active || now.After(state.ExpiresAt) {
-			continue
-		}
-
 		// Only directly-authenticated states may act as SSO sources. Skipping
 		// SSO-derived states keeps sharing unidirectional and prevents transitive
 		// A->B->C chains (a user authenticated only to A must not be SSO'd into C
@@ -380,32 +340,25 @@ func (m *Manager) FindSSO(ctx context.Context, session *storage.AuthSession, tar
 	return nil
 }
 
-// UpdateTokenIssuedAt records that a token was just issued to clientID: it
-// refreshes the session's idle timeout and the client state's last-issued
-// timestamp. A missing, undecodable or superseded cookie is a no-op.
+// UpdateTokenIssuedAt records that a token was just issued to clientID: it refreshes
+// the session's idle timeout and the client state's last-issued timestamp. A missing,
+// undecodable or superseded cookie is a no-op.
 func (m *Manager) UpdateTokenIssuedAt(r *http.Request, clientID string) {
 	if m.Config == nil {
 		return
 	}
 
-	cookie, err := r.Cookie(m.Config.CookieName)
-	if err != nil || cookie.Value == "" {
-		return
-	}
-
-	userID, connectorID, nonce, err := internal.ParseSessionCookie(cookie.Value, m.Config.CookieEncryptionKey)
-	if err != nil {
+	sessionID, secret, ok := m.ParseCookie(r)
+	if !ok {
 		return
 	}
 
 	now := m.Now()
-	_ = m.Storage.UpdateAuthSession(r.Context(), userID, connectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
-		// Verify the cookie's nonce against the stored session, as every other
-		// session-trusting path does: a stale cookie for a superseded session
-		// must not refresh the current session's idle timeout. Abort the update
-		// (leaving the session untouched) on mismatch.
-		if subtle.ConstantTimeCompare([]byte(old.Nonce), []byte(nonce)) != 1 {
-			return old, errors.New("session nonce mismatch")
+	_ = m.Storage.UpdateAuthSession(r.Context(), sessionID, func(old storage.AuthSession) (storage.AuthSession, error) {
+		// Prove the cookie as every other session-trusting path does: a stale one
+		// must not refresh a live session's idle timeout. Aborting leaves it untouched.
+		if subtle.ConstantTimeCompare([]byte(old.Secret), []byte(secret)) != 1 {
+			return old, errors.New("session secret mismatch")
 		}
 		old.LastActivity = now
 		old.IdleExpiry = now.Add(m.Config.ValidIfNotUsedFor)
@@ -421,19 +374,20 @@ func (m *Manager) UpdateTokenIssuedAt(r *http.Request, clientID string) {
 
 // ParseCookie reads and decodes the session cookie from the request. ok is false
 // when sessions are disabled, the cookie is absent, or it fails to decode.
-func (m *Manager) ParseCookie(r *http.Request) (userID, connectorID, nonce string, ok bool) {
+func (m *Manager) ParseCookie(r *http.Request) (sessionID, secret string, ok bool) {
 	if m.Config == nil {
-		return "", "", "", false
+		return "", "", false
 	}
 	cookie, err := r.Cookie(m.Config.CookieName)
-	if err != nil {
-		return "", "", "", false
+	if err != nil || cookie.Value == "" {
+		return "", "", false
 	}
-	uid, cid, n, err := internal.ParseSessionCookie(cookie.Value, m.Config.CookieEncryptionKey)
+	id, sec, err := internal.ParseSessionCookie(cookie.Value, m.Config.CookieEncryptionKey)
 	if err != nil {
-		return "", "", "", false
+		m.Logger.DebugContext(r.Context(), "invalid session cookie format", "err", err)
+		return "", "", false
 	}
-	return uid, cid, n, true
+	return id, sec, true
 }
 
 // AbsoluteExpiry returns the absolute session expiry measured from now.

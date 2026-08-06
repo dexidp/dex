@@ -230,12 +230,15 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		// connector gave the user, refresh tokens under the encoded sub claim
 		// that ends up in tokens.
 		if data.UserID != "" {
-			if resp, err := s.admin.api.ListAuthSessions(ctx, &api.ListAuthSessionsReq{UserId: data.UserID}); err == nil {
+			req := &api.ListAuthSessionsReq{UserId: data.UserID, ConnectorId: data.ConnectorID}
+			if resp, err := s.admin.api.ListAuthSessions(ctx, req); err == nil {
 				for _, sess := range resp.Sessions {
 					data.Sessions = append(data.Sessions, AdminSession{
+						ID:          sess.Id,
 						UserID:      sess.UserId,
 						ConnectorID: sess.ConnectorId,
 						IPAddress:   sess.IpAddress,
+						UserAgent:   sess.UserAgent,
 						Created:     epochText(sess.CreatedAt),
 						Expires:     epochText(sess.AbsoluteExpiry),
 					})
@@ -446,9 +449,11 @@ func (s *Server) handleAdminRevokeRefresh(w http.ResponseWriter, r *http.Request
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
+	// The API keys refresh tokens by the sub claim, not by the user id the
+	// connector gave — the same encoding the listing above uses.
 	userID, clientID := r.FormValue("user_id"), r.FormValue("client_id")
 	resp, err := s.admin.api.RevokeRefresh(ctx, &api.RevokeRefreshReq{
-		UserId:   userID,
+		UserId:   idTokenSubject(userID, r.FormValue("connector_id")),
 		ClientId: clientID,
 	})
 	switch {
@@ -680,18 +685,16 @@ func (s *Server) handleAdminDeleteSession(w http.ResponseWriter, r *http.Request
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	userID := r.FormValue("user_id")
-	resp, err := s.admin.api.DeleteAuthSession(ctx, &api.DeleteAuthSessionReq{
-		UserId:      userID,
-		ConnectorId: r.FormValue("connector_id"),
-	})
+	// One session is one signed-in browser, so this ends that device and no other.
+	sessionID := r.FormValue("session_id")
+	resp, err := s.admin.api.DeleteAuthSession(ctx, &api.DeleteAuthSessionReq{Id: sessionID})
 	switch {
 	case err != nil:
 		s.adminRedirect(w, r, "", err.Error())
 	case resp.NotFound:
-		s.adminRedirect(w, r, "", fmt.Sprintf("no session for user %q", userID))
+		s.adminRedirect(w, r, "", fmt.Sprintf("no session %q", sessionID))
 	default:
-		s.adminRedirect(w, r, fmt.Sprintf("deleted session for user %q", userID), "")
+		s.adminRedirect(w, r, fmt.Sprintf("deleted session %q", sessionID), "")
 	}
 }
 

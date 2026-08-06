@@ -205,13 +205,14 @@ func TestConsentSurvivesSessionDeletion(t *testing.T) {
 
 	// Create and then delete the session (simulating logout).
 	require.NoError(t, s.storage.CreateAuthSession(ctx, storage.AuthSession{
-		UserID: userID, ConnectorID: connectorID, Nonce: "nonce",
+		ID: "nonce", Secret: testSessionSecret("nonce"),
+		UserID: userID, ConnectorID: connectorID,
 		CreatedAt: time.Now(), LastActivity: time.Now(),
 	}))
-	require.NoError(t, s.storage.DeleteAuthSession(ctx, userID, connectorID))
+	require.NoError(t, s.storage.DeleteAuthSession(ctx, "nonce"))
 
 	// Session is gone.
-	_, err := s.storage.GetAuthSession(ctx, userID, connectorID)
+	_, err := s.storage.GetAuthSession(ctx, "nonce")
 	require.ErrorIs(t, err, storage.ErrNotFound)
 
 	// Consent survives.

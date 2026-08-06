@@ -189,7 +189,7 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 	h.revokeSessionBoundTokens(ctx, authSession)
 	h.Backchannel.Notify(ctx, authSession)
 
-	loggedOut := h.deleteAuthSession(ctx, authSession.UserID, authSession.ConnectorID)
+	loggedOut := h.deleteAuthSession(ctx, authSession)
 	h.Sessions.ClearCookie(w)
 	h.finishLogout(w, r, postLogoutRedirectURI, state, loggedOut)
 }
@@ -244,7 +244,7 @@ func (h idTokenHint) matches(authSession *storage.AuthSession) bool {
 	if h.sessionID == "" {
 		return true
 	}
-	return h.sessionID == session.SessionID(authSession.Nonce)
+	return h.sessionID == authSession.ID
 }
 
 // parseIDTokenHint verifies the hint and extracts the subject, requesting client and
@@ -297,22 +297,21 @@ func (h *Handler) parseIDTokenHint(ctx context.Context, raw string) (idTokenHint
 func (h *Handler) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Resolve identity from the session cookie.
-	userID, connectorID, nonce, ok := h.Sessions.ParseCookie(r)
+	// Resolve the session from the cookie.
+	sessionID, secret, ok := h.Sessions.ParseCookie(r)
 	if !ok {
 		h.renderError(r, w, http.StatusBadRequest, "Invalid session cookie.")
 		return
 	}
 
-	// Load the session and verify nonce.
-	session, err := h.Storage.GetAuthSession(ctx, userID, connectorID)
+	session, err := h.Storage.GetAuthSession(ctx, sessionID)
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "logout callback: session not found", "err", err)
 		h.renderError(r, w, http.StatusBadRequest, "Session not found.")
 		return
 	}
 
-	if subtle.ConstantTimeCompare([]byte(session.Nonce), []byte(nonce)) != 1 {
+	if subtle.ConstantTimeCompare([]byte(session.Secret), []byte(secret)) != 1 {
 		h.renderError(r, w, http.StatusBadRequest, "Invalid session.")
 		return
 	}
@@ -343,7 +342,7 @@ func (h *Handler) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 	h.Backchannel.Notify(ctx, &session)
 
 	// Session kept alive until now — delete it and clear the cookie.
-	h.deleteAuthSession(ctx, userID, connectorID)
+	h.deleteAuthSession(ctx, &session)
 	h.Sessions.ClearCookie(w)
 	h.finishLogout(w, r, ls.PostLogoutRedirectURI, ls.State, true)
 }
@@ -379,7 +378,7 @@ func (h *Handler) finishLogout(w http.ResponseWriter, r *http.Request, postLogou
 // read it back. Returns the redirect URL and true on success, or ("", false) if
 // upstream logout is not possible (connector doesn't support it, etc.).
 func (h *Handler) tryUpstreamLogout(ctx context.Context, authSession *storage.AuthSession, postLogoutRedirectURI, state, clientID string) (string, bool) {
-	userID, connectorID := authSession.UserID, authSession.ConnectorID
+	connectorID := authSession.ConnectorID
 	if connectorID == "" {
 		return "", false
 	}
@@ -395,7 +394,7 @@ func (h *Handler) tryUpstreamLogout(ctx context.Context, authSession *storage.Au
 	}
 
 	// Store logout parameters in the session.
-	if err := h.Storage.UpdateAuthSession(ctx, userID, connectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
+	if err := h.Storage.UpdateAuthSession(ctx, authSession.ID, func(old storage.AuthSession) (storage.AuthSession, error) {
 		old.LogoutState = &storage.LogoutState{
 			PostLogoutRedirectURI: postLogoutRedirectURI,
 			State:                 state,
@@ -428,17 +427,18 @@ func (h *Handler) tryUpstreamLogout(ctx context.Context, authSession *storage.Au
 }
 
 // deleteAuthSession deletes the session and returns true if it existed.
-func (h *Handler) deleteAuthSession(ctx context.Context, userID, connectorID string) bool {
-	if userID == "" || connectorID == "" {
+func (h *Handler) deleteAuthSession(ctx context.Context, session *storage.AuthSession) bool {
+	if session == nil || session.ID == "" {
 		return false
 	}
-	if err := h.Storage.DeleteAuthSession(ctx, userID, connectorID); err != nil {
+	if err := h.Storage.DeleteAuthSession(ctx, session.ID); err != nil {
 		if !errors.Is(err, storage.ErrNotFound) {
 			h.Logger.ErrorContext(ctx, "logout: failed to delete auth session", "err", err)
 		}
 		return false
 	}
-	h.Logger.InfoContext(ctx, "logout successful", "user_id", userID, "connector_id", connectorID)
+	h.Logger.InfoContext(ctx, "logout successful",
+		"session_id", session.ID, "user_id", session.UserID)
 	return true
 }
 

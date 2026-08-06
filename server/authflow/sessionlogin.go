@@ -24,32 +24,24 @@ func (h *Handler) trySessionLoginWithSession(ctx context.Context, r *http.Reques
 
 	now := h.Now()
 
-	clientState, ok := session.ClientStates[authReq.ClientID]
-	fallbackToSSO := !ok || !clientState.Active || now.After(clientState.ExpiresAt)
-
-	if fallbackToSSO {
+	_, directLogin := session.ClientStates[authReq.ClientID]
+	if !directLogin {
 		// No direct session for this client — try SSO from a sharing client.
 		sourceState := h.Sessions.FindSSO(ctx, session, authReq.ClientID)
 		if sourceState == nil {
 			return false
 		}
 
-		// Cap the derived state expiry at min(configured lifetime, source state expiry).
-		expiresAt := h.Sessions.AbsoluteExpiry(now)
-		if sourceState.ExpiresAt.Before(expiresAt) {
-			expiresAt = sourceState.ExpiresAt
-		}
-
-		// Create a new client state for the target client via SSO.
-		if err := h.Storage.UpdateAuthSession(ctx, session.UserID, session.ConnectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
+		// Create a new client state for the target client via SSO. It carries the
+		// source's authentication time: the user did not authenticate again here.
+		if err := h.Storage.UpdateAuthSession(ctx, session.ID, func(old storage.AuthSession) (storage.AuthSession, error) {
 			if old.ClientStates == nil {
 				old.ClientStates = make(map[string]*storage.ClientAuthState)
 			}
 			old.ClientStates[authReq.ClientID] = &storage.ClientAuthState{
-				Active:       true,
-				ExpiresAt:    expiresAt,
-				LastActivity: now,
-				ViaSSO:       true,
+				AuthenticatedAt: sourceState.AuthenticatedAt,
+				LastActivity:    now,
+				ViaSSO:          true,
 			}
 			old.LastActivity = now
 			old.IdleExpiry = h.Sessions.IdleExpiry(now)
@@ -77,9 +69,9 @@ func (h *Handler) trySessionLoginWithSession(ctx context.Context, r *http.Reques
 		}
 	}
 
-	if !fallbackToSSO {
+	if directLogin {
 		h.Logger.DebugContext(ctx, "session: re-authenticated from session",
-			"user_id", session.UserID, "connector_id", session.ConnectorID)
+			"session_id", session.ID, "user_id", session.UserID)
 	}
 
 	return h.finishSessionLogin(ctx, r, w, authReq, session, &ui, now)
@@ -110,7 +102,7 @@ func (h *Handler) finishSessionLogin(ctx context.Context, r *http.Request, w htt
 	}
 
 	// Update session activity.
-	_ = h.Storage.UpdateAuthSession(ctx, session.UserID, session.ConnectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
+	_ = h.Storage.UpdateAuthSession(ctx, session.ID, func(old storage.AuthSession) (storage.AuthSession, error) {
 		old.LastActivity = now
 		old.IdleExpiry = h.Sessions.IdleExpiry(now)
 		if cs, ok := old.ClientStates[authReq.ClientID]; ok {

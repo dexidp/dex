@@ -18,12 +18,16 @@ func (d *Database) CreateAuthSession(ctx context.Context, session storage.AuthSe
 		return fmt.Errorf("encode client states auth session: %w", err)
 	}
 
-	id := compositeKeyID(session.UserID, session.ConnectorID, d.hasher)
+	encodedLogoutState, err := json.Marshal(session.LogoutState)
+	if err != nil {
+		return fmt.Errorf("encode logout state auth session: %w", err)
+	}
+
 	_, err = d.client.AuthSession.Create().
-		SetID(id).
+		SetID(session.ID).
 		SetUserID(session.UserID).
 		SetConnectorID(session.ConnectorID).
-		SetNonce(session.Nonce).
+		SetSecret(session.Secret).
 		SetClientStates(encodedStates).
 		SetCreatedAt(session.CreatedAt).
 		SetLastActivity(session.LastActivity).
@@ -31,6 +35,7 @@ func (d *Database) CreateAuthSession(ctx context.Context, session storage.AuthSe
 		SetUserAgent(session.UserAgent).
 		SetAbsoluteExpiry(session.AbsoluteExpiry.UTC()).
 		SetIdleExpiry(session.IdleExpiry.UTC()).
+		SetLogoutState(encodedLogoutState).
 		Save(ctx)
 	if err != nil {
 		return convertDBError("create auth session: %w", err)
@@ -38,9 +43,8 @@ func (d *Database) CreateAuthSession(ctx context.Context, session storage.AuthSe
 	return nil
 }
 
-// GetAuthSession extracts an auth session from the database by user ID and connector ID.
-func (d *Database) GetAuthSession(ctx context.Context, userID, connectorID string) (storage.AuthSession, error) {
-	id := compositeKeyID(userID, connectorID, d.hasher)
+// GetAuthSession extracts an auth session from the database by its ID.
+func (d *Database) GetAuthSession(ctx context.Context, id string) (storage.AuthSession, error) {
 	authSession, err := d.client.AuthSession.Get(ctx, id)
 	if err != nil {
 		return storage.AuthSession{}, convertDBError("get auth session: %w", err)
@@ -62,9 +66,8 @@ func (d *Database) ListAuthSessions(ctx context.Context) ([]storage.AuthSession,
 	return storageAuthSessions, nil
 }
 
-// DeleteAuthSession deletes an auth session from the database by user ID and connector ID.
-func (d *Database) DeleteAuthSession(ctx context.Context, userID, connectorID string) error {
-	id := compositeKeyID(userID, connectorID, d.hasher)
+// DeleteAuthSession deletes an auth session from the database by its ID.
+func (d *Database) DeleteAuthSession(ctx context.Context, id string) error {
 	err := d.client.AuthSession.DeleteOneID(id).Exec(ctx)
 	if err != nil {
 		return convertDBError("delete auth session: %w", err)
@@ -73,8 +76,7 @@ func (d *Database) DeleteAuthSession(ctx context.Context, userID, connectorID st
 }
 
 // UpdateAuthSession changes an auth session using an updater function.
-func (d *Database) UpdateAuthSession(ctx context.Context, userID, connectorID string, updater func(s storage.AuthSession) (storage.AuthSession, error)) error {
-	id := compositeKeyID(userID, connectorID, d.hasher)
+func (d *Database) UpdateAuthSession(ctx context.Context, id string, updater func(s storage.AuthSession) (storage.AuthSession, error)) error {
 	tx, err := d.BeginTx(ctx)
 	if err != nil {
 		return convertDBError("update auth session tx: %w", err)
@@ -99,6 +101,11 @@ func (d *Database) UpdateAuthSession(ctx context.Context, userID, connectorID st
 		return rollback(tx, "encode client states auth session: %w", err)
 	}
 
+	encodedLogoutState, err := json.Marshal(newSession.LogoutState)
+	if err != nil {
+		return rollback(tx, "encode logout state auth session: %w", err)
+	}
+
 	_, err = tx.AuthSession.UpdateOneID(id).
 		SetClientStates(encodedStates).
 		SetLastActivity(newSession.LastActivity).
@@ -106,6 +113,7 @@ func (d *Database) UpdateAuthSession(ctx context.Context, userID, connectorID st
 		SetUserAgent(newSession.UserAgent).
 		SetAbsoluteExpiry(newSession.AbsoluteExpiry.UTC()).
 		SetIdleExpiry(newSession.IdleExpiry.UTC()).
+		SetLogoutState(encodedLogoutState).
 		Save(ctx)
 	if err != nil {
 		return rollback(tx, "update auth session updating: %w", err)
