@@ -167,6 +167,17 @@ type Client struct {
 	Secret    string `json:"secret"`
 	SecretEnv string `json:"secretEnv"`
 
+	// InsecureAllowRegexpRedirectURIs is an additiona flag allowing, add to
+	// RedirectURIs regexp expressions for dynamic URIs.
+	//
+	// Note: The flag does not allow wildcard regexp like: ".*" or "https?://.*" or
+	// any ".*" in the string, unless using InsecureAllowWildcardRedirectURIs flag.
+	InsecureAllowRegexpRedirectURIs bool `json:"insecureAllowRegexpRedirectURIs"`
+
+	// InsecureAllowWildcardRedirectURIs in use with InsecureAllowRegexpRedirectURIs
+	// allows to add wildcard regexp mainly for development purpose.
+	InsecureAllowWildcardRedirectURIs bool `json:"insecureAllowWildcardRedirectURIs"`
+
 	// A registered set of redirect URIs. When redirecting from dex to the client, the URI
 	// requested to redirect to MUST match one of these values, unless the client is "public".
 	RedirectURIs []string `json:"redirectURIs"`

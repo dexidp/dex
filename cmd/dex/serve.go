@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync/atomic"
@@ -241,6 +242,18 @@ func runServe(options serveOptions) error {
 					return fmt.Errorf("invalid config: Secret and SecretEnv fields are exclusive for client %q", client.ID)
 				}
 				c.StaticClients[i].Secret = os.Getenv(client.SecretEnv)
+			}
+			if client.InsecureAllowRegexpRedirectURIs {
+				for _, uri := range client.RedirectURIs {
+					if !client.InsecureAllowWildcardRedirectURIs && strings.Contains(uri, ".*") {
+						return fmt.Errorf("invalid config: InsecureAllowWildcardRedirectURIs is required when using \".*\"")
+					}
+
+					_, err := regexp.Compile(uri)
+					if err != nil {
+						return fmt.Errorf("invalid config: RedirectURI %q is not a valid regexp expression", uri)
+					}
+				}
 			}
 			logger.Info("config static client", "client_name", client.Name)
 		}

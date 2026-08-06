@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -93,6 +94,16 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 			return true
 		}
 	}
+
+	// Check redirectURIs using regexp package if is allowed
+	if client.InsecureAllowRegexpRedirectURIs {
+		valid := validateRegexpRedirectURI(client.RedirectURIs, redirectURI, client.InsecureAllowWildcardRedirectURIs)
+
+		if valid {
+			return true
+		}
+	}
+
 	// For non-public clients or when RedirectURIs is set, we allow only explicitly named RedirectURIs.
 	if !client.Public || len(client.RedirectURIs) > 0 {
 		return false
@@ -124,6 +135,38 @@ func isHostLocal(host string) bool {
 	}
 
 	return host == "localhost" || net.ParseIP(host).IsLoopback()
+}
+
+func validateRegexpRedirectURI(redirectURIs []string, redirectURI string, allowWildcard bool) bool {
+	for _, uri := range redirectURIs {
+		if !allowWildcard && strings.Contains(uri, ".*") {
+			continue
+		}
+
+		rgx, err := regexp.Compile(surroundRedirectURIRegexp(uri))
+		if err != nil {
+			continue
+		}
+
+		if rgx.Match([]byte(redirectURI)) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func surroundRedirectURIRegexp(uri string) (result string) {
+	result = uri
+	if result[0] != '^' {
+		result = "^" + result
+	}
+
+	if result[len(result)-1] != '$' {
+		result = result + "$"
+	}
+
+	return
 }
 
 func validateConnectorID(connectors []storage.Connector, connectorID string) bool {
