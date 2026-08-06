@@ -46,10 +46,11 @@ func (h *Handler) writeResponse(w http.ResponseWriter, r *http.Request, authReq 
 		return
 	}
 
-	// Each response-type handler self-selects on authReq.ResponseTypes and
-	// contributes its artifact to resp (fosite's AuthorizeEndpointHandler model).
-	// Order matters: the code and access token feed the id_token signature.
-	resp := &authResponse{}
+	// Resolved once for the whole response. Every artifact below has to name the
+	// same session, and resolving it is a storage read that can clear a stale
+	// cookie — not something to repeat two or three times while writing one
+	// response.
+	resp := &authResponse{sessionID: h.sessionID(ctx, w, r)}
 	for _, handle := range []responseTypeHandler{
 		h.issueCode,
 		h.issueAccessToken,
@@ -127,6 +128,9 @@ type authResponse struct {
 	// implicit and hybrid flows.
 	idToken       string
 	idTokenExpiry time.Time
+
+	// sessionID is the browser session everything in this response comes from.
+	sessionID string
 }
 
 // responseTypeHandler produces the response for a single OAuth2 response_type.
@@ -134,10 +138,10 @@ type authResponse struct {
 // (after writing an error or OOB page itself) to abort the response.
 type responseTypeHandler func(ctx context.Context, w http.ResponseWriter, r *http.Request, authReq storage.AuthRequest, resp *authResponse) bool
 
-// sessionID names the browser session this response is being issued from, or "" when
-// there is none. The browser is on the other end of this request, so its cookie is
-// the answer — a lookup by user would pick whichever session that user has open,
-// which on a second device is somebody else's.
+// sessionID names the browser session this response is issued from, or "" when there
+// is none. The browser is on the other end of this request, so its cookie is the
+// answer — a lookup by user would pick whichever session that user has open, which on
+// a second device is somebody else's.
 func (h *Handler) sessionID(ctx context.Context, w http.ResponseWriter, r *http.Request) string {
 	if s := h.Sessions.ValidSession(ctx, w, r); s != nil {
 		return s.ID
@@ -152,7 +156,7 @@ func (h *Handler) issueCode(ctx context.Context, w http.ResponseWriter, r *http.
 	}
 	resp.code = storage.AuthCode{
 		ID:            storage.NewID(),
-		SessionID:     h.sessionID(ctx, w, r),
+		SessionID:     resp.sessionID,
 		ClientID:      authReq.ClientID,
 		ConnectorID:   authReq.ConnectorID,
 		Nonce:         authReq.Nonce,
@@ -194,7 +198,7 @@ func (h *Handler) issueAccessToken(ctx context.Context, w http.ResponseWriter, r
 		ConnectorID: authReq.ConnectorID,
 		Nonce:       authReq.Nonce,
 		AuthTime:    authReq.AuthTime,
-		SessionID:   h.sessionID(ctx, w, r),
+		SessionID:   resp.sessionID,
 	})
 	if err != nil {
 		h.Logger.ErrorContext(r.Context(), "failed to create new access token", "err", err)
@@ -219,7 +223,7 @@ func (h *Handler) issueIDToken(ctx context.Context, w http.ResponseWriter, r *ht
 		ConnectorID: authReq.ConnectorID,
 		Nonce:       authReq.Nonce,
 		AuthTime:    authReq.AuthTime,
-		SessionID:   h.sessionID(ctx, w, r),
+		SessionID:   resp.sessionID,
 	}, resp.accessToken, resp.code.ID)
 	if err != nil {
 		h.Logger.ErrorContext(r.Context(), "failed to create ID token", "err", err)

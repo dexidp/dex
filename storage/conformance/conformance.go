@@ -232,13 +232,15 @@ func testAuthRequestCRUD(t *testing.T, s storage.Storage) {
 func testAuthCodeCRUD(t *testing.T, s storage.Storage) {
 	ctx := t.Context()
 	a1 := storage.AuthCode{
-		ID:            storage.NewID(),
-		ClientID:      "client1",
-		RedirectURI:   "https://localhost:80/callback",
-		Nonce:         "foobar",
-		Scopes:        []string{"openid", "email"},
-		Expiry:        neverExpire,
-		AuthTime:      defaultAuthTime,
+		ID:          storage.NewID(),
+		ClientID:    "client1",
+		RedirectURI: "https://localhost:80/callback",
+		Nonce:       "foobar",
+		Scopes:      []string{"openid", "email"},
+		Expiry:      neverExpire,
+		AuthTime:    defaultAuthTime,
+		// Explicitly persisted: at its zero value it round-trips even when dropped.
+		SessionID:     storage.NewID(),
 		ConnectorID:   "ldap",
 		ConnectorData: []byte(`{"some":"data"}`),
 		PKCE: storage.PKCE{

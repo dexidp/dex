@@ -423,6 +423,56 @@ func TestCreateOrUpdateAuthSession(t *testing.T) {
 		assert.Contains(t, session.ClientStates, "client-2")
 	})
 
+	// The whole point of keying a session by its own id: the cookie decides whether
+	// there is a session to continue, so a second browser starts its own instead of
+	// joining the first and taking its cookie.
+	t.Run("a second browser gets its own session", func(t *testing.T) {
+		s := newTestSessionServer(t)
+
+		authReq := storage.AuthRequest{
+			ID:          "auth-1",
+			ClientID:    "client-1",
+			Claims:      storage.Claims{UserID: "user-1"},
+			ConnectorID: "mock",
+		}
+
+		signIn := func(t *testing.T, r *http.Request) (id, secret string) {
+			t.Helper()
+			w := httptest.NewRecorder()
+			require.NoError(t, s.Sessions.CreateOrUpdateAuthSession(ctx, r, w, authReq, false))
+
+			cookies := w.Result().Cookies()
+			require.Len(t, cookies, 1)
+			id, secret, err := internal.ParseSessionCookie(cookies[0].Value, nil)
+			require.NoError(t, err)
+			return id, secret
+		}
+
+		// Same user, same connector, two browsers — neither carrying a cookie.
+		firstID, firstSecret := signIn(t, httptest.NewRequest(http.MethodGet, "/", nil))
+		secondID, secondSecret := signIn(t, httptest.NewRequest(http.MethodGet, "/", nil))
+
+		assert.NotEqual(t, firstID, secondID, "a browser without a cookie must not join an existing session")
+		assert.NotEqual(t, firstSecret, secondSecret)
+
+		// Both are stored, and neither took the other's cookie.
+		first, err := s.Storage.GetAuthSession(ctx, firstID)
+		require.NoError(t, err, "the first browser's session must survive the second signing in")
+		assert.Equal(t, firstSecret, first.Secret)
+
+		second, err := s.Storage.GetAuthSession(ctx, secondID)
+		require.NoError(t, err)
+		assert.Equal(t, secondSecret, second.Secret)
+
+		// The same browser signing in again continues the session it already has.
+		againID, _ := signIn(t, sessionCookieRequest2(firstID, firstSecret))
+		assert.Equal(t, firstID, againID, "a browser with its cookie must continue its own session")
+
+		sessions, err := s.Storage.ListAuthSessions(ctx)
+		require.NoError(t, err)
+		assert.Len(t, sessions, 2)
+	})
+
 	t.Run("nil session config", func(t *testing.T) {
 		s := newTestSessionServer(t)
 		resetSessions(s, nil, url.URL{})
@@ -484,6 +534,14 @@ func setupSessionLoginFixture(t *testing.T, s *sessionTestServer) storage.AuthRe
 	}
 	require.NoError(t, s.Storage.CreateAuthRequest(ctx, authReq))
 	return authReq
+}
+
+// sessionCookieRequest2 is sessionCookieRequest for the tests that care that the
+// two halves of the cookie differ.
+func sessionCookieRequest2(sessionID, secret string) *http.Request {
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r.AddCookie(&http.Cookie{Name: "dex_session", Value: internal.SessionCookieValue(sessionID, secret, nil)})
+	return r
 }
 
 func sessionCookieRequest(sessionID string) *http.Request {
@@ -1268,33 +1326,46 @@ func TestFinishSessionLogin_MFA(t *testing.T) {
 // TestNonceVerificationRejectsForgedCookie verifies that a session cookie
 // with a valid (userID, connectorID) but wrong nonce is rejected.
 // The nonce comparison uses constant-time comparison to prevent timing attacks.
-func TestNonceVerificationRejectsForgedCookie(t *testing.T) {
+// TestSecretVerificationRejectsForgedCookie: the session id travels in every id
+// token as the sid claim, so a cookie naming a real session proves nothing on its
+// own. Only the secret does, and these cases are the ones that reach that check.
+func TestSecretVerificationRejectsForgedCookie(t *testing.T) {
 	ctx := t.Context()
 	s := newTestSessionServer(t)
 	now := s.Now()
 
 	require.NoError(t, s.Storage.CreateAuthSession(ctx, storage.AuthSession{
-		UserID: "user-1", ConnectorID: "mock", ID: "real-nonce", Secret: "real-nonce",
+		UserID: "user-1", ConnectorID: "mock", ID: "real-session", Secret: "real-secret",
 		CreatedAt: now.Add(-10 * time.Minute), LastActivity: now.Add(-1 * time.Minute),
 		AbsoluteExpiry: now.Add(24 * time.Hour), IdleExpiry: now.Add(59 * time.Minute),
 	}))
 
 	tests := []struct {
-		name  string
-		nonce string
+		name      string
+		sessionID string
+		secret    string
 	}{
-		{"wrong nonce", "wrong-nonce"},
-		{"empty nonce", ""},
-		{"prefix of real nonce", "real"},
-		{"real nonce with suffix", "real-nonce-extra"},
+		// The published id with every secret an attacker could try from it.
+		{"right id, wrong secret", "real-session", "wrong-secret"},
+		{"right id, no secret", "real-session", ""},
+		{"right id, secret is the id", "real-session", "real-session"},
+		{"right id, prefix of the secret", "real-session", "real"},
+		{"right id, secret with suffix", "real-session", "real-secret-extra"},
+		// And an id that names nothing, which never reaches the comparison.
+		{"unknown id", "other-session", "real-secret"},
+		{"empty id", "", "real-secret"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			r := sessionCookieRequest(tc.nonce)
+			r := httptest.NewRequest(http.MethodGet, "/", nil)
+			r.AddCookie(&http.Cookie{
+				Name:  "dex_session",
+				Value: internal.SessionCookieValue(tc.sessionID, tc.secret, nil),
+			})
 			w := httptest.NewRecorder()
 
 			session := s.Sessions.ValidSession(ctx, w, r)
-			assert.Nil(t, session, "session with forged nonce %q should be rejected", tc.nonce)
+			assert.Nil(t, session, "forged cookie (%q, %q) should be rejected", tc.sessionID, tc.secret)
 
 			// Cookie should be cleared on nonce mismatch.
 			for _, c := range w.Result().Cookies() {
@@ -1305,8 +1376,12 @@ func TestNonceVerificationRejectsForgedCookie(t *testing.T) {
 		})
 	}
 
-	t.Run("correct nonce accepted", func(t *testing.T) {
-		r := sessionCookieRequest("real-nonce")
+	t.Run("right id and secret accepted", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.AddCookie(&http.Cookie{
+			Name:  "dex_session",
+			Value: internal.SessionCookieValue("real-session", "real-secret", nil),
+		})
 		w := httptest.NewRecorder()
 
 		session := s.Sessions.ValidSession(ctx, w, r)

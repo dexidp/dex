@@ -18,7 +18,6 @@ import (
 	"github.com/dexidp/dex/server/grants"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/router"
-	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/templates"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
@@ -54,10 +53,6 @@ type Handler struct {
 	// via grants.ExchangeAuthCode.
 	Issuer     *tokens.Issuer
 	Connectors *connectors.Cache
-
-	// Sessions resolves the sid for the exchange. The device flow's approval half
-	// runs in a browser, so the tokens it produces belong to that browser's session.
-	Sessions *session.Manager
 }
 
 // Mount registers the device authorization routes.
@@ -392,7 +387,7 @@ func (h *Handler) completeDeviceAuthorization(w http.ResponseWriter, r *http.Req
 
 	// ExchangeAuthCode consumes the code (its atomic single-use gate) and returns
 	// what to issue; the tokens are minted here.
-	auth, withRefresh, err := grants.ExchangeAuthCode(ctx, h.Storage, h.Connectors, h.Logger, authCode, client, h.Sessions)
+	auth, withRefresh, err := grants.ExchangeAuthCode(ctx, h.Storage, h.Connectors, h.Logger, authCode, client)
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "could not exchange auth code for client", "client_id", deviceReq.ClientID, "err", err)
 		return "", &deviceFlowError{status: http.StatusInternalServerError, message: "Failed to exchange auth code."}

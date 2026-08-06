@@ -667,6 +667,41 @@ func TestHandleLogoutHintReplay(t *testing.T) {
 	})
 }
 
+// TestHandleLogoutEndsOneDevice: two browsers of the same user are two sessions, so
+// signing out of one leaves the other signed in — the thing that was impossible while
+// a session was keyed by the user and the connector it belonged to.
+func TestHandleLogoutEndsOneDevice(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	ctx := t.Context()
+	const userID, connectorID = "test-user", "mock"
+
+	newTestAuthSession(t, server, userID, connectorID, "laptop")
+	newTestAuthSession(t, server, userID, connectorID, "phone")
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/logout", nil)
+	req.AddCookie(testSessionCookie("phone"))
+	server.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+	require.Contains(t, rr.Body.String(), "successfully logged out")
+
+	_, err := server.storage.GetAuthSession(ctx, "phone")
+	require.ErrorIs(t, err, storage.ErrNotFound)
+
+	laptop, err := server.storage.GetAuthSession(ctx, "laptop")
+	require.NoError(t, err, "signing out of one device must leave the other alone")
+	require.Equal(t, userID, laptop.UserID)
+
+	// And the laptop's cookie still works, which is what "left alone" has to mean.
+	rr = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/logout", nil)
+	req.AddCookie(testSessionCookie("laptop"))
+	server.ServeHTTP(rr, req)
+	require.Contains(t, rr.Body.String(), "Do you want to log out?")
+}
+
 // --- back-channel ---
 
 type backchannelCall struct {

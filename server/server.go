@@ -269,7 +269,6 @@ func (s *Server) mount(routes router.Mux, c Config, rc resolvedConfig) {
 			Logger:           s.logger,
 			Issuer:           s.issuer,
 			Connectors:       s.connectors,
-			Sessions:         sessions,
 		},
 		&home.Handler{
 			IssuerURL: s.issuerURL,
