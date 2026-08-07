@@ -162,7 +162,8 @@ type PKCEConfig struct {
 // token so callers can extract Subject, Audience, etc.
 func (h *Handler) validateIDTokenHint(ctx context.Context, hint string) (*oidc.IDToken, error) {
 	verifier := oidc.NewVerifier(h.IssuerURL.String(), &signer.KeySet{Signer: h.Signer}, &oidc.Config{
-		SkipExpiryCheck: true,
+		SupportedSigningAlgs: signer.SupportedSigningAlgStrings(),
+		SkipExpiryCheck:      true,
 		// SkipClientIDCheck is set because the hint may originate from any client that
 		// Dex issued a token to — the caller does not know the expected audience in advance.
 		// The signature verification via signer.KeySet already guarantees the token was
