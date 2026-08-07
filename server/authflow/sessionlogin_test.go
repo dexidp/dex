@@ -662,7 +662,7 @@ func setupSessionWithIdentity(t *testing.T, s *sessionTestServer, now time.Time,
 		ID:          nonce, Secret: nonce,
 		ClientStates: map[string]*storage.ClientAuthState{
 			"client-1": {
-				AuthenticatedAt: now.Add(-1 * time.Minute),
+				AuthenticatedAt: lastLogin,
 				LastActivity:    now.Add(-1 * time.Minute),
 			},
 		},
