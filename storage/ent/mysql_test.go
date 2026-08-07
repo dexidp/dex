@@ -34,6 +34,9 @@ func mysqlTestConfig(host string, port uint64) *MySQL {
 			Password: getenv(MySQLEntPasswordEnv, "mysql"),
 			Host:     host,
 			Port:     uint16(port),
+			// Concurrency conformance tests rotate the same token from many
+			// goroutines; without retry the deadlock aborts surface as errors.
+			RetryOnSerializationFailure: true,
 		},
 		SSL: SSL{
 			// This was originally mysqlSSLSkipVerify. It lead to handshake errors.
@@ -54,6 +57,9 @@ func mysql8TestConfig(host string, port uint64) *MySQL {
 			Password: getenv(MySQL8EntPasswordEnv, "mysql"),
 			Host:     host,
 			Port:     uint16(port),
+			// Concurrency conformance tests rotate the same token from many
+			// goroutines; without retry the deadlock aborts surface as errors.
+			RetryOnSerializationFailure: true,
 		},
 		SSL: SSL{
 			Mode: mysqlSSLFalse,
@@ -105,11 +111,7 @@ func TestMySQL(t *testing.T) {
 	}
 	conformance.RunTests(t, newStorage)
 	conformance.RunTransactionTests(t, newStorage)
-
-	// TODO(nabokihms): ent MySQL does not retry on deadlocks (Error 1213, SQLSTATE 40001:
-	// Deadlock found when trying to get lock; try restarting transaction).
-	// Under high contention most updates fail.
-	// conformance.RunConcurrencyTests(t, newStorage)
+	conformance.RunConcurrencyTests(t, newStorage)
 }
 
 func TestMySQL8(t *testing.T) {
@@ -131,11 +133,7 @@ func TestMySQL8(t *testing.T) {
 	}
 	conformance.RunTests(t, newStorage)
 	conformance.RunTransactionTests(t, newStorage)
-
-	// TODO(nabokihms): ent MySQL 8 does not retry on deadlocks (Error 1213, SQLSTATE 40001:
-	// Deadlock found when trying to get lock; try restarting transaction).
-	// Under high contention most updates fail.
-	// conformance.RunConcurrencyTests(t, newStorage)
+	conformance.RunConcurrencyTests(t, newStorage)
 }
 
 func TestMySQLDSN(t *testing.T) {
