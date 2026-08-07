@@ -1,2 +1,33 @@
 bin/
 tmp/
+
+# Git metadata - changes on every commit and invalidates Docker cache
+.git/
+.gitignore
+
+# CI/CD and GitHub files
+.github/
+
+# Documentation - not needed for runtime
+docs/
+*.md
+LICENSE
+
+# Examples and development configs
+examples/
+config.dev.yaml
+config.yaml.dist
+docker-compose*.yaml
+docker-compose*.dist
+
+# Editor and tool configs
+.editorconfig
+.envrc
+.golangci.yaml
+
+# Nix flakes
+flake.lock
+flake.nix
+
+# The Dockerfile itself
+Dockerfile
