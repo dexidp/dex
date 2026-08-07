@@ -257,3 +257,67 @@ func TestHandleIntrospect(t *testing.T) {
 		})
 	}
 }
+
+// A session-bound client's refresh token must introspect as inactive once the
+// session it was issued under has ended, the same judgment the refresh grant
+// makes. A standalone client's token outlives the session by design.
+func TestHandleIntrospectRefreshTokenSessionBinding(t *testing.T) {
+	ctx := t.Context()
+
+	httpServer, s := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	mockTestStorage(t, s.storage)
+
+	// The refresh token was issued under a browser session.
+	require.NoError(t, s.storage.UpdateOfflineSessions(ctx, "1", "test",
+		func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
+			old.Refresh["test"].SessionID = "sid"
+			return old, nil
+		}))
+
+	// That session has since ended by timeout: the row is still stored, but both
+	// expiries are in the past.
+	past := time.Now().Add(-time.Hour)
+	require.NoError(t, s.storage.CreateAuthSession(ctx, storage.AuthSession{
+		ID: "sid", Secret: testSessionSecret("sid"),
+		UserID: "1", ConnectorID: "test",
+		CreatedAt: past, LastActivity: past,
+		AbsoluteExpiry: past, IdleExpiry: past,
+	}))
+
+	refreshToken, err := internal.Marshal(&internal.RefreshToken{RefreshId: "test", Token: "bar"})
+	require.NoError(t, err)
+
+	introspect := func() string {
+		data := url.Values{}
+		data.Set("token", refreshToken)
+
+		u, err := url.Parse(s.issuerURL.String())
+		require.NoError(t, err)
+		u.Path = path.Join(u.Path, "token", "introspect")
+
+		req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(data.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		rr := httptest.NewRecorder()
+		s.ServeHTTP(rr, req)
+		require.Equal(t, http.StatusOK, rr.Code)
+
+		result, err := io.ReadAll(rr.Body)
+		require.NoError(t, err)
+		return string(result)
+	}
+
+	// Standalone client: the ended session changes nothing.
+	require.Contains(t, introspect(), `"active":true`)
+
+	require.NoError(t, s.storage.UpdateClient(ctx, "test",
+		func(old storage.Client) (storage.Client, error) {
+			old.RefreshTokenLifetime = storage.RefreshTokenLifetimeSession
+			return old, nil
+		}))
+
+	// Session-bound client: the token ended with the session.
+	require.Equal(t, "{\"active\":false}\n", introspect())
+}

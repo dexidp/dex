@@ -94,8 +94,9 @@ type IntrospectionExtra struct {
 	// token at all when sessions are disabled.
 	//
 	// Note what this does not mean: introspection reports on the token, not on the
-	// session. A token from a session that has since ended still introspects as
-	// active until it expires, because nothing here consults session storage.
+	// session. For a standalone client a token from a session that has since ended
+	// still introspects as active until it expires. For a session-bound client the
+	// ended session takes the token with it, and introspection reports inactive.
 	SessionID string `json:"sid,omitempty"`
 
 	Email         string `json:"email,omitempty"`
@@ -258,6 +259,34 @@ func (h *Handler) introspectRefreshToken(ctx context.Context, token string) (*In
 	if sErr != nil {
 		h.Logger.ErrorContext(ctx, "failed to marshal offline session ID", "err", sErr)
 		return nil, newIntrospectInternalServerError()
+	}
+
+	client, err := h.Storage.GetClient(ctx, refresh.ClientID)
+	if err != nil {
+		h.Logger.ErrorContext(ctx, "error while fetching client from storage", "err", err.Error())
+		return nil, newIntrospectInternalServerError()
+	}
+
+	// A refresh token's sid lives on its offline-session reference, read the same
+	// way the refresh grant reads it: the two must agree on whether the session
+	// the token is bound to still stands.
+	var sessionID string
+	offlineSessions, err := h.Storage.GetOfflineSessions(ctx, refresh.Claims.UserID, refresh.ConnectorID)
+	if err != nil {
+		if !errors.Is(err, storage.ErrNotFound) {
+			h.Logger.ErrorContext(ctx, "failed to read offline session for sid", "err", err)
+		}
+		if client.RefreshBoundToSession() {
+			// The grant refuses a bound token whose session cannot be read;
+			// introspection reports it inactive.
+			return nil, newIntrospectInactiveTokenError()
+		}
+	} else if ref, ok := offlineSessions.Refresh[refresh.ClientID]; ok {
+		sessionID = ref.SessionID
+	}
+
+	if !h.sessionAlive(ctx, client, subjectString, sessionID) {
+		return nil, newIntrospectInactiveTokenError()
 	}
 
 	return &Introspection{
