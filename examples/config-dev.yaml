@@ -93,7 +93,7 @@ grpc:
 #   signingKeys: "6h" # deprecated, use signer.config.keysRotationPeriod
 #   idTokens: "24h"
 #   refreshTokens:
-#     reuseInterval: "3s"
+#     reuseInterval: "3s" # default, "0s" disables the reuse grace window
 #     validIfNotUsedFor: "2160h" # 90 days
 #     absoluteLifetime: "3960h" # 165 days
 
