@@ -320,4 +320,20 @@ func TestHandleIntrospectRefreshTokenSessionBinding(t *testing.T) {
 
 	// Session-bound client: the token ended with the session.
 	require.Equal(t, "{\"active\":false}\n", introspect())
+
+	// Bound client whose offline-session row is gone: grant refuses; introspection
+	// must report inactive (not 500).
+	require.NoError(t, s.storage.DeleteOfflineSessions(ctx, "1", "test"))
+	require.Equal(t, "{\"active\":false}\n", introspect())
+
+	// Bound client with a reference that carries no sid (minted outside a browser
+	// flow): there is no session to judge, so the token stays active.
+	require.NoError(t, s.storage.CreateOfflineSessions(ctx, storage.OfflineSessions{
+		UserID: "1",
+		ConnID: "test",
+		Refresh: map[string]*storage.RefreshTokenRef{
+			"test": {ID: "test", ClientID: "test"},
+		},
+	}))
+	require.Contains(t, introspect(), `"active":true`)
 }

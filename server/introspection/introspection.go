@@ -263,30 +263,36 @@ func (h *Handler) introspectRefreshToken(ctx context.Context, token string) (*In
 
 	client, err := h.Storage.GetClient(ctx, refresh.ClientID)
 	if err != nil {
+		// A deleted client cannot redeem the token; report inactive rather than 500.
+		// The endpoint takes no client authentication, so this is also the safer
+		// answer for an unauthenticated probe of a dangling token.
+		if errors.Is(err, storage.ErrNotFound) {
+			return nil, newIntrospectInactiveTokenError()
+		}
 		h.Logger.ErrorContext(ctx, "error while fetching client from storage", "err", err.Error())
 		return nil, newIntrospectInternalServerError()
 	}
 
-	// A refresh token's sid lives on its offline-session reference, read the same
-	// way the refresh grant reads it: the two must agree on whether the session
-	// the token is bound to still stands.
-	var sessionID string
-	offlineSessions, err := h.Storage.GetOfflineSessions(ctx, refresh.Claims.UserID, refresh.ConnectorID)
-	if err != nil {
-		if !errors.Is(err, storage.ErrNotFound) {
-			h.Logger.ErrorContext(ctx, "failed to read offline session for sid", "err", err)
-		}
-		if client.RefreshBoundToSession() {
+	// Standalone clients are not judged by their session. Skip the offline-session
+	// read: the endpoint is unauthenticated, and on Kubernetes that is one avoidable
+	// API call per request whose result would be discarded.
+	if client.RefreshBoundToSession() {
+		// A refresh token's sid lives on its offline-session reference, read the
+		// same way the refresh grant reads it (tokens.RefreshReferenceSessionID):
+		// the two must agree on whether the session the token is bound to still stands.
+		offlineSessions, err := h.Storage.GetOfflineSessions(ctx, refresh.Claims.UserID, refresh.ConnectorID)
+		if err != nil {
+			if !errors.Is(err, storage.ErrNotFound) {
+				h.Logger.ErrorContext(ctx, "failed to read offline session for sid", "err", err)
+			}
 			// The grant refuses a bound token whose session cannot be read;
 			// introspection reports it inactive.
 			return nil, newIntrospectInactiveTokenError()
 		}
-	} else if ref, ok := offlineSessions.Refresh[refresh.ClientID]; ok {
-		sessionID = ref.SessionID
-	}
-
-	if !h.sessionAlive(ctx, client, subjectString, sessionID) {
-		return nil, newIntrospectInactiveTokenError()
+		sessionID := tokens.RefreshReferenceSessionID(offlineSessions, refresh.ClientID)
+		if !h.sessionAlive(ctx, client, sessionID) {
+			return nil, newIntrospectInactiveTokenError()
+		}
 	}
 
 	return &Introspection{
@@ -322,11 +328,15 @@ func (h *Handler) introspectRefreshToken(ctx context.Context, token string) (*In
 // RefreshTokenLifetime, the same declaration the refresh grant reads — the two must
 // agree, or a standalone client refreshes into a token that is inactive from birth.
 //
+// When sessions are disabled the grant skips its check entirely (sessionsEnabled),
+// so introspection must too: Manager.Alive returns false when Config is nil, which
+// would otherwise flip every bound token inactive the moment sessions are turned off.
+//
 // The comparison is against the sid, not merely the existence of a session: signing
 // out and back in makes a new session under the same subject, and the old token must
 // not be revived by it.
-func (h *Handler) sessionAlive(ctx context.Context, client storage.Client, subject, sessionID string) bool {
-	if sessionID == "" || !client.RefreshBoundToSession() {
+func (h *Handler) sessionAlive(ctx context.Context, client storage.Client, sessionID string) bool {
+	if sessionID == "" || !client.RefreshBoundToSession() || h.Sessions == nil || !h.Sessions.Enabled() {
 		return true
 	}
 
@@ -354,11 +364,14 @@ func (h *Handler) introspectAccessToken(ctx context.Context, token string) (*Int
 
 	client, err := h.Storage.GetClient(ctx, clientID)
 	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return nil, newIntrospectInactiveTokenError()
+		}
 		h.Logger.ErrorContext(ctx, "error while fetching client from storage", "err", err.Error())
 		return nil, newIntrospectInternalServerError()
 	}
 
-	if !h.sessionAlive(ctx, client, idToken.Subject, claims.SessionID) {
+	if !h.sessionAlive(ctx, client, claims.SessionID) {
 		return nil, newIntrospectInactiveTokenError()
 	}
 
