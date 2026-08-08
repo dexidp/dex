@@ -34,15 +34,17 @@ func (h *Handler) trySessionLoginWithSession(ctx context.Context, r *http.Reques
 
 		// Create a new client state for the target client via SSO. It carries the
 		// source's authentication time: the user did not authenticate again here.
+		var newState *storage.ClientAuthState
 		if err := h.Storage.UpdateAuthSession(ctx, session.ID, func(old storage.AuthSession) (storage.AuthSession, error) {
 			if old.ClientStates == nil {
 				old.ClientStates = make(map[string]*storage.ClientAuthState)
 			}
-			old.ClientStates[authReq.ClientID] = &storage.ClientAuthState{
+			newState = &storage.ClientAuthState{
 				AuthenticatedAt: sourceState.AuthenticatedAt,
 				LastActivity:    now,
 				ViaSSO:          true,
 			}
+			old.ClientStates[authReq.ClientID] = newState
 			old.LastActivity = now
 			old.IdleExpiry = h.Sessions.IdleExpiry(now)
 			return old, nil
@@ -50,6 +52,13 @@ func (h *Handler) trySessionLoginWithSession(ctx context.Context, r *http.Reques
 			h.Logger.ErrorContext(ctx, "session: failed to create SSO client state", "err", err)
 			return false
 		}
+		// Keep the caller's session in sync for storage backends that work on a
+		// deserialized copy (SQL, ent, Kubernetes, etcd) rather than the shared
+		// in-memory map.
+		if session.ClientStates == nil {
+			session.ClientStates = make(map[string]*storage.ClientAuthState)
+		}
+		session.ClientStates[authReq.ClientID] = newState
 
 		h.Logger.DebugContext(ctx, "session: SSO login from sharing client",
 			"user_id", session.UserID, "connector_id", session.ConnectorID, "client_id", authReq.ClientID)
@@ -62,9 +71,19 @@ func (h *Handler) trySessionLoginWithSession(ctx context.Context, r *http.Reques
 		return false
 	}
 
-	// Check max_age: if the user's last authentication is too old, force re-auth.
+	// Check max_age against THIS session's authentication time for this client,
+	// not the global per-identity LastLogin. ui.LastLogin is a single global row
+	// rewritten to now() by EVERY interactive login from ANY browser/device, so a
+	// fresh login on a second device would otherwise satisfy an RP's max_age
+	// re-authentication demand for a stale session on the first. The per-session,
+	// per-client timestamp already exists (ClientAuthState.AuthenticatedAt,
+	// carried across for SSO above) and is guaranteed non-nil here.
+	authenticatedAt := ui.LastLogin
+	if cs := session.ClientStates[authReq.ClientID]; cs != nil && !cs.AuthenticatedAt.IsZero() {
+		authenticatedAt = cs.AuthenticatedAt
+	}
 	if authReq.MaxAge >= 0 {
-		if now.Sub(ui.LastLogin) > time.Duration(authReq.MaxAge)*time.Second {
+		if now.Sub(authenticatedAt) > time.Duration(authReq.MaxAge)*time.Second {
 			return false
 		}
 	}
@@ -74,12 +93,14 @@ func (h *Handler) trySessionLoginWithSession(ctx context.Context, r *http.Reques
 			"session_id", session.ID, "user_id", session.UserID)
 	}
 
-	return h.finishSessionLogin(ctx, r, w, authReq, session, &ui, now)
+	return h.finishSessionLogin(ctx, r, w, authReq, session, &ui, authenticatedAt, now)
 }
 
 // finishSessionLogin completes a session-based login (direct or SSO) by updating the auth request
 // with the user's identity, refreshing session activity, and returning the appropriate redirect URL.
-func (h *Handler) finishSessionLogin(ctx context.Context, r *http.Request, w http.ResponseWriter, authReq *storage.AuthRequest, session *storage.AuthSession, ui *storage.UserIdentity, now time.Time) bool {
+// authenticatedAt is the per-session, per-client authentication time used for both max_age gating
+// and the auth_time claim the RP sees.
+func (h *Handler) finishSessionLogin(ctx context.Context, r *http.Request, w http.ResponseWriter, authReq *storage.AuthRequest, session *storage.AuthSession, ui *storage.UserIdentity, authenticatedAt time.Time, now time.Time) bool {
 	claims := storage.Claims{
 		UserID:            ui.Claims.UserID,
 		Username:          ui.Claims.Username,
@@ -89,12 +110,12 @@ func (h *Handler) finishSessionLogin(ctx context.Context, r *http.Request, w htt
 		Groups:            ui.Claims.Groups,
 	}
 
-	// Update AuthRequest with stored identity and auth_time from last login.
+	// Update AuthRequest with stored identity and auth_time from the per-session login.
 	if err := h.Storage.UpdateAuthRequest(ctx, authReq.ID, func(a storage.AuthRequest) (storage.AuthRequest, error) {
 		a.LoggedIn = true
 		a.Claims = claims
 		a.ConnectorID = session.ConnectorID
-		a.AuthTime = ui.LastLogin
+		a.AuthTime = authenticatedAt
 		return a, nil
 	}); err != nil {
 		h.Logger.ErrorContext(ctx, "session: failed to update auth request", "err", err)
