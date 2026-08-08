@@ -662,7 +662,7 @@ func setupSessionWithIdentity(t *testing.T, s *sessionTestServer, now time.Time,
 		ID:          nonce, Secret: nonce,
 		ClientStates: map[string]*storage.ClientAuthState{
 			"client-1": {
-				AuthenticatedAt: lastLogin,
+				AuthenticatedAt: now.Add(-1 * time.Minute),
 				LastActivity:    now.Add(-1 * time.Minute),
 			},
 		},
@@ -740,8 +740,14 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 		s := newTestSessionServer(t)
 		now := s.Now()
 
-		// User logged in 2 hours ago, max_age=3600 (1 hour)
-		authReq := setupSessionWithIdentity(t, s, now, now.Add(-2*time.Hour))
+		// Session authenticated 2 hours ago; global LastLogin is recent (e.g. another
+		// browser just logged in) but must not satisfy max_age for this stale session.
+		authReq := setupSessionWithIdentity(t, s, now, now)
+		// Overwrite the session's AuthenticatedAt to be old.
+		require.NoError(t, s.Storage.UpdateAuthSession(ctx, "test-nonce", func(old storage.AuthSession) (storage.AuthSession, error) {
+			old.ClientStates["client-1"].AuthenticatedAt = now.Add(-2 * time.Hour)
+			return old, nil
+		}))
 		authReq.MaxAge = 3600
 
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -768,11 +774,14 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 		assert.False(t, ok, "max_age=0 should always force re-authentication")
 	})
 
-	t.Run("auth_time is set from UserIdentity.LastLogin", func(t *testing.T) {
+	t.Run("auth_time is set from per-session AuthenticatedAt", func(t *testing.T) {
 		s := newTestSessionServer(t)
 		s.SkipApproval = false
 		now := s.Now()
+		// LastLogin is the global per-identity value; the session's AuthenticatedAt
+		// is what the RP should see in auth_time.
 		lastLogin := now.Add(-10 * time.Minute)
+		sessionAuthAt := now.Add(-1 * time.Minute)
 
 		authReq := setupSessionWithIdentity(t, s, now, lastLogin)
 		authReq.ForceApprovalPrompt = true // force approval so AuthRequest is not deleted
@@ -791,10 +800,10 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 		require.True(t, ok)
 		assert.Contains(t, redirectURL, "/auth?", "session login hands off to the dispatcher")
 
-		// Verify AuthTime was set on the auth request.
+		// Verify AuthTime was set from the per-session AuthenticatedAt, not LastLogin.
 		updated, err := s.Storage.GetAuthRequest(ctx, authReq.ID)
 		require.NoError(t, err)
-		assert.Equal(t, lastLogin.Unix(), updated.AuthTime.Unix())
+		assert.Equal(t, sessionAuthAt.Unix(), updated.AuthTime.Unix())
 	})
 }
 
