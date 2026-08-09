@@ -11,6 +11,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -166,10 +167,12 @@ func (c *Config) openConnector(logger *slog.Logger) (*provider, error) {
 	requiredFields := []struct {
 		name, val string
 	}{
-		{"ssoURL", c.SSOURL},
 		{"usernameAttr", c.UsernameAttr},
 		{"emailAttr", c.EmailAttr},
 		{"redirectURI", c.RedirectURI},
+	}
+	if c.MetadataURL == "" {
+		requiredFields = append(requiredFields, struct{ name, val string }{"ssoURL", c.SSOURL})
 	}
 	var missing []string
 	for _, f := range requiredFields {
@@ -186,20 +189,32 @@ func (c *Config) openConnector(logger *slog.Logger) (*provider, error) {
 	}
 
 	p := &provider{
-		entityIssuer:  c.EntityIssuer,
-		ssoIssuer:     c.SSOIssuer,
-		ssoURL:        c.SSOURL,
-		now:           time.Now,
-		usernameAttr:  c.UsernameAttr,
-		emailAttr:     c.EmailAttr,
-		groupsAttr:    c.GroupsAttr,
-		groupsDelim:   c.GroupsDelim,
-		allowedGroups: c.AllowedGroups,
-		filterGroups:  c.FilterGroups,
-		redirectURI:   c.RedirectURI,
-		logger:        logger,
+		manualSSOURL:              c.SSOURL,
+		manualSSOIssuer:           c.SSOIssuer,
+		insecureSkipSigValidation: c.InsecureSkipSignatureValidation,
+		entityIssuer:              c.EntityIssuer,
+		now:                       time.Now,
+		usernameAttr:              c.UsernameAttr,
+		emailAttr:                 c.EmailAttr,
+		groupsAttr:                c.GroupsAttr,
+		groupsDelim:               c.GroupsDelim,
+		allowedGroups:             c.AllowedGroups,
+		filterGroups:              c.FilterGroups,
+		redirectURI:               c.RedirectURI,
+		logger:                    logger,
 
 		nameIDPolicyFormat: c.NameIDPolicyFormat,
+	}
+	p.state.ssoURL = c.SSOURL
+	p.state.ssoIssuer = c.SSOIssuer
+
+	if c.MetadataURL != "" {
+		p.metadataURL = c.MetadataURL
+		p.refreshInterval = value(time.Duration(c.MetadataRefreshInterval), time.Hour)
+		if p.refreshInterval < time.Minute {
+			return nil, fmt.Errorf("metadataRefreshInterval must be at least 1 minute")
+		}
+		p.httpClient = &http.Client{Timeout: 10 * time.Second}
 	}
 
 	if p.nameIDPolicyFormat == "" {
@@ -226,10 +241,6 @@ func (c *Config) openConnector(logger *slog.Logger) (*provider, error) {
 	}
 
 	if !c.InsecureSkipSignatureValidation {
-		if (c.CA == "") == (c.CAData == nil) {
-			return nil, errors.New("must provide either 'ca' or 'caData'")
-		}
-
 		var caData []byte
 		if c.CA != "" {
 			data, err := os.ReadFile(c.CA)
@@ -237,35 +248,52 @@ func (c *Config) openConnector(logger *slog.Logger) (*provider, error) {
 				return nil, fmt.Errorf("read ca file: %v", err)
 			}
 			caData = data
-		} else {
+		} else if c.CAData != nil {
 			caData = c.CAData
 		}
 
-		var (
-			certs []*x509.Certificate
-			block *pem.Block
-		)
-		for {
-			block, caData = pem.Decode(caData)
-			if block == nil {
-				caData = bytes.TrimSpace(caData)
-				if len(caData) > 0 { // if there's some left, we've been given bad caData
-					return nil, fmt.Errorf("parse cert: trailing data: %q", string(caData))
-				}
-				break
-			}
-			cert, err := x509.ParseCertificate(block.Bytes)
-			if err != nil {
-				return nil, fmt.Errorf("parse cert: %v", err)
-			}
-			certs = append(certs, cert)
+		certs, err := parsePEMCerts(caData)
+		if err != nil {
+			return nil, err
 		}
-		if len(certs) == 0 {
-			return nil, errors.New("no certificates found in ca data")
+		if c.MetadataURL == "" && len(certs) == 0 {
+			return nil, errors.New("must provide either 'ca' or 'caData'")
 		}
-		p.validator = dsig.NewDefaultValidationContext(certStore{certs})
+		p.manualCerts = certs
+		if len(certs) > 0 {
+			p.state.validator = dsig.NewDefaultValidationContext(certStore{certs})
+		}
 	}
 	return p, nil
+}
+
+// parsePEMCerts decodes every PEM certificate in data.
+func parsePEMCerts(data []byte) ([]*x509.Certificate, error) {
+	var certs []*x509.Certificate
+	var block *pem.Block
+	for {
+		block, data = pem.Decode(data)
+		if block == nil {
+			data = bytes.TrimSpace(data)
+			if len(data) > 0 { // if there's some left, we've been given bad data
+				return nil, fmt.Errorf("parse cert: trailing data: %q", string(data))
+			}
+			break
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("parse cert: %v", err)
+		}
+		certs = append(certs, cert)
+	}
+	return certs, nil
+}
+
+func value(val, defaultValue time.Duration) time.Duration {
+	if val == 0 {
+		return defaultValue
+	}
+	return val
 }
 
 var (
@@ -275,13 +303,15 @@ var (
 
 type provider struct {
 	entityIssuer string
-	ssoIssuer    string
-	ssoURL       string
+
+	// Manually configured values. These always win over discovered metadata
+	// values. ssoURL/issuer may be empty when metadata discovery is enabled.
+	manualSSOURL              string
+	manualSSOIssuer           string
+	manualCerts               []*x509.Certificate
+	insecureSkipSigValidation bool
 
 	now func() time.Time
-
-	// If nil, don't do signature validation.
-	validator *dsig.ValidationContext
 
 	// Attribute mappings
 	usernameAttr  string
@@ -295,7 +325,30 @@ type provider struct {
 
 	nameIDPolicyFormat string
 
+	// Metadata discovery configuration.
+	metadataURL     string
+	refreshInterval time.Duration
+	httpClient      *http.Client
+
+	// mu guards state.
+	mu    sync.RWMutex
+	state providerState
+
 	logger *slog.Logger
+}
+
+// providerState is the set of values the SAML request/response paths read. It is
+// swapped atomically when metadata is refreshed.
+type providerState struct {
+	validator *dsig.ValidationContext
+	ssoURL    string
+	ssoIssuer string
+}
+
+func (p *provider) stateSnapshot() providerState {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.state
 }
 
 // cachedIdentity stores the identity from SAML assertion for refresh token support.
@@ -329,11 +382,12 @@ func marshalCachedIdentity(ident connector.Identity) (connector.Identity, error)
 }
 
 func (p *provider) POSTData(s connector.Scopes, id string) (action, value string, err error) {
+	st := p.stateSnapshot()
 	r := &authnRequest{
 		ProtocolBinding: bindingPOST,
 		ID:              id,
 		IssueInstant:    xmlTime(p.now()),
-		Destination:     p.ssoURL,
+		Destination:     st.ssoURL,
 		NameIDPolicy: &nameIDPolicy{
 			AllowCreate: true,
 			Format:      p.nameIDPolicyFormat,
@@ -353,7 +407,7 @@ func (p *provider) POSTData(s connector.Scopes, id string) (action, value string
 
 	// See: https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf
 	// "3.5.4 Message Encoding"
-	return p.ssoURL, base64.StdEncoding.EncodeToString(data), nil
+	return st.ssoURL, base64.StdEncoding.EncodeToString(data), nil
 }
 
 // HandlePOST interprets a request from a SAML provider attempting to verify a
@@ -366,6 +420,7 @@ func (p *provider) POSTData(s connector.Scopes, id string) (action, value string
 // * Verify various parts of the Assertion element. Conditions, audience, etc.
 // * Map the Assertion's attribute elements to user info.
 func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo string) (ident connector.Identity, err error) {
+	st := p.stateSnapshot()
 	rawResp, err := base64.StdEncoding.DecodeString(samlResponse)
 	if err != nil {
 		return ident, fmt.Errorf("decode response: %v", err)
@@ -378,8 +433,8 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 
 	// Root element is allowed to not be signed if the Assertion element is.
 	rootElementSigned := true
-	if p.validator != nil {
-		rawResp, rootElementSigned, err = verifyResponseSig(p.validator, rawResp)
+	if st.validator != nil {
+		rawResp, rootElementSigned, err = verifyResponseSig(st.validator, rawResp)
 		if err != nil {
 			return ident, fmt.Errorf("verify signature: %v", err)
 		}
@@ -393,8 +448,8 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 	// If the root element isn't signed, there's no reason to inspect these
 	// elements. They're not verified.
 	if rootElementSigned {
-		if p.ssoIssuer != "" && resp.Issuer != nil && resp.Issuer.Issuer != p.ssoIssuer {
-			return ident, fmt.Errorf("expected Issuer value %s, got %s", p.ssoIssuer, resp.Issuer.Issuer)
+		if st.ssoIssuer != "" && resp.Issuer != nil && resp.Issuer.Issuer != st.ssoIssuer {
+			return ident, fmt.Errorf("expected Issuer value %s, got %s", st.ssoIssuer, resp.Issuer.Issuer)
 		}
 
 		// Verify InResponseTo value matches the expected ID associated with
@@ -746,4 +801,40 @@ func before(now, notBefore time.Time) bool {
 // allowed clock drift.
 func after(now, notOnOrAfter time.Time) bool {
 	return now.After(notOnOrAfter.Add(allowedClockDrift))
+}
+
+// applyMetadata merges discovered IdP metadata into the provider state. Manually
+// configured values always win; discovered values only fill unset fields. The
+// validator uses the union of manual and discovered signing certs.
+func (p *provider) applyMetadata(meta *IdPMetadata) error {
+	certs := append([]*x509.Certificate(nil), p.manualCerts...)
+	certs = append(certs, meta.SigningCerts...)
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if !p.insecureSkipSigValidation {
+		if len(certs) == 0 {
+			return fmt.Errorf("saml: no signing certificates available from metadata")
+		}
+		p.state.validator = dsig.NewDefaultValidationContext(certStore{certs})
+	}
+
+	if p.manualSSOURL != "" {
+		p.state.ssoURL = p.manualSSOURL
+	} else if url, ok := meta.ssoEndpoint(bindingPOST); ok && url != "" {
+		p.state.ssoURL = url
+	} else if url, ok := meta.ssoEndpoint(bindingRedirect); ok && url != "" {
+		p.state.ssoURL = url
+	} else {
+		return fmt.Errorf("saml: no SSO endpoint in metadata and ssoURL is not set")
+	}
+
+	if p.manualSSOIssuer != "" {
+		p.state.ssoIssuer = p.manualSSOIssuer
+	} else if meta.EntityID != "" {
+		p.state.ssoIssuer = meta.EntityID
+	}
+
+	return nil
 }

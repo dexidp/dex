@@ -952,3 +952,150 @@ func TestSAMLRefresh(t *testing.T) {
 		}
 	})
 }
+
+func TestApplyMetadataFillsUnsetFields(t *testing.T) {
+	p := &provider{
+		manualSSOURL:    "https://manual.example.com/sso",
+		manualSSOIssuer: "",
+		manualCerts:     nil,
+		logger:          slog.New(slog.DiscardHandler),
+	}
+	ca, err := os.ReadFile("testdata/ca.crt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, _ := pem.Decode(ca)
+	if block == nil {
+		t.Fatal("no PEM block")
+	}
+	discCert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	meta := &IdPMetadata{
+		EntityID: "https://idp.example.com",
+		SSOEndpoints: []SSOEndpoint{
+			{Binding: bindingRedirect, Location: "https://idp.example.com/sso/redirect"},
+			{Binding: bindingPOST, Location: "https://idp.example.com/sso/post"},
+		},
+		SigningCerts: []*x509.Certificate{discCert},
+	}
+
+	if err := p.applyMetadata(meta); err != nil {
+		t.Fatal(err)
+	}
+
+	st := p.stateSnapshot()
+	// Explicitly set ssoURL wins over discovered endpoint.
+	if st.ssoURL != "https://manual.example.com/sso" {
+		t.Errorf("expected manual ssoURL to win, got %q", st.ssoURL)
+	}
+	// Unset ssoIssuer is filled from the discovered entityID.
+	if st.ssoIssuer != "https://idp.example.com" {
+		t.Errorf("expected discovered entityID as ssoIssuer, got %q", st.ssoIssuer)
+	}
+	// Discovered certs are used for validation.
+	if st.validator == nil {
+		t.Fatal("expected a validation context")
+	}
+	if got, _ := st.validator.CertificateStore.Certificates(); len(got) != 1 {
+		t.Errorf("expected 1 cert in validator, got %d", len(got))
+	}
+}
+
+func TestApplyMetadataDiscoverSSOURL(t *testing.T) {
+	p := &provider{logger: slog.New(slog.DiscardHandler), insecureSkipSigValidation: true}
+	meta := &IdPMetadata{
+		EntityID: "https://idp.example.com",
+		SSOEndpoints: []SSOEndpoint{
+			{Binding: bindingRedirect, Location: "https://idp.example.com/sso/redirect"},
+			{Binding: bindingPOST, Location: "https://idp.example.com/sso/post"},
+		},
+		SigningCerts: []*x509.Certificate{},
+	}
+	if err := p.applyMetadata(meta); err != nil {
+		t.Fatal(err)
+	}
+	// With no manual ssoURL, the POST endpoint is preferred.
+	if got := p.stateSnapshot().ssoURL; got != "https://idp.example.com/sso/post" {
+		t.Errorf("expected discovered POST ssoURL, got %q", got)
+	}
+}
+
+func TestApplyMetadataNoSSOEndpoint(t *testing.T) {
+	p := &provider{logger: slog.New(slog.DiscardHandler), insecureSkipSigValidation: true}
+	meta := &IdPMetadata{EntityID: "https://idp.example.com", SigningCerts: []*x509.Certificate{}}
+	if err := p.applyMetadata(meta); err == nil {
+		t.Error("expected an error when no SSO endpoint exists and ssoURL is not set")
+	}
+}
+
+func TestConfigValidationWithMetadataURL(t *testing.T) {
+	logger := slog.New(slog.DiscardHandler)
+
+	t.Run("metadataURL makes ssoURL optional", func(t *testing.T) {
+		// No ssoURL and no ca/caData: allowed because metadata supplies both.
+		c := Config{
+			UsernameAttr: "Name",
+			EmailAttr:    "email",
+			RedirectURI:  "http://127.0.0.1:5556/dex/callback",
+			MetadataURL:  "https://idp.example.com/metadata",
+		}
+		if _, err := c.openConnector(logger); err != nil {
+			t.Fatalf("expected connector to open without ssoURL when metadataURL is set: %v", err)
+		}
+	})
+
+	t.Run("no metadataURL keeps old requirements", func(t *testing.T) {
+		c := Config{
+			UsernameAttr: "Name",
+			EmailAttr:    "email",
+			RedirectURI:  "http://127.0.0.1:5556/dex/callback",
+		}
+		if _, err := c.openConnector(logger); err == nil {
+			t.Fatal("expected error for missing ssoURL when metadataURL is unset")
+		}
+	})
+
+	t.Run("no metadataURL requires ca", func(t *testing.T) {
+		c := Config{
+			UsernameAttr: "Name",
+			EmailAttr:    "email",
+			RedirectURI:  "http://127.0.0.1:5556/dex/callback",
+			SSOURL:       "http://foo.bar/",
+		}
+		if _, err := c.openConnector(logger); err == nil {
+			t.Fatal("expected error for missing ca/caData when metadataURL is unset")
+		}
+	})
+
+	t.Run("metadataURL with explicit ca still works", func(t *testing.T) {
+		c := Config{
+			CA:           "testdata/ca.crt",
+			UsernameAttr: "Name",
+			EmailAttr:    "email",
+			RedirectURI:  "http://127.0.0.1:5556/dex/callback",
+			SSOURL:       "http://foo.bar/",
+			MetadataURL:  "https://idp.example.com/metadata",
+		}
+		if _, err := c.openConnector(logger); err != nil {
+			t.Fatalf("expected connector to open: %v", err)
+		}
+	})
+
+	t.Run("sub-minute refresh interval rejected", func(t *testing.T) {
+		c := Config{
+			CA:                      "testdata/ca.crt",
+			UsernameAttr:            "Name",
+			EmailAttr:               "email",
+			RedirectURI:             "http://127.0.0.1:5556/dex/callback",
+			SSOURL:                  "http://foo.bar/",
+			MetadataURL:             "https://idp.example.com/metadata",
+			MetadataRefreshInterval: duration(30 * time.Second),
+		}
+		if _, err := c.openConnector(logger); err == nil {
+			t.Fatal("expected error for sub-minute refresh interval")
+		}
+	})
+}
