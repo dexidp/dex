@@ -67,6 +67,31 @@ var (
 	lookupOnce sync.Once
 )
 
+// duration is a JSON duration string (e.g. "1h", "30m"). It exists so
+// connector configs can express refresh intervals the same way the server
+// config does.
+type duration time.Duration
+
+// UnmarshalJSON accepts a Go duration string.
+func (d *duration) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return fmt.Errorf("parse duration: %v", err)
+	}
+	v, err := time.ParseDuration(s)
+	if err != nil {
+		return fmt.Errorf("parse duration %q: %v", s, err)
+	}
+	*d = duration(v)
+	return nil
+}
+
+// MarshalJSON serializes the duration as a string so config round-trips
+// (yaml -> json -> storage -> json) keep a stable representation.
+func (d duration) MarshalJSON() ([]byte, error) {
+	return json.Marshal(time.Duration(d).String())
+}
+
 // Config represents configuration options for the SAML provider.
 type Config struct {
 	// TODO(ericchiang): A bunch of these fields could be auto-filled if
@@ -95,6 +120,17 @@ type Config struct {
 	AllowedGroups []string `json:"allowedGroups"`
 	FilterGroups  bool     `json:"filterGroups"`
 	RedirectURI   string   `json:"redirectURI"`
+
+	// MetadataURL is the URL of the IdP's SAML metadata. When set, dex fetches
+	// and polls this URL to auto-discover the IdP's SSO endpoint(s), issuer,
+	// and signing certificates. Fields explicitly set in the config (ssoURL,
+	// ssoIssuer, entityIssuer, ca/caData) take precedence over discovered
+	// values. Discovered values only fill in what is not explicitly set.
+	MetadataURL string `json:"metadataURL"`
+
+	// MetadataRefreshInterval is how often dex re-fetches MetadataURL.
+	// Defaults to 1 hour. Must be >= 1 minute if set.
+	MetadataRefreshInterval duration `json:"metadataRefreshInterval"`
 
 	// Requested format of the NameID. The NameID value is is mapped to the ID Token
 	// 'sub' claim.

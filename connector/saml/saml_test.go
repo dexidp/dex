@@ -473,6 +473,42 @@ func (r responseTest) run(t *testing.T) {
 	}
 }
 
+func TestConfigMetadataFields(t *testing.T) {
+	cfg := Config{}
+	if err := json.Unmarshal([]byte(`{"metadataURL":"https://idp.example.com/metadata","metadataRefreshInterval":"30m"}`), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MetadataURL != "https://idp.example.com/metadata" {
+		t.Errorf("expected metadataURL to be parsed, got %q", cfg.MetadataURL)
+	}
+	if time.Duration(cfg.MetadataRefreshInterval) != 30*time.Minute {
+		t.Errorf("expected 30m refresh interval, got %v", time.Duration(cfg.MetadataRefreshInterval))
+	}
+}
+
+func TestMetadataRefreshIntervalRoundTrip(t *testing.T) {
+	cfg := Config{MetadataRefreshInterval: duration(90 * time.Minute)}
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got Config
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatal(err)
+	}
+	if time.Duration(got.MetadataRefreshInterval) != 90*time.Minute {
+		t.Errorf("expected round-trip to preserve 90m, got %v", time.Duration(got.MetadataRefreshInterval))
+	}
+}
+
+func TestMetadataRefreshIntervalInvalid(t *testing.T) {
+	cfg := Config{}
+	err := json.Unmarshal([]byte(`{"metadataRefreshInterval":"nope"}`), &cfg)
+	if err == nil {
+		t.Error("expected an error for an invalid duration string")
+	}
+}
+
 func TestConfigCAData(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 	validPEM, err := os.ReadFile("testdata/ca.crt")
