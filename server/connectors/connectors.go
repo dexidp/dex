@@ -30,14 +30,17 @@ type Cache struct {
 	conns   map[string]Connector
 	storage storage.Storage
 	resolve ResolveFunc
+	ctx     context.Context
 }
 
 // NewCache returns an empty cache backed by the given storage and resolver.
-func NewCache(storage storage.Storage, resolve ResolveFunc) *Cache {
+// ctx bounds the lifetime of any connector background work started via Open.
+func NewCache(ctx context.Context, storage storage.Storage, resolve ResolveFunc) *Cache {
 	return &Cache{
 		conns:   make(map[string]Connector),
 		storage: storage,
 		resolve: resolve,
+		ctx:     ctx,
 	}
 }
 
@@ -47,6 +50,22 @@ func (c *Cache) Open(conn storage.Connector) (Connector, error) {
 	impl, err := c.resolve(conn)
 	if err != nil {
 		return Connector{}, fmt.Errorf("failed to open connector: %v", err)
+	}
+
+	// Stop any lifecycle-managed instance previously cached under this ID.
+	c.mu.Lock()
+	prev, hadPrev := c.conns[conn.ID]
+	c.mu.Unlock()
+	if hadPrev {
+		if lc, ok := prev.Connector.(connector.LifecycleConnector); ok {
+			lc.Close()
+		}
+	}
+
+	if lc, ok := impl.(connector.LifecycleConnector); ok {
+		if err := lc.Start(c.ctx); err != nil {
+			return Connector{}, fmt.Errorf("failed to start connector %s: %v", conn.ID, err)
+		}
 	}
 
 	opened := Connector{
@@ -87,11 +106,21 @@ func (c *Cache) Len() int {
 	return len(c.conns)
 }
 
-// Close removes the connector from the in-memory cache.
+// Close stops any lifecycle-managed work and removes the connector from the
+// in-memory cache.
 func (c *Cache) Close(id string) {
 	c.mu.Lock()
-	delete(c.conns, id)
+	conn, ok := c.conns[id]
+	if ok {
+		delete(c.conns, id)
+	}
 	c.mu.Unlock()
+
+	if ok {
+		if lc, ok := conn.Connector.(connector.LifecycleConnector); ok {
+			lc.Close()
+		}
+	}
 }
 
 // Get returns the connector with the given id, opening (or reopening) it when it
