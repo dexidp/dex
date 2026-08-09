@@ -807,37 +807,41 @@ func after(now, notOnOrAfter time.Time) bool {
 
 // applyMetadata merges discovered IdP metadata into the provider state. Manually
 // configured values always win; discovered values only fill unset fields. The
-// validator uses the union of manual and discovered signing certs.
+// validator uses the union of manual and discovered signing certs. The new state
+// is only written once all checks pass, so a failed merge leaves the last known
+// state fully intact.
 func (p *provider) applyMetadata(meta *IdPMetadata) error {
 	certs := append([]*x509.Certificate(nil), p.manualCerts...)
 	certs = append(certs, meta.SigningCerts...)
 
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	newState := providerState{}
 
 	if !p.insecureSkipSigValidation {
 		if len(certs) == 0 {
 			return fmt.Errorf("saml: no signing certificates available from metadata")
 		}
-		p.state.validator = dsig.NewDefaultValidationContext(certStore{certs})
+		newState.validator = dsig.NewDefaultValidationContext(certStore{certs})
 	}
 
 	if p.manualSSOURL != "" {
-		p.state.ssoURL = p.manualSSOURL
+		newState.ssoURL = p.manualSSOURL
 	} else if url, ok := meta.ssoEndpoint(bindingPOST); ok && url != "" {
-		p.state.ssoURL = url
+		newState.ssoURL = url
 	} else if url, ok := meta.ssoEndpoint(bindingRedirect); ok && url != "" {
-		p.state.ssoURL = url
+		newState.ssoURL = url
 	} else {
 		return fmt.Errorf("saml: no SSO endpoint in metadata and ssoURL is not set")
 	}
 
 	if p.manualSSOIssuer != "" {
-		p.state.ssoIssuer = p.manualSSOIssuer
+		newState.ssoIssuer = p.manualSSOIssuer
 	} else if meta.EntityID != "" {
-		p.state.ssoIssuer = meta.EntityID
+		newState.ssoIssuer = meta.EntityID
 	}
 
+	p.mu.Lock()
+	p.state = newState
+	p.mu.Unlock()
 	return nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -177,4 +178,71 @@ func TestLifecycleNotRequired(t *testing.T) {
 	// stubConn does not implement LifecycleConnector; Open/Close must not panic.
 	cache.Set("c1", Connector{Type: "mock", Connector: stubConn{version: "1"}})
 	cache.Close("c1")
+}
+
+// TestLifecycleConcurrentOpenSameID verifies that concurrent opens of the same
+// connector ID start a single lifecycle instance: the losing goroutine must not
+// leak a started instance that nothing will ever close.
+func TestLifecycleConcurrentOpenSameID(t *testing.T) {
+	ctx := context.Background()
+	store := memory.New(slog.New(slog.DiscardHandler))
+
+	var (
+		mu        sync.Mutex
+		instances []*lifecycleStub
+	)
+	cache := NewCache(ctx, store, func(c storage.Connector) (connector.Connector, error) {
+		inst := &lifecycleStub{version: c.ResourceVersion}
+		mu.Lock()
+		instances = append(instances, inst)
+		mu.Unlock()
+		return inst, nil
+	})
+
+	conn := storage.Connector{ID: "c1", Type: "mock", ResourceVersion: "1"}
+
+	const n = 8
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = cache.Open(conn)
+		}()
+	}
+	wg.Wait()
+
+	// Exactly one instance may have been started; every started instance that is
+	// not the cached one must have been closed.
+	cached, ok := cache.Cached("c1")
+	require.True(t, ok)
+	cachedLifecycle, ok := cached.Connector.(*lifecycleStub)
+	require.True(t, ok)
+
+	mu.Lock()
+	created := append([]*lifecycleStub(nil), instances...)
+	mu.Unlock()
+
+	var started, unclosed int
+	for _, inst := range created {
+		if inst.started == 1 {
+			started++
+		}
+		if inst.started > inst.closed {
+			unclosed++
+		}
+	}
+
+	// Serialization guarantees only the winner is live.
+	require.Equal(t, 1, started, "expected exactly one started instance")
+	require.Equal(t, 1, unclosed, "expected exactly one live (started, unclosed) instance")
+	require.Same(t, cachedLifecycle, func() *lifecycleStub {
+		for _, inst := range created {
+			if inst.started == 1 && inst.closed == 0 {
+				return inst
+			}
+		}
+		return nil
+	}())
+	require.Equal(t, 1, cachedLifecycle.started)
 }

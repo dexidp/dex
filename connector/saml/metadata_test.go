@@ -20,8 +20,16 @@ func certPEMBlock(t *testing.T, pemBytes []byte) string {
 
 func metadataXML(t *testing.T, keyDescriptors, ssoServices string) string {
 	t.Helper()
+	return metadataXMLWithEntity(t, "https://idp.example.com", keyDescriptors, ssoServices)
+}
+
+// metadataXMLWithEntity builds an IdP metadata document with the given entityID,
+// key descriptors, and SSO services. The entityID matters for tests that drive
+// HandlePOST, which checks the response issuer against the discovered issuer.
+func metadataXMLWithEntity(t *testing.T, entityID, keyDescriptors, ssoServices string) string {
+	t.Helper()
 	return `<?xml version="1.0" encoding="UTF-8"?>
-<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="https://idp.example.com">
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="` + entityID + `">
   <md:IDPSSODescriptor>` + keyDescriptors + ssoServices + `
   </md:IDPSSODescriptor>
 </md:EntityDescriptor>`
@@ -105,6 +113,25 @@ func TestParseMetadataErrors(t *testing.T) {
 				t.Error("expected an error")
 			}
 		})
+	}
+}
+
+func TestParseMetadataWrappedBase64Cert(t *testing.T) {
+	// Real-world metadata wraps the base64 certificate across lines with
+	// embedded newlines and indentation. All whitespace must be stripped
+	// before decoding.
+	cert := certPEMBlock(t, mustReadFile(t, "testdata/ca.crt"))
+	wrapped := cert[:20] + "\n  " + cert[20:50] + "\n  " + cert[50:]
+	xml := metadataXML(t,
+		`<md:KeyDescriptor use="signing"><ds:KeyInfo><ds:X509Data><ds:X509Certificate>`+wrapped+`</ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor>`,
+		`<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://idp.example.com/sso"/>`)
+
+	meta, err := parseMetadata([]byte(xml))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(meta.SigningCerts) != 1 {
+		t.Fatalf("expected 1 signing cert, got %d", len(meta.SigningCerts))
 	}
 }
 

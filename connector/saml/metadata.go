@@ -89,7 +89,9 @@ func parseMetadata(data []byte) (*IdPMetadata, error) {
 			continue
 		}
 		for _, cert := range kd.KeyInfo.X509Data.X509Certificate {
-			der, err := base64.StdEncoding.DecodeString(strings.TrimSpace(cert.Data))
+			// Real-world metadata often wraps the base64 across lines with
+			// embedded whitespace; strip all of it before decoding.
+			der, err := base64.StdEncoding.DecodeString(strings.Join(strings.Fields(cert.Data), ""))
 			if err != nil {
 				return nil, fmt.Errorf("parse metadata: decode certificate: %v", err)
 			}
