@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"encoding/xml"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -329,6 +330,7 @@ type provider struct {
 	metadataURL     string
 	refreshInterval time.Duration
 	httpClient      *http.Client
+	cancel          context.CancelFunc
 
 	// mu guards state.
 	mu    sync.RWMutex
@@ -837,4 +839,86 @@ func (p *provider) applyMetadata(meta *IdPMetadata) error {
 	}
 
 	return nil
+}
+
+// fetchMetadata retrieves the IdP metadata document from the metadata URL.
+func (p *provider) fetchMetadata() ([]byte, error) {
+	req, err := http.NewRequest(http.MethodGet, p.metadataURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("saml: build metadata request: %v", err)
+	}
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("saml: fetch metadata: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("saml: fetch metadata: unexpected status %d", resp.StatusCode)
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, fmt.Errorf("saml: read metadata: %v", err)
+	}
+	return data, nil
+}
+
+// refresh fetches and applies the latest IdP metadata.
+func (p *provider) refresh() error {
+	data, err := p.fetchMetadata()
+	if err != nil {
+		return err
+	}
+	meta, err := parseMetadata(data)
+	if err != nil {
+		return err
+	}
+	return p.applyMetadata(meta)
+}
+
+// Start implements connector.LifecycleConnector. It performs an immediate
+// metadata fetch and then polls on MetadataRefreshInterval until Close is
+// called or ctx is cancelled. The first fetch is critical: when it fails and
+// no manual certificates are configured, Start returns an error.
+func (p *provider) Start(ctx context.Context) error {
+	if p.metadataURL == "" {
+		return nil
+	}
+
+	if err := p.refresh(); err != nil {
+		if len(p.manualCerts) > 0 || p.insecureSkipSigValidation {
+			p.logger.Warn("failed to fetch SAML metadata; using manual configuration", "err", err)
+		} else {
+			return fmt.Errorf("saml: failed to fetch metadata: %v", err)
+		}
+	}
+
+	pollCtx, cancel := context.WithCancel(ctx)
+	p.cancel = cancel
+	go func() {
+		defer cancel()
+		ticker := time.NewTicker(p.refreshInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-pollCtx.Done():
+				return
+			case <-ticker.C:
+				if err := p.refresh(); err != nil {
+					p.logger.Warn("failed to refresh SAML metadata; keeping last known configuration", "err", err)
+					continue
+				}
+				p.logger.Info("refreshed SAML metadata")
+			}
+		}
+	}()
+	return nil
+}
+
+// Close stops the metadata polling goroutine, if any.
+func (p *provider) Close() {
+	if p.cancel != nil {
+		p.cancel()
+		p.cancel = nil
+	}
 }
