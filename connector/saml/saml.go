@@ -878,7 +878,7 @@ func (p *provider) refresh() error {
 
 // Start implements connector.LifecycleConnector. It performs an immediate
 // metadata fetch and then polls on MetadataRefreshInterval until Close is
-// called or ctx is cancelled. The first fetch is critical: when it fails and
+// called or ctx is canceled. The first fetch is critical: when it fails and
 // no manual certificates are configured, Start returns an error.
 func (p *provider) Start(ctx context.Context) error {
 	if p.metadataURL == "" {
