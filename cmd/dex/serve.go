@@ -560,12 +560,29 @@ func runServe(options serveOptions) error {
 		if c.Web.TLSMaxVersion != "" {
 			tlsMaxVersion = allowedTLSVersions[c.Web.TLSMaxVersion]
 		}
+		cipherSuites := allowedTLSCiphers
+		if len(c.Web.AllowedTLSCiphers) > 0 {
+			ciphers, err := parseCipherSuites(c.Web.AllowedTLSCiphers)
+			if err != nil {
+				return fmt.Errorf("invalid TLS cipher suites: %w", err)
+			}
+			cipherSuites = ciphers
+		}
+		curvePreferences := []tls.CurveID(nil)
+		if len(c.Web.AllowedCurvePreferences) > 0 {
+			curves, err := parseCurvePreferences(c.Web.AllowedCurvePreferences)
+			if err != nil {
+				return fmt.Errorf("invalid TLS curve preferences: %w", err)
+			}
+			curvePreferences = curves
+		}
 
 		baseTLSConfig := &tls.Config{
 			MinVersion:               uint16(tlsMinVersion),
 			MaxVersion:               uint16(tlsMaxVersion),
-			CipherSuites:             allowedTLSCiphers,
+			CipherSuites:             cipherSuites,
 			PreferServerCipherSuites: true,
+			CurvePreferences:         curvePreferences,
 		}
 
 		tlsConfig, err := newTLSReloader(logger, c.Web.TLSCert, c.Web.TLSKey, "", baseTLSConfig)
@@ -638,6 +655,26 @@ func runServe(options serveOptions) error {
 		logger.Info("shutdown now", "err", err)
 	}
 	return nil
+}
+
+// parseCipherSuites parses a list of cipher suite names and returns their corresponding IDs.
+func parseCipherSuites(names []string) ([]uint16, error) {
+	cipherMap := make(map[string]uint16)
+	for _, cs := range tls.CipherSuites() {
+		cipherMap[cs.Name] = cs.ID
+	}
+	for _, cs := range tls.InsecureCipherSuites() {
+		cipherMap[cs.Name] = cs.ID
+	}
+	ids := make([]uint16, 0, len(names))
+	for _, name := range names {
+		id, ok := cipherMap[name]
+		if !ok {
+			return nil, fmt.Errorf("unsupported cipher suite %q", name)
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }
 
 func applyConfigOverrides(options serveOptions, config *Config) {
