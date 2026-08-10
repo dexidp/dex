@@ -1513,7 +1513,7 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 // SAML for InResponseTo correlation) and can clear it back to nil.
 //
 // Backends serialize LogoutState differently (etcd/kubernetes embed a struct,
-// SQL stores a JSON blob, ent uses a nillable bytes column); without this
+// while SQL and ent store a JSON blob); without this
 // test, missing a field in any of those mirrors would silently break SAML SLO
 // at runtime with "No logout in progress." after the upstream redirect.
 func testAuthSessionLogoutState(t *testing.T, s storage.Storage) {
@@ -1522,9 +1522,10 @@ func testAuthSessionLogoutState(t *testing.T, s storage.Storage) {
 	now := time.Now().UTC().Round(time.Millisecond)
 
 	session := storage.AuthSession{
+		ID:             storage.NewID(),
+		Secret:         storage.NewID(),
 		UserID:         "user-logout",
 		ConnectorID:    "conn-logout",
-		Nonce:          storage.NewID(),
 		ClientStates:   map[string]*storage.ClientAuthState{},
 		CreatedAt:      now,
 		LastActivity:   now,
@@ -1536,11 +1537,11 @@ func testAuthSessionLogoutState(t *testing.T, s storage.Storage) {
 		t.Fatalf("create auth session: %v", err)
 	}
 	t.Cleanup(func() {
-		_ = s.DeleteAuthSession(ctx, session.UserID, session.ConnectorID)
+		_ = s.DeleteAuthSession(ctx, session.ID)
 	})
 
 	// Initially LogoutState must be nil.
-	got, err := s.GetAuthSession(ctx, session.UserID, session.ConnectorID)
+	got, err := s.GetAuthSession(ctx, session.ID)
 	if err != nil {
 		t.Fatalf("get auth session: %v", err)
 	}
@@ -1557,14 +1558,14 @@ func testAuthSessionLogoutState(t *testing.T, s storage.Storage) {
 		ConnectorID:           session.ConnectorID,
 		ConnectorState:        []byte("_saml_request_id_12345"),
 	}
-	if err := s.UpdateAuthSession(ctx, session.UserID, session.ConnectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
+	if err := s.UpdateAuthSession(ctx, session.ID, func(old storage.AuthSession) (storage.AuthSession, error) {
 		old.LogoutState = want
 		return old, nil
 	}); err != nil {
 		t.Fatalf("update auth session with LogoutState: %v", err)
 	}
 
-	got, err = s.GetAuthSession(ctx, session.UserID, session.ConnectorID)
+	got, err = s.GetAuthSession(ctx, session.ID)
 	if err != nil {
 		t.Fatalf("get auth session after LogoutState write: %v", err)
 	}
@@ -1577,14 +1578,14 @@ func testAuthSessionLogoutState(t *testing.T, s storage.Storage) {
 
 	// Clear LogoutState back to nil; the storage must persist nil, not an
 	// empty struct (server uses nil to mean "no logout in progress").
-	if err := s.UpdateAuthSession(ctx, session.UserID, session.ConnectorID, func(old storage.AuthSession) (storage.AuthSession, error) {
+	if err := s.UpdateAuthSession(ctx, session.ID, func(old storage.AuthSession) (storage.AuthSession, error) {
 		old.LogoutState = nil
 		return old, nil
 	}); err != nil {
 		t.Fatalf("update auth session clearing LogoutState: %v", err)
 	}
 
-	got, err = s.GetAuthSession(ctx, session.UserID, session.ConnectorID)
+	got, err = s.GetAuthSession(ctx, session.ID)
 	if err != nil {
 		t.Fatalf("get auth session after LogoutState clear: %v", err)
 	}
