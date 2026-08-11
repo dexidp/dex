@@ -276,7 +276,11 @@ func (h *Handler) introspectRefreshToken(ctx context.Context, token string) (*In
 	// Standalone clients are not judged by their session. Skip the offline-session
 	// read: the endpoint is unauthenticated, and on Kubernetes that is one avoidable
 	// API call per request whose result would be discarded.
-	if client.RefreshBoundToSession() {
+	//
+	// When sessions are disabled the refresh grant skips its session check
+	// (sessionsEnabled). Gate here before GetOfflineSessions so a storage error
+	// cannot report inactive while the grant would still redeem the token.
+	if client.RefreshBoundToSession() && h.Sessions != nil && h.Sessions.Enabled() {
 		// A refresh token's sid lives on its offline-session reference, read the
 		// same way the refresh grant reads it (tokens.RefreshReferenceSessionID):
 		// the two must agree on whether the session the token is bound to still stands.
