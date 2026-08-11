@@ -75,13 +75,15 @@ func (h *Handler) trySessionLoginWithSession(ctx context.Context, r *http.Reques
 	// not the global per-identity LastLogin. ui.LastLogin is a single global row
 	// rewritten to now() by EVERY interactive login from ANY browser/device, so a
 	// fresh login on a second device would otherwise satisfy an RP's max_age
-	// re-authentication demand for a stale session on the first. The per-session,
-	// per-client timestamp already exists (ClientAuthState.AuthenticatedAt,
-	// carried across for SSO above) and is guaranteed non-nil here.
-	authenticatedAt := ui.LastLogin
-	if cs := session.ClientStates[authReq.ClientID]; cs != nil && !cs.AuthenticatedAt.IsZero() {
-		authenticatedAt = cs.AuthenticatedAt
+	// re-authentication demand for a stale session on the first.
+	//
+	// Prefer ClientAuthState.AuthenticatedAt (direct login or SSO-carried above).
+	// If it is missing, force re-authentication rather than falling back to LastLogin.
+	cs := session.ClientStates[authReq.ClientID]
+	if cs == nil || cs.AuthenticatedAt.IsZero() {
+		return false
 	}
+	authenticatedAt := cs.AuthenticatedAt
 	if authReq.MaxAge >= 0 {
 		if now.Sub(authenticatedAt) > time.Duration(authReq.MaxAge)*time.Second {
 			return false
