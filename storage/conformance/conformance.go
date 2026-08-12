@@ -1403,10 +1403,11 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 	now := time.Now().UTC().Round(time.Millisecond)
 
 	session := storage.AuthSession{
-		ID:          storage.NewID(),
-		Secret:      storage.NewID(),
-		UserID:      "user1",
-		ConnectorID: "conn1",
+		ID:            storage.NewID(),
+		Secret:        storage.NewID(),
+		UserID:        "user1",
+		ConnectorID:   "conn1",
+		ConnectorData: []byte(`{"nameID":"alice","sessionIndex":"session-1"}`),
 		ClientStates: map[string]*storage.ClientAuthState{
 			"client1": {
 				AuthenticatedAt:   now,
@@ -1467,6 +1468,7 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 		}
 		old.LastActivity = newNow
 		old.IdleExpiry = newNow.Add(time.Hour)
+		old.ConnectorData = []byte(`{"nameID":"alice","sessionIndex":"session-2"}`)
 		return old, nil
 	}); err != nil {
 		t.Fatalf("update auth session: %v", err)
@@ -1482,6 +1484,9 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 	}
 	if got.ClientStates["client2"] == nil {
 		t.Fatal("expected client2 state to exist")
+	}
+	if want := `{"nameID":"alice","sessionIndex":"session-2"}`; string(got.ConnectorData) != want {
+		t.Errorf("expected connector data %q, got %q", want, got.ConnectorData)
 	}
 	// The idle timeout has to move with the activity that reset it, or a session
 	// never outlives its first one.

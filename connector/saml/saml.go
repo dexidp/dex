@@ -58,6 +58,11 @@ const (
 
 	// Default RSA algorithm for SAML HTTP-Redirect query-string signatures (SP logout).
 	defaultRedirectSigAlg = "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"
+
+	// Keep SLO responses small enough to validate and inflate safely. A normal
+	// LogoutResponse is only a few kilobytes.
+	maxSAMLLogoutResponseSize = 1 << 20
+	maxSAMLLogoutPOSTBodySize = 2 << 20
 )
 
 var (
@@ -1005,18 +1010,42 @@ func (p *provider) LogoutURLWithState(_ context.Context, connectorData []byte, _
 // even when the LogoutResponse is HTTP-POST and RelayState isn't covered by
 // the signature.
 func (p *provider) HandleLogoutCallbackWithState(_ context.Context, r *http.Request, state []byte) error {
+	if len(state) == 0 {
+		return fmt.Errorf("saml slo: missing server-side LogoutRequest ID")
+	}
+
 	var samlResponse string
-	if r.Method == http.MethodGet {
+	switch r.Method {
+	case http.MethodGet:
 		samlResponse = r.URL.Query().Get("SAMLResponse")
-	} else {
-		if err := r.ParseForm(); err != nil {
-			return fmt.Errorf("saml slo: failed to parse form: %v", err)
+	case http.MethodPost:
+		body, err := io.ReadAll(io.LimitReader(r.Body, maxSAMLLogoutPOSTBodySize+1))
+		if err != nil {
+			return fmt.Errorf("saml slo: failed to read form: %w", err)
 		}
-		samlResponse = r.FormValue("SAMLResponse")
+		if len(body) > maxSAMLLogoutPOSTBodySize {
+			return fmt.Errorf("saml slo: POST body exceeds %d bytes", maxSAMLLogoutPOSTBodySize)
+		}
+		form, err := url.ParseQuery(string(body))
+		if err != nil {
+			return fmt.Errorf("saml slo: failed to parse form: %w", err)
+		}
+		samlResponse = form.Get("SAMLResponse")
+	default:
+		return fmt.Errorf("saml slo: unsupported HTTP method %q", r.Method)
 	}
 
 	if samlResponse == "" {
 		return fmt.Errorf("saml slo: missing SAMLResponse parameter")
+	}
+	if len(samlResponse) > base64.StdEncoding.EncodedLen(maxSAMLLogoutResponseSize+1024) {
+		return fmt.Errorf("saml slo: encoded SAMLResponse is too large")
+	}
+
+	if r.Method == http.MethodGet && len(p.certs) > 0 {
+		if err := p.validateRedirectSignature(r, "SAMLResponse"); err != nil {
+			return fmt.Errorf("saml slo: %v", err)
+		}
 	}
 
 	compressed, err := base64.StdEncoding.DecodeString(samlResponse)
@@ -1031,12 +1060,20 @@ func (p *provider) HandleLogoutCallbackWithState(_ context.Context, r *http.Requ
 	// pretending to satisfy the other, so we treat the binding strictly.
 	var rawResp []byte
 	if r.Method == http.MethodGet {
-		rawResp, err = io.ReadAll(flate.NewReader(bytes.NewReader(compressed)))
+		reader := flate.NewReader(bytes.NewReader(compressed))
+		rawResp, err = io.ReadAll(io.LimitReader(reader, maxSAMLLogoutResponseSize+1))
+		closeErr := reader.Close()
 		if err != nil {
 			return fmt.Errorf("saml slo: failed to inflate SAMLResponse (HTTP-Redirect binding requires DEFLATE): %w", err)
 		}
+		if closeErr != nil {
+			return fmt.Errorf("saml slo: failed to close SAMLResponse inflater: %w", closeErr)
+		}
 	} else {
 		rawResp = compressed
+	}
+	if len(rawResp) > maxSAMLLogoutResponseSize {
+		return fmt.Errorf("saml slo: SAMLResponse exceeds %d bytes after decoding", maxSAMLLogoutResponseSize)
 	}
 
 	byteReader := bytes.NewReader(rawResp)
@@ -1044,11 +1081,7 @@ func (p *provider) HandleLogoutCallbackWithState(_ context.Context, r *http.Requ
 		return fmt.Errorf("saml slo: %w", xrvErr)
 	}
 
-	if r.Method == http.MethodGet && len(p.certs) > 0 {
-		if err := p.validateRedirectSignature(r, "SAMLResponse"); err != nil {
-			return fmt.Errorf("saml slo: %v", err)
-		}
-	} else if r.Method != http.MethodGet && p.validator != nil {
+	if r.Method == http.MethodPost && p.validator != nil {
 		if _, err := p.validateSignature(rawResp); err != nil {
 			return fmt.Errorf("saml slo: %v", err)
 		}
@@ -1059,33 +1092,38 @@ func (p *provider) HandleLogoutCallbackWithState(_ context.Context, r *http.Requ
 		return fmt.Errorf("saml slo: failed to unmarshal LogoutResponse: %v", err)
 	}
 
-	if resp.Status != nil {
-		if err := p.validateStatus(resp.Status); err != nil {
-			return fmt.Errorf("saml slo: %v", err)
-		}
+	if resp.ID == "" {
+		return fmt.Errorf("saml slo: LogoutResponse is missing required ID attribute")
+	}
+	if !resp.Version.present {
+		return fmt.Errorf("saml slo: LogoutResponse is missing required Version attribute")
+	}
+	if resp.Status == nil {
+		return fmt.Errorf("saml slo: LogoutResponse is missing required Status element")
+	}
+	if err := p.validateStatus(resp.Status); err != nil {
+		return fmt.Errorf("saml slo: %v", err)
 	}
 
-	// §4.4.4.2: <Issuer> MUST be present in LogoutResponse. When ssoIssuer is
-	// configured, treat a missing Issuer as a rejection too.
-	if p.ssoIssuer != "" {
-		if resp.Issuer == nil {
-			return fmt.Errorf("saml slo: LogoutResponse is missing required Issuer element (expected %q)", p.ssoIssuer)
-		}
-		if resp.Issuer.Issuer != p.ssoIssuer {
-			return fmt.Errorf("saml slo: expected Issuer value %q, got %q", p.ssoIssuer, resp.Issuer.Issuer)
-		}
+	// SAML Profiles §4.4.4.2 requires Issuer in LogoutResponse.
+	if resp.Issuer == nil || resp.Issuer.Issuer == "" {
+		return fmt.Errorf("saml slo: LogoutResponse is missing required Issuer element")
+	}
+	if p.ssoIssuer != "" && resp.Issuer.Issuer != p.ssoIssuer {
+		return fmt.Errorf("saml slo: expected Issuer value %q, got %q", p.ssoIssuer, resp.Issuer.Issuer)
 	}
 
 	issueInstant := time.Time(resp.IssueInstant)
-	if !issueInstant.IsZero() {
-		now := p.now()
-		if before(now, issueInstant) {
-			return fmt.Errorf("saml slo: LogoutResponse IssueInstant %s is in the future (now: %s)", issueInstant, now)
-		}
-		const maxAge = 5 * time.Minute
-		if now.After(issueInstant.Add(maxAge + allowedClockDrift)) {
-			return fmt.Errorf("saml slo: LogoutResponse IssueInstant %s is too old (now: %s)", issueInstant, now)
-		}
+	if issueInstant.IsZero() {
+		return fmt.Errorf("saml slo: LogoutResponse is missing required IssueInstant attribute")
+	}
+	now := p.now()
+	if before(now, issueInstant) {
+		return fmt.Errorf("saml slo: LogoutResponse IssueInstant %s is in the future (now: %s)", issueInstant, now)
+	}
+	const maxAge = 5 * time.Minute
+	if now.After(issueInstant.Add(maxAge + allowedClockDrift)) {
+		return fmt.Errorf("saml slo: LogoutResponse IssueInstant %s is too old (now: %s)", issueInstant, now)
 	}
 
 	if resp.Destination != "" {
@@ -1097,16 +1135,10 @@ func (p *provider) HandleLogoutCallbackWithState(_ context.Context, r *http.Requ
 	}
 
 	// Match InResponseTo against the one-shot request ID the server kept in
-	// LogoutState.ConnectorState. An empty state means the server didn't have
-	// one (e.g. legacy session predating this change) — skip the check rather
-	// than break upgrade flows, but log so it's noticed.
-	if len(state) > 0 {
-		expectedReqID := string(state)
-		if resp.InResponseTo != expectedReqID {
-			return fmt.Errorf("saml slo: InResponseTo mismatch: expected %q, got %q", expectedReqID, resp.InResponseTo)
-		}
-	} else if p.logger != nil {
-		p.logger.Warn("saml slo: no server-side request ID for InResponseTo check; replay protection disabled for this callback")
+	// LogoutState.ConnectorState.
+	expectedReqID := string(state)
+	if resp.InResponseTo != expectedReqID {
+		return fmt.Errorf("saml slo: InResponseTo mismatch: expected %q, got %q", expectedReqID, resp.InResponseTo)
 	}
 
 	return nil

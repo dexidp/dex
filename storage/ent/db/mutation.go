@@ -3221,6 +3221,7 @@ type AuthSessionMutation struct {
 	connector_id    *string
 	secret          *string
 	client_states   *[]byte
+	connector_data  *[]byte
 	created_at      *time.Time
 	last_activity   *time.Time
 	ip_address      *string
@@ -3480,6 +3481,55 @@ func (m *AuthSessionMutation) OldClientStates(ctx context.Context) (v []byte, er
 // ResetClientStates resets all changes to the "client_states" field.
 func (m *AuthSessionMutation) ResetClientStates() {
 	m.client_states = nil
+}
+
+// SetConnectorData sets the "connector_data" field.
+func (m *AuthSessionMutation) SetConnectorData(b []byte) {
+	m.connector_data = &b
+}
+
+// ConnectorData returns the value of the "connector_data" field in the mutation.
+func (m *AuthSessionMutation) ConnectorData() (r []byte, exists bool) {
+	v := m.connector_data
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldConnectorData returns the old "connector_data" field's value of the AuthSession entity.
+// If the AuthSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AuthSessionMutation) OldConnectorData(ctx context.Context) (v []byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldConnectorData is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldConnectorData requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldConnectorData: %w", err)
+	}
+	return oldValue.ConnectorData, nil
+}
+
+// ClearConnectorData clears the value of the "connector_data" field.
+func (m *AuthSessionMutation) ClearConnectorData() {
+	m.connector_data = nil
+	m.clearedFields[authsession.FieldConnectorData] = struct{}{}
+}
+
+// ConnectorDataCleared returns if the "connector_data" field was cleared in this mutation.
+func (m *AuthSessionMutation) ConnectorDataCleared() bool {
+	_, ok := m.clearedFields[authsession.FieldConnectorData]
+	return ok
+}
+
+// ResetConnectorData resets all changes to the "connector_data" field.
+func (m *AuthSessionMutation) ResetConnectorData() {
+	m.connector_data = nil
+	delete(m.clearedFields, authsession.FieldConnectorData)
 }
 
 // SetCreatedAt sets the "created_at" field.
@@ -3781,7 +3831,7 @@ func (m *AuthSessionMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AuthSessionMutation) Fields() []string {
-	fields := make([]string, 0, 11)
+	fields := make([]string, 0, 12)
 	if m.user_id != nil {
 		fields = append(fields, authsession.FieldUserID)
 	}
@@ -3793,6 +3843,9 @@ func (m *AuthSessionMutation) Fields() []string {
 	}
 	if m.client_states != nil {
 		fields = append(fields, authsession.FieldClientStates)
+	}
+	if m.connector_data != nil {
+		fields = append(fields, authsession.FieldConnectorData)
 	}
 	if m.created_at != nil {
 		fields = append(fields, authsession.FieldCreatedAt)
@@ -3831,6 +3884,8 @@ func (m *AuthSessionMutation) Field(name string) (ent.Value, bool) {
 		return m.Secret()
 	case authsession.FieldClientStates:
 		return m.ClientStates()
+	case authsession.FieldConnectorData:
+		return m.ConnectorData()
 	case authsession.FieldCreatedAt:
 		return m.CreatedAt()
 	case authsession.FieldLastActivity:
@@ -3862,6 +3917,8 @@ func (m *AuthSessionMutation) OldField(ctx context.Context, name string) (ent.Va
 		return m.OldSecret(ctx)
 	case authsession.FieldClientStates:
 		return m.OldClientStates(ctx)
+	case authsession.FieldConnectorData:
+		return m.OldConnectorData(ctx)
 	case authsession.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	case authsession.FieldLastActivity:
@@ -3912,6 +3969,13 @@ func (m *AuthSessionMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetClientStates(v)
+		return nil
+	case authsession.FieldConnectorData:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetConnectorData(v)
 		return nil
 	case authsession.FieldCreatedAt:
 		v, ok := value.(time.Time)
@@ -3992,6 +4056,9 @@ func (m *AuthSessionMutation) AddField(name string, value ent.Value) error {
 // mutation.
 func (m *AuthSessionMutation) ClearedFields() []string {
 	var fields []string
+	if m.FieldCleared(authsession.FieldConnectorData) {
+		fields = append(fields, authsession.FieldConnectorData)
+	}
 	if m.FieldCleared(authsession.FieldLogoutState) {
 		fields = append(fields, authsession.FieldLogoutState)
 	}
@@ -4009,6 +4076,9 @@ func (m *AuthSessionMutation) FieldCleared(name string) bool {
 // error if the field is not defined in the schema.
 func (m *AuthSessionMutation) ClearField(name string) error {
 	switch name {
+	case authsession.FieldConnectorData:
+		m.ClearConnectorData()
+		return nil
 	case authsession.FieldLogoutState:
 		m.ClearLogoutState()
 		return nil
@@ -4031,6 +4101,9 @@ func (m *AuthSessionMutation) ResetField(name string) error {
 		return nil
 	case authsession.FieldClientStates:
 		m.ResetClientStates()
+		return nil
+	case authsession.FieldConnectorData:
+		m.ResetConnectorData()
 		return nil
 	case authsession.FieldCreatedAt:
 		m.ResetCreatedAt()

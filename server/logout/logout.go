@@ -1,6 +1,7 @@
 package logout
 
 import (
+	"bytes"
 	"context"
 	"crypto/subtle"
 	"errors"
@@ -231,6 +232,17 @@ type idTokenHint struct {
 	sessionID   string // "sid", empty for tokens minted before sid existed
 }
 
+func logoutStatesEqual(a, b *storage.LogoutState) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.PostLogoutRedirectURI == b.PostLogoutRedirectURI &&
+		a.State == b.State &&
+		a.ClientID == b.ClientID &&
+		a.ConnectorID == b.ConnectorID &&
+		bytes.Equal(a.ConnectorState, b.ConnectorState)
+}
+
 // matches reports whether the hint describes the given session. A hint carrying a sid
 // must match it exactly; one without a sid falls back to the subject alone, which is
 // all a token issued by an older dex can offer.
@@ -336,6 +348,9 @@ func (h *Handler) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 			// validated, so make the failure visible to the operator.
 			h.Logger.ErrorContext(ctx, "logout: failed to resolve connector for callback validation",
 				"connector_id", ls.ConnectorID, "err", err)
+			if len(ls.ConnectorState) > 0 {
+				statefulLogoutErr = fmt.Errorf("resolve stateful logout connector: %w", err)
+			}
 		} else {
 			switch logoutConn := conn.Connector.(type) {
 			case connector.StatefulLogoutCallbackConnector:
@@ -345,12 +360,20 @@ func (h *Handler) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 					statefulLogoutErr = err
 				}
 			case connector.LogoutCallbackConnector:
-				if err := logoutConn.HandleLogoutCallback(ctx, r); err != nil {
+				if len(ls.ConnectorState) > 0 {
+					statefulLogoutErr = fmt.Errorf("connector %q no longer supports stateful logout callbacks", ls.ConnectorID)
+				} else if err := logoutConn.HandleLogoutCallback(ctx, r); err != nil {
 					h.Logger.ErrorContext(ctx, "logout: upstream logout response validation failed",
 						"connector_id", ls.ConnectorID, "err", err)
 				}
+			default:
+				if len(ls.ConnectorState) > 0 {
+					statefulLogoutErr = fmt.Errorf("connector %q does not support logout callbacks", ls.ConnectorID)
+				}
 			}
 		}
+	} else if len(ls.ConnectorState) > 0 {
+		statefulLogoutErr = fmt.Errorf("stateful logout has no connector ID")
 	}
 
 	// Stateful connectors (e.g. SAML) perform cryptographic validation; do not
@@ -360,13 +383,35 @@ func (h *Handler) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 		// Clear the one-shot correlation state so it cannot be replayed. The
 		// browser session remains active and can start a fresh logout attempt.
 		if err := h.Storage.UpdateAuthSession(ctx, session.ID, func(old storage.AuthSession) (storage.AuthSession, error) {
-			old.LogoutState = nil
+			if logoutStatesEqual(old.LogoutState, ls) {
+				old.LogoutState = nil
+			}
 			return old, nil
 		}); err != nil {
 			h.Logger.ErrorContext(ctx, "logout: failed to clear LogoutState after failed validation",
 				"connector_id", ls.ConnectorID, "err", err)
 		}
 		h.renderError(r, w, http.StatusBadRequest, "Upstream logout response validation failed.")
+		return
+	}
+
+	// Consume this exact one-shot state before ending the session. A stale
+	// callback must not complete a newer logout attempt that replaced it.
+	consumed := false
+	if err := h.Storage.UpdateAuthSession(ctx, session.ID, func(old storage.AuthSession) (storage.AuthSession, error) {
+		if logoutStatesEqual(old.LogoutState, ls) {
+			old.LogoutState = nil
+			consumed = true
+		}
+		return old, nil
+	}); err != nil {
+		h.Logger.ErrorContext(ctx, "logout: failed to consume LogoutState",
+			"connector_id", ls.ConnectorID, "err", err)
+		h.renderError(r, w, http.StatusInternalServerError, "Failed to complete logout.")
+		return
+	}
+	if !consumed {
+		h.renderError(r, w, http.StatusBadRequest, "Logout request is no longer current.")
 		return
 	}
 
@@ -438,21 +483,21 @@ func (h *Handler) tryUpstreamLogout(ctx context.Context, authSession *storage.Au
 		connectorState []byte
 	)
 	if hasState {
-		var connectorData []byte
-		offlineSession, err := h.Storage.GetOfflineSessions(ctx, authSession.UserID, connectorID)
-		if err == nil {
-			connectorData = offlineSession.ConnectorData
-		} else if !errors.Is(err, storage.ErrNotFound) {
-			h.Logger.ErrorContext(ctx, "logout: failed to get connector data",
-				"connector_id", connectorID, "err", err)
-			return "", false
-		}
-		upstreamURL, connectorState, err = statefulConn.LogoutURLWithState(ctx, connectorData, callbackURI)
+		upstreamURL, connectorState, err = statefulConn.LogoutURLWithState(
+			ctx,
+			slices.Clone(authSession.ConnectorData),
+			callbackURI,
+		)
 	} else {
 		upstreamURL, err = basicConn.LogoutURL(ctx, callbackURI)
 	}
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "logout: upstream connector error", "err", err)
+		return "", false
+	}
+	if hasState && upstreamURL != "" && len(connectorState) == 0 {
+		h.Logger.ErrorContext(ctx, "logout: stateful connector returned no callback state",
+			"connector_id", connectorID)
 		return "", false
 	}
 	if upstreamURL == "" {
