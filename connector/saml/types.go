@@ -27,7 +27,9 @@ func (t *xmlTime) UnmarshalXMLAttr(attr xml.Attr) error {
 	return nil
 }
 
-type samlVersion struct{}
+type samlVersion struct {
+	present bool
+}
 
 func (s samlVersion) MarshalXMLAttr(name xml.Name) (xml.Attr, error) {
 	return xml.Attr{
@@ -40,6 +42,7 @@ func (s *samlVersion) UnmarshalXMLAttr(attr xml.Attr) error {
 	if attr.Value != "2.0" {
 		return fmt.Errorf(`saml version expected "2.0" got %q`, attr.Value)
 	}
+	s.present = true
 	return nil
 }
 

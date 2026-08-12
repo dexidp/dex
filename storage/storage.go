@@ -534,6 +534,12 @@ type AuthSession struct {
 	UserID       string
 	ConnectorID  string
 	ClientStates map[string]*ClientAuthState // clientID -> auth state
+
+	// ConnectorData is opaque state returned by the connector that established
+	// this browser session. Stateful logout connectors use it to build an
+	// upstream logout request for this exact session.
+	ConnectorData []byte
+
 	CreatedAt    time.Time
 	LastActivity time.Time
 
