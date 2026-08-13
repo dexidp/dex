@@ -30,7 +30,7 @@ permissions:
 jobs:
   container-images:
     name: Container images
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-64-cores
     strategy:
       matrix:
         variant:
