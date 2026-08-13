@@ -720,6 +720,25 @@ func TestTrySessionLogin_MaxAge(t *testing.T) {
 		assert.True(t, ok, "session should be reused when max_age is not specified")
 	})
 
+	t.Run("missing AuthenticatedAt, max_age not specified, force re-auth", func(t *testing.T) {
+		s := newTestSessionServer(t)
+		now := s.Now()
+
+		authReq := setupSessionWithIdentity(t, s, now, now.Add(-1*time.Minute))
+		authReq.MaxAge = -1 // RP did not ask for recency
+		require.NoError(t, s.Storage.UpdateAuthSession(ctx, "test-nonce", func(old storage.AuthSession) (storage.AuthSession, error) {
+			old.ClientStates["client-1"].AuthenticatedAt = time.Time{}
+			return old, nil
+		}))
+
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r.AddCookie(&http.Cookie{Name: "dex_session", Value: internal.SessionCookieValue("test-nonce", "test-nonce", nil)})
+		w := httptest.NewRecorder()
+
+		ok := s.trySessionLogin(ctx, r, w, &authReq)
+		assert.False(t, ok, "missing AuthenticatedAt must force re-auth even when max_age is not specified")
+	})
+
 	t.Run("max_age satisfied, session reused", func(t *testing.T) {
 		s := newTestSessionServer(t)
 		now := s.Now()
