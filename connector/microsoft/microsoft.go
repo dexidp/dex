@@ -80,6 +80,8 @@ type Config struct {
 	// following values: "name", "email", "mailNickname" or "onPremisesSamAccountName".
 	// If unset, the preferred_username field will remain empty.
 	PreferredUsernameField string `json:"preferredUsernameField"`
+
+	AllowedDomains []string `json:"allowedDomains"`
 }
 
 // Open returns a strategy for logging in through Microsoft.
@@ -103,6 +105,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 		domainHint:             c.DomainHint,
 		scopes:                 c.Scopes,
 		preferredUsernameField: c.PreferredUsernameField,
+		allowedDomains:         c.AllowedDomains,
 	}
 
 	if m.apiURL == "" {
@@ -161,6 +164,7 @@ type microsoftConnector struct {
 	domainHint             string
 	scopes                 []string
 	preferredUsernameField string
+	allowedDomains         []string
 }
 
 func (c *microsoftConnector) isOrgTenant() bool {
@@ -304,6 +308,11 @@ func (c *microsoftConnector) HandleCallback(s connector.Scopes, connData []byte,
 
 	if c.emailToLowercase {
 		user.Email = strings.ToLower(user.Email)
+	}
+
+	// Check if the email's domain is in the allowed list
+	if !c.isAllowedDomain(user.Email) {
+		return identity, fmt.Errorf("email (%s) domain not allowed", user.Email)
 	}
 
 	identity = connector.Identity{
@@ -692,4 +701,23 @@ func (e *oauth2Error) Error() string {
 		return e.error
 	}
 	return e.error + ": " + e.errorDescription
+}
+
+func (c *microsoftConnector) isAllowedDomain(email string) bool {
+
+	if len(c.allowedDomains) == 0 {
+		return true
+	}
+
+	parts := strings.Split(email, "@")
+	if len(parts) != 2 {
+		return false
+	}
+	domain := parts[1]
+	for _, d := range c.allowedDomains {
+		if d == domain {
+			return true
+		}
+	}
+	return false
 }
