@@ -369,6 +369,10 @@ func (t *Templates) Approval(r *http.Request, w http.ResponseWriter, authReqID, 
 }
 
 func (t *Templates) TOTPVerify(r *http.Request, w http.ResponseWriter, postURL, issuer, connector, qrCode string, lastWasInvalid bool) error {
+	return t.TOTPVerifyWithKey(r, w, postURL, issuer, connector, qrCode, "", lastWasInvalid)
+}
+
+func (t *Templates) TOTPVerifyWithKey(r *http.Request, w http.ResponseWriter, postURL, issuer, connector, qrCode, totpKey string, lastWasInvalid bool) error {
 	if lastWasInvalid {
 		w.WriteHeader(http.StatusUnauthorized)
 	}
@@ -378,8 +382,9 @@ func (t *Templates) TOTPVerify(r *http.Request, w http.ResponseWriter, postURL, 
 		Issuer    string
 		Connector string
 		QRCode    string
+		TotpKey   string
 		ReqPath   string
-	}{postURL, lastWasInvalid, issuer, connector, qrCode, r.URL.Path}
+	}{postURL, lastWasInvalid, issuer, connector, qrCode, totpKey, r.URL.Path}
 	return renderTemplate(w, t.totpVerifyTmpl, data)
 }
 
