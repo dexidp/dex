@@ -126,6 +126,33 @@ func isHostLocal(host string) bool {
 	return host == "localhost" || net.ParseIP(host).IsLoopback()
 }
 
+// authorizationGrantTypes returns the grants a client needs for an
+// authorization request. A code issued to Dex's own device callback is redeemed
+// by the device flow, never at the token endpoint, so it needs the device_code
+// grant rather than authorization_code.
+func authorizationGrantTypes(responseTypes []string, deviceCallback bool) []string {
+	grantTypes := make([]string, 0, 2)
+	if slices.Contains(responseTypes, oauth2.ResponseTypeCode) {
+		if deviceCallback {
+			grantTypes = append(grantTypes, oauth2.GrantTypeDeviceCode)
+		} else {
+			grantTypes = append(grantTypes, oauth2.GrantTypeAuthorizationCode)
+		}
+	}
+	if slices.Contains(responseTypes, oauth2.ResponseTypeToken) || slices.Contains(responseTypes, oauth2.ResponseTypeIDToken) {
+		grantTypes = append(grantTypes, oauth2.GrantTypeImplicit)
+	}
+	return grantTypes
+}
+
+// isDeviceCallback reports whether redirectURI is this server's device
+// callback, in any of the forms the device flow and its clients use.
+func (h *Handler) isDeviceCallback(redirectURI string) bool {
+	return redirectURI == oauth2.DeviceCallbackURI ||
+		redirectURI == h.IssuerURL.AbsPath(oauth2.DeviceCallbackURI) ||
+		redirectURI == h.IssuerURL.AbsURL(oauth2.DeviceCallbackURI)
+}
+
 func validateConnectorID(connectors []storage.Connector, connectorID string) bool {
 	for _, c := range connectors {
 		if c.ID == connectorID {
@@ -227,6 +254,20 @@ func (h *Handler) parseAuthorizationRequest(r *http.Request) (*storage.AuthReque
 	newredirectedAuthErr := func(typ, format string, a ...interface{}) *redirectedAuthErr {
 		return &redirectedAuthErr{state, redirectURI, typ, fmt.Sprintf(format, a...)}
 	}
+	if len(responseTypes) == 0 {
+		return nil, "", newredirectedAuthErr(oauth2.InvalidRequest, "No response_type provided")
+	}
+	if !client.AllowsScopes(scopes) {
+		return nil, "", newredirectedAuthErr(oauth2.InvalidScope, "Client did not register all requested scopes.")
+	}
+	if !client.AllowsResponseType(responseTypes) {
+		return nil, "", newredirectedAuthErr(oauth2.UnauthorizedClient, "Client did not register the requested response type.")
+	}
+	for _, grantType := range authorizationGrantTypes(responseTypes, h.isDeviceCallback(redirectURI)) {
+		if !client.AllowsGrantType(grantType) {
+			return nil, "", newredirectedAuthErr(oauth2.UnauthorizedClient, "Client did not register the grant type required by the requested response type.")
+		}
+	}
 
 	if connectorID != "" {
 		connectors, err := h.Storage.ListConnectors(ctx)
@@ -252,7 +293,16 @@ func (h *Handler) parseAuthorizationRequest(r *http.Request) (*storage.AuthReque
 		return nil, "", newredirectedAuthErr(oauth2.InvalidRequest, "Unsupported PKCE challenge method (%q).", codeChallengeMethod)
 	}
 
-	// Enforce PKCE if configured.
+	// Public RFC 7591 clients cannot authenticate at the token endpoint, so bind
+	// every authorization code to an S256 verifier even when PKCE is optional for
+	// legacy clients.
+	dynamicPublicCodeFlow := client.DynamicallyRegistered && client.Public &&
+		slices.Contains(responseTypes, oauth2.ResponseTypeCode)
+	if dynamicPublicCodeFlow && (codeChallenge == "" || codeChallengeMethod != oauth2.PKCEMethodS256) {
+		return nil, "", newredirectedAuthErr(oauth2.InvalidRequest, "Public dynamically registered clients must use the S256 PKCE challenge method.")
+	}
+
+	// Enforce PKCE globally if configured.
 	// https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-12#section-4.1.1
 	if h.PKCE.Enforce && codeChallenge == "" {
 		return nil, "", newredirectedAuthErr(oauth2.InvalidRequest, "PKCE is required. The code_challenge parameter must be provided.")
@@ -315,10 +365,6 @@ func (h *Handler) parseAuthorizationRequest(r *http.Request) (*storage.AuthReque
 		if !h.SupportedResponseTypes[responseType] {
 			return nil, "", newredirectedAuthErr(oauth2.UnsupportedResponseType, "Unsupported response type %q", responseType)
 		}
-	}
-
-	if len(responseTypes) == 0 {
-		return nil, "", newredirectedAuthErr(oauth2.InvalidRequest, "No response_type provided")
 	}
 
 	if rt.token && !rt.code && !rt.idToken {

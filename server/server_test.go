@@ -1687,6 +1687,13 @@ func TestServerSupportedGrants(t *testing.T) {
 			resGrants: []string{oauth2.GrantTypeAuthorizationCode, oauth2.GrantTypeClientCredentials, oauth2.GrantTypeImplicit, oauth2.GrantTypeRefreshToken, oauth2.GrantTypeDeviceCode, oauth2.GrantTypeTokenExchange},
 		},
 		{
+			name: "With id_token response",
+			config: func(c *Config) {
+				c.SupportedResponseTypes = append(c.SupportedResponseTypes, oauth2.ResponseTypeIDToken)
+			},
+			resGrants: []string{oauth2.GrantTypeAuthorizationCode, oauth2.GrantTypeClientCredentials, oauth2.GrantTypeImplicit, oauth2.GrantTypeRefreshToken, oauth2.GrantTypeDeviceCode, oauth2.GrantTypeTokenExchange},
+		},
+		{
 			name: "All",
 			config: func(c *Config) {
 				c.PasswordConnector = "local"

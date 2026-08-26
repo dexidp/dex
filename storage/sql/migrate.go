@@ -512,4 +512,16 @@ var migrations = []migration{
 			`alter table auth_session add column connector_data bytea;`,
 		},
 	},
+	{
+		stmts: []string{
+			`alter table client add column dynamically_registered boolean not null default false;`,
+			`alter table client add column grant_types bytea;`,
+			`alter table client add column response_types bytea;`,
+			`alter table client add column allowed_scopes bytea;`,
+			`alter table client add column token_endpoint_auth_method text not null default '';`,
+			`alter table client add column registration_time bigint not null default 0;`,
+			`alter table client add column registration_token_id text not null default '';`,
+			`alter table client add column registration_expires_at bigint not null default 0;`,
+		},
+	},
 }

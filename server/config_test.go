@@ -57,6 +57,29 @@ func TestNormalizeConfigGrantTypes(t *testing.T) {
 		require.Contains(t, rc.grantTypes, oauth2.GrantTypeImplicit)
 	})
 
+	// id_token is returned from the authorization endpoint, so it is an
+	// implicit (or hybrid) flow even without an access token alongside it.
+	for _, responseType := range []string{oauth2.ResponseTypeIDToken, oauth2.ResponseTypeCodeIDToken} {
+		t.Run("response type "+responseType+" adds the implicit grant", func(t *testing.T) {
+			c := baseConfig(t)
+			c.SupportedResponseTypes = []string{responseType}
+
+			rc, err := normalizeConfig(&c)
+			require.NoError(t, err)
+			require.Contains(t, rc.grantTypes, oauth2.GrantTypeImplicit)
+		})
+	}
+
+	t.Run("AllowedGrantTypes can still withhold the implicit grant", func(t *testing.T) {
+		c := baseConfig(t)
+		c.SupportedResponseTypes = []string{oauth2.ResponseTypeIDToken}
+		c.AllowedGrantTypes = []string{oauth2.GrantTypeAuthorizationCode}
+
+		rc, err := normalizeConfig(&c)
+		require.NoError(t, err)
+		require.NotContains(t, rc.grantTypes, oauth2.GrantTypeImplicit)
+	})
+
 	t.Run("a password connector adds the password grant", func(t *testing.T) {
 		c := baseConfig(t)
 		c.PasswordConnector = "local"
@@ -111,6 +134,13 @@ func TestNormalizeConfigRejects(t *testing.T) {
 				c.IDJAG = &grants.IDJAGConfig{}
 			},
 			errMsg: "ID-JAG requires the token exchange grant",
+		},
+		{
+			name: "dynamic registration without an initial access token",
+			mutate: func(c *Config) {
+				c.DynamicClientRegistration = &DynamicClientRegistrationConfig{}
+			},
+			errMsg: "dynamic client registration requires an initial access token",
 		},
 	}
 

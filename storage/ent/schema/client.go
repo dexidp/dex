@@ -44,6 +44,14 @@ func (OAuth2Client) Fields() []ent.Field {
 			SchemaType(textSchema),
 		field.Text("logo_url").
 			SchemaType(textSchema),
+		field.Bool("dynamically_registered").Default(false),
+		field.JSON("grant_types", []string{}).Optional(),
+		field.JSON("response_types", []string{}).Optional(),
+		field.JSON("allowed_scopes", []string{}).Optional(),
+		field.Text("token_endpoint_auth_method").SchemaType(textSchema).Default("").Optional(),
+		field.Int64("registration_time").Default(0),
+		field.Text("registration_token_id").SchemaType(textSchema).Default("").Optional(),
+		field.Int64("registration_expires_at").Default(0),
 		field.JSON("allowed_connectors", []string{}).
 			Optional(),
 		field.JSON("mfa_chain", []string{}).

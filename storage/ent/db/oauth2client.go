@@ -30,6 +30,22 @@ type OAuth2Client struct {
 	Name string `json:"name,omitempty"`
 	// LogoURL holds the value of the "logo_url" field.
 	LogoURL string `json:"logo_url,omitempty"`
+	// DynamicallyRegistered holds the value of the "dynamically_registered" field.
+	DynamicallyRegistered bool `json:"dynamically_registered,omitempty"`
+	// GrantTypes holds the value of the "grant_types" field.
+	GrantTypes []string `json:"grant_types,omitempty"`
+	// ResponseTypes holds the value of the "response_types" field.
+	ResponseTypes []string `json:"response_types,omitempty"`
+	// AllowedScopes holds the value of the "allowed_scopes" field.
+	AllowedScopes []string `json:"allowed_scopes,omitempty"`
+	// TokenEndpointAuthMethod holds the value of the "token_endpoint_auth_method" field.
+	TokenEndpointAuthMethod string `json:"token_endpoint_auth_method,omitempty"`
+	// RegistrationTime holds the value of the "registration_time" field.
+	RegistrationTime int64 `json:"registration_time,omitempty"`
+	// RegistrationTokenID holds the value of the "registration_token_id" field.
+	RegistrationTokenID string `json:"registration_token_id,omitempty"`
+	// RegistrationExpiresAt holds the value of the "registration_expires_at" field.
+	RegistrationExpiresAt int64 `json:"registration_expires_at,omitempty"`
 	// AllowedConnectors holds the value of the "allowed_connectors" field.
 	AllowedConnectors []string `json:"allowed_connectors,omitempty"`
 	// MfaChain holds the value of the "mfa_chain" field.
@@ -52,11 +68,13 @@ func (*OAuth2Client) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case oauth2client.FieldRedirectUris, oauth2client.FieldTrustedPeers, oauth2client.FieldAllowedConnectors, oauth2client.FieldMfaChain, oauth2client.FieldPostLogoutRedirectUris, oauth2client.FieldSSOSharedWith, oauth2client.FieldClientCredentialsClaims:
+		case oauth2client.FieldRedirectUris, oauth2client.FieldTrustedPeers, oauth2client.FieldGrantTypes, oauth2client.FieldResponseTypes, oauth2client.FieldAllowedScopes, oauth2client.FieldAllowedConnectors, oauth2client.FieldMfaChain, oauth2client.FieldPostLogoutRedirectUris, oauth2client.FieldSSOSharedWith, oauth2client.FieldClientCredentialsClaims:
 			values[i] = new([]byte)
-		case oauth2client.FieldPublic:
+		case oauth2client.FieldPublic, oauth2client.FieldDynamicallyRegistered:
 			values[i] = new(sql.NullBool)
-		case oauth2client.FieldID, oauth2client.FieldSecret, oauth2client.FieldName, oauth2client.FieldLogoURL, oauth2client.FieldBackchannelLogoutURI, oauth2client.FieldRefreshTokenLifetime:
+		case oauth2client.FieldRegistrationTime, oauth2client.FieldRegistrationExpiresAt:
+			values[i] = new(sql.NullInt64)
+		case oauth2client.FieldID, oauth2client.FieldSecret, oauth2client.FieldName, oauth2client.FieldLogoURL, oauth2client.FieldTokenEndpointAuthMethod, oauth2client.FieldRegistrationTokenID, oauth2client.FieldBackchannelLogoutURI, oauth2client.FieldRefreshTokenLifetime:
 			values[i] = new(sql.NullString)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -118,6 +136,60 @@ func (_m *OAuth2Client) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field logo_url", values[i])
 			} else if value.Valid {
 				_m.LogoURL = value.String
+			}
+		case oauth2client.FieldDynamicallyRegistered:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field dynamically_registered", values[i])
+			} else if value.Valid {
+				_m.DynamicallyRegistered = value.Bool
+			}
+		case oauth2client.FieldGrantTypes:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field grant_types", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.GrantTypes); err != nil {
+					return fmt.Errorf("unmarshal field grant_types: %w", err)
+				}
+			}
+		case oauth2client.FieldResponseTypes:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field response_types", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.ResponseTypes); err != nil {
+					return fmt.Errorf("unmarshal field response_types: %w", err)
+				}
+			}
+		case oauth2client.FieldAllowedScopes:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field allowed_scopes", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.AllowedScopes); err != nil {
+					return fmt.Errorf("unmarshal field allowed_scopes: %w", err)
+				}
+			}
+		case oauth2client.FieldTokenEndpointAuthMethod:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field token_endpoint_auth_method", values[i])
+			} else if value.Valid {
+				_m.TokenEndpointAuthMethod = value.String
+			}
+		case oauth2client.FieldRegistrationTime:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field registration_time", values[i])
+			} else if value.Valid {
+				_m.RegistrationTime = value.Int64
+			}
+		case oauth2client.FieldRegistrationTokenID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field registration_token_id", values[i])
+			} else if value.Valid {
+				_m.RegistrationTokenID = value.String
+			}
+		case oauth2client.FieldRegistrationExpiresAt:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field registration_expires_at", values[i])
+			} else if value.Valid {
+				_m.RegistrationExpiresAt = value.Int64
 			}
 		case oauth2client.FieldAllowedConnectors:
 			if value, ok := values[i].(*[]byte); !ok {
@@ -224,6 +296,30 @@ func (_m *OAuth2Client) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("logo_url=")
 	builder.WriteString(_m.LogoURL)
+	builder.WriteString(", ")
+	builder.WriteString("dynamically_registered=")
+	builder.WriteString(fmt.Sprintf("%v", _m.DynamicallyRegistered))
+	builder.WriteString(", ")
+	builder.WriteString("grant_types=")
+	builder.WriteString(fmt.Sprintf("%v", _m.GrantTypes))
+	builder.WriteString(", ")
+	builder.WriteString("response_types=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ResponseTypes))
+	builder.WriteString(", ")
+	builder.WriteString("allowed_scopes=")
+	builder.WriteString(fmt.Sprintf("%v", _m.AllowedScopes))
+	builder.WriteString(", ")
+	builder.WriteString("token_endpoint_auth_method=")
+	builder.WriteString(_m.TokenEndpointAuthMethod)
+	builder.WriteString(", ")
+	builder.WriteString("registration_time=")
+	builder.WriteString(fmt.Sprintf("%v", _m.RegistrationTime))
+	builder.WriteString(", ")
+	builder.WriteString("registration_token_id=")
+	builder.WriteString(_m.RegistrationTokenID)
+	builder.WriteString(", ")
+	builder.WriteString("registration_expires_at=")
+	builder.WriteString(fmt.Sprintf("%v", _m.RegistrationExpiresAt))
 	builder.WriteString(", ")
 	builder.WriteString("allowed_connectors=")
 	builder.WriteString(fmt.Sprintf("%v", _m.AllowedConnectors))

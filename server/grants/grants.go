@@ -25,9 +25,12 @@ import (
 type Request struct {
 	ClientID     string
 	ClientSecret string
-	Scopes       []string
-	Nonce        string
-	ConnectorID  string
+	// ClientAuthMethod records how credentials were presented so RFC 7591
+	// clients cannot switch to a different registered authentication method.
+	ClientAuthMethod string
+	Scopes           []string
+	Nonce            string
+	ConnectorID      string
 
 	// authorization_code
 	Code         string
@@ -86,6 +89,7 @@ func parseRequest(r *http.Request) (*Request, *oauth2.Error) {
 	if req.ClientID, req.ClientSecret, oerr = ClientCredentials(r, r.PostForm); oerr != nil {
 		return nil, oerr
 	}
+	req.ClientAuthMethod = clientAuthMethod(r, req.ClientSecret)
 
 	return req, nil
 }
@@ -231,6 +235,10 @@ func (h *Handler) dispatch(w http.ResponseWriter, r *http.Request, grantType str
 		if !ok {
 			return true
 		}
+		if !client.AllowsGrantType(grant.GrantType()) {
+			h.writeError(ctx, w, &oauth2.Error{Type: oauth2.UnauthorizedClient, Description: "Client did not register this grant type.", Status: http.StatusBadRequest})
+			return true
+		}
 	}
 
 	// 2. Validate the requested scopes.
@@ -271,6 +279,9 @@ func (h *Handler) dispatch(w http.ResponseWriter, r *http.Request, grantType str
 // and verifies cross-client trust — the security-sensitive check that must run
 // for every grant. A nil policy set passes scopes through unvalidated.
 func (h *Handler) validateScopes(ctx context.Context, client storage.Client, req *Request, p ScopePolicy) *oauth2.Error {
+	if !client.AllowsScopes(req.Scopes) {
+		return &oauth2.Error{Type: oauth2.InvalidScope, Description: "Client did not register all requested scopes.", Status: http.StatusBadRequest}
+	}
 	if p.Standard == nil {
 		return nil
 	}
@@ -345,6 +356,12 @@ func (h *Handler) authenticateClient(ctx context.Context, w http.ResponseWriter,
 		h.writeError(ctx, w, oerr)
 		return storage.Client{}, false
 	}
+	if client.DynamicallyRegistered && client.TokenEndpointAuthMethod != req.ClientAuthMethod {
+		h.Logger.WarnContext(ctx, "client used an unregistered token endpoint authentication method", "client_id", client.ID, "registered_method", client.TokenEndpointAuthMethod, "presented_method", req.ClientAuthMethod)
+		h.writeError(ctx, w, &oauth2.Error{Type: oauth2.InvalidClient, Description: "Client authentication method does not match its registration.", Status: http.StatusUnauthorized})
+		return storage.Client{}, false
+	}
+
 	return client, true
 }
 
