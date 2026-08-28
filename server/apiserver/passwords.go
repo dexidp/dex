@@ -32,6 +32,7 @@ func (d dexAPI) CreatePassword(ctx context.Context, req *api.CreatePasswordReq) 
 		Hash:     req.Password.Hash,
 		Username: req.Password.Username,
 		UserID:   req.Password.UserId,
+		Groups:   req.Password.Groups,
 	}
 	if err := d.s.CreatePassword(ctx, p); err != nil {
 		if err == storage.ErrAlreadyExists {
@@ -48,7 +49,7 @@ func (d dexAPI) UpdatePassword(ctx context.Context, req *api.UpdatePasswordReq) 
 	if req.Email == "" {
 		return nil, errors.New("no email supplied")
 	}
-	if req.NewHash == nil && req.NewUsername == "" {
+	if req.NewHash == nil && req.NewUsername == "" && req.NewGroups == nil {
 		return nil, errors.New("nothing to update")
 	}
 
@@ -65,6 +66,10 @@ func (d dexAPI) UpdatePassword(ctx context.Context, req *api.UpdatePasswordReq) 
 
 		if req.NewUsername != "" {
 			old.Username = req.NewUsername
+		}
+
+		if req.NewGroups != nil {
+			old.Groups = req.NewGroups
 		}
 
 		return old, nil
@@ -110,6 +115,7 @@ func (d dexAPI) ListPasswords(ctx context.Context, req *api.ListPasswordReq) (*a
 			Email:    password.Email,
 			Username: password.Username,
 			UserId:   password.UserID,
+			Groups:   password.Groups,
 		}
 		passwords = append(passwords, &p)
 	}

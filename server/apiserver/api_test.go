@@ -78,6 +78,7 @@ func TestPassword(t *testing.T) {
 		Hash:     []byte("$2a$10$XVMN/Fid.Ks4CXgzo8fpR.iU1khOMsP5g9xQeXuBm1wXjRX8pjUtO"),
 		Username: "test",
 		UserId:   "test123",
+		Groups:   []string{"admins", "developers"},
 	}
 
 	createReq := api.CreatePasswordReq{
@@ -89,6 +90,25 @@ func TestPassword(t *testing.T) {
 			t.Fatalf("Unable to create password since %s already exists", createReq.Password.Email)
 		}
 		t.Fatalf("Unable to create password: %v", err)
+	}
+
+	created, err := s.GetPassword(ctx, email)
+	if err != nil {
+		t.Fatalf("Unable to retrieve password: %v", err)
+	}
+	if !slices.Equal(created.Groups, p.Groups) {
+		t.Fatalf("CreatePassword failed to store groups. Expected %v retrieved %v", p.Groups, created.Groups)
+	}
+
+	listResp, err := client.ListPasswords(ctx, &api.ListPasswordReq{})
+	if err != nil {
+		t.Fatalf("Unable to list passwords: %v", err)
+	}
+	if len(listResp.Passwords) != 1 {
+		t.Fatalf("Expected 1 password, got %d", len(listResp.Passwords))
+	}
+	if !slices.Equal(listResp.Passwords[0].Groups, p.Groups) {
+		t.Fatalf("ListPasswords failed to return groups. Expected %v retrieved %v", p.Groups, listResp.Passwords[0].Groups)
 	}
 
 	// Attempt to create a password that already exists.
@@ -147,6 +167,7 @@ func TestPassword(t *testing.T) {
 	updateReq := api.UpdatePasswordReq{
 		Email:       email,
 		NewUsername: "test1",
+		NewGroups:   []string{"admins"},
 	}
 
 	if _, err := client.UpdatePassword(ctx, &updateReq); err != nil {
@@ -160,6 +181,24 @@ func TestPassword(t *testing.T) {
 
 	if pass.Username != updateReq.NewUsername {
 		t.Fatalf("UpdatePassword failed. Expected username %s retrieved %s", updateReq.NewUsername, pass.Username)
+	}
+
+	if !slices.Equal(pass.Groups, updateReq.NewGroups) {
+		t.Fatalf("UpdatePassword failed. Expected groups %v retrieved %v", updateReq.NewGroups, pass.Groups)
+	}
+
+	// An update that does not mention groups leaves them alone.
+	if _, err := client.UpdatePassword(ctx, &api.UpdatePasswordReq{Email: email, NewUsername: "test2"}); err != nil {
+		t.Fatalf("Unable to update password: %v", err)
+	}
+
+	pass, err = s.GetPassword(ctx, email)
+	if err != nil {
+		t.Fatalf("Unable to retrieve password: %v", err)
+	}
+
+	if !slices.Equal(pass.Groups, []string{"admins"}) {
+		t.Fatalf("UpdatePassword changed groups it was not asked to. Expected %v retrieved %v", []string{"admins"}, pass.Groups)
 	}
 
 	deleteReq := api.DeletePasswordReq{
