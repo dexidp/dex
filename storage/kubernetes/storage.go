@@ -630,90 +630,145 @@ func (cli *client) UpdateConnector(ctx context.Context, id string, updater func(
 }
 
 func (cli *client) GarbageCollect(ctx context.Context, now time.Time) (result storage.GCResult, err error) {
-	var authRequests AuthRequestList
-	if err := cli.listN(resourceAuthRequest, &authRequests, gcResultLimit); err != nil {
-		return result, fmt.Errorf("failed to list auth requests: %v", err)
-	}
-
 	var delErr error
-	for _, authRequest := range authRequests.AuthRequests {
-		if now.After(authRequest.Expiry) {
-			if err := cli.delete(resourceAuthRequest, authRequest.ObjectMeta.Name); err != nil {
-				cli.logger.Error("failed to delete auth request", "err", err)
-				delErr = fmt.Errorf("failed to delete auth request: %v", err)
-			}
-			result.AuthRequests++
+
+	// Process AuthRequests with pagination support
+	continueToken := ""
+	for {
+		var authRequests AuthRequestList
+		if err := cli.listNWithContinue(resourceAuthRequest, &authRequests, gcResultLimit, continueToken); err != nil {
+			return result, fmt.Errorf("failed to list auth requests: %v", err)
 		}
-	}
-	if delErr != nil {
-		return result, delErr
-	}
 
-	var authCodes AuthCodeList
-	if err := cli.listN(resourceAuthCode, &authCodes, gcResultLimit); err != nil {
-		return result, fmt.Errorf("failed to list auth codes: %v", err)
-	}
-
-	for _, authCode := range authCodes.AuthCodes {
-		if now.After(authCode.Expiry) {
-			if err := cli.delete(resourceAuthCode, authCode.ObjectMeta.Name); err != nil {
-				cli.logger.Error("failed to delete auth code", "err", err)
-				delErr = fmt.Errorf("failed to delete auth code: %v", err)
-			}
-			result.AuthCodes++
-		}
-	}
-
-	var deviceRequests DeviceRequestList
-	if err := cli.listN(resourceDeviceRequest, &deviceRequests, gcResultLimit); err != nil {
-		return result, fmt.Errorf("failed to list device requests: %v", err)
-	}
-
-	for _, deviceRequest := range deviceRequests.DeviceRequests {
-		if now.After(deviceRequest.Expiry) {
-			if err := cli.delete(resourceDeviceRequest, deviceRequest.ObjectMeta.Name); err != nil {
-				cli.logger.Error("failed to delete device request", "err", err)
-				delErr = fmt.Errorf("failed to delete device request: %v", err)
-			}
-			result.DeviceRequests++
-		}
-	}
-
-	var deviceTokens DeviceTokenList
-	if err := cli.listN(resourceDeviceToken, &deviceTokens, gcResultLimit); err != nil {
-		return result, fmt.Errorf("failed to list device tokens: %v", err)
-	}
-
-	for _, deviceToken := range deviceTokens.DeviceTokens {
-		if now.After(deviceToken.Expiry) {
-			if err := cli.delete(resourceDeviceToken, deviceToken.ObjectMeta.Name); err != nil {
-				cli.logger.Error("failed to delete device token", "err", err)
-				delErr = fmt.Errorf("failed to delete device token: %v", err)
-			}
-			result.DeviceTokens++
-		}
-	}
-
-	var authSessions AuthSessionList
-	if err := cli.listN(resourceAuthSession, &authSessions, gcResultLimit); err != nil {
-		return result, fmt.Errorf("failed to list auth sessions: %v", err)
-	}
-
-	for _, authSession := range authSessions.AuthSessions {
-		if now.After(authSession.AbsoluteExpiry) || now.After(authSession.IdleExpiry) {
-			if err := cli.delete(resourceAuthSession, authSession.ObjectMeta.Name); err != nil {
-				cli.logger.Error("failed to delete auth session", "err", err)
-				delErr = fmt.Errorf("failed to delete auth session: %v", err)
-			} else {
-				result.AuthSessions++
+		for _, authRequest := range authRequests.AuthRequests {
+			if now.After(authRequest.Expiry) {
+				if err := cli.delete(resourceAuthRequest, authRequest.ObjectMeta.Name); err != nil {
+					cli.logger.Error("failed to delete auth request", "err", err)
+					delErr = fmt.Errorf("failed to delete auth request: %v", err)
+				}
+				result.AuthRequests++
 			}
 		}
+		if delErr != nil {
+			return result, delErr
+		}
+
+		if authRequests.ListMeta.Continue == "" {
+			break
+		}
+		continueToken = authRequests.ListMeta.Continue
 	}
 
-	if delErr != nil {
-		return result, delErr
+	// Process AuthCodes with pagination support
+	continueToken = ""
+	for {
+		var authCodes AuthCodeList
+		if err := cli.listNWithContinue(resourceAuthCode, &authCodes, gcResultLimit, continueToken); err != nil {
+			return result, fmt.Errorf("failed to list auth codes: %v", err)
+		}
+
+		for _, authCode := range authCodes.AuthCodes {
+			if now.After(authCode.Expiry) {
+				if err := cli.delete(resourceAuthCode, authCode.ObjectMeta.Name); err != nil {
+					cli.logger.Error("failed to delete auth code", "err", err)
+					delErr = fmt.Errorf("failed to delete auth code: %v", err)
+				}
+				result.AuthCodes++
+			}
+		}
+		if delErr != nil {
+			return result, delErr
+		}
+
+		if authCodes.ListMeta.Continue == "" {
+			break
+		}
+		continueToken = authCodes.ListMeta.Continue
 	}
-	return result, delErr
+
+	// Process DeviceRequests with pagination support
+	continueToken = ""
+	for {
+		var deviceRequests DeviceRequestList
+		if err := cli.listNWithContinue(resourceDeviceRequest, &deviceRequests, gcResultLimit, continueToken); err != nil {
+			return result, fmt.Errorf("failed to list device requests: %v", err)
+		}
+
+		for _, deviceRequest := range deviceRequests.DeviceRequests {
+			if now.After(deviceRequest.Expiry) {
+				if err := cli.delete(resourceDeviceRequest, deviceRequest.ObjectMeta.Name); err != nil {
+					cli.logger.Error("failed to delete device request", "err", err)
+					delErr = fmt.Errorf("failed to delete device request: %v", err)
+				}
+				result.DeviceRequests++
+			}
+		}
+		if delErr != nil {
+			return result, delErr
+		}
+
+		if deviceRequests.ListMeta.Continue == "" {
+			break
+		}
+		continueToken = deviceRequests.ListMeta.Continue
+	}
+
+	// Process DeviceTokens with pagination support
+	continueToken = ""
+	for {
+		var deviceTokens DeviceTokenList
+		if err := cli.listNWithContinue(resourceDeviceToken, &deviceTokens, gcResultLimit, continueToken); err != nil {
+			return result, fmt.Errorf("failed to list device tokens: %v", err)
+		}
+
+		for _, deviceToken := range deviceTokens.DeviceTokens {
+			if now.After(deviceToken.Expiry) {
+				if err := cli.delete(resourceDeviceToken, deviceToken.ObjectMeta.Name); err != nil {
+					cli.logger.Error("failed to delete device token", "err", err)
+					delErr = fmt.Errorf("failed to delete device token: %v", err)
+				}
+				result.DeviceTokens++
+			}
+		}
+		if delErr != nil {
+			return result, delErr
+		}
+
+		if deviceTokens.ListMeta.Continue == "" {
+			break
+		}
+		continueToken = deviceTokens.ListMeta.Continue
+	}
+
+	// Process AuthSessions with pagination support
+	continueToken = ""
+	for {
+		var authSessions AuthSessionList
+		if err := cli.listNWithContinue(resourceAuthSession, &authSessions, gcResultLimit, continueToken); err != nil {
+			return result, fmt.Errorf("failed to list auth sessions: %v", err)
+		}
+
+		for _, authSession := range authSessions.AuthSessions {
+			if now.After(authSession.AbsoluteExpiry) || now.After(authSession.IdleExpiry) {
+				if err := cli.delete(resourceAuthSession, authSession.ObjectMeta.Name); err != nil {
+					cli.logger.Error("failed to delete auth session", "err", err)
+					delErr = fmt.Errorf("failed to delete auth session: %v", err)
+				} else {
+					result.AuthSessions++
+				}
+			}
+		}
+		if delErr != nil {
+			return result, delErr
+		}
+
+		if authSessions.ListMeta.Continue == "" {
+			break
+		}
+		continueToken = authSessions.ListMeta.Continue
+	}
+
+	return result, nil
 }
 
 func (cli *client) CreateDeviceRequest(ctx context.Context, d storage.DeviceRequest) error {
