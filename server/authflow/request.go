@@ -7,12 +7,14 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 
+	dexRegexp "github.com/dexidp/dex/pkg/regexp"
 	conns "github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
@@ -93,6 +95,16 @@ func validateRedirectURI(client storage.Client, redirectURI string) bool {
 			return true
 		}
 	}
+
+	// Check redirectURIs using regexp package if is allowed
+	if client.InsecureAllowRegexpRedirectURIs {
+		valid := validateRegexpRedirectURI(client.RedirectURIs, redirectURI, client.InsecureAllowWildcardRedirectURIs)
+
+		if valid {
+			return true
+		}
+	}
+
 	// For non-public clients or when RedirectURIs is set, we allow only explicitly named RedirectURIs.
 	if !client.Public || len(client.RedirectURIs) > 0 {
 		return false
@@ -124,6 +136,27 @@ func isHostLocal(host string) bool {
 	}
 
 	return host == "localhost" || net.ParseIP(host).IsLoopback()
+}
+
+func validateRegexpRedirectURI(redirectURIs []string, redirectURI string, allowWildcard bool) bool {
+	for _, uri := range redirectURIs {
+		// NOTE: This is also validated during server startup, but is safely skipped also during validation.
+		hasArbitraryWildcards, err := dexRegexp.HasArbitraryWildcard(uri)
+		if err != nil || (!allowWildcard && hasArbitraryWildcards) {
+			continue
+		}
+
+		rgx, err := regexp.Compile(dexRegexp.SurroundRedirectURIRegexp(uri))
+		if err != nil {
+			continue
+		}
+
+		if rgx.MatchString(redirectURI) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func validateConnectorID(connectors []storage.Connector, connectorID string) bool {
