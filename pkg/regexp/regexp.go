@@ -74,3 +74,7 @@ func HasArbitraryWildcard(pattern string) (bool, error) {
 
 	return inspectForWildcardSegments(ast), nil
 }
+
+func SurroundRedirectURIRegexp(uri string) string {
+	return `\A(?:` + uri + `)\z`
+}

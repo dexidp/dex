@@ -146,7 +146,7 @@ func validateRegexpRedirectURI(redirectURIs []string, redirectURI string, allowW
 			continue
 		}
 
-		rgx, err := regexp.Compile(surroundRedirectURIRegexp(uri))
+		rgx, err := regexp.Compile(dexRegexp.SurroundRedirectURIRegexp(uri))
 		if err != nil {
 			continue
 		}
@@ -157,19 +157,6 @@ func validateRegexpRedirectURI(redirectURIs []string, redirectURI string, allowW
 	}
 
 	return false
-}
-
-func surroundRedirectURIRegexp(uri string) (result string) {
-	result = uri
-	if result[0] != '^' {
-		result = "^" + result
-	}
-
-	if result[len(result)-1] != '$' {
-		result = result + "$"
-	}
-
-	return
 }
 
 func validateConnectorID(connectors []storage.Connector, connectorID string) bool {
