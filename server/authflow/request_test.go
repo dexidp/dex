@@ -175,7 +175,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				{
 					ID:                              "bar",
 					InsecureAllowRegexpRedirectURIs: true,
-					RedirectURIs:                    []string{`https://pr-(\d+).example.com`},
+					RedirectURIs:                    []string{`https://pr-(\d+)\.example\.com`},
 				},
 			},
 			supportedResponseTypes: []string{"code", "id_token", "token"},
@@ -257,6 +257,41 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"scope":         "openid email profile",
 			},
 			expectedError: &displayedAuthErr{Status: http.StatusBadRequest},
+		},
+		{
+			name: "wildcard url without flag alternate",
+			clients: []storage.Client{
+				{
+					ID:                              "bar",
+					InsecureAllowRegexpRedirectURIs: true,
+					RedirectURIs:                    []string{`https?://[^/]`},
+				},
+			},
+			supportedResponseTypes: []string{"code", "id_token", "token"},
+			queryParams: map[string]string{
+				"client_id":     "bar",
+				"redirect_uri":  "https://example.com",
+				"response_type": "code",
+				"scope":         "openid email profile",
+			},
+			expectedError: &displayedAuthErr{Status: http.StatusBadRequest},
+		},
+		{
+			name: "wildcard url",
+			clients: []storage.Client{
+				{
+					ID:                              "bar",
+					InsecureAllowRegexpRedirectURIs: true,
+					RedirectURIs:                    []string{`http://127\.0\.0\.1:(\d+)`},
+				},
+			},
+			supportedResponseTypes: []string{"code", "id_token", "token"},
+			queryParams: map[string]string{
+				"client_id":     "bar",
+				"redirect_uri":  "http://127.0.0.1:12345",
+				"response_type": "code",
+				"scope":         "openid email profile",
+			},
 		},
 		{
 			name: "choose second connector_id",

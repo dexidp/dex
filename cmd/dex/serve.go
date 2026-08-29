@@ -14,7 +14,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 	"sync/atomic"
@@ -38,6 +37,7 @@ import (
 
 	"github.com/dexidp/dex/api/v2"
 	"github.com/dexidp/dex/pkg/featureflags"
+	dexRegexp "github.com/dexidp/dex/pkg/regexp"
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/server/apiserver"
 	"github.com/dexidp/dex/server/authflow"
@@ -244,15 +244,17 @@ func runServe(options serveOptions) error {
 				c.StaticClients[i].Secret = os.Getenv(client.SecretEnv)
 			}
 			if client.InsecureAllowRegexpRedirectURIs {
+				logger.Warn("using flag InsecureAllowRegexpRedirectURIs", "client", client.ID)
 				for _, uri := range client.RedirectURIs {
-					if !client.InsecureAllowWildcardRedirectURIs && strings.Contains(uri, ".*") {
-						return fmt.Errorf("invalid config: InsecureAllowWildcardRedirectURIs is required when using \".*\"")
+					hasArbitraryWildcards, err := dexRegexp.HasArbitraryWildcard(uri)
+					if err != nil {
+						return fmt.Errorf("invalid config: RedirectURI %q is not a valid regexp expression: %w", uri, err)
 					}
 
-					_, err := regexp.Compile(uri)
-					if err != nil {
-						return fmt.Errorf("invalid config: RedirectURI %q is not a valid regexp expression", uri)
+					if !client.InsecureAllowWildcardRedirectURIs && hasArbitraryWildcards {
+						return fmt.Errorf("invalid config: InsecureAllowWildcardRedirectURIs is required when using any unrestricted wildcard")
 					}
+
 				}
 			}
 			logger.Info("config static client", "client_name", client.Name)

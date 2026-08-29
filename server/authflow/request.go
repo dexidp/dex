@@ -14,6 +14,7 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 
+	dexRegexp "github.com/dexidp/dex/pkg/regexp"
 	conns "github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
@@ -139,7 +140,9 @@ func isHostLocal(host string) bool {
 
 func validateRegexpRedirectURI(redirectURIs []string, redirectURI string, allowWildcard bool) bool {
 	for _, uri := range redirectURIs {
-		if !allowWildcard && strings.Contains(uri, ".*") {
+		// NOTE: This is also validated during server startup, but is safely skipped also during validation.
+		hasArbitraryWildcards, err := dexRegexp.HasArbitraryWildcard(uri)
+		if err != nil || (!allowWildcard && hasArbitraryWildcards) {
 			continue
 		}
 
@@ -148,7 +151,7 @@ func validateRegexpRedirectURI(redirectURIs []string, redirectURI string, allowW
 			continue
 		}
 
-		if rgx.Match([]byte(redirectURI)) {
+		if rgx.MatchString(redirectURI) {
 			return true
 		}
 	}
