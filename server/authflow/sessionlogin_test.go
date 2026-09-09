@@ -817,7 +817,7 @@ func TestTrySessionLoginWithSession_IDTokenHint(t *testing.T) {
 		require.NotNil(t, session)
 
 		// Verify hint matches.
-		assert.True(t, sessionMatchesHint(session, hintSubjectForUser1Mock))
+		assert.True(t, sessionMatchesHint(session, hintSubjectForUser1Mock, tokens.SubjectOrderUserConnector))
 
 		r := sessionCookieRequest("test-nonce")
 		w := httptest.NewRecorder()
@@ -835,7 +835,7 @@ func TestTrySessionLoginWithSession_IDTokenHint(t *testing.T) {
 		require.NotNil(t, session)
 
 		// Verify hint does NOT match.
-		assert.False(t, sessionMatchesHint(session, hintSubjectOther))
+		assert.False(t, sessionMatchesHint(session, hintSubjectOther, tokens.SubjectOrderUserConnector))
 
 		// Simulating the hint mismatch logic from handleConnectorLogin:
 		// when hint doesn't match and prompt is not none, session is set to nil.

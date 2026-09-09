@@ -18,6 +18,7 @@ import (
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/signer"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent"
 	"github.com/dexidp/dex/storage/etcd"
@@ -129,6 +130,12 @@ func (c Config) Validate() error {
 
 	if err := c.validateMFA(); err != nil {
 		return err
+	}
+	if _, err := tokens.ParseSubjectFormat(c.OAuth2.SubjectClaim); err != nil {
+		return fmt.Errorf("invalid oauth2.subjectClaim value %q: %w", c.OAuth2.SubjectClaim, err)
+	}
+	if _, err := tokens.ParseSubjectOrder(c.OAuth2.SubjectClaimOrder); err != nil {
+		return fmt.Errorf("invalid oauth2.subjectClaimOrder value %q: %w", c.OAuth2.SubjectClaimOrder, err)
 	}
 
 	for _, client := range c.StaticClients {
@@ -252,6 +259,13 @@ type OAuth2 struct {
 	PasswordConnector string `json:"passwordConnector"`
 	// PKCE configuration
 	PKCE PKCE `json:"pkce"`
+
+	// SubjectClaim controls how Dex formats the ID token "sub" claim.
+	// Supported values are "base64" (default) and "plain".
+	SubjectClaim string `json:"subjectClaim"`
+	// SubjectClaimOrder controls field order for plain subject claims.
+	// Supported values are "user-connector" (default) and "connector-user".
+	SubjectClaimOrder string `json:"subjectClaimOrder"`
 }
 
 // PKCE holds the PKCE (Proof Key for Code Exchange) configuration.

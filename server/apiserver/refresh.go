@@ -4,18 +4,18 @@ import (
 	"context"
 
 	"github.com/dexidp/dex/api/v2"
-	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
 func (d dexAPI) ListRefresh(ctx context.Context, req *api.ListRefreshReq) (*api.ListRefreshResp, error) {
-	id := new(internal.IDTokenSubject)
-	if err := internal.Unmarshal(req.UserId, id); err != nil {
+	userID, connectorID, err := tokens.ParseSubjectWithOrder(req.UserId, d.subjectOrder)
+	if err != nil {
 		d.logger.Error("failed to unmarshal ID Token subject", "err", err)
 		return nil, err
 	}
 
-	offlineSessions, err := d.s.GetOfflineSessions(ctx, id.UserId, id.ConnId)
+	offlineSessions, err := d.s.GetOfflineSessions(ctx, userID, connectorID)
 	if err != nil {
 		if err == storage.ErrNotFound {
 			// This means that this user-client pair does not have a refresh token yet.
@@ -43,8 +43,8 @@ func (d dexAPI) ListRefresh(ctx context.Context, req *api.ListRefreshReq) (*api.
 }
 
 func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*api.RevokeRefreshResp, error) {
-	id := new(internal.IDTokenSubject)
-	if err := internal.Unmarshal(req.UserId, id); err != nil {
+	userID, connectorID, err := tokens.ParseSubjectWithOrder(req.UserId, d.subjectOrder)
+	if err != nil {
 		d.logger.Error("failed to unmarshal ID Token subject", "err", err)
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 	updater := func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
 		refreshRef := old.Refresh[req.ClientId]
 		if refreshRef == nil || refreshRef.ID == "" {
-			d.logger.Error("refresh token issued to client not found for deletion", "client_id", req.ClientId, "user_id", id.UserId)
+			d.logger.Error("refresh token issued to client not found for deletion", "client_id", req.ClientId, "user_id", userID)
 			notFound = true
 			return old, storage.ErrNotFound
 		}
@@ -69,7 +69,7 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 		return old, nil
 	}
 
-	if err := d.s.UpdateOfflineSessions(ctx, id.UserId, id.ConnId, updater); err != nil {
+	if err := d.s.UpdateOfflineSessions(ctx, userID, connectorID, updater); err != nil {
 		if err == storage.ErrNotFound {
 			return &api.RevokeRefreshResp{NotFound: true}, nil
 		}

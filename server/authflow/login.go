@@ -107,7 +107,7 @@ func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 		// id_token_hint logic (OIDC Core 1.0 3.1.2.1):
 		// When a hint is provided, verify that the session user matches.
 		if hintSubject != "" {
-			if !sessionMatchesHint(session, hintSubject) {
+			if !sessionMatchesHint(session, hintSubject, h.SubjectOrder) {
 				// Clear the session if the user is different from the hint.
 				session = nil
 			}

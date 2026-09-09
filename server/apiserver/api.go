@@ -24,29 +24,31 @@ const apiVersion = 4
 // connector CRUD, the discovery handler to serve the same document as HTTP, and
 // the back-channel notifier to tell relying parties about the sessions it ends —
 // rather than the whole Server.
-func NewAPI(s storage.Storage, logger *slog.Logger, version string, conns *connectors.Cache, disc *discovery.Handler, bc *backchannel.Notifier) api.DexServer {
+func NewAPI(s storage.Storage, logger *slog.Logger, version string, conns *connectors.Cache, disc *discovery.Handler, bc *backchannel.Notifier, subjectOrder tokens.SubjectOrder) api.DexServer {
 	apiLogger := logger.With("component", "api")
 	return dexAPI{
-		s:           s,
-		logger:      apiLogger,
-		version:     version,
-		connectors:  conns,
-		discovery:   disc,
-		backchannel: bc,
-		refresh:     tokens.NewRefreshStore(s, time.Now, apiLogger),
+		s:            s,
+		logger:       apiLogger,
+		version:      version,
+		connectors:   conns,
+		discovery:    disc,
+		backchannel:  bc,
+		refresh:      tokens.NewRefreshStore(s, time.Now, apiLogger),
+		subjectOrder: subjectOrder,
 	}
 }
 
 type dexAPI struct {
 	api.UnimplementedDexServer
 
-	s           storage.Storage
-	logger      *slog.Logger
-	version     string
-	connectors  *connectors.Cache
-	discovery   *discovery.Handler
-	backchannel *backchannel.Notifier
-	refresh     *tokens.RefreshStore
+	s            storage.Storage
+	logger       *slog.Logger
+	version      string
+	connectors   *connectors.Cache
+	discovery    *discovery.Handler
+	backchannel  *backchannel.Notifier
+	refresh      *tokens.RefreshStore
+	subjectOrder tokens.SubjectOrder
 }
 
 func (d dexAPI) GetVersion(ctx context.Context, req *api.VersionReq) (*api.VersionResp, error) {

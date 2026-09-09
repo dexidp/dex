@@ -15,9 +15,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -40,10 +40,12 @@ const (
 // It lives outside server/logout because a session also ends by an operator's hand
 // over the gRPC API, and every path that ends one goes through here.
 type Notifier struct {
-	Storage   storage.Storage
-	Signer    signer.Signer
-	IssuerURL oauth2.IssuerURL
-	Logger    *slog.Logger
+	Storage       storage.Storage
+	Signer        signer.Signer
+	IssuerURL     oauth2.IssuerURL
+	Logger        *slog.Logger
+	SubjectFormat tokens.SubjectFormat
+	SubjectOrder  tokens.SubjectOrder
 
 	// Now is the clock, for tests. Defaults to time.Now.
 	Now func() time.Time
@@ -82,10 +84,7 @@ func (n *Notifier) Notify(ctx context.Context, authSession *storage.AuthSession)
 		return
 	}
 
-	subject, err := internal.Marshal(&internal.IDTokenSubject{
-		UserId: authSession.UserID,
-		ConnId: authSession.ConnectorID,
-	})
+	subject, err := tokens.GenSubjectWithFormatAndOrder(authSession.UserID, authSession.ConnectorID, n.SubjectFormat, n.SubjectOrder)
 	if err != nil {
 		n.Logger.ErrorContext(ctx, "logout: failed to marshal backchannel subject", "err", err)
 		return

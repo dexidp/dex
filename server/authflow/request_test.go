@@ -842,10 +842,10 @@ func TestValidateIDTokenHint(t *testing.T) {
 
 func TestSessionMatchesHint(t *testing.T) {
 	// tokens.GenSubject("foo", "bar") == "CgNmb28SA2Jhcg" (from TestGetSubject)
-	assert.True(t, sessionMatchesHint(&storage.AuthSession{UserID: "foo", ConnectorID: "bar"}, "CgNmb28SA2Jhcg"))
-	assert.False(t, sessionMatchesHint(&storage.AuthSession{UserID: "other", ConnectorID: "bar"}, "CgNmb28SA2Jhcg"))
-	assert.False(t, sessionMatchesHint(&storage.AuthSession{UserID: "foo", ConnectorID: "other"}, "CgNmb28SA2Jhcg"))
-	assert.False(t, sessionMatchesHint(nil, "CgNmb28SA2Jhcg"))
+	assert.True(t, sessionMatchesHint(&storage.AuthSession{UserID: "foo", ConnectorID: "bar"}, "CgNmb28SA2Jhcg", tokens.SubjectOrderUserConnector))
+	assert.False(t, sessionMatchesHint(&storage.AuthSession{UserID: "other", ConnectorID: "bar"}, "CgNmb28SA2Jhcg", tokens.SubjectOrderUserConnector))
+	assert.False(t, sessionMatchesHint(&storage.AuthSession{UserID: "foo", ConnectorID: "other"}, "CgNmb28SA2Jhcg", tokens.SubjectOrderUserConnector))
+	assert.False(t, sessionMatchesHint(nil, "CgNmb28SA2Jhcg", tokens.SubjectOrderUserConnector))
 }
 
 func TestParseAuthorizationRequest_IDTokenHint(t *testing.T) {
