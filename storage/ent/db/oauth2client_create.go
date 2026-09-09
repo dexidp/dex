@@ -56,6 +56,94 @@ func (_c *OAuth2ClientCreate) SetLogoURL(v string) *OAuth2ClientCreate {
 	return _c
 }
 
+// SetDynamicallyRegistered sets the "dynamically_registered" field.
+func (_c *OAuth2ClientCreate) SetDynamicallyRegistered(v bool) *OAuth2ClientCreate {
+	_c.mutation.SetDynamicallyRegistered(v)
+	return _c
+}
+
+// SetNillableDynamicallyRegistered sets the "dynamically_registered" field if the given value is not nil.
+func (_c *OAuth2ClientCreate) SetNillableDynamicallyRegistered(v *bool) *OAuth2ClientCreate {
+	if v != nil {
+		_c.SetDynamicallyRegistered(*v)
+	}
+	return _c
+}
+
+// SetGrantTypes sets the "grant_types" field.
+func (_c *OAuth2ClientCreate) SetGrantTypes(v []string) *OAuth2ClientCreate {
+	_c.mutation.SetGrantTypes(v)
+	return _c
+}
+
+// SetResponseTypes sets the "response_types" field.
+func (_c *OAuth2ClientCreate) SetResponseTypes(v []string) *OAuth2ClientCreate {
+	_c.mutation.SetResponseTypes(v)
+	return _c
+}
+
+// SetAllowedScopes sets the "allowed_scopes" field.
+func (_c *OAuth2ClientCreate) SetAllowedScopes(v []string) *OAuth2ClientCreate {
+	_c.mutation.SetAllowedScopes(v)
+	return _c
+}
+
+// SetTokenEndpointAuthMethod sets the "token_endpoint_auth_method" field.
+func (_c *OAuth2ClientCreate) SetTokenEndpointAuthMethod(v string) *OAuth2ClientCreate {
+	_c.mutation.SetTokenEndpointAuthMethod(v)
+	return _c
+}
+
+// SetNillableTokenEndpointAuthMethod sets the "token_endpoint_auth_method" field if the given value is not nil.
+func (_c *OAuth2ClientCreate) SetNillableTokenEndpointAuthMethod(v *string) *OAuth2ClientCreate {
+	if v != nil {
+		_c.SetTokenEndpointAuthMethod(*v)
+	}
+	return _c
+}
+
+// SetRegistrationTime sets the "registration_time" field.
+func (_c *OAuth2ClientCreate) SetRegistrationTime(v int64) *OAuth2ClientCreate {
+	_c.mutation.SetRegistrationTime(v)
+	return _c
+}
+
+// SetNillableRegistrationTime sets the "registration_time" field if the given value is not nil.
+func (_c *OAuth2ClientCreate) SetNillableRegistrationTime(v *int64) *OAuth2ClientCreate {
+	if v != nil {
+		_c.SetRegistrationTime(*v)
+	}
+	return _c
+}
+
+// SetRegistrationTokenID sets the "registration_token_id" field.
+func (_c *OAuth2ClientCreate) SetRegistrationTokenID(v string) *OAuth2ClientCreate {
+	_c.mutation.SetRegistrationTokenID(v)
+	return _c
+}
+
+// SetNillableRegistrationTokenID sets the "registration_token_id" field if the given value is not nil.
+func (_c *OAuth2ClientCreate) SetNillableRegistrationTokenID(v *string) *OAuth2ClientCreate {
+	if v != nil {
+		_c.SetRegistrationTokenID(*v)
+	}
+	return _c
+}
+
+// SetRegistrationExpiresAt sets the "registration_expires_at" field.
+func (_c *OAuth2ClientCreate) SetRegistrationExpiresAt(v int64) *OAuth2ClientCreate {
+	_c.mutation.SetRegistrationExpiresAt(v)
+	return _c
+}
+
+// SetNillableRegistrationExpiresAt sets the "registration_expires_at" field if the given value is not nil.
+func (_c *OAuth2ClientCreate) SetNillableRegistrationExpiresAt(v *int64) *OAuth2ClientCreate {
+	if v != nil {
+		_c.SetRegistrationExpiresAt(*v)
+	}
+	return _c
+}
+
 // SetAllowedConnectors sets the "allowed_connectors" field.
 func (_c *OAuth2ClientCreate) SetAllowedConnectors(v []string) *OAuth2ClientCreate {
 	_c.mutation.SetAllowedConnectors(v)
@@ -155,6 +243,26 @@ func (_c *OAuth2ClientCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *OAuth2ClientCreate) defaults() {
+	if _, ok := _c.mutation.DynamicallyRegistered(); !ok {
+		v := oauth2client.DefaultDynamicallyRegistered
+		_c.mutation.SetDynamicallyRegistered(v)
+	}
+	if _, ok := _c.mutation.TokenEndpointAuthMethod(); !ok {
+		v := oauth2client.DefaultTokenEndpointAuthMethod
+		_c.mutation.SetTokenEndpointAuthMethod(v)
+	}
+	if _, ok := _c.mutation.RegistrationTime(); !ok {
+		v := oauth2client.DefaultRegistrationTime
+		_c.mutation.SetRegistrationTime(v)
+	}
+	if _, ok := _c.mutation.RegistrationTokenID(); !ok {
+		v := oauth2client.DefaultRegistrationTokenID
+		_c.mutation.SetRegistrationTokenID(v)
+	}
+	if _, ok := _c.mutation.RegistrationExpiresAt(); !ok {
+		v := oauth2client.DefaultRegistrationExpiresAt
+		_c.mutation.SetRegistrationExpiresAt(v)
+	}
 	if _, ok := _c.mutation.BackchannelLogoutURI(); !ok {
 		v := oauth2client.DefaultBackchannelLogoutURI
 		_c.mutation.SetBackchannelLogoutURI(v)
@@ -170,29 +278,23 @@ func (_c *OAuth2ClientCreate) check() error {
 	if _, ok := _c.mutation.Secret(); !ok {
 		return &ValidationError{Name: "secret", err: errors.New(`db: missing required field "OAuth2Client.secret"`)}
 	}
-	if v, ok := _c.mutation.Secret(); ok {
-		if err := oauth2client.SecretValidator(v); err != nil {
-			return &ValidationError{Name: "secret", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.secret": %w`, err)}
-		}
-	}
 	if _, ok := _c.mutation.Public(); !ok {
 		return &ValidationError{Name: "public", err: errors.New(`db: missing required field "OAuth2Client.public"`)}
 	}
 	if _, ok := _c.mutation.Name(); !ok {
 		return &ValidationError{Name: "name", err: errors.New(`db: missing required field "OAuth2Client.name"`)}
 	}
-	if v, ok := _c.mutation.Name(); ok {
-		if err := oauth2client.NameValidator(v); err != nil {
-			return &ValidationError{Name: "name", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.name": %w`, err)}
-		}
-	}
 	if _, ok := _c.mutation.LogoURL(); !ok {
 		return &ValidationError{Name: "logo_url", err: errors.New(`db: missing required field "OAuth2Client.logo_url"`)}
 	}
-	if v, ok := _c.mutation.LogoURL(); ok {
-		if err := oauth2client.LogoURLValidator(v); err != nil {
-			return &ValidationError{Name: "logo_url", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.logo_url": %w`, err)}
-		}
+	if _, ok := _c.mutation.DynamicallyRegistered(); !ok {
+		return &ValidationError{Name: "dynamically_registered", err: errors.New(`db: missing required field "OAuth2Client.dynamically_registered"`)}
+	}
+	if _, ok := _c.mutation.RegistrationTime(); !ok {
+		return &ValidationError{Name: "registration_time", err: errors.New(`db: missing required field "OAuth2Client.registration_time"`)}
+	}
+	if _, ok := _c.mutation.RegistrationExpiresAt(); !ok {
+		return &ValidationError{Name: "registration_expires_at", err: errors.New(`db: missing required field "OAuth2Client.registration_expires_at"`)}
 	}
 	if v, ok := _c.mutation.ID(); ok {
 		if err := oauth2client.IDValidator(v); err != nil {
@@ -257,6 +359,38 @@ func (_c *OAuth2ClientCreate) createSpec() (*OAuth2Client, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.LogoURL(); ok {
 		_spec.SetField(oauth2client.FieldLogoURL, field.TypeString, value)
 		_node.LogoURL = value
+	}
+	if value, ok := _c.mutation.DynamicallyRegistered(); ok {
+		_spec.SetField(oauth2client.FieldDynamicallyRegistered, field.TypeBool, value)
+		_node.DynamicallyRegistered = value
+	}
+	if value, ok := _c.mutation.GrantTypes(); ok {
+		_spec.SetField(oauth2client.FieldGrantTypes, field.TypeJSON, value)
+		_node.GrantTypes = value
+	}
+	if value, ok := _c.mutation.ResponseTypes(); ok {
+		_spec.SetField(oauth2client.FieldResponseTypes, field.TypeJSON, value)
+		_node.ResponseTypes = value
+	}
+	if value, ok := _c.mutation.AllowedScopes(); ok {
+		_spec.SetField(oauth2client.FieldAllowedScopes, field.TypeJSON, value)
+		_node.AllowedScopes = value
+	}
+	if value, ok := _c.mutation.TokenEndpointAuthMethod(); ok {
+		_spec.SetField(oauth2client.FieldTokenEndpointAuthMethod, field.TypeString, value)
+		_node.TokenEndpointAuthMethod = value
+	}
+	if value, ok := _c.mutation.RegistrationTime(); ok {
+		_spec.SetField(oauth2client.FieldRegistrationTime, field.TypeInt64, value)
+		_node.RegistrationTime = value
+	}
+	if value, ok := _c.mutation.RegistrationTokenID(); ok {
+		_spec.SetField(oauth2client.FieldRegistrationTokenID, field.TypeString, value)
+		_node.RegistrationTokenID = value
+	}
+	if value, ok := _c.mutation.RegistrationExpiresAt(); ok {
+		_spec.SetField(oauth2client.FieldRegistrationExpiresAt, field.TypeInt64, value)
+		_node.RegistrationExpiresAt = value
 	}
 	if value, ok := _c.mutation.AllowedConnectors(); ok {
 		_spec.SetField(oauth2client.FieldAllowedConnectors, field.TypeJSON, value)

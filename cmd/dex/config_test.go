@@ -69,6 +69,53 @@ func TestInvalidConfiguration(t *testing.T) {
 	}
 }
 
+func TestDynamicClientRegistrationConfiguration(t *testing.T) {
+	validConfig := func() Config {
+		return Config{
+			Issuer:  "http://127.0.0.1:5556/dex",
+			Storage: Storage{Type: "sqlite3", Config: &sql.SQLite3{File: "examples/dex.db"}},
+			Web:     Web{HTTP: "127.0.0.1:5556"},
+		}
+	}
+
+	t.Run("requires token source", func(t *testing.T) {
+		configuration := validConfig()
+		configuration.OAuth2.DynamicClientRegistration.Enabled = true
+
+		err := configuration.Validate()
+		require.ErrorContains(t, err, "dynamic client registration requires an initial access token")
+	})
+
+	t.Run("token sources are mutually exclusive", func(t *testing.T) {
+		configuration := validConfig()
+		configuration.OAuth2.DynamicClientRegistration = DynamicClientRegistration{
+			Enabled:               true,
+			InitialAccessToken:    "token",
+			InitialAccessTokenEnv: "DEX_REGISTRATION_TOKEN",
+		}
+
+		err := configuration.Validate()
+		require.ErrorContains(t, err, "initialAccessToken and initialAccessTokenEnv are mutually exclusive")
+	})
+
+	t.Run("reads token from environment", func(t *testing.T) {
+		t.Setenv("DEX_REGISTRATION_TOKEN", "token")
+		configuration := DynamicClientRegistration{InitialAccessTokenEnv: "DEX_REGISTRATION_TOKEN"}
+
+		token, err := configuration.token()
+		require.NoError(t, err)
+		require.Equal(t, "token", token)
+	})
+
+	t.Run("rejects empty environment token", func(t *testing.T) {
+		t.Setenv("DEX_REGISTRATION_TOKEN", "")
+		configuration := DynamicClientRegistration{InitialAccessTokenEnv: "DEX_REGISTRATION_TOKEN"}
+
+		_, err := configuration.token()
+		require.EqualError(t, err, `dynamic client registration environment variable "DEX_REGISTRATION_TOKEN" is unset or empty`)
+	})
+}
+
 // TestInvalidRefreshTokenLifetime: a misspelled lifetime must not read as the
 // default, leaving tokens the client wanted bound outliving the session.
 func TestInvalidRefreshTokenLifetime(t *testing.T) {
@@ -122,6 +169,9 @@ oauth2:
   grantTypes:
   - refresh_token
   - "urn:ietf:params:oauth:grant-type:token-exchange"
+  dynamicClientRegistration:
+    enabled: true
+    initialAccessTokenEnv: DEX_REGISTRATION_INITIAL_ACCESS_TOKEN
 
 connectors:
 - type: mockCallback
@@ -217,6 +267,10 @@ additionalFeatures: [
 			GrantTypes: []string{
 				"refresh_token",
 				"urn:ietf:params:oauth:grant-type:token-exchange",
+			},
+			DynamicClientRegistration: DynamicClientRegistration{
+				Enabled:               true,
+				InitialAccessTokenEnv: "DEX_REGISTRATION_INITIAL_ACCESS_TOKEN",
 			},
 		},
 		StaticConnectors: []Connector{

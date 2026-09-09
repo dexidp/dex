@@ -76,6 +76,10 @@ type Config struct {
 	// PKCE configuration
 	PKCE authflow.PKCEConfig
 
+	// DynamicClientRegistration enables the RFC 7591 client registration
+	// endpoint. Nil keeps the endpoint disabled and out of discovery.
+	DynamicClientRegistration *DynamicClientRegistrationConfig
+
 	GCFrequency time.Duration // Defaults to 5 minutes
 
 	// If specified, the server will use this function for determining time.
@@ -104,6 +108,14 @@ type Config struct {
 
 	// DefaultMFAChain is applied to clients that don't specify their own mfaChain.
 	DefaultMFAChain []string
+}
+
+// DynamicClientRegistrationConfig configures protected RFC 7591 client
+// registration. Dex deliberately requires an initial access token when the
+// endpoint is enabled; an accidentally open endpoint would allow arbitrary
+// callers to create persistent clients.
+type DynamicClientRegistrationConfig struct {
+	InitialAccessToken string
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
@@ -172,6 +184,9 @@ type resolvedConfig struct {
 func normalizeConfig(c *Config) (resolvedConfig, error) {
 	if c.Storage == nil {
 		return resolvedConfig{}, errors.New("server: storage cannot be nil")
+	}
+	if c.DynamicClientRegistration != nil && c.DynamicClientRegistration.InitialAccessToken == "" {
+		return resolvedConfig{}, errors.New("server: dynamic client registration requires an initial access token")
 	}
 
 	issuerURL, err := url.Parse(c.Issuer)

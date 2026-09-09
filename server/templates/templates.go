@@ -349,7 +349,7 @@ func (t *Templates) Password(r *http.Request, w http.ResponseWriter, postURL, la
 	return renderTemplate(w, t.passwordTmpl, data)
 }
 
-func (t *Templates) Approval(r *http.Request, w http.ResponseWriter, authReqID, username, clientName string, scopes []string) error {
+func (t *Templates) Approval(r *http.Request, w http.ResponseWriter, authReqID, username, clientID, clientName, redirectURI string, dynamicallyRegistered bool, scopes []string) error {
 	accesses := []string{}
 	for _, scope := range scopes {
 		access, ok := scopeDescriptions[scope]
@@ -358,13 +358,27 @@ func (t *Templates) Approval(r *http.Request, w http.ResponseWriter, authReqID, 
 		}
 	}
 	sort.Strings(accesses)
+	clientDisplay := clientName
+	if clientDisplay == "" {
+		clientDisplay = clientID
+	}
+	redirectOrigin := ""
+	if u, err := url.Parse(redirectURI); err == nil && u.IsAbs() {
+		redirectOrigin = u.Scheme + "://" + u.Host
+		if u.Host == "" {
+			redirectOrigin = u.Scheme + ":"
+		}
+	}
 	data := struct {
-		User      string
-		Client    string
-		AuthReqID string
-		Scopes    []string
-		ReqPath   string
-	}{username, clientName, authReqID, accesses, r.URL.Path}
+		User                  string
+		Client                string
+		ClientID              string
+		RedirectOrigin        string
+		DynamicallyRegistered bool
+		AuthReqID             string
+		Scopes                []string
+		ReqPath               string
+	}{username, clientDisplay, clientID, redirectOrigin, dynamicallyRegistered, authReqID, accesses, r.URL.Path}
 	return renderTemplate(w, t.approvalTmpl, data)
 }
 
