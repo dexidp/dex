@@ -642,6 +642,85 @@ func TestNestedGroups(t *testing.T) {
 	runTests(t, connectLDAP, c, tests)
 }
 
+func TestFormatSid(t *testing.T) {
+	tests := []struct {
+		name    string
+		bytes   []byte
+		want    string
+		wantErr bool
+	}{
+		{name: "Contoso\\Jane", bytes: []byte{1, 5, 0, 0, 0, 0, 0, 5, 21, 0, 0, 0, 220, 244, 220, 59, 131, 61, 43, 70, 130, 139, 166, 40, 210, 4, 0, 0}, want: "S-1-5-21-1004336348-1177238915-682003330-1234"},
+		{name: "null sid", bytes: []byte{1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, want: "S-1-0-0"},
+		{name: "world", bytes: []byte{1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0}, want: "S-1-1-0"},
+		{name: "empty string", bytes: nil, wantErr: true},
+		{name: "invalid sid", bytes: []byte{}, wantErr: true},
+		{name: "invalid revision", bytes: []byte{2, 1, 0, 0, 0, 0, 0, 0}, wantErr: true},
+		{name: "too many sub auth", bytes: []byte{1, 100, 0, 0, 0, 0, 0, 0}, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sid, err := formatSidAttr(tt.bytes)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("formatSidAttr() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !tt.wantErr {
+				if actual := sid; actual != tt.want {
+					t.Errorf("expected %v, got %v", tt.want, actual)
+				}
+			}
+		})
+	}
+}
+
+func TestObjectSID(t *testing.T) {
+	c := &Config{}
+	c.UserSearch.BaseDN = "ou=People,ou=TestObjectSid,dc=example,dc=org"
+	c.UserSearch.NameAttr = "cn"
+	c.UserSearch.EmailAttr = "mail"
+	c.UserSearch.IDAttr = "objectSid"
+	c.UserSearch.Username = UsernameAttributes{"cn"}
+
+	tests := []subtest{
+		{
+			name:     "validpassword",
+			username: "jane",
+			password: "foo",
+			want: connector.Identity{
+				UserID:        "S-1-5-21-1004336348-1177238915-682003330-1234",
+				Username:      "jane",
+				Email:         "janedoe@example.com",
+				EmailVerified: true,
+			},
+		},
+	}
+	runTests(t, connectLDAP, c, tests)
+}
+
+func TestObjectGUID(t *testing.T) {
+	c := &Config{}
+	c.UserSearch.BaseDN = "ou=People,ou=TestAdObjects,dc=example,dc=org"
+	c.UserSearch.NameAttr = "cn"
+	c.UserSearch.EmailAttr = "mail"
+	c.UserSearch.IDAttr = "objectGUID"
+	c.UserSearch.Username = UsernameAttributes{"cn"}
+
+	tests := []subtest{
+		{
+			name:     "validpassword",
+			username: "jane",
+			password: "foo",
+			want: connector.Identity{
+				UserID:        "123e4567-e89b-12d3-a456-426614174000",
+				Username:      "jane",
+				Email:         "janedoe@example.com",
+				EmailVerified: true,
+			},
+		},
+	}
+	runTests(t, connectLDAP, c, tests)
+}
+
 func getenv(key, defaultVal string) string {
 	if val := os.Getenv(key); val != "" {
 		return val

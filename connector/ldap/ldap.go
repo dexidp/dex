@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/go-ldap/ldap/v3"
+	"github.com/google/uuid"
 
 	"github.com/dexidp/dex/connector"
 )
@@ -241,6 +242,48 @@ func parseScope(s string) (int, bool) {
 		return ldap.ScopeSingleLevel, true
 	}
 	return 0, false
+}
+
+// formatSidAttr converts the objectSid byte array returned from
+// Active Directory into a readable string format like S-1-5-21...
+func formatSidAttr(b []byte) (string, error) {
+	minbytes := 1 + 1 + 6
+	maxSubAuthorities := 15
+	maxBytes := 1 + 1 + 6 + 4*maxSubAuthorities
+
+	if (len(b) < minbytes) || (len(b) > maxBytes) {
+		return "", fmt.Errorf("Out of Range, length for SID expected to between: %d and %d bytes", minbytes, maxBytes)
+	}
+
+	revision := int(b[0])
+	if revision != 1 {
+		return "", fmt.Errorf("SIDs with revision other than '1' are not supported.")
+	}
+
+	subAuthoritiesLength := int(b[1])
+	if subAuthoritiesLength > maxSubAuthorities {
+		return "", fmt.Errorf("The number of sub-authorities must not exceed %d", maxSubAuthorities)
+	}
+
+	totalLength := 1 + 1 + 6 + 4*subAuthoritiesLength
+	if len(b) < totalLength {
+		return "", fmt.Errorf("Out of Range: Length of bytes mismatch")
+	}
+
+	var iav int
+	for i, x := range b[2:8] {
+		iav = iav | int(x)<<(8*(5-i))
+	}
+	s := fmt.Sprintf("S-%d-%d", revision, iav)
+
+	for i := range subAuthoritiesLength {
+		var sub int
+		for i, x := range b[8+4*i : 12+4*i] {
+			sub = sub | int(x)<<(8*i)
+		}
+		s += fmt.Sprintf("-%d", sub)
+	}
+	return s, nil
 }
 
 // Build a list of group attr name to user attr value matchers.
@@ -493,6 +536,23 @@ func (c *ldapConnector) getAttrs(e ldap.Entry, name string) []string {
 
 func (c *ldapConnector) getAttr(e ldap.Entry, name string) string {
 	if a := c.getAttrs(e, name); len(a) > 0 {
+		if name == "objectSid" {
+			sid, err := formatSidAttr([]byte(a[0]))
+			if err != nil {
+				c.logger.Error("ldap: attribute failed to be formatted as objectSid", "attribute", a[0])
+				return ""
+			}
+			return sid
+		}
+
+		if name == "objectGUID" {
+			uuid_string, err := uuid.FromBytes([]byte(a[0]))
+			if err != nil {
+				c.logger.Error("ldap: attribute failed to be formatted as objectGUID", "attribute", a[0])
+				return ""
+			}
+			return uuid_string.String()
+		}
 		return a[0]
 	}
 	return ""
