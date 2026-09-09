@@ -188,7 +188,7 @@ kind-down: ## Delete the kind cluster.
 
 bin/golangci-lint:
 	@mkdir -p bin
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | BINARY=golangci-lint bash -s -- v${GOLANGCI_VERSION}
+	curl -sSfL https://golangci-lint.run/install.sh | sh -s v${GOLANGCI_VERSION}
 
 bin/gotestsum:
 	@mkdir -p bin
