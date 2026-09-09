@@ -3,7 +3,7 @@ module github.com/dexidp/dex/examples
 go 1.25.0
 
 require (
-	github.com/coreos/go-oidc/v3 v3.20.0
+	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/dexidp/dex/api/v2 v2.4.0
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/crypto v0.55.0
