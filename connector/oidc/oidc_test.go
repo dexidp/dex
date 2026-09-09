@@ -871,6 +871,51 @@ func TestProviderOverride(t *testing.T) {
 	})
 }
 
+func TestAllowRedirectMismatch(t *testing.T) {
+
+	testServer, err := setupServer(map[string]any{
+		"sub":  "subvalue",
+		"name": "namevalue",
+	}, true)
+	if err != nil {
+		t.Fatal("failed to setup test server", err)
+	}
+	redirectURI := "https://auth.example.com/callback"
+	scopes := []string{"openid", "groups", "offline_access"}
+	connectorScopes := connector.Scopes{OfflineAccess: true, Groups: true}
+	state := "foo"
+
+	t.Run("No allowRedirectMismatch", func(t *testing.T) {
+		conn, err := newConnector(Config{
+			Issuer:      testServer.URL,
+			Scopes:      scopes,
+			RedirectURI: redirectURI,
+		})
+		if err != nil {
+			t.Fatal("failed to create new connector", err)
+		}
+
+		_, _, err = conn.LoginURL(connectorScopes, testServer.URL+"/callback", state)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "did not match the URL in the config")
+	})
+	t.Run("allowRedirectMismatch", func(t *testing.T) {
+		conn, err := newConnector(Config{
+			Issuer:                testServer.URL,
+			Scopes:                scopes,
+			RedirectURI:           redirectURI,
+			AllowRedirectMismatch: true,
+		})
+		if err != nil {
+			t.Fatal("failed to create new connector", err)
+		}
+
+		_, _, err = conn.LoginURL(connectorScopes, testServer.URL+"/callback", state)
+		require.NoError(t, err)
+	})
+
+}
+
 func setupServer(tok map[string]interface{}, idTokenDesired bool) (*httptest.Server, error) {
 	key, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
