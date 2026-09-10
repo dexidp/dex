@@ -447,8 +447,9 @@ func (h *Handler) deleteAuthSession(ctx context.Context, session *storage.AuthSe
 // audience are intentionally skipped per RP-Initiated Logout.
 func (h *Handler) validateIDTokenHint(ctx context.Context, hint string) (*oidc.IDToken, error) {
 	verifier := oidc.NewVerifier(h.IssuerURL.String(), &signer.KeySet{Signer: h.Signer}, &oidc.Config{
-		SkipExpiryCheck:   true,
-		SkipClientIDCheck: true,
+		SupportedSigningAlgs: signer.SupportedSigningAlgStrings(),
+		SkipExpiryCheck:      true,
+		SkipClientIDCheck:    true,
 	})
 	return verifier.Verify(ctx, hint)
 }

@@ -2,12 +2,17 @@ package signer
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/rsa"
 	"log/slog"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
@@ -100,4 +105,44 @@ func TestKeyRotator(t *testing.T) {
 			expVerificationKeys = expVerificationKeys[n-maxVerificationKeys:]
 		}
 	}
+}
+
+func TestRotationStrategyForAlgorithm(t *testing.T) {
+	frequency := time.Hour
+	validFor := time.Hour
+
+	t.Run("RS256 generates an RSA key", func(t *testing.T) {
+		strategy, err := rotationStrategyForAlgorithm(frequency, validFor, jose.RS256)
+		require.NoError(t, err)
+		assert.Equal(t, jose.RS256, strategy.algorithm)
+
+		key, err := strategy.key()
+		require.NoError(t, err)
+		assert.IsType(t, &rsa.PrivateKey{}, key)
+	})
+
+	t.Run("ES256 generates an ECDSA key", func(t *testing.T) {
+		strategy, err := rotationStrategyForAlgorithm(frequency, validFor, jose.ES256)
+		require.NoError(t, err)
+		assert.Equal(t, jose.ES256, strategy.algorithm)
+
+		key, err := strategy.key()
+		require.NoError(t, err)
+		assert.IsType(t, &ecdsa.PrivateKey{}, key)
+	})
+
+	t.Run("EdDSA generates an Ed25519 key", func(t *testing.T) {
+		strategy, err := rotationStrategyForAlgorithm(frequency, validFor, jose.EdDSA)
+		require.NoError(t, err)
+		assert.Equal(t, jose.EdDSA, strategy.algorithm)
+
+		key, err := strategy.key()
+		require.NoError(t, err)
+		assert.IsType(t, ed25519.PrivateKey{}, key)
+	})
+
+	t.Run("unsupported algorithm errors", func(t *testing.T) {
+		_, err := rotationStrategyForAlgorithm(frequency, validFor, jose.PS256)
+		require.Error(t, err)
+	})
 }
