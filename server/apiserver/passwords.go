@@ -49,6 +49,8 @@ func (d dexAPI) UpdatePassword(ctx context.Context, req *api.UpdatePasswordReq) 
 	if req.Email == "" {
 		return nil, errors.New("no email supplied")
 	}
+	// An empty new_groups arrives as nil (proto3 does not encode empty repeated fields),
+	// so groups can be replaced but not cleared through this call.
 	if req.NewHash == nil && req.NewUsername == "" && req.NewGroups == nil {
 		return nil, errors.New("nothing to update")
 	}
