@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -27,12 +28,17 @@ func (d dexAPI) CreatePassword(ctx context.Context, req *api.CreatePasswordReq) 
 		return nil, errors.New("no hash of password supplied")
 	}
 
+	groups, err := normalizeGroups(req.Password.Groups)
+	if err != nil {
+		return nil, err
+	}
+
 	p := storage.Password{
 		Email:    req.Password.Email,
 		Hash:     req.Password.Hash,
 		Username: req.Password.Username,
 		UserID:   req.Password.UserId,
-		Groups:   req.Password.Groups,
+		Groups:   groups,
 	}
 	if err := d.s.CreatePassword(ctx, p); err != nil {
 		if err == storage.ErrAlreadyExists {
@@ -61,6 +67,11 @@ func (d dexAPI) UpdatePassword(ctx context.Context, req *api.UpdatePasswordReq) 
 		}
 	}
 
+	newGroups, err := normalizeGroups(req.NewGroups)
+	if err != nil {
+		return nil, err
+	}
+
 	updater := func(old storage.Password) (storage.Password, error) {
 		if req.NewHash != nil {
 			old.Hash = req.NewHash
@@ -70,8 +81,8 @@ func (d dexAPI) UpdatePassword(ctx context.Context, req *api.UpdatePasswordReq) 
 			old.Username = req.NewUsername
 		}
 
-		if req.NewGroups != nil {
-			old.Groups = req.NewGroups
+		if newGroups != nil {
+			old.Groups = newGroups
 		}
 
 		return old, nil
@@ -86,6 +97,15 @@ func (d dexAPI) UpdatePassword(ctx context.Context, req *api.UpdatePasswordReq) 
 	}
 
 	return &api.UpdatePasswordResp{}, nil
+}
+
+func normalizeGroups(groups []string) ([]string, error) {
+	if slices.Contains(groups, "") {
+		return nil, errors.New("group names must not be empty")
+	}
+	normalized := slices.Clone(groups)
+	slices.Sort(normalized)
+	return slices.Compact(normalized), nil
 }
 
 func (d dexAPI) DeletePassword(ctx context.Context, req *api.DeletePasswordReq) (*api.DeletePasswordResp, error) {

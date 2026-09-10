@@ -201,6 +201,43 @@ func TestPassword(t *testing.T) {
 		t.Fatalf("UpdatePassword changed groups it was not asked to. Expected %v retrieved %v", []string{"admins"}, pass.Groups)
 	}
 
+	if _, err := client.UpdatePassword(ctx, &api.UpdatePasswordReq{Email: email, NewGroups: []string{"ops", "admins", "ops"}}); err != nil {
+		t.Fatalf("Unable to update password: %v", err)
+	}
+
+	pass, err = s.GetPassword(ctx, email)
+	if err != nil {
+		t.Fatalf("Unable to retrieve password: %v", err)
+	}
+
+	normalized := []string{"admins", "ops"}
+	if !slices.Equal(pass.Groups, normalized) {
+		t.Fatalf("UpdatePassword failed to normalize groups. Expected %v retrieved %v", normalized, pass.Groups)
+	}
+
+	if _, err := client.UpdatePassword(ctx, &api.UpdatePasswordReq{Email: email, NewGroups: []string{"admins", ""}}); err == nil {
+		t.Fatal("UpdatePassword accepted an empty group name")
+	}
+
+	pass, err = s.GetPassword(ctx, email)
+	if err != nil {
+		t.Fatalf("Unable to retrieve password: %v", err)
+	}
+
+	if !slices.Equal(pass.Groups, normalized) {
+		t.Fatalf("Rejected UpdatePassword changed groups. Expected %v retrieved %v", normalized, pass.Groups)
+	}
+
+	emptyGroup := api.Password{
+		Email:  "empty-group@example.com",
+		Hash:   p.Hash,
+		UserId: "empty-group",
+		Groups: []string{""},
+	}
+	if _, err := client.CreatePassword(ctx, &api.CreatePasswordReq{Password: &emptyGroup}); err == nil {
+		t.Fatal("CreatePassword accepted an empty group name")
+	}
+
 	deleteReq := api.DeletePasswordReq{
 		Email: "test@example.com",
 	}
