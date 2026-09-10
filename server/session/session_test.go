@@ -2,12 +2,17 @@ package session
 
 import (
 	"context"
+	"log/slog"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/server/reqctx"
+	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/memory"
 )
 
 // The address stored on a session is an audit record, so it has to be the
@@ -72,4 +77,47 @@ func TestRemoteIP(t *testing.T) {
 			assert.Equal(t, tc.want, remoteIP(r))
 		})
 	}
+}
+
+func TestCreateOrUpdateAuthSessionPersistsConnectorData(t *testing.T) {
+	store := memory.New(slog.New(slog.DiscardHandler))
+	now := time.Now().UTC()
+	manager := Manager{
+		Storage: store,
+		Config: &Config{
+			CookieName:          "dex_session",
+			CookieEncryptionKey: []byte("01234567890123456789012345678901"),
+			AbsoluteLifetime:    24 * time.Hour,
+			ValidIfNotUsedFor:   time.Hour,
+		},
+		Now:    func() time.Time { return now },
+		Logger: slog.New(slog.DiscardHandler),
+	}
+	authReq := storage.AuthRequest{
+		ClientID:      "client",
+		ConnectorID:   "saml",
+		ConnectorData: []byte("first-session-index"),
+		Claims: storage.Claims{
+			UserID: "user",
+		},
+	}
+
+	req := httptest.NewRequest("GET", "/", nil)
+	rec := httptest.NewRecorder()
+	require.NoError(t, manager.CreateOrUpdateAuthSession(t.Context(), req, rec, authReq, false))
+
+	sessions, err := store.ListAuthSessions(t.Context())
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	assert.Equal(t, authReq.ConnectorData, sessions[0].ConnectorData)
+
+	authReq.ConnectorData = []byte("second-session-index")
+	req = httptest.NewRequest("GET", "/", nil)
+	req.AddCookie(rec.Result().Cookies()[0])
+	rec = httptest.NewRecorder()
+	require.NoError(t, manager.CreateOrUpdateAuthSession(t.Context(), req, rec, authReq, false))
+
+	session, err := store.GetAuthSession(t.Context(), sessions[0].ID)
+	require.NoError(t, err)
+	assert.Equal(t, authReq.ConnectorData, session.ConnectorData)
 }

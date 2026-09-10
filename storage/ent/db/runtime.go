@@ -119,11 +119,11 @@ func init() {
 	// authsession.SecretValidator is a validator for the "secret" field. It is called by the builders before save.
 	authsession.SecretValidator = authsessionDescSecret.Validators[0].(func(string) error)
 	// authsessionDescIPAddress is the schema descriptor for ip_address field.
-	authsessionDescIPAddress := authsessionFields[7].Descriptor()
+	authsessionDescIPAddress := authsessionFields[8].Descriptor()
 	// authsession.DefaultIPAddress holds the default value on creation for the ip_address field.
 	authsession.DefaultIPAddress = authsessionDescIPAddress.Default.(string)
 	// authsessionDescUserAgent is the schema descriptor for user_agent field.
-	authsessionDescUserAgent := authsessionFields[8].Descriptor()
+	authsessionDescUserAgent := authsessionFields[9].Descriptor()
 	// authsession.DefaultUserAgent holds the default value on creation for the user_agent field.
 	authsession.DefaultUserAgent = authsessionDescUserAgent.Default.(string)
 	// authsessionDescID is the schema descriptor for id field.
