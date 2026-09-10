@@ -138,6 +138,21 @@ web:
 #     enforce: false
 #     # Supported code challenge methods. Defaults to ["S256", "plain"].
 #     codeChallengeMethodsSupported: ["S256", "plain"]
+#
+#   # Explicitly set the list of grant types the server advertises and accepts.
+#   # When omitted, the default list is used (authorization_code, implicit,
+#   # password, refresh_token, device_code, token-exchange). Add
+#   # "client_credentials" to enable the OAuth2 client_credentials grant
+#   # (RFC 6749 Section 4.4) for machine-to-machine (M2M) authentication.
+#   # Confidential clients only; public clients are always rejected.
+#   # grantTypes:
+#   #   - authorization_code
+#   #   - implicit
+#   #   - password
+#   #   - refresh_token
+#   #   - urn:ietf:params:oauth:grant-type:device_code
+#   #   - urn:ietf:params:oauth:grant-type:token-exchange
+#   #   - client_credentials
 
 # Static clients registered in Dex by default.
 #
