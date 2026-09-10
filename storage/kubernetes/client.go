@@ -229,8 +229,15 @@ func (cli *client) getResource(apiVersion, namespace, resource, name string, v i
 }
 
 func (cli *client) listN(resource string, v interface{}, n int) error { //nolint:unparam // In practice, n is the gcResultLimit constant.
+	return cli.listNWithContinue(resource, v, n, "")
+}
+
+func (cli *client) listNWithContinue(resource string, v interface{}, n int, continueToken string) error {
 	params := url.Values{}
 	params.Add("limit", fmt.Sprintf("%d", n))
+	if continueToken != "" {
+		params.Add("continue", continueToken)
+	}
 	u, err := cli.urlForWithParams(cli.apiVersion, cli.namespace, resource, "", params)
 	if err != nil {
 		return err
