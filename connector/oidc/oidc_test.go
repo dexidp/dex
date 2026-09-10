@@ -880,7 +880,7 @@ func setupServer(tok map[string]interface{}, idTokenDesired bool) (*httptest.Ser
 	jwk := jose.JSONWebKey{
 		Key:       key,
 		KeyID:     "keyId",
-		Algorithm: "RSA",
+		Algorithm: "RS256",
 	}
 
 	mux := http.NewServeMux()
@@ -889,7 +889,7 @@ func setupServer(tok map[string]interface{}, idTokenDesired bool) (*httptest.Ser
 		json.NewEncoder(w).Encode(&map[string]interface{}{
 			"keys": []map[string]interface{}{{
 				"alg": jwk.Algorithm,
-				"kty": jwk.Algorithm,
+				"kty": "RSA",
 				"kid": jwk.KeyID,
 				"n":   n(&key.PublicKey),
 				"e":   e(&key.PublicKey),
