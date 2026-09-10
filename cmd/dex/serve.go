@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -15,6 +16,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -560,23 +562,15 @@ func runServe(options serveOptions) error {
 		if c.Web.TLSMaxVersion != "" {
 			tlsMaxVersion = allowedTLSVersions[c.Web.TLSMaxVersion]
 		}
+
 		cipherSuites := allowedTLSCiphers
-		if len(c.Web.AllowedTLSCiphers) > 0 {
-			ciphers, err := parseCipherSuites(c.Web.AllowedTLSCiphers)
-			if err != nil {
-				return fmt.Errorf("invalid TLS cipher suites: %w", err)
-			}
-			cipherSuites = ciphers
+		if len(c.Web.tlsCipherIDs) > 0 {
+			cipherSuites = c.Web.tlsCipherIDs
 		}
 		curvePreferences := []tls.CurveID(nil)
-		if len(c.Web.AllowedTLSCurvePreferences) > 0 {
-			curves, err := parseCurvePreferences(c.Web.AllowedTLSCurvePreferences)
-			if err != nil {
-				return fmt.Errorf("invalid TLS curve preferences: %w", err)
-			}
-			curvePreferences = curves
+		if len(c.Web.tlsCurveIDs) > 0 {
+			curvePreferences = c.Web.tlsCurveIDs
 		}
-
 		baseTLSConfig := &tls.Config{
 			MinVersion:               uint16(tlsMinVersion),
 			MaxVersion:               uint16(tlsMaxVersion),
@@ -687,8 +681,7 @@ func parseCurvePreferences(names []string) ([]tls.CurveID, error) {
 		if id, ok := allowedCurveNames[name]; ok {
 			curves = append(curves, id)
 		} else {
-			return nil, fmt.Errorf("unknown curve: %q (supported: %v)",
-				name, mapKeys(allowedCurveNames))
+			return nil, fmt.Errorf("unknown curve: %q (supported: %v)", name, slices.Sorted(maps.Keys(allowedCurveNames)))
 		}
 	}
 	return curves, nil
