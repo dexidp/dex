@@ -7,6 +7,8 @@
   dotenv.enable = true;
 
   packages = with pkgs; [
+    golangci-lint
+
     gnumake
 
     gotestsum
@@ -19,6 +21,7 @@
   languages = {
     go = {
       enable = true;
+      package = pkgs.go_1_27;
     };
   };
 }
