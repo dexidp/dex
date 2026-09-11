@@ -64,7 +64,8 @@ func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity
 	}
 
 	h.Logger.InfoContext(ctx, "login successful",
-		"connector_id", authReq.ConnectorID, "user_id", claims.UserID,
+		"connector_id", authReq.ConnectorID, "client_id", authReq.ClientID,
+		"user_id", claims.UserID,
 		"username", claims.Username, "preferred_username", claims.PreferredUsername,
 		"email", email, "groups", claims.Groups)
 
