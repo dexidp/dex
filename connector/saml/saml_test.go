@@ -8,8 +8,11 @@ import (
 	"encoding/pem"
 	"errors"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"sort"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -473,6 +476,42 @@ func (r responseTest) run(t *testing.T) {
 	}
 }
 
+func TestConfigMetadataFields(t *testing.T) {
+	cfg := Config{}
+	if err := json.Unmarshal([]byte(`{"metadataURL":"https://idp.example.com/metadata","metadataRefreshInterval":"30m"}`), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MetadataURL != "https://idp.example.com/metadata" {
+		t.Errorf("expected metadataURL to be parsed, got %q", cfg.MetadataURL)
+	}
+	if time.Duration(cfg.MetadataRefreshInterval) != 30*time.Minute {
+		t.Errorf("expected 30m refresh interval, got %v", time.Duration(cfg.MetadataRefreshInterval))
+	}
+}
+
+func TestMetadataRefreshIntervalRoundTrip(t *testing.T) {
+	cfg := Config{MetadataRefreshInterval: duration(90 * time.Minute)}
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got Config
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatal(err)
+	}
+	if time.Duration(got.MetadataRefreshInterval) != 90*time.Minute {
+		t.Errorf("expected round-trip to preserve 90m, got %v", time.Duration(got.MetadataRefreshInterval))
+	}
+}
+
+func TestMetadataRefreshIntervalInvalid(t *testing.T) {
+	cfg := Config{}
+	err := json.Unmarshal([]byte(`{"metadataRefreshInterval":"nope"}`), &cfg)
+	if err == nil {
+		t.Error("expected an error for an invalid duration string")
+	}
+}
+
 func TestConfigCAData(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 	validPEM, err := os.ReadFile("testdata/ca.crt")
@@ -915,4 +954,486 @@ func TestSAMLRefresh(t *testing.T) {
 			t.Error("expected groups when groups scope is requested")
 		}
 	})
+}
+
+func TestApplyMetadataFillsUnsetFields(t *testing.T) {
+	p := &provider{
+		manualSSOURL:    "https://manual.example.com/sso",
+		manualSSOIssuer: "",
+		manualCerts:     nil,
+		logger:          slog.New(slog.DiscardHandler),
+	}
+	ca, err := os.ReadFile("testdata/ca.crt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, _ := pem.Decode(ca)
+	if block == nil {
+		t.Fatal("no PEM block")
+	}
+	discCert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	meta := &IdPMetadata{
+		EntityID: "https://idp.example.com",
+		SSOEndpoints: []SSOEndpoint{
+			{Binding: bindingRedirect, Location: "https://idp.example.com/sso/redirect"},
+			{Binding: bindingPOST, Location: "https://idp.example.com/sso/post"},
+		},
+		SigningCerts: []*x509.Certificate{discCert},
+	}
+
+	if err := p.applyMetadata(meta); err != nil {
+		t.Fatal(err)
+	}
+
+	st := p.stateSnapshot()
+	// Explicitly set ssoURL wins over discovered endpoint.
+	if st.ssoURL != "https://manual.example.com/sso" {
+		t.Errorf("expected manual ssoURL to win, got %q", st.ssoURL)
+	}
+	// Unset ssoIssuer is filled from the discovered entityID.
+	if st.ssoIssuer != "https://idp.example.com" {
+		t.Errorf("expected discovered entityID as ssoIssuer, got %q", st.ssoIssuer)
+	}
+	// Discovered certs are used for validation.
+	if st.validator == nil {
+		t.Fatal("expected a validation context")
+	}
+	if got, _ := st.validator.CertificateStore.Certificates(); len(got) != 1 {
+		t.Errorf("expected 1 cert in validator, got %d", len(got))
+	}
+}
+
+func TestApplyMetadataDiscoverSSOURL(t *testing.T) {
+	p := &provider{logger: slog.New(slog.DiscardHandler), insecureSkipSigValidation: true}
+	meta := &IdPMetadata{
+		EntityID: "https://idp.example.com",
+		SSOEndpoints: []SSOEndpoint{
+			{Binding: bindingRedirect, Location: "https://idp.example.com/sso/redirect"},
+			{Binding: bindingPOST, Location: "https://idp.example.com/sso/post"},
+		},
+		SigningCerts: []*x509.Certificate{},
+	}
+	if err := p.applyMetadata(meta); err != nil {
+		t.Fatal(err)
+	}
+	// With no manual ssoURL, the POST endpoint is preferred.
+	if got := p.stateSnapshot().ssoURL; got != "https://idp.example.com/sso/post" {
+		t.Errorf("expected discovered POST ssoURL, got %q", got)
+	}
+}
+
+func TestApplyMetadataNoSSOEndpoint(t *testing.T) {
+	p := &provider{logger: slog.New(slog.DiscardHandler), insecureSkipSigValidation: true}
+	meta := &IdPMetadata{EntityID: "https://idp.example.com", SigningCerts: []*x509.Certificate{}}
+	if err := p.applyMetadata(meta); err == nil {
+		t.Error("expected an error when no SSO endpoint exists and ssoURL is not set")
+	}
+}
+
+func TestConfigValidationWithMetadataURL(t *testing.T) {
+	logger := slog.New(slog.DiscardHandler)
+
+	t.Run("metadataURL makes ssoURL optional", func(t *testing.T) {
+		// No ssoURL and no ca/caData: allowed because metadata supplies both.
+		c := Config{
+			UsernameAttr: "Name",
+			EmailAttr:    "email",
+			RedirectURI:  "http://127.0.0.1:5556/dex/callback",
+			MetadataURL:  "https://idp.example.com/metadata",
+		}
+		if _, err := c.openConnector(logger); err != nil {
+			t.Fatalf("expected connector to open without ssoURL when metadataURL is set: %v", err)
+		}
+	})
+
+	t.Run("no metadataURL keeps old requirements", func(t *testing.T) {
+		c := Config{
+			UsernameAttr: "Name",
+			EmailAttr:    "email",
+			RedirectURI:  "http://127.0.0.1:5556/dex/callback",
+		}
+		if _, err := c.openConnector(logger); err == nil {
+			t.Fatal("expected error for missing ssoURL when metadataURL is unset")
+		}
+	})
+
+	t.Run("no metadataURL requires ca", func(t *testing.T) {
+		c := Config{
+			UsernameAttr: "Name",
+			EmailAttr:    "email",
+			RedirectURI:  "http://127.0.0.1:5556/dex/callback",
+			SSOURL:       "http://foo.bar/",
+		}
+		if _, err := c.openConnector(logger); err == nil {
+			t.Fatal("expected error for missing ca/caData when metadataURL is unset")
+		}
+	})
+
+	t.Run("metadataURL with explicit ca still works", func(t *testing.T) {
+		c := Config{
+			CA:           "testdata/ca.crt",
+			UsernameAttr: "Name",
+			EmailAttr:    "email",
+			RedirectURI:  "http://127.0.0.1:5556/dex/callback",
+			SSOURL:       "http://foo.bar/",
+			MetadataURL:  "https://idp.example.com/metadata",
+		}
+		if _, err := c.openConnector(logger); err != nil {
+			t.Fatalf("expected connector to open: %v", err)
+		}
+	})
+
+	t.Run("sub-minute refresh interval rejected", func(t *testing.T) {
+		c := Config{
+			CA:                      "testdata/ca.crt",
+			UsernameAttr:            "Name",
+			EmailAttr:               "email",
+			RedirectURI:             "http://127.0.0.1:5556/dex/callback",
+			SSOURL:                  "http://foo.bar/",
+			MetadataURL:             "https://idp.example.com/metadata",
+			MetadataRefreshInterval: duration(30 * time.Second),
+		}
+		if _, err := c.openConnector(logger); err == nil {
+			t.Fatal("expected error for sub-minute refresh interval")
+		}
+	})
+}
+
+func TestMetadataPollerRefreshesCerts(t *testing.T) {
+	ca, err := os.ReadFile("testdata/ca.crt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	caBlock, _ := pem.Decode(ca)
+	if caBlock == nil {
+		t.Fatal("no PEM block")
+	}
+
+	keyDescriptor := func(certPEM []byte) string {
+		block, _ := pem.Decode(certPEM)
+		if block == nil {
+			t.Fatal("no PEM block")
+		}
+		return `<md:KeyDescriptor use="signing"><ds:KeyInfo><ds:X509Data><ds:X509Certificate>` +
+			base64.StdEncoding.EncodeToString(block.Bytes) +
+			`</ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor>`
+	}
+	ssoServices := `<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://idp.example.com/sso"/>`
+
+	var current atomic.Value
+	current.Store([]byte(metadataXML(t, keyDescriptor(ca), ssoServices)))
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(current.Load().([]byte))
+	}))
+	defer srv.Close()
+
+	c := Config{
+		UsernameAttr: "Name",
+		EmailAttr:    "email",
+		RedirectURI:  "http://127.0.0.1:5556/dex/callback",
+		MetadataURL:  srv.URL,
+	}
+	conn, err := c.openConnector(slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := conn
+	// Override the validated interval so the test runs quickly. Production
+	// validation (>= 1 minute) is exercised by TestConfigValidationWithMetadataURL.
+	p.refreshInterval = 50 * time.Millisecond
+
+	if err := p.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+
+	signingCerts := func() int {
+		st := p.stateSnapshot()
+		if st.validator == nil {
+			return 0
+		}
+		certs, _ := st.validator.CertificateStore.Certificates()
+		return len(certs)
+	}
+
+	// Initial fetch populated the validator.
+	if n := signingCerts(); n != 1 {
+		t.Fatalf("expected 1 cert after initial fetch, got %d", n)
+	}
+
+	// Rotate: serve the second CA cert alongside the first.
+	okta, err := os.ReadFile("testdata/okta-ca.pem")
+	if err != nil {
+		t.Fatal(err)
+	}
+	current.Store([]byte(metadataXML(t, keyDescriptor(ca)+keyDescriptor(okta), ssoServices)))
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if signingCerts() == 2 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("expected poller to pick up the second certificate within 5s")
+}
+
+func TestMetadataPollerKeepsLastStateOnFailure(t *testing.T) {
+	ca, err := os.ReadFile("testdata/ca.crt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	caBlock, _ := pem.Decode(ca)
+	if caBlock == nil {
+		t.Fatal("no PEM block")
+	}
+	metaXML := metadataXML(t,
+		`<md:KeyDescriptor use="signing"><ds:KeyInfo><ds:X509Data><ds:X509Certificate>`+
+			base64.StdEncoding.EncodeToString(caBlock.Bytes)+
+			`</ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor>`,
+		`<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://idp.example.com/sso"/>`)
+
+	var fail atomic.Bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if fail.Load() {
+			http.Error(w, "boom", http.StatusInternalServerError)
+			return
+		}
+		_, _ = w.Write([]byte(metaXML))
+	}))
+	defer srv.Close()
+
+	c := Config{
+		UsernameAttr: "Name",
+		EmailAttr:    "email",
+		RedirectURI:  "http://127.0.0.1:5556/dex/callback",
+		MetadataURL:  srv.URL,
+	}
+	conn, err := c.openConnector(slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := conn
+	p.refreshInterval = 50 * time.Millisecond
+
+	if err := p.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+
+	storeCerts := func() int {
+		certs, _ := p.stateSnapshot().validator.CertificateStore.Certificates()
+		return len(certs)
+	}
+
+	if got := storeCerts(); got != 1 {
+		t.Fatalf("expected 1 cert, got %d", got)
+	}
+
+	// Subsequent polls fail; the last known validator must be kept.
+	fail.Store(true)
+	time.Sleep(200 * time.Millisecond)
+	if got := storeCerts(); got != 1 {
+		t.Fatalf("expected last known cert to be retained, got %d", got)
+	}
+}
+
+// TestMetadataPollerHandlesKeyRotation verifies the feature's core promise: a
+// login signed by the original IdP key keeps working, and after the IdP rotates
+// to a new key (published alongside the old one in its metadata), a login signed
+// by the new key is accepted too.
+func TestMetadataPollerHandlesKeyRotation(t *testing.T) {
+	ca, err := os.ReadFile("testdata/ca.crt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	okta, err := os.ReadFile("testdata/okta-ca.pem")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	keyDescriptor := func(certPEM []byte) string {
+		block, _ := pem.Decode(certPEM)
+		if block == nil {
+			t.Fatal("no PEM block")
+		}
+		return `<md:KeyDescriptor use="signing"><ds:KeyInfo><ds:X509Data><ds:X509Certificate>` +
+			base64.StdEncoding.EncodeToString(block.Bytes) +
+			`</ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor>`
+	}
+	ssoServices := `<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://idp.example.com/sso"/>`
+	// Both test responses carry this issuer, so the discovered entityID must
+	// match it for the HandlePOST issuer check to pass.
+	entityID := "http://www.okta.com/exk91cb99lKkKSYoy0h7"
+
+	var current atomic.Value
+	current.Store([]byte(metadataXMLWithEntity(t, entityID, keyDescriptor(ca), ssoServices)))
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(current.Load().([]byte))
+	}))
+	defer srv.Close()
+
+	c := Config{
+		UsernameAttr: "Name",
+		EmailAttr:    "email",
+		RedirectURI:  "http://127.0.0.1:5556/dex/callback",
+		MetadataURL:  srv.URL,
+	}
+	conn, err := c.openConnector(slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := conn
+	p.refreshInterval = 50 * time.Millisecond
+
+	now, err := time.Parse(timeFormat, "2017-04-04T04:34:59.330Z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.now = func() time.Time { return now }
+
+	if err := p.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+
+	signingCerts := func() int {
+		st := p.stateSnapshot()
+		if st.validator == nil {
+			return 0
+		}
+		certs, _ := st.validator.CertificateStore.Certificates()
+		return len(certs)
+	}
+
+	scopes := connector.Scopes{Groups: true}
+	handle := func(respFile string) error {
+		resp, err := os.ReadFile(respFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = p.HandlePOST(scopes, base64.StdEncoding.EncodeToString(resp), "6zmm5mguyebwvajyf2sdwwcw6m")
+		return err
+	}
+
+	// Login signed by the original key succeeds.
+	if err := handle("testdata/good-resp.xml"); err != nil {
+		t.Fatalf("login signed by original key failed: %v", err)
+	}
+
+	// Rotate: the IdP publishes its new key alongside the old one.
+	current.Store([]byte(metadataXMLWithEntity(t, entityID, keyDescriptor(ca)+keyDescriptor(okta), ssoServices)))
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if signingCerts() == 2 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if n := signingCerts(); n != 2 {
+		t.Fatalf("expected poller to pick up both certs after rotation, got %d", n)
+	}
+
+	// Login signed by the rotated key is accepted.
+	if err := handle("testdata/okta-resp.xml"); err != nil {
+		t.Fatalf("login signed by rotated key failed: %v", err)
+	}
+}
+
+// TestApplyMetadataUnionsManualAndDiscoveredCerts verifies that the validator
+// uses the union of manually configured certs and certs discovered from
+// metadata.
+func TestApplyMetadataUnionsManualAndDiscoveredCerts(t *testing.T) {
+	ca, err := os.ReadFile("testdata/ca.crt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	okta, err := os.ReadFile("testdata/okta-ca.pem")
+	if err != nil {
+		t.Fatal(err)
+	}
+	loadCert := func(pemData []byte) *x509.Certificate {
+		block, _ := pem.Decode(pemData)
+		if block == nil {
+			t.Fatal("no PEM block")
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return cert
+	}
+
+	p := &provider{
+		manualCerts: []*x509.Certificate{loadCert(ca)},
+		logger:      slog.New(slog.DiscardHandler),
+	}
+	meta := &IdPMetadata{
+		EntityID: "https://idp.example.com",
+		SSOEndpoints: []SSOEndpoint{
+			{Binding: bindingPOST, Location: "https://idp.example.com/sso"},
+		},
+		SigningCerts: []*x509.Certificate{loadCert(okta)},
+	}
+	if err := p.applyMetadata(meta); err != nil {
+		t.Fatal(err)
+	}
+
+	certs, _ := p.stateSnapshot().validator.CertificateStore.Certificates()
+	if len(certs) != 2 {
+		t.Fatalf("expected manual + discovered certs to be unioned, got %d certs", len(certs))
+	}
+}
+
+func TestMetadataPollerFirstFetchFailsWithoutFallback(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "boom", http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	c := Config{
+		UsernameAttr: "Name",
+		EmailAttr:    "email",
+		RedirectURI:  "http://127.0.0.1:5556/dex/callback",
+		MetadataURL:  srv.URL,
+	}
+	conn, err := c.openConnector(slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := conn
+	if err := p.Start(context.Background()); err == nil {
+		t.Fatal("expected Start to fail when the first fetch fails without manual certs")
+	}
+	p.Close()
+}
+
+func TestMetadataPollerFirstFetchFailsWithManualFallback(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "boom", http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	c := Config{
+		CA:           "testdata/ca.crt",
+		UsernameAttr: "Name",
+		EmailAttr:    "email",
+		RedirectURI:  "http://127.0.0.1:5556/dex/callback",
+		SSOURL:       "http://foo.bar/",
+		MetadataURL:  srv.URL,
+	}
+	conn, err := c.openConnector(slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := conn
+	if err := p.Start(context.Background()); err != nil {
+		t.Fatalf("expected Start to tolerate a failing first fetch when manual certs exist: %v", err)
+	}
+	p.Close()
 }

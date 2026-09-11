@@ -58,7 +58,7 @@ func newTestHandler(t *testing.T, providers map[string]Provider, defaultChain []
 	issuerURL, err := url.Parse("http://127.0.0.1")
 	require.NoError(t, err)
 
-	conns := connectors.NewCache(store, resolveTestConnector)
+	conns := connectors.NewCache(t.Context(), store, resolveTestConnector)
 	require.NoError(t, store.CreateConnector(t.Context(), storage.Connector{
 		ID: "mock", Type: "mockCallback", Name: "Mock", ResourceVersion: "1",
 	}))
