@@ -76,6 +76,11 @@ type Config struct {
 	// PKCE configuration
 	PKCE authflow.PKCEConfig
 
+	// AllowedScopePrefixes lists additional scope prefixes accepted as recognized
+	// (non-standard, non-cross-client) scopes, alongside the fixed set Dex already
+	// understands (openid, offline_access, email, profile, groups, federated:id).
+	AllowedScopePrefixes []string
+
 	GCFrequency time.Duration // Defaults to 5 minutes
 
 	// If specified, the server will use this function for determining time.
