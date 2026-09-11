@@ -156,11 +156,6 @@ func (c Config) Validate() error {
 	return nil
 }
 
-func validateCipherSuites(names []string) error {
-	_, err := parseCipherSuites(names)
-	return err
-}
-
 func (c Config) validateMFA() error {
 	mfa := c.MFA
 	if len(mfa.Authenticators) == 0 && len(mfa.DefaultMFAChain) == 0 {
