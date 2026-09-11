@@ -64,6 +64,20 @@ web:
   #   header: X-Forwarded-For
   #   trustedProxies:
   #   - 10.0.0.0/8
+  # Minimum and maximum TLS versions supported by the server.
+  # tlsMinVersion: "1.2"
+  # tlsMaxVersion: "1.3"
+
+  # Cipher suites supported by the server.
+  # tlsCiphers:
+  # - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+  # - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+
+  # Curve preferences used during TLS key exchange.
+  # tlsCurvePreferences:
+  # - X25519
+  # - X25519MLKEM768
+  # - P256
 
 # Configuration for dex appearance
 # frontend:
