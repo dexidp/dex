@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -10,8 +11,10 @@ import (
 	"strings"
 	"testing"
 
+	jose "github.com/go-jose/go-jose/v4"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
@@ -169,6 +172,86 @@ func TestHandleTokenExchangeLogsSuccess(t *testing.T) {
 	require.Equal(t, []any{"authors"}, found["groups"])
 	require.Equal(t, oauth2.TokenTypeID, found["subject_token_type"])
 	require.Equal(t, oauth2.TokenTypeAccess, found["requested_token_type"])
+}
+
+// tokenExchangeExtendingConnector implements TokenIdentityConnector and
+// PayloadExtender to guard against the regression where
+// server/grants/tokenexchange.go built its tokens.Authorization without
+// ConnectorData: the issuer's ExtendPayload call is gated on
+// len(auth.ConnectorData) > 0 (see tokens/issuer_test.go's
+// TestSignIDTokenSkipsExtenderWithoutConnectorData, which documents that gate
+// as intentional), so omitting it there meant ExtendPayload silently never
+// ran for ANY token-exchange call, regardless of what the connector's
+// identity carried.
+type tokenExchangeExtendingConnector struct{}
+
+func (tokenExchangeExtendingConnector) TokenIdentity(ctx context.Context, subjectTokenType, subjectToken string) (connector.Identity, error) {
+	return connector.Identity{
+		UserID:        "svc-1",
+		Email:         "svc@example.com",
+		EmailVerified: true,
+		ConnectorData: []byte(`{"groups":["from-connector-data"]}`),
+	}, nil
+}
+
+func (tokenExchangeExtendingConnector) ExtendPayload(scopes []string, payload, connectorData []byte) ([]byte, error) {
+	var claims map[string]any
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return nil, err
+	}
+	var cd struct {
+		Groups []string `json:"groups"`
+	}
+	if err := json.Unmarshal(connectorData, &cd); err != nil {
+		return nil, err
+	}
+	claims["groups"] = cd.Groups
+	return json.Marshal(claims)
+}
+
+var (
+	_ connector.TokenIdentityConnector = tokenExchangeExtendingConnector{}
+	_ connector.PayloadExtender        = tokenExchangeExtendingConnector{}
+)
+
+func TestHandleTokenExchangeExtendsPayloadViaConnector(t *testing.T) {
+	ctx := t.Context()
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.Storage.CreateClient(ctx, storage.Client{
+			ID:     "client_1",
+			Secret: "secret_1",
+		})
+	})
+	defer httpServer.Close()
+	registerTestConnector(t, s, "extend-mock", tokenExchangeExtendingConnector{})
+
+	vals := make(url.Values)
+	vals.Set("grant_type", oauth2.GrantTypeTokenExchange)
+	vals.Set("connector_id", "extend-mock")
+	vals.Set("scope", "openid groups")
+	vals.Set("requested_token_type", oauth2.TokenTypeID)
+	vals.Set("subject_token_type", oauth2.TokenTypeID)
+	vals.Set("subject_token", "foobar")
+	vals.Set("client_id", "client_1")
+	vals.Set("client_secret", "secret_1")
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
+	req.Header.Set("content-type", "application/x-www-form-urlencoded")
+
+	s.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	var res tokens.Response
+	require.NoError(t, json.NewDecoder(rr.Result().Body).Decode(&res))
+
+	parsed, err := jose.ParseSigned(res.AccessToken, []jose.SignatureAlgorithm{jose.RS256})
+	require.NoError(t, err)
+	var claims map[string]any
+	require.NoError(t, json.Unmarshal(parsed.UnsafePayloadWithoutVerification(), &claims))
+
+	require.Equal(t, []any{"from-connector-data"}, claims["groups"],
+		"token-exchange must thread ConnectorData through to ExtendPayload, same as every other grant")
 }
 
 func TestHandleTokenExchangeConnectorGrantTypeRestriction(t *testing.T) {
