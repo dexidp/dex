@@ -128,6 +128,32 @@ func TestUserGroupsWithTeamNameAndSlugFieldConfig(t *testing.T) {
 	})
 }
 
+// tests case-insensitive org matching and the warn log on case mismatch
+func TestTeamsForOrgCaseInsensitive(t *testing.T) {
+	s := newTestServer(map[string]testResponse{
+		"/user/teams": {
+			data: []team{
+				{Name: "team-1", Org: org{Login: "myorg"}},
+				{Name: "team-2", Org: org{Login: "myorg"}},
+				{Name: "team-3", Org: org{Login: "otherorg"}},
+			},
+		},
+	})
+	defer s.Close()
+
+	var logBuf strings.Builder
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	c := githubConnector{apiURL: s.URL, logger: logger}
+
+	for _, configOrg := range []string{"MyOrg", "MYORG", "myOrg"} {
+		groups, err := c.teamsForOrg(context.Background(), newClient(), configOrg)
+		expectNil(t, err)
+		expectEquals(t, groups, []string{"team-1", "team-2"})
+	}
+
+	expectEquals(t, strings.Count(logBuf.String(), "level=WARN"), 3)
+}
+
 // tests that the users login is used as their username when they have no username set
 func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
 	s := newTestServer(map[string]testResponse{
