@@ -26,6 +26,10 @@ storage:
   #   password: mysql
   #   ssl:
   #     mode: "false"
+  #   # Opt in to retrying refresh-token updates aborted by transient
+  #   # serialization failures / deadlocks under SERIALIZABLE isolation.
+  #   # Off by default; only affects the postgres and mysql backends.
+  #   retryOnSerializationFailure: true
 
   # type: postgres
   # config:
@@ -36,6 +40,10 @@ storage:
   #   password: postgres
   #   ssl:
   #     mode: disable
+  #   # Opt in to retrying refresh-token updates aborted by transient
+  #   # serialization failures / deadlocks under SERIALIZABLE isolation.
+  #   # Off by default; only affects the postgres and mysql backends.
+  #   retryOnSerializationFailure: true
 
   # type: etcd
   # config:
