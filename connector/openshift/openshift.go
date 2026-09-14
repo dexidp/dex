@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 
 	"golang.org/x/oauth2"
@@ -24,13 +25,14 @@ const (
 
 // Config holds configuration options for OpenShift login
 type Config struct {
-	Issuer       string   `json:"issuer"`
-	ClientID     string   `json:"clientID"`
-	ClientSecret string   `json:"clientSecret"`
-	RedirectURI  string   `json:"redirectURI"`
-	Groups       []string `json:"groups"`
-	InsecureCA   bool     `json:"insecureCA"`
-	RootCA       string   `json:"rootCA"`
+	Issuer                  string   `json:"issuer"`
+	ClientID                string   `json:"clientID"`
+	ClientSecret            string   `json:"clientSecret"`
+	RedirectURI             string   `json:"redirectURI"`
+	Groups                  []string `json:"groups"`
+	InsecureCA              bool     `json:"insecureCA"`
+	RootCA                  string   `json:"rootCA"`
+	ServiceAccountTokenFile string   `json:"serviceAccountTokenFile"`
 }
 
 var (
@@ -39,17 +41,18 @@ var (
 )
 
 type openshiftConnector struct {
-	apiURL       string
-	redirectURI  string
-	clientID     string
-	clientSecret string
-	cancel       context.CancelFunc
-	logger       *slog.Logger
-	httpClient   *http.Client
-	oauth2Config *oauth2.Config
-	insecureCA   bool
-	rootCA       string
-	groups       []string
+	apiURL                  string
+	redirectURI             string
+	clientID                string
+	clientSecret            string
+	cancel                  context.CancelFunc
+	logger                  *slog.Logger
+	httpClient              *http.Client
+	oauth2Config            *oauth2.Config
+	insecureCA              bool
+	rootCA                  string
+	groups                  []string
+	serviceAccountTokenFile string
 }
 
 type user struct {
@@ -81,6 +84,21 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 func (c *Config) OpenWithHTTPClient(id string, logger *slog.Logger,
 	httpClient *http.Client,
 ) (conn connector.Connector, err error) {
+	if c.ClientSecret != "" && c.ServiceAccountTokenFile != "" {
+		return nil, fmt.Errorf("invalid config: clientSecret and serviceAccountTokenFile are mutually exclusive")
+	}
+	if c.ClientSecret == "" && c.ServiceAccountTokenFile == "" {
+		return nil, fmt.Errorf("invalid config: one of clientSecret or serviceAccountTokenFile must be specified")
+	}
+
+	clientSecret := c.ClientSecret
+	if c.ServiceAccountTokenFile != "" {
+		tokenBytes, err := os.ReadFile(c.ServiceAccountTokenFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read service account token file %q: %w", c.ServiceAccountTokenFile, err)
+		}
+		clientSecret = strings.TrimSpace(string(tokenBytes))
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -91,16 +109,17 @@ func (c *Config) OpenWithHTTPClient(id string, logger *slog.Logger,
 	}
 
 	openshiftConnector := openshiftConnector{
-		apiURL:       c.Issuer,
-		cancel:       cancel,
-		clientID:     c.ClientID,
-		clientSecret: c.ClientSecret,
-		insecureCA:   c.InsecureCA,
-		logger:       logger.With(slog.Group("connector", "type", "openshift", "id", id)),
-		redirectURI:  c.RedirectURI,
-		rootCA:       c.RootCA,
-		groups:       c.Groups,
-		httpClient:   httpClient,
+		apiURL:                  c.Issuer,
+		cancel:                  cancel,
+		clientID:                c.ClientID,
+		clientSecret:            c.ClientSecret,
+		insecureCA:              c.InsecureCA,
+		logger:                  logger.With(slog.Group("connector", "type", "openshift", "id", id)),
+		redirectURI:             c.RedirectURI,
+		rootCA:                  c.RootCA,
+		groups:                  c.Groups,
+		httpClient:              httpClient,
+		serviceAccountTokenFile: c.ServiceAccountTokenFile,
 	}
 
 	var metadata struct {
@@ -122,7 +141,7 @@ func (c *Config) OpenWithHTTPClient(id string, logger *slog.Logger,
 
 	openshiftConnector.oauth2Config = &oauth2.Config{
 		ClientID:     c.ClientID,
-		ClientSecret: c.ClientSecret,
+		ClientSecret: clientSecret,
 		Endpoint: oauth2.Endpoint{
 			AuthURL: metadata.Auth, TokenURL: metadata.Token,
 		},
@@ -173,7 +192,12 @@ func (c *openshiftConnector) HandleCallback(s connector.Scopes,
 		ctx = context.WithValue(r.Context(), oauth2.HTTPClient, c.httpClient)
 	}
 
-	token, err := c.oauth2Config.Exchange(ctx, q.Get("code"))
+	oauth2Cfg, err := c.currentOAuth2Config()
+	if err != nil {
+		return identity, err
+	}
+
+	token, err := oauth2Cfg.Exchange(ctx, q.Get("code"))
 	if err != nil {
 		return identity, fmt.Errorf("oidc: failed to get token: %v", err)
 	}
@@ -198,7 +222,11 @@ func (c *openshiftConnector) Refresh(ctx context.Context, s connector.Scopes,
 func (c *openshiftConnector) identity(ctx context.Context, s connector.Scopes,
 	token *oauth2.Token,
 ) (identity connector.Identity, err error) {
-	client := c.oauth2Config.Client(ctx, token)
+	oauth2Cfg, err := c.currentOAuth2Config()
+	if err != nil {
+		return identity, err
+	}
+	client := oauth2Cfg.Client(ctx, token)
 	user, err := c.user(ctx, client)
 	if err != nil {
 		return identity, fmt.Errorf("openshift: get user: %v", err)
@@ -259,6 +287,22 @@ func (c *openshiftConnector) user(ctx context.Context, client *http.Client) (u u
 	}
 
 	return u, err
+}
+
+// currentOAuth2Config returns the oauth2 config with the current client secret.
+// When a service account token file is configured, the token is re-read from
+// disk on each call so that rotated tokens are picked up without a restart.
+func (c *openshiftConnector) currentOAuth2Config() (*oauth2.Config, error) {
+	if c.serviceAccountTokenFile == "" {
+		return c.oauth2Config, nil
+	}
+	tokenBytes, err := os.ReadFile(c.serviceAccountTokenFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read service account token file %q: %w", c.serviceAccountTokenFile, err)
+	}
+	cfg := *c.oauth2Config
+	cfg.ClientSecret = strings.TrimSpace(string(tokenBytes))
+	return &cfg, nil
 }
 
 func validateAllowedGroups(userGroups, allowedGroups []string) bool {

@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
@@ -256,6 +258,133 @@ func TestRefreshIdentityFailure(t *testing.T) {
 	identity, err := oc.Refresh(context.Background(), connector.Scopes{Groups: true}, oldID)
 	expectNotNil(t, err)
 	expectEquals(t, connector.Identity{}, identity)
+}
+
+func TestOpenWithServiceAccountTokenFile(t *testing.T) {
+	s := newTestServer(map[string]interface{}{})
+	defer s.Close()
+
+	tokenFile := filepath.Join(t.TempDir(), "token")
+	os.WriteFile(tokenFile, []byte("sa-token-from-file\n"), 0o600)
+
+	c := Config{
+		Issuer:                  s.URL,
+		ClientID:                "testClientId",
+		ServiceAccountTokenFile: tokenFile,
+		RedirectURI:             "https://localhost/callback",
+		InsecureCA:              true,
+	}
+
+	logger := slog.New(slog.DiscardHandler)
+	oconfig, err := c.Open("id", logger)
+
+	expectNil(t, err)
+	oc, ok := oconfig.(*openshiftConnector)
+	expectEquals(t, ok, true)
+	expectEquals(t, oc.clientSecret, "sa-token-from-file")
+	expectEquals(t, oc.serviceAccountTokenFile, tokenFile)
+	expectEquals(t, oc.oauth2Config.ClientSecret, "sa-token-from-file")
+}
+
+func TestOpenFailsBothClientSecretAndTokenFile(t *testing.T) {
+	s := newTestServer(map[string]interface{}{})
+	defer s.Close()
+
+	tokenFile := filepath.Join(t.TempDir(), "token")
+	os.WriteFile(tokenFile, []byte("sa-token"), 0o600)
+
+	c := Config{
+		Issuer:                  s.URL,
+		ClientID:                "testClientId",
+		ClientSecret:            "testClientSecret",
+		ServiceAccountTokenFile: tokenFile,
+		RedirectURI:             "https://localhost/callback",
+		InsecureCA:              true,
+	}
+
+	logger := slog.New(slog.DiscardHandler)
+	_, err := c.Open("id", logger)
+	expectNotNil(t, err)
+}
+
+func TestOpenFailsNeitherClientSecretNorTokenFile(t *testing.T) {
+	s := newTestServer(map[string]interface{}{})
+	defer s.Close()
+
+	c := Config{
+		Issuer:      s.URL,
+		ClientID:    "testClientId",
+		RedirectURI: "https://localhost/callback",
+		InsecureCA:  true,
+	}
+
+	logger := slog.New(slog.DiscardHandler)
+	_, err := c.Open("id", logger)
+	expectNotNil(t, err)
+}
+
+func TestTokenFileRotation(t *testing.T) {
+	s := newTestServer(map[string]interface{}{
+		usersURLPath: user{
+			ObjectMeta: k8sapi.ObjectMeta{
+				Name: "jdoe",
+				UID:  "12345",
+			},
+			FullName: "John Doe",
+			Groups:   []string{"users"},
+		},
+	})
+	defer s.Close()
+
+	tokenFile := filepath.Join(t.TempDir(), "token")
+	os.WriteFile(tokenFile, []byte("initial-token"), 0o600)
+
+	h, err := httpclient.NewHTTPClient(nil, true)
+	expectNil(t, err)
+
+	oc := openshiftConnector{
+		apiURL:                  s.URL,
+		httpClient:              h,
+		serviceAccountTokenFile: tokenFile,
+		oauth2Config: &oauth2.Config{
+			ClientID:     "testClientId",
+			ClientSecret: "initial-token",
+			Endpoint: oauth2.Endpoint{
+				AuthURL:  fmt.Sprintf("%s/oauth/authorize", s.URL),
+				TokenURL: fmt.Sprintf("%s/oauth/token", s.URL),
+			},
+		},
+	}
+
+	cfg1, err := oc.currentOAuth2Config()
+	expectNil(t, err)
+	expectEquals(t, cfg1.ClientSecret, "initial-token")
+
+	os.WriteFile(tokenFile, []byte("rotated-token"), 0o600)
+
+	cfg2, err := oc.currentOAuth2Config()
+	expectNil(t, err)
+	expectEquals(t, cfg2.ClientSecret, "rotated-token")
+
+	// Original config should not be mutated
+	expectEquals(t, oc.oauth2Config.ClientSecret, "initial-token")
+}
+
+func TestCurrentOAuth2ConfigWithoutTokenFile(t *testing.T) {
+	oauth2Cfg := &oauth2.Config{
+		ClientID:     "testClientId",
+		ClientSecret: "static-secret",
+	}
+	oc := openshiftConnector{
+		oauth2Config: oauth2Cfg,
+	}
+
+	cfg, err := oc.currentOAuth2Config()
+	expectNil(t, err)
+	// Should return the same pointer when no token file is configured
+	if cfg != oauth2Cfg {
+		t.Error("expected same oauth2Config pointer when no token file is configured")
+	}
 }
 
 func newTestServer(responses map[string]interface{}) *httptest.Server {
