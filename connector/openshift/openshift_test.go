@@ -260,19 +260,20 @@ func TestRefreshIdentityFailure(t *testing.T) {
 	expectEquals(t, connector.Identity{}, identity)
 }
 
-func TestOpenWithServiceAccountTokenFile(t *testing.T) {
+func TestOpenWithClientSecretFile(t *testing.T) {
 	s := newTestServer(map[string]interface{}{})
 	defer s.Close()
 
-	tokenFile := filepath.Join(t.TempDir(), "token")
-	os.WriteFile(tokenFile, []byte("sa-token-from-file\n"), 0o600)
+	clientSecretFile := filepath.Join(t.TempDir(), "client-secret")
+	err := os.WriteFile(clientSecretFile, []byte("client-secret-from-file\n"), 0o600)
+	expectNil(t, err)
 
 	c := Config{
-		Issuer:                  s.URL,
-		ClientID:                "testClientId",
-		ServiceAccountTokenFile: tokenFile,
-		RedirectURI:             "https://localhost/callback",
-		InsecureCA:              true,
+		Issuer:           s.URL,
+		ClientID:         "testClientId",
+		ClientSecretFile: clientSecretFile,
+		RedirectURI:      "https://localhost/callback",
+		InsecureCA:       true,
 	}
 
 	logger := slog.New(slog.DiscardHandler)
@@ -281,33 +282,34 @@ func TestOpenWithServiceAccountTokenFile(t *testing.T) {
 	expectNil(t, err)
 	oc, ok := oconfig.(*openshiftConnector)
 	expectEquals(t, ok, true)
-	expectEquals(t, oc.clientSecret, "sa-token-from-file")
-	expectEquals(t, oc.serviceAccountTokenFile, tokenFile)
-	expectEquals(t, oc.oauth2Config.ClientSecret, "sa-token-from-file")
+	expectEquals(t, oc.clientSecret, "")
+	expectEquals(t, oc.clientSecretFile, clientSecretFile)
+	expectEquals(t, oc.oauth2Config.ClientSecret, "client-secret-from-file")
 }
 
-func TestOpenFailsBothClientSecretAndTokenFile(t *testing.T) {
+func TestOpenFailsBothClientSecretAndClientSecretFile(t *testing.T) {
 	s := newTestServer(map[string]interface{}{})
 	defer s.Close()
 
-	tokenFile := filepath.Join(t.TempDir(), "token")
-	os.WriteFile(tokenFile, []byte("sa-token"), 0o600)
+	clientSecretFile := filepath.Join(t.TempDir(), "client-secret")
+	err := os.WriteFile(clientSecretFile, []byte("client-secret"), 0o600)
+	expectNil(t, err)
 
 	c := Config{
-		Issuer:                  s.URL,
-		ClientID:                "testClientId",
-		ClientSecret:            "testClientSecret",
-		ServiceAccountTokenFile: tokenFile,
-		RedirectURI:             "https://localhost/callback",
-		InsecureCA:              true,
+		Issuer:           s.URL,
+		ClientID:         "testClientId",
+		ClientSecret:     "testClientSecret",
+		ClientSecretFile: clientSecretFile,
+		RedirectURI:      "https://localhost/callback",
+		InsecureCA:       true,
 	}
 
 	logger := slog.New(slog.DiscardHandler)
-	_, err := c.Open("id", logger)
+	_, err = c.Open("id", logger)
 	expectNotNil(t, err)
 }
 
-func TestOpenFailsNeitherClientSecretNorTokenFile(t *testing.T) {
+func TestOpenFailsNeitherClientSecretNorClientSecretFile(t *testing.T) {
 	s := newTestServer(map[string]interface{}{})
 	defer s.Close()
 
@@ -323,7 +325,7 @@ func TestOpenFailsNeitherClientSecretNorTokenFile(t *testing.T) {
 	expectNotNil(t, err)
 }
 
-func TestTokenFileRotation(t *testing.T) {
+func TestClientSecretFileRotation(t *testing.T) {
 	s := newTestServer(map[string]interface{}{
 		usersURLPath: user{
 			ObjectMeta: k8sapi.ObjectMeta{
@@ -336,19 +338,20 @@ func TestTokenFileRotation(t *testing.T) {
 	})
 	defer s.Close()
 
-	tokenFile := filepath.Join(t.TempDir(), "token")
-	os.WriteFile(tokenFile, []byte("initial-token"), 0o600)
+	clientSecretFile := filepath.Join(t.TempDir(), "client-secret")
+	err := os.WriteFile(clientSecretFile, []byte("initial-client-secret"), 0o600)
+	expectNil(t, err)
 
 	h, err := httpclient.NewHTTPClient(nil, true)
 	expectNil(t, err)
 
 	oc := openshiftConnector{
-		apiURL:                  s.URL,
-		httpClient:              h,
-		serviceAccountTokenFile: tokenFile,
+		apiURL:           s.URL,
+		httpClient:       h,
+		clientSecretFile: clientSecretFile,
 		oauth2Config: &oauth2.Config{
 			ClientID:     "testClientId",
-			ClientSecret: "initial-token",
+			ClientSecret: "initial-client-secret",
 			Endpoint: oauth2.Endpoint{
 				AuthURL:  fmt.Sprintf("%s/oauth/authorize", s.URL),
 				TokenURL: fmt.Sprintf("%s/oauth/token", s.URL),
@@ -358,19 +361,20 @@ func TestTokenFileRotation(t *testing.T) {
 
 	cfg1, err := oc.currentOAuth2Config()
 	expectNil(t, err)
-	expectEquals(t, cfg1.ClientSecret, "initial-token")
+	expectEquals(t, cfg1.ClientSecret, "initial-client-secret")
 
-	os.WriteFile(tokenFile, []byte("rotated-token"), 0o600)
+	err = os.WriteFile(clientSecretFile, []byte("rotated-client-secret"), 0o600)
+	expectNil(t, err)
 
 	cfg2, err := oc.currentOAuth2Config()
 	expectNil(t, err)
-	expectEquals(t, cfg2.ClientSecret, "rotated-token")
+	expectEquals(t, cfg2.ClientSecret, "rotated-client-secret")
 
 	// Original config should not be mutated
-	expectEquals(t, oc.oauth2Config.ClientSecret, "initial-token")
+	expectEquals(t, oc.oauth2Config.ClientSecret, "initial-client-secret")
 }
 
-func TestCurrentOAuth2ConfigWithoutTokenFile(t *testing.T) {
+func TestCurrentOAuth2ConfigWithoutClientSecretFile(t *testing.T) {
 	oauth2Cfg := &oauth2.Config{
 		ClientID:     "testClientId",
 		ClientSecret: "static-secret",
@@ -381,9 +385,9 @@ func TestCurrentOAuth2ConfigWithoutTokenFile(t *testing.T) {
 
 	cfg, err := oc.currentOAuth2Config()
 	expectNil(t, err)
-	// Should return the same pointer when no token file is configured
+	// Should return the same pointer when no client secret file is configured
 	if cfg != oauth2Cfg {
-		t.Error("expected same oauth2Config pointer when no token file is configured")
+		t.Error("expected same oauth2Config pointer when no client secret file is configured")
 	}
 }
 
@@ -409,18 +413,21 @@ func newTestServer(responses map[string]interface{}) *httptest.Server {
 }
 
 func expectNil(t *testing.T, a interface{}) {
+	t.Helper()
 	if a != nil {
 		t.Errorf("Expected %+v to equal nil", a)
 	}
 }
 
 func expectEquals(t *testing.T, a interface{}, b interface{}) {
+	t.Helper()
 	if !reflect.DeepEqual(a, b) {
 		t.Errorf("Expected %+v to equal %+v", a, b)
 	}
 }
 
 func expectNotNil(t *testing.T, a interface{}) {
+	t.Helper()
 	if a == nil {
 		t.Errorf("Expected %+v to not equal nil", a)
 	}

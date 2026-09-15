@@ -93,11 +93,11 @@ func (c *Config) OpenWithHTTPClient(id string, logger *slog.Logger,
 
 	clientSecret := c.ClientSecret
 	if c.ClientSecretFile != "" {
-		tokenBytes, err := os.ReadFile(c.ClientSecretFile)
+		clientSecretBytes, err := os.ReadFile(c.ClientSecretFile)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read service account token file %q: %w", c.ClientSecretFile, err)
+			return nil, fmt.Errorf("failed to read client secret file %q: %w", c.ClientSecretFile, err)
 		}
-		clientSecret = strings.TrimSpace(string(tokenBytes))
+		clientSecret = strings.TrimSpace(string(clientSecretBytes))
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -290,18 +290,18 @@ func (c *openshiftConnector) user(ctx context.Context, client *http.Client) (u u
 }
 
 // currentOAuth2Config returns the oauth2 config with the current client secret.
-// When a service account token file is configured, the token is re-read from
-// disk on each call so that rotated tokens are picked up without a restart.
+// When a client secret file is configured, the client secret is re-read from
+// disk on each call so that rotated client secret is picked up without a restart.
 func (c *openshiftConnector) currentOAuth2Config() (*oauth2.Config, error) {
 	if c.clientSecretFile == "" {
 		return c.oauth2Config, nil
 	}
-	tokenBytes, err := os.ReadFile(c.clientSecretFile)
+	clientSecretBytes, err := os.ReadFile(c.clientSecretFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read service account token file %q: %w", c.clientSecretFile, err)
+		return nil, fmt.Errorf("failed to read client secret file %q: %w", c.clientSecretFile, err)
 	}
 	cfg := *c.oauth2Config
-	cfg.ClientSecret = strings.TrimSpace(string(tokenBytes))
+	cfg.ClientSecret = strings.TrimSpace(string(clientSecretBytes))
 	return &cfg, nil
 }
 
