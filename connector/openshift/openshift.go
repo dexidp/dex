@@ -25,14 +25,14 @@ const (
 
 // Config holds configuration options for OpenShift login
 type Config struct {
-	Issuer                  string   `json:"issuer"`
-	ClientID                string   `json:"clientID"`
-	ClientSecret            string   `json:"clientSecret"`
-	RedirectURI             string   `json:"redirectURI"`
-	Groups                  []string `json:"groups"`
-	InsecureCA              bool     `json:"insecureCA"`
-	RootCA                  string   `json:"rootCA"`
-	ServiceAccountTokenFile string   `json:"serviceAccountTokenFile"`
+	Issuer           string   `json:"issuer"`
+	ClientID         string   `json:"clientID"`
+	ClientSecret     string   `json:"clientSecret"`
+	ClientSecretFile string   `json:"clientSecretFile"`
+	RedirectURI      string   `json:"redirectURI"`
+	Groups           []string `json:"groups"`
+	InsecureCA       bool     `json:"insecureCA"`
+	RootCA           string   `json:"rootCA"`
 }
 
 var (
@@ -41,18 +41,18 @@ var (
 )
 
 type openshiftConnector struct {
-	apiURL                  string
-	redirectURI             string
-	clientID                string
-	clientSecret            string
-	cancel                  context.CancelFunc
-	logger                  *slog.Logger
-	httpClient              *http.Client
-	oauth2Config            *oauth2.Config
-	insecureCA              bool
-	rootCA                  string
-	groups                  []string
-	serviceAccountTokenFile string
+	apiURL           string
+	redirectURI      string
+	clientID         string
+	clientSecret     string
+	clientSecretFile string
+	cancel           context.CancelFunc
+	logger           *slog.Logger
+	httpClient       *http.Client
+	oauth2Config     *oauth2.Config
+	insecureCA       bool
+	rootCA           string
+	groups           []string
 }
 
 type user struct {
@@ -84,18 +84,18 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 func (c *Config) OpenWithHTTPClient(id string, logger *slog.Logger,
 	httpClient *http.Client,
 ) (conn connector.Connector, err error) {
-	if c.ClientSecret != "" && c.ServiceAccountTokenFile != "" {
-		return nil, fmt.Errorf("invalid config: clientSecret and serviceAccountTokenFile are mutually exclusive")
+	if c.ClientSecret != "" && c.ClientSecretFile != "" {
+		return nil, fmt.Errorf("invalid config: clientSecret and clientSecretFile are mutually exclusive")
 	}
-	if c.ClientSecret == "" && c.ServiceAccountTokenFile == "" {
-		return nil, fmt.Errorf("invalid config: one of clientSecret or serviceAccountTokenFile must be specified")
+	if c.ClientSecret == "" && c.ClientSecretFile == "" {
+		return nil, fmt.Errorf("invalid config: one of clientSecret or clientSecretFile must be specified")
 	}
 
 	clientSecret := c.ClientSecret
-	if c.ServiceAccountTokenFile != "" {
-		tokenBytes, err := os.ReadFile(c.ServiceAccountTokenFile)
+	if c.ClientSecretFile != "" {
+		tokenBytes, err := os.ReadFile(c.ClientSecretFile)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read service account token file %q: %w", c.ServiceAccountTokenFile, err)
+			return nil, fmt.Errorf("failed to read service account token file %q: %w", c.ClientSecretFile, err)
 		}
 		clientSecret = strings.TrimSpace(string(tokenBytes))
 	}
@@ -109,17 +109,17 @@ func (c *Config) OpenWithHTTPClient(id string, logger *slog.Logger,
 	}
 
 	openshiftConnector := openshiftConnector{
-		apiURL:                  c.Issuer,
-		cancel:                  cancel,
-		clientID:                c.ClientID,
-		clientSecret:            c.ClientSecret,
-		insecureCA:              c.InsecureCA,
-		logger:                  logger.With(slog.Group("connector", "type", "openshift", "id", id)),
-		redirectURI:             c.RedirectURI,
-		rootCA:                  c.RootCA,
-		groups:                  c.Groups,
-		httpClient:              httpClient,
-		serviceAccountTokenFile: c.ServiceAccountTokenFile,
+		apiURL:           c.Issuer,
+		cancel:           cancel,
+		clientID:         c.ClientID,
+		clientSecret:     c.ClientSecret,
+		clientSecretFile: c.ClientSecretFile,
+		insecureCA:       c.InsecureCA,
+		logger:           logger.With(slog.Group("connector", "type", "openshift", "id", id)),
+		redirectURI:      c.RedirectURI,
+		rootCA:           c.RootCA,
+		groups:           c.Groups,
+		httpClient:       httpClient,
 	}
 
 	var metadata struct {
@@ -293,12 +293,12 @@ func (c *openshiftConnector) user(ctx context.Context, client *http.Client) (u u
 // When a service account token file is configured, the token is re-read from
 // disk on each call so that rotated tokens are picked up without a restart.
 func (c *openshiftConnector) currentOAuth2Config() (*oauth2.Config, error) {
-	if c.serviceAccountTokenFile == "" {
+	if c.clientSecretFile == "" {
 		return c.oauth2Config, nil
 	}
-	tokenBytes, err := os.ReadFile(c.serviceAccountTokenFile)
+	tokenBytes, err := os.ReadFile(c.clientSecretFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read service account token file %q: %w", c.serviceAccountTokenFile, err)
+		return nil, fmt.Errorf("failed to read service account token file %q: %w", c.clientSecretFile, err)
 	}
 	cfg := *c.oauth2Config
 	cfg.ClientSecret = strings.TrimSpace(string(tokenBytes))
