@@ -45,3 +45,15 @@ func TestValidateTOTPCode(t *testing.T) {
 	require.True(t, ok)
 	require.Greater(t, nextCounter, counter)
 }
+
+func TestTOTPManualSecret(t *testing.T) {
+	key, err := totp.Generate(totp.GenerateOpts{Issuer: "example", AccountName: "user@example.com"})
+	require.NoError(t, err)
+
+	manualSecret, err := totpManualSecret(key.String())
+	require.NoError(t, err)
+	require.Equal(t, key.Secret(), manualSecret)
+
+	_, err = totpManualSecret("otpauth://totp/%ZZ")
+	require.Error(t, err)
+}
