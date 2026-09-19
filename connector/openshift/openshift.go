@@ -98,6 +98,9 @@ func (c *Config) OpenWithHTTPClient(id string, logger *slog.Logger,
 			return nil, fmt.Errorf("failed to read client secret file %q: %w", c.ClientSecretFile, err)
 		}
 		clientSecret = strings.TrimSpace(string(clientSecretBytes))
+		if clientSecret == "" {
+			return nil, fmt.Errorf("client secret file %q contains no valid secret", c.ClientSecretFile)
+		}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -301,7 +304,11 @@ func (c *openshiftConnector) currentOAuth2Config() (*oauth2.Config, error) {
 		return nil, fmt.Errorf("failed to read client secret file %q: %w", c.clientSecretFile, err)
 	}
 	cfg := *c.oauth2Config
-	cfg.ClientSecret = strings.TrimSpace(string(clientSecretBytes))
+	clientSecret := strings.TrimSpace(string(clientSecretBytes))
+	if clientSecret == "" {
+		return nil, fmt.Errorf("client secret file %q contains no valid secret", c.clientSecretFile)
+	}
+	cfg.ClientSecret = clientSecret
 	return &cfg, nil
 }
 

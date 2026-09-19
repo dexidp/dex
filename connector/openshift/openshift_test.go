@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -391,6 +392,128 @@ func TestCurrentOAuth2ConfigWithoutClientSecretFile(t *testing.T) {
 	}
 }
 
+func TestOpenWithEmptyClientSecretFile(t *testing.T) {
+	s := newTestServer(map[string]interface{}{})
+	defer s.Close()
+
+	clientSecretFile := filepath.Join(t.TempDir(), "client-secret")
+	err := os.WriteFile(clientSecretFile, []byte(""), 0o600)
+	expectNil(t, err)
+
+	c := Config{
+		Issuer:           s.URL,
+		ClientID:         "testClientId",
+		ClientSecretFile: clientSecretFile,
+		RedirectURI:      "https://localhost/callback",
+		InsecureCA:       true,
+	}
+
+	// secret file is empty
+	logger := slog.New(slog.DiscardHandler)
+	connConfig, err := c.Open("id", logger)
+	expectNil(t, connConfig)
+	expectEquals(t, fmt.Sprintf("client secret file %q contains no valid secret", clientSecretFile), err.Error())
+
+	// file contains only whitespace and new line char
+	err = os.WriteFile(clientSecretFile, []byte("\t\n"), 0o600)
+	expectNil(t, err)
+	connConfig, err = c.Open("id", logger)
+	expectNil(t, connConfig)
+	expectEquals(t, fmt.Sprintf("client secret file %q contains no valid secret", clientSecretFile), err.Error())
+}
+
+func TestOpenWithNonExistentClientSecretFile(t *testing.T) {
+	s := newTestServer(map[string]interface{}{})
+	defer s.Close()
+
+	clientSecretFile := filepath.Join(t.TempDir(), "client-secret")
+
+	c := Config{
+		Issuer:           s.URL,
+		ClientID:         "testClientId",
+		ClientSecretFile: clientSecretFile,
+		RedirectURI:      "https://localhost/callback",
+		InsecureCA:       true,
+	}
+
+	// file does not exist
+	logger := slog.New(slog.DiscardHandler)
+	connConfig, err := c.Open("id", logger)
+	expectNil(t, connConfig)
+	expectEquals(t, strings.HasPrefix(err.Error(), fmt.Sprintf("failed to read client secret file %q:", clientSecretFile)), true)
+}
+
+func TestCurrentOAuth2ConfigWithEmptyContents(t *testing.T) {
+	s := newTestServer(map[string]interface{}{})
+	defer s.Close()
+
+	clientSecretFile := filepath.Join(t.TempDir(), "client-secret")
+	err := os.WriteFile(clientSecretFile, []byte("client-secret-from-file"), 0o600)
+	expectNil(t, err)
+
+	c := Config{
+		Issuer:           s.URL,
+		ClientID:         "testClientId",
+		ClientSecretFile: clientSecretFile,
+		RedirectURI:      "https://localhost/callback",
+		InsecureCA:       true,
+	}
+
+	logger := slog.New(slog.DiscardHandler)
+	connConfig, err := c.Open("id", logger)
+	expectNil(t, err)
+	expectNotNil(t, connConfig)
+	ocConnConfig := connConfig.(*openshiftConnector)
+	oAuthConfig, err := ocConnConfig.currentOAuth2Config()
+	expectNil(t, err)
+	expectNotNil(t, oAuthConfig)
+	expectEquals(t, "client-secret-from-file", oAuthConfig.ClientSecret)
+
+	// secret file is empty
+	err = os.WriteFile(clientSecretFile, []byte(""), 0o600)
+	expectNil(t, err)
+
+	oAuthConfig, err = ocConnConfig.currentOAuth2Config()
+	expectNotNil(t, err)
+	expectEquals(t, fmt.Sprintf("client secret file %q contains no valid secret", clientSecretFile), err.Error())
+
+}
+
+func TestCurrentOAuth2ConfigWithNonExistentFile(t *testing.T) {
+	s := newTestServer(map[string]interface{}{})
+	defer s.Close()
+
+	clientSecretFile := filepath.Join(t.TempDir(), "client-secret")
+	err := os.WriteFile(clientSecretFile, []byte("client-secret-from-file"), 0o600)
+	expectNil(t, err)
+
+	c := Config{
+		Issuer:           s.URL,
+		ClientID:         "testClientId",
+		ClientSecretFile: clientSecretFile,
+		RedirectURI:      "https://localhost/callback",
+		InsecureCA:       true,
+	}
+
+	logger := slog.New(slog.DiscardHandler)
+	connConfig, err := c.Open("id", logger)
+	expectNil(t, err)
+	expectNotNil(t, connConfig)
+	ocConnConfig := connConfig.(*openshiftConnector)
+	oAuthConfig, err := ocConnConfig.currentOAuth2Config()
+	expectNil(t, err)
+	expectNotNil(t, oAuthConfig)
+	expectEquals(t, "client-secret-from-file", oAuthConfig.ClientSecret)
+
+	// delete the client secret file
+	err = os.Remove(clientSecretFile)
+	expectNil(t, err)
+
+	oAuthConfig, err = ocConnConfig.currentOAuth2Config()
+	expectNotNil(t, err)
+	expectEquals(t, strings.HasPrefix(err.Error(), fmt.Sprintf("failed to read client secret file %q:", clientSecretFile)), true)
+}
+
 func newTestServer(responses map[string]interface{}) *httptest.Server {
 	var s *httptest.Server
 	s = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -406,7 +529,7 @@ func newTestServer(responses map[string]interface{}) *httptest.Server {
 
 		response := responses[r.RequestURI]
 		w.Header().Add("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 
 	return s
