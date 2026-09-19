@@ -392,7 +392,7 @@ func TestCurrentOAuth2ConfigWithoutClientSecretFile(t *testing.T) {
 	}
 }
 
-func TestOpenWithEmptyClientSecretFile(t *testing.T) {
+func TestOpenFailsWithEmptyClientSecretFile(t *testing.T) {
 	s := newTestServer(map[string]interface{}{})
 	defer s.Close()
 
@@ -412,17 +412,17 @@ func TestOpenWithEmptyClientSecretFile(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 	connConfig, err := c.Open("id", logger)
 	expectNil(t, connConfig)
-	expectEquals(t, fmt.Sprintf("client secret file %q contains no valid secret", clientSecretFile), err.Error())
+	expectEquals(t, err.Error(), fmt.Sprintf("client secret file %q contains no valid secret", clientSecretFile))
 
 	// file contains only whitespace and new line char
 	err = os.WriteFile(clientSecretFile, []byte("\t\n"), 0o600)
 	expectNil(t, err)
 	connConfig, err = c.Open("id", logger)
 	expectNil(t, connConfig)
-	expectEquals(t, fmt.Sprintf("client secret file %q contains no valid secret", clientSecretFile), err.Error())
+	expectEquals(t, err.Error(), fmt.Sprintf("client secret file %q contains no valid secret", clientSecretFile))
 }
 
-func TestOpenWithNonExistentClientSecretFile(t *testing.T) {
+func TestOpenFailsWithNonExistentClientSecretFile(t *testing.T) {
 	s := newTestServer(map[string]interface{}{})
 	defer s.Close()
 
@@ -443,7 +443,7 @@ func TestOpenWithNonExistentClientSecretFile(t *testing.T) {
 	expectEquals(t, strings.HasPrefix(err.Error(), fmt.Sprintf("failed to read client secret file %q:", clientSecretFile)), true)
 }
 
-func TestCurrentOAuth2ConfigWithEmptyContents(t *testing.T) {
+func TestCurrentOAuth2ConfigFailsWithEmptyClientSecretFile(t *testing.T) {
 	s := newTestServer(map[string]interface{}{})
 	defer s.Close()
 
@@ -479,7 +479,7 @@ func TestCurrentOAuth2ConfigWithEmptyContents(t *testing.T) {
 
 }
 
-func TestCurrentOAuth2ConfigWithNonExistentFile(t *testing.T) {
+func TestCurrentOAuth2ConfigFailsWithNonExistentClientSecretFile(t *testing.T) {
 	s := newTestServer(map[string]interface{}{})
 	defer s.Close()
 
@@ -503,7 +503,7 @@ func TestCurrentOAuth2ConfigWithNonExistentFile(t *testing.T) {
 	oAuthConfig, err := ocConnConfig.currentOAuth2Config()
 	expectNil(t, err)
 	expectNotNil(t, oAuthConfig)
-	expectEquals(t, "client-secret-from-file", oAuthConfig.ClientSecret)
+	expectEquals(t, oAuthConfig.ClientSecret, "client-secret-from-file")
 
 	// delete the client secret file
 	err = os.Remove(clientSecretFile)
