@@ -476,7 +476,6 @@ func TestCurrentOAuth2ConfigFailsWithEmptyClientSecretFile(t *testing.T) {
 	oAuthConfig, err = ocConnConfig.currentOAuth2Config()
 	expectNotNil(t, err)
 	expectEquals(t, fmt.Sprintf("client secret file %q contains no valid secret", clientSecretFile), err.Error())
-
 }
 
 func TestCurrentOAuth2ConfigFailsWithNonExistentClientSecretFile(t *testing.T) {
