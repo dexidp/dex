@@ -69,7 +69,7 @@ type reloadingTransport struct {
 	systemRoots        *x509.CertPool  // startup roots, never mutated
 	insecureSkipVerify bool
 
-	// ponytail: a single mutex serializes the local file reads of all requests
+	// A single mutex serializes the local file reads of all requests
 	// on this client; split it only if profiling ever shows contention.
 	mu      sync.Mutex
 	sources []caSource
