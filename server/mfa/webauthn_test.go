@@ -13,7 +13,7 @@ import (
 )
 
 func TestWebAuthnHandlersMissingHMAC(t *testing.T) {
-	provider, err := NewWebAuthnProvider("Test", "", nil, "", "", "http://127.0.0.1", nil)
+	provider, err := NewWebAuthnProvider("Test", "", nil, "", "", "http://localhost", nil)
 	require.NoError(t, err)
 
 	_, router, _ := newTestHandler(t, map[string]Provider{"webauthn-1": provider}, []string{"webauthn-1"})
@@ -36,7 +36,7 @@ func TestWebAuthnHandlersMissingHMAC(t *testing.T) {
 }
 
 func TestWebAuthnVerifyPageRender(t *testing.T) {
-	provider, err := NewWebAuthnProvider("Test", "", nil, "", "", "http://127.0.0.1", nil)
+	provider, err := NewWebAuthnProvider("Test", "", nil, "", "", "http://localhost", nil)
 	require.NoError(t, err)
 
 	_, router, store := newTestHandler(t, map[string]Provider{"webauthn-1": provider}, []string{"webauthn-1"})

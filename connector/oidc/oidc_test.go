@@ -888,7 +888,7 @@ func setupServer(tok map[string]interface{}, idTokenDesired bool) (*httptest.Ser
 	mux.HandleFunc("/keys", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(&map[string]interface{}{
 			"keys": []map[string]interface{}{{
-				"alg": jwk.Algorithm,
+				"alg": "RS256",
 				"kty": jwk.Algorithm,
 				"kid": jwk.KeyID,
 				"n":   n(&key.PublicKey),
