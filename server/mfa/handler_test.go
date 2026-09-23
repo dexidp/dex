@@ -51,11 +51,11 @@ func newTestHandler(t *testing.T, providers map[string]Provider, defaultChain []
 	//nolint:dogsled // only the templates are needed here
 	_, _, _, tmpls, err := templates.LoadWebConfig(templates.Config{
 		WebFS:     dexweb.FS(),
-		IssuerURL: "http://127.0.0.1",
+		IssuerURL: "http://localhost",
 	})
 	require.NoError(t, err)
 
-	issuerURL, err := url.Parse("http://127.0.0.1")
+	issuerURL, err := url.Parse("http://localhost")
 	require.NoError(t, err)
 
 	conns := connectors.NewCache(store, resolveTestConnector)
@@ -89,7 +89,7 @@ func randomHMACKey(t *testing.T) []byte {
 }
 
 func TestCompleteStep(t *testing.T) {
-	provider, err := NewWebAuthnProvider("Test", "", nil, "", "", "http://127.0.0.1", nil)
+	provider, err := NewWebAuthnProvider("Test", "", nil, "", "", "http://localhost", nil)
 	require.NoError(t, err)
 
 	h, _, store := newTestHandler(t,
