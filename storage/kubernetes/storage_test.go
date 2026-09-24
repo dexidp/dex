@@ -234,6 +234,23 @@ func TestUpdateKeys(t *testing.T) {
 	}
 }
 
+func TestRegisterCustomResourcesSkip(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("unexpected request to server: %s %s", r.Method, r.URL)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer s.Close()
+
+	cli := &client{
+		client:      &http.Client{},
+		baseURL:     s.URL,
+		logger:      slog.New(slog.DiscardHandler),
+		crdHandling: crdHandlingSkip,
+	}
+
+	require.True(t, cli.registerCustomResources())
+}
+
 func newStatusCodesResponseTestClient(getResponseCode, actionResponseCode int) *client {
 	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
