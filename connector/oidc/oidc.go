@@ -603,6 +603,9 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		return identity, errors.New("oidc: no id_token in token response")
 	}
 
+	// Keep the verified ID Token subject to compare against the userinfo response below.
+	idTokenSubject, _ := claims["sub"].(string)
+
 	// We immediately want to run getUserInfo if configured before we validate the claims.
 	// For token exchanges with access tokens, this is how we verify the token.
 	if c.getUserInfo {
@@ -615,6 +618,11 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		}
 		if err := userInfo.Claims(&claims); err != nil {
 			return identity, fmt.Errorf("oidc: failed to decode userinfo claims: %v", err)
+		}
+
+		// The userinfo sub must match the ID Token sub (OpenID Connect Core 5.3.2).
+		if userInfoSubject, _ := claims["sub"].(string); idTokenSubject != "" && userInfoSubject != idTokenSubject {
+			return identity, fmt.Errorf("oidc: userinfo sub %q does not match id_token sub %q", userInfoSubject, idTokenSubject)
 		}
 	}
 

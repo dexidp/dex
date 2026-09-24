@@ -871,7 +871,7 @@ func TestProviderOverride(t *testing.T) {
 	})
 }
 
-func setupServer(tok map[string]interface{}, idTokenDesired bool) (*httptest.Server, error) {
+func setupServer(tok map[string]interface{}, idTokenDesired bool, userInfoOverride ...map[string]interface{}) (*httptest.Server, error) {
 	key, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate rsa key: %v", err)
@@ -922,9 +922,14 @@ func setupServer(tok map[string]interface{}, idTokenDesired bool) (*httptest.Ser
 		}
 	})
 
+	userInfo := tok
+	if len(userInfoOverride) > 0 {
+		userInfo = userInfoOverride[0]
+	}
+
 	mux.HandleFunc("/userinfo", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(tok)
+		json.NewEncoder(w).Encode(userInfo)
 	})
 
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
@@ -1117,4 +1122,73 @@ func TestEndSessionURLOverride(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, "https://custom.example.com/logout", conn.endSessionURL)
+}
+
+func TestHandleCallbackUserInfoSubMatch(t *testing.T) {
+	tests := []struct {
+		name string
+		// When set, the userinfo endpoint returns this sub instead of the ID Token's.
+		userInfoSub string
+		expectError bool
+	}{
+		{
+			name: "userinfo sub matches id_token sub",
+		},
+		{
+			name:        "userinfo sub differs from id_token sub",
+			userInfoSub: "other-subvalue",
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var userInfoOverride []map[string]interface{}
+			if tc.userInfoSub != "" {
+				userInfoOverride = append(userInfoOverride, map[string]interface{}{"sub": tc.userInfoSub})
+			}
+
+			testServer, err := setupServer(map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"email":          "emailvalue",
+				"email_verified": true,
+			}, true, userInfoOverride...)
+			if err != nil {
+				t.Fatal("failed to setup test server", err)
+			}
+			defer testServer.Close()
+
+			basicAuth := true
+			conn, err := newConnector(Config{
+				Issuer:               testServer.URL,
+				ClientID:             "clientID",
+				ClientSecret:         "clientSecret",
+				RedirectURI:          fmt.Sprintf("%s/callback", testServer.URL),
+				GetUserInfo:          true,
+				BasicAuthUnsupported: &basicAuth,
+			})
+			if err != nil {
+				t.Fatal("failed to create new connector", err)
+			}
+
+			req, err := newRequestWithAuthCode(testServer.URL, "someCode")
+			if err != nil {
+				t.Fatal("failed to create request", err)
+			}
+
+			connectorData := []byte(`{"codeChallenge":"","codeChallengeMethod":""}`)
+			identity, err := conn.HandleCallback(connector.Scopes{}, connectorData, req)
+			if tc.expectError {
+				if err == nil {
+					t.Fatalf("expected the userinfo sub mismatch to be rejected, got identity %+v", identity)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal("handle callback failed", err)
+			}
+			expectEquals(t, identity.UserID, "subvalue")
+		})
+	}
 }
