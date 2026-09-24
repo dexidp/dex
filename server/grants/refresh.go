@@ -108,13 +108,23 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 	// upstream provider: use the claims cached in UserIdentity at the last login
 	// instead of contacting the connector (which may fail if the upstream token
 	// has expired). Otherwise re-read the identity from the connector.
+	//
+	// The connector data is resolved before Rotate starts: Rotate invokes
+	// freshIdentity from inside the UpdateRefreshToken transaction, and the
+	// SQLite storage pools a single connection (SetMaxOpenConns(1)), so a
+	// storage read issued from that callback waits forever for the connection
+	// the transaction already holds.
+	var connectorData []byte
+	var connectorDataErr error
+	if userIdent == nil {
+		connectorData, connectorDataErr = g.refreshConnectorData(ctx, refreshToken)
+	}
 	freshIdentity := func(ctx context.Context) (connector.Identity, error) {
 		if userIdent != nil {
 			return tokens.IdentityFromClaims(userIdent.Claims), nil
 		}
-		connectorData, err := g.refreshConnectorData(ctx, refreshToken)
-		if err != nil {
-			return connector.Identity{}, err
+		if connectorDataErr != nil {
+			return connector.Identity{}, connectorDataErr
 		}
 		return g.refreshWithConnector(ctx, conn, connectorData, scopes, tokens.IdentityFromClaims(refreshToken.Claims))
 	}
