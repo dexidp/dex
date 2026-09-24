@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -27,11 +28,17 @@ func (d dexAPI) CreatePassword(ctx context.Context, req *api.CreatePasswordReq) 
 		return nil, errors.New("no hash of password supplied")
 	}
 
+	groups, err := normalizeGroups(req.Password.Groups)
+	if err != nil {
+		return nil, err
+	}
+
 	p := storage.Password{
 		Email:    req.Password.Email,
 		Hash:     req.Password.Hash,
 		Username: req.Password.Username,
 		UserID:   req.Password.UserId,
+		Groups:   groups,
 	}
 	if err := d.s.CreatePassword(ctx, p); err != nil {
 		if err == storage.ErrAlreadyExists {
@@ -48,7 +55,9 @@ func (d dexAPI) UpdatePassword(ctx context.Context, req *api.UpdatePasswordReq) 
 	if req.Email == "" {
 		return nil, errors.New("no email supplied")
 	}
-	if req.NewHash == nil && req.NewUsername == "" {
+	// An empty new_groups arrives as nil (proto3 does not encode empty repeated fields),
+	// so groups can be replaced but not cleared through this call.
+	if req.NewHash == nil && req.NewUsername == "" && req.NewGroups == nil {
 		return nil, errors.New("nothing to update")
 	}
 
@@ -58,6 +67,11 @@ func (d dexAPI) UpdatePassword(ctx context.Context, req *api.UpdatePasswordReq) 
 		}
 	}
 
+	newGroups, err := normalizeGroups(req.NewGroups)
+	if err != nil {
+		return nil, err
+	}
+
 	updater := func(old storage.Password) (storage.Password, error) {
 		if req.NewHash != nil {
 			old.Hash = req.NewHash
@@ -65,6 +79,10 @@ func (d dexAPI) UpdatePassword(ctx context.Context, req *api.UpdatePasswordReq) 
 
 		if req.NewUsername != "" {
 			old.Username = req.NewUsername
+		}
+
+		if newGroups != nil {
+			old.Groups = newGroups
 		}
 
 		return old, nil
@@ -79,6 +97,15 @@ func (d dexAPI) UpdatePassword(ctx context.Context, req *api.UpdatePasswordReq) 
 	}
 
 	return &api.UpdatePasswordResp{}, nil
+}
+
+func normalizeGroups(groups []string) ([]string, error) {
+	if slices.Contains(groups, "") {
+		return nil, errors.New("group names must not be empty")
+	}
+	normalized := slices.Clone(groups)
+	slices.Sort(normalized)
+	return slices.Compact(normalized), nil
 }
 
 func (d dexAPI) DeletePassword(ctx context.Context, req *api.DeletePasswordReq) (*api.DeletePasswordResp, error) {
@@ -110,6 +137,7 @@ func (d dexAPI) ListPasswords(ctx context.Context, req *api.ListPasswordReq) (*a
 			Email:    password.Email,
 			Username: password.Username,
 			UserId:   password.UserID,
+			Groups:   password.Groups,
 		}
 		passwords = append(passwords, &p)
 	}
