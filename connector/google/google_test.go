@@ -449,3 +449,112 @@ func TestPromptTypeConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestIdentityFromClaims(t *testing.T) {
+	ts := testSetup()
+	defer ts.Close()
+
+	serviceAccountFilePath, err := tempServiceAccountKey()
+	assert.Nil(t, err)
+
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", serviceAccountFilePath)
+	conn, err := newConnector(&Config{
+		ClientID:           "testClient",
+		ClientSecret:       "testSecret",
+		RedirectURI:        ts.URL + "/callback",
+		Scopes:             []string{"openid", "groups"},
+		DomainToAdminEmail: map[string]string{"*": "admin@dexidp.com"},
+		Groups:             []string{"groups_1@dexidp.com"},
+	})
+	assert.Nil(t, err)
+
+	conn.adminSrv[wildcardDomainToAdminEmail], err = admin.NewService(context.Background(), option.WithoutAuthentication(), option.WithEndpoint(ts.URL))
+	assert.Nil(t, err)
+
+	type testCase struct {
+		scopes      connector.Scopes
+		claims      googleClaims
+		subject     string
+		expectedErr string
+		expectID    connector.Identity
+	}
+
+	for name, tc := range map[string]testCase{
+		"groups_fetched_and_filtered": {
+			scopes:  connector.Scopes{Groups: true},
+			claims:  googleClaims{Username: "User One", Email: "user_1@dexidp.com", EmailVerified: true},
+			subject: "user-1-id",
+			expectID: connector.Identity{
+				UserID:        "user-1-id",
+				Username:      "User One",
+				Email:         "user_1@dexidp.com",
+				EmailVerified: true,
+				Groups:        []string{"groups_1@dexidp.com"},
+				ConnectorData: []byte(""),
+			},
+		},
+		"groups_not_requested": {
+			scopes:  connector.Scopes{Groups: false},
+			claims:  googleClaims{Username: "User One", Email: "user_1@dexidp.com", EmailVerified: true},
+			subject: "user-1-id",
+			expectID: connector.Identity{
+				UserID:        "user-1-id",
+				Username:      "User One",
+				Email:         "user_1@dexidp.com",
+				EmailVerified: true,
+				ConnectorData: []byte(""),
+			},
+		},
+		"user_not_in_allowed_group": {
+			scopes:      connector.Scopes{Groups: true},
+			claims:      googleClaims{Username: "Groups Zero", Email: "groups_0@dexidp.com", EmailVerified: true},
+			subject:     "groups-0-id",
+			expectedErr: "is not in any of the required groups",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			identity, err := conn.identityFromClaims(tc.scopes, tc.subject, tc.claims, "")
+			if tc.expectedErr != "" {
+				assert.ErrorContains(t, err, tc.expectedErr)
+				return
+			}
+			assert.Nil(t, err)
+			assert.Equal(t, tc.expectID, identity)
+		})
+	}
+}
+
+func TestIdentityFromClaimsHostedDomain(t *testing.T) {
+	ts := testSetup()
+	defer ts.Close()
+
+	conn, err := newConnector(&Config{
+		ClientID:      "testClient",
+		ClientSecret:  "testSecret",
+		RedirectURI:   ts.URL + "/callback",
+		HostedDomains: []string{"dexidp.com"},
+	})
+	assert.Nil(t, err)
+
+	_, err = conn.identityFromClaims(connector.Scopes{}, "user-1-id", googleClaims{Email: "user@other.com", HostedDomain: "other.com"}, "")
+	assert.ErrorContains(t, err, "unexpected hd claim")
+
+	identity, err := conn.identityFromClaims(connector.Scopes{}, "user-1-id", googleClaims{Email: "user@dexidp.com", HostedDomain: "dexidp.com"}, "refresh-token")
+	assert.Nil(t, err)
+	assert.Equal(t, []byte("refresh-token"), identity.ConnectorData)
+}
+
+func TestTokenIdentityUnknownTokenType(t *testing.T) {
+	ts := testSetup()
+	defer ts.Close()
+
+	conn, err := newConnector(&Config{
+		ClientID:     "testClient",
+		ClientSecret: "testSecret",
+		RedirectURI:  ts.URL + "/callback",
+	})
+	assert.Nil(t, err)
+
+	_, err = conn.TokenIdentity(context.Background(), "urn:ietf:params:oauth:token-type:saml2", "some-token")
+	assert.ErrorContains(t, err, "unknown token type for token exchange")
+}
