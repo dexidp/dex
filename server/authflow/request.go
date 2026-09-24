@@ -126,6 +126,17 @@ func isHostLocal(host string) bool {
 	return host == "localhost" || net.ParseIP(host).IsLoopback()
 }
 
+func authorizationGrantTypes(responseTypes []string) []string {
+	grantTypes := make([]string, 0, 2)
+	if slices.Contains(responseTypes, oauth2.ResponseTypeCode) {
+		grantTypes = append(grantTypes, oauth2.GrantTypeAuthorizationCode)
+	}
+	if slices.Contains(responseTypes, oauth2.ResponseTypeToken) || slices.Contains(responseTypes, oauth2.ResponseTypeIDToken) {
+		grantTypes = append(grantTypes, oauth2.GrantTypeImplicit)
+	}
+	return grantTypes
+}
+
 func validateConnectorID(connectors []storage.Connector, connectorID string) bool {
 	for _, c := range connectors {
 		if c.ID == connectorID {
@@ -222,6 +233,20 @@ func (h *Handler) parseAuthorizationRequest(r *http.Request) (*storage.AuthReque
 	newredirectedAuthErr := func(typ, format string, a ...interface{}) *redirectedAuthErr {
 		return &redirectedAuthErr{state, redirectURI, typ, fmt.Sprintf(format, a...)}
 	}
+	if len(responseTypes) == 0 {
+		return nil, "", newredirectedAuthErr(oauth2.InvalidRequest, "No response_type provided")
+	}
+	if !client.AllowsScopes(scopes) {
+		return nil, "", newredirectedAuthErr(oauth2.InvalidScope, "Client did not register all requested scopes.")
+	}
+	if !client.AllowsResponseType(responseTypes) {
+		return nil, "", newredirectedAuthErr(oauth2.UnauthorizedClient, "Client did not register the requested response type.")
+	}
+	for _, grantType := range authorizationGrantTypes(responseTypes) {
+		if !client.AllowsGrantType(grantType) {
+			return nil, "", newredirectedAuthErr(oauth2.UnauthorizedClient, "Client did not register the grant type required by the requested response type.")
+		}
+	}
 
 	if connectorID != "" {
 		connectors, err := h.Storage.ListConnectors(ctx)
@@ -247,7 +272,16 @@ func (h *Handler) parseAuthorizationRequest(r *http.Request) (*storage.AuthReque
 		return nil, "", newredirectedAuthErr(oauth2.InvalidRequest, "Unsupported PKCE challenge method (%q).", codeChallengeMethod)
 	}
 
-	// Enforce PKCE if configured.
+	// Public RFC 7591 clients cannot authenticate at the token endpoint, so bind
+	// every authorization code to an S256 verifier even when PKCE is optional for
+	// legacy clients.
+	dynamicPublicCodeFlow := client.DynamicallyRegistered && client.Public &&
+		slices.Contains(responseTypes, oauth2.ResponseTypeCode)
+	if dynamicPublicCodeFlow && (codeChallenge == "" || codeChallengeMethod != oauth2.PKCEMethodS256) {
+		return nil, "", newredirectedAuthErr(oauth2.InvalidRequest, "Public dynamically registered clients must use the S256 PKCE challenge method.")
+	}
+
+	// Enforce PKCE globally if configured.
 	// https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-12#section-4.1.1
 	if h.PKCE.Enforce && codeChallenge == "" {
 		return nil, "", newredirectedAuthErr(oauth2.InvalidRequest, "PKCE is required. The code_challenge parameter must be provided.")
@@ -310,10 +344,6 @@ func (h *Handler) parseAuthorizationRequest(r *http.Request) (*storage.AuthReque
 		if !h.SupportedResponseTypes[responseType] {
 			return nil, "", newredirectedAuthErr(oauth2.UnsupportedResponseType, "Unsupported response type %q", responseType)
 		}
-	}
-
-	if len(responseTypes) == 0 {
-		return nil, "", newredirectedAuthErr(oauth2.InvalidRequest, "No response_type provided")
 	}
 
 	if rt.token && !rt.code && !rt.idToken {

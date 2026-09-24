@@ -202,24 +202,32 @@ func init() {
 	keys.IDValidator = keysDescID.Validators[0].(func(string) error)
 	oauth2clientFields := schema.OAuth2Client{}.Fields()
 	_ = oauth2clientFields
-	// oauth2clientDescSecret is the schema descriptor for secret field.
-	oauth2clientDescSecret := oauth2clientFields[1].Descriptor()
-	// oauth2client.SecretValidator is a validator for the "secret" field. It is called by the builders before save.
-	oauth2client.SecretValidator = oauth2clientDescSecret.Validators[0].(func(string) error)
-	// oauth2clientDescName is the schema descriptor for name field.
-	oauth2clientDescName := oauth2clientFields[5].Descriptor()
-	// oauth2client.NameValidator is a validator for the "name" field. It is called by the builders before save.
-	oauth2client.NameValidator = oauth2clientDescName.Validators[0].(func(string) error)
-	// oauth2clientDescLogoURL is the schema descriptor for logo_url field.
-	oauth2clientDescLogoURL := oauth2clientFields[6].Descriptor()
-	// oauth2client.LogoURLValidator is a validator for the "logo_url" field. It is called by the builders before save.
-	oauth2client.LogoURLValidator = oauth2clientDescLogoURL.Validators[0].(func(string) error)
+	// oauth2clientDescDynamicallyRegistered is the schema descriptor for dynamically_registered field.
+	oauth2clientDescDynamicallyRegistered := oauth2clientFields[7].Descriptor()
+	// oauth2client.DefaultDynamicallyRegistered holds the default value on creation for the dynamically_registered field.
+	oauth2client.DefaultDynamicallyRegistered = oauth2clientDescDynamicallyRegistered.Default.(bool)
+	// oauth2clientDescTokenEndpointAuthMethod is the schema descriptor for token_endpoint_auth_method field.
+	oauth2clientDescTokenEndpointAuthMethod := oauth2clientFields[11].Descriptor()
+	// oauth2client.DefaultTokenEndpointAuthMethod holds the default value on creation for the token_endpoint_auth_method field.
+	oauth2client.DefaultTokenEndpointAuthMethod = oauth2clientDescTokenEndpointAuthMethod.Default.(string)
+	// oauth2clientDescRegistrationTime is the schema descriptor for registration_time field.
+	oauth2clientDescRegistrationTime := oauth2clientFields[12].Descriptor()
+	// oauth2client.DefaultRegistrationTime holds the default value on creation for the registration_time field.
+	oauth2client.DefaultRegistrationTime = oauth2clientDescRegistrationTime.Default.(int64)
+	// oauth2clientDescRegistrationTokenID is the schema descriptor for registration_token_id field.
+	oauth2clientDescRegistrationTokenID := oauth2clientFields[13].Descriptor()
+	// oauth2client.DefaultRegistrationTokenID holds the default value on creation for the registration_token_id field.
+	oauth2client.DefaultRegistrationTokenID = oauth2clientDescRegistrationTokenID.Default.(string)
+	// oauth2clientDescRegistrationExpiresAt is the schema descriptor for registration_expires_at field.
+	oauth2clientDescRegistrationExpiresAt := oauth2clientFields[14].Descriptor()
+	// oauth2client.DefaultRegistrationExpiresAt holds the default value on creation for the registration_expires_at field.
+	oauth2client.DefaultRegistrationExpiresAt = oauth2clientDescRegistrationExpiresAt.Default.(int64)
 	// oauth2clientDescBackchannelLogoutURI is the schema descriptor for backchannel_logout_uri field.
-	oauth2clientDescBackchannelLogoutURI := oauth2clientFields[11].Descriptor()
+	oauth2clientDescBackchannelLogoutURI := oauth2clientFields[19].Descriptor()
 	// oauth2client.DefaultBackchannelLogoutURI holds the default value on creation for the backchannel_logout_uri field.
 	oauth2client.DefaultBackchannelLogoutURI = oauth2clientDescBackchannelLogoutURI.Default.(string)
 	// oauth2clientDescRefreshTokenLifetime is the schema descriptor for refresh_token_lifetime field.
-	oauth2clientDescRefreshTokenLifetime := oauth2clientFields[12].Descriptor()
+	oauth2clientDescRefreshTokenLifetime := oauth2clientFields[20].Descriptor()
 	// oauth2client.DefaultRefreshTokenLifetime holds the default value on creation for the refresh_token_lifetime field.
 	oauth2client.DefaultRefreshTokenLifetime = oauth2clientDescRefreshTokenLifetime.Default.(string)
 	// oauth2clientDescID is the schema descriptor for id field.

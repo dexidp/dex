@@ -26,9 +26,12 @@ import (
 type Request struct {
 	ClientID     string
 	ClientSecret string
-	Scopes       []string
-	Nonce        string
-	ConnectorID  string
+	// ClientAuthMethod records how credentials were presented so RFC 7591
+	// clients cannot switch to a different registered authentication method.
+	ClientAuthMethod string
+	Scopes           []string
+	Nonce            string
+	ConnectorID      string
 
 	// authorization_code
 	Code         string
@@ -80,6 +83,7 @@ func parseRequest(r *http.Request) (*Request, *oauth2.Error) {
 	}
 
 	if id, secret, ok := r.BasicAuth(); ok {
+		req.ClientAuthMethod = "client_secret_basic"
 		var err error
 		if req.ClientID, err = url.QueryUnescape(id); err != nil {
 			return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "client_id improperly encoded", Status: http.StatusBadRequest}
@@ -90,6 +94,11 @@ func parseRequest(r *http.Request) (*Request, *oauth2.Error) {
 	} else {
 		req.ClientID = r.PostFormValue("client_id")
 		req.ClientSecret = r.PostFormValue("client_secret")
+		if req.ClientSecret == "" {
+			req.ClientAuthMethod = "none"
+		} else {
+			req.ClientAuthMethod = "client_secret_post"
+		}
 	}
 
 	return req, nil
@@ -234,6 +243,10 @@ func (h *Handler) dispatch(w http.ResponseWriter, r *http.Request, grantType str
 		if !ok {
 			return true
 		}
+		if !client.AllowsGrantType(grant.GrantType()) {
+			h.writeError(ctx, w, &oauth2.Error{Type: oauth2.UnauthorizedClient, Description: "Client did not register this grant type.", Status: http.StatusBadRequest})
+			return true
+		}
 	}
 
 	// 2. Validate the requested scopes.
@@ -274,6 +287,9 @@ func (h *Handler) dispatch(w http.ResponseWriter, r *http.Request, grantType str
 // and verifies cross-client trust — the security-sensitive check that must run
 // for every grant. A nil policy set passes scopes through unvalidated.
 func (h *Handler) validateScopes(ctx context.Context, client storage.Client, req *Request, p ScopePolicy) *oauth2.Error {
+	if !client.AllowsScopes(req.Scopes) {
+		return &oauth2.Error{Type: oauth2.InvalidScope, Description: "Client did not register all requested scopes.", Status: http.StatusBadRequest}
+	}
 	if p.Standard == nil {
 		return nil
 	}
@@ -361,6 +377,11 @@ func (h *Handler) authenticateClient(ctx context.Context, w http.ResponseWriter,
 			h.Logger.InfoContext(ctx, "invalid client_secret on token request", "client_id", client.ID)
 		}
 		h.writeError(ctx, w, &oauth2.Error{Type: oauth2.InvalidClient, Description: "Invalid client credentials.", Status: http.StatusUnauthorized})
+		return storage.Client{}, false
+	}
+	if client.DynamicallyRegistered && client.TokenEndpointAuthMethod != req.ClientAuthMethod {
+		h.Logger.WarnContext(ctx, "client used an unregistered token endpoint authentication method", "client_id", client.ID, "registered_method", client.TokenEndpointAuthMethod, "presented_method", req.ClientAuthMethod)
+		h.writeError(ctx, w, &oauth2.Error{Type: oauth2.InvalidClient, Description: "Client authentication method does not match its registration.", Status: http.StatusUnauthorized})
 		return storage.Client{}, false
 	}
 

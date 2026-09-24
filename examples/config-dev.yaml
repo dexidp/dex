@@ -164,6 +164,12 @@ oauth2:
 #     enforce: false
 #     # Supported code challenge methods. Defaults to ["S256", "plain"].
 #     codeChallengeMethodsSupported: ["S256", "plain"]
+#   # RFC 7591 dynamic client registration is disabled by default. When
+#   # enabled, the initial access token is required. Use initialAccessTokenEnv
+#   # to keep the token out of this file.
+#   dynamicClientRegistration:
+#     enabled: true
+#     initialAccessTokenEnv: DEX_REGISTRATION_INITIAL_ACCESS_TOKEN
 
 # Multi-factor authentication configuration.
 # Requires DEX_SESSIONS_ENABLED=true feature flag.

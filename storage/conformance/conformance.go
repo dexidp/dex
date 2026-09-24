@@ -324,9 +324,17 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 		AllowedConnectors: []string{"github", "google"},
 		// Explicitly persisted fields: at their zero values they round-trip even
 		// when a backend drops them.
-		BackchannelLogoutURI:   "https://auth.example.com/backchannel-logout",
-		PostLogoutRedirectURIs: []string{"https://auth.example.com/"},
-		RefreshTokenLifetime:   storage.RefreshTokenLifetimeSession,
+		BackchannelLogoutURI:    "https://auth.example.com/backchannel-logout",
+		PostLogoutRedirectURIs:  []string{"https://auth.example.com/"},
+		RefreshTokenLifetime:    storage.RefreshTokenLifetimeSession,
+		DynamicallyRegistered:   true,
+		GrantTypes:              []string{"authorization_code", "refresh_token"},
+		ResponseTypes:           []string{"code"},
+		AllowedScopes:           []string{"openid", "profile"},
+		TokenEndpointAuthMethod: "client_secret_basic",
+		RegistrationTime:        1700000000,
+		RegistrationTokenID:     "sha256:0123456789abcdef",
+		RegistrationExpiresAt:   1700086400,
 	}
 	err := s.DeleteClient(ctx, id1)
 	mustBeErrNotFound(t, "client", err)
