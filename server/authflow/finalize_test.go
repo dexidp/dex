@@ -1,6 +1,10 @@
 package authflow
 
 import (
+	"bytes"
+	"encoding/json"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -57,4 +61,41 @@ func TestFinalizeLoginBlockedAccount(t *testing.T) {
 	}))
 	_, err = server.finalizeLogin(ctx, ident, authReq, nil)
 	require.NoError(t, err)
+}
+
+// The authorization code flow's success line is the only record of a login that
+// operators get, and without the client it cannot answer which application was
+// signed in to when several share a connector.
+func TestFinalizeLoginLogsClientID(t *testing.T) {
+	var logBuf bytes.Buffer
+	httpServer, server := newTestHandler(t, func(c *testFlowConfig) {
+		c.Logger = slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	})
+	defer httpServer.Close()
+
+	ctx := t.Context()
+
+	authReq := storage.AuthRequest{
+		ID:          "login-req",
+		ClientID:    "example-app",
+		Expiry:      time.Now().Add(time.Hour),
+		ConnectorID: "mock",
+	}
+	require.NoError(t, server.Storage.CreateAuthRequest(ctx, authReq))
+
+	ident := connector.Identity{UserID: "user-1", Email: "user@example.com"}
+	_, err := server.finalizeLogin(ctx, ident, authReq, nil)
+	require.NoError(t, err)
+
+	var logged bool
+	for _, line := range strings.Split(strings.TrimSpace(logBuf.String()), "\n") {
+		var record map[string]any
+		require.NoError(t, json.Unmarshal([]byte(line), &record))
+		if record["msg"] != "login successful" {
+			continue
+		}
+		logged = true
+		require.Equal(t, "example-app", record["client_id"])
+	}
+	require.True(t, logged, "finalizeLogin did not log a successful login")
 }
