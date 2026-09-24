@@ -1,6 +1,7 @@
 package authflow
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -57,4 +58,30 @@ func TestFinalizeLoginBlockedAccount(t *testing.T) {
 	}))
 	_, err = server.finalizeLogin(ctx, ident, authReq, nil)
 	require.NoError(t, err)
+}
+
+// TestFinalizeLoginAlreadyFinalized reproduces a double-submitted login (e.g. the
+// user double-clicks the submit button, or resubmits a stale page reached via the
+// browser back button): by the time the duplicate request reaches finalizeLogin,
+// the first submission has already completed and the AuthRequest is gone. The
+// caller needs to distinguish this from a generic storage failure, so the
+// returned error must still satisfy errors.Is(err, storage.ErrNotFound).
+func TestFinalizeLoginAlreadyFinalized(t *testing.T) {
+	httpServer, server := newTestHandler(t, nil)
+	defer httpServer.Close()
+
+	ctx := t.Context()
+
+	ident := connector.Identity{UserID: "user-1", Email: "user@example.com"}
+	authReq := storage.AuthRequest{
+		ID:          "login-req",
+		ClientID:    "example-app",
+		Expiry:      time.Now().Add(time.Hour),
+		ConnectorID: "mock",
+	}
+	// Do not create the AuthRequest, simulating that an earlier, still-in-flight
+	// submission already finalized and deleted it.
+	_, err := server.finalizeLogin(ctx, ident, authReq, nil)
+	require.Error(t, err)
+	require.True(t, errors.Is(err, storage.ErrNotFound), "expected error to wrap storage.ErrNotFound, got: %v", err)
 }

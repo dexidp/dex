@@ -99,6 +99,13 @@ func (h *Handler) handleConnectorCallback(w http.ResponseWriter, r *http.Request
 	authReq, err = h.finalizeLogin(ctx, identity, authReq, conn.Connector)
 	if err != nil {
 		h.Logger.ErrorContext(r.Context(), "failed to finalize login", "err", err)
+		if errors.Is(err, storage.ErrNotFound) {
+			// The auth request is gone from storage, most likely because an earlier,
+			// still-in-flight submission already finalized it (e.g. a
+			// double-submitted callback).
+			h.renderError(r, w, http.StatusBadRequest, ErrMsgRequestAlreadyCompleted)
+			return
+		}
 		h.renderError(r, w, http.StatusInternalServerError, "Login error.")
 		return
 	}

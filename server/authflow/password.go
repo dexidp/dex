@@ -4,6 +4,7 @@ package authflow
 // form and the credential check for password connectors.
 
 import (
+	"errors"
 	"net/http"
 	"net/url"
 
@@ -80,6 +81,10 @@ func (h *Handler) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 					authReq, err = h.finalizeLogin(ctx, *ident, authReq, conn.Connector)
 					if err != nil {
 						h.Logger.ErrorContext(ctx, "failed to finalize login", "err", err)
+						if errors.Is(err, storage.ErrNotFound) {
+							h.renderError(r, w, http.StatusBadRequest, ErrMsgRequestAlreadyCompleted)
+							return
+						}
 						h.renderError(r, w, http.StatusInternalServerError, "Login error.")
 						return
 					}
@@ -116,6 +121,13 @@ func (h *Handler) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		authReq, err = h.finalizeLogin(r.Context(), identity, authReq, conn.Connector)
 		if err != nil {
 			h.Logger.ErrorContext(r.Context(), "failed to finalize login", "err", err)
+			if errors.Is(err, storage.ErrNotFound) {
+				// The auth request is gone from storage, most likely because an
+				// earlier submission already finalized it, e.g. the user
+				// double-clicked the login button.
+				h.renderError(r, w, http.StatusBadRequest, ErrMsgRequestAlreadyCompleted)
+				return
+			}
 			h.renderError(r, w, http.StatusInternalServerError, "Login error.")
 			return
 		}
