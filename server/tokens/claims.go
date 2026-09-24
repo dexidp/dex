@@ -21,6 +21,9 @@ var hashForSigAlg = map[jose.SignatureAlgorithm]func() hash.Hash{
 	jose.ES256: sha256.New,
 	jose.ES384: sha512.New384,
 	jose.ES512: sha512.New,
+	// EdDSA (Ed25519) uses SHA-512 internally, so the at_hash/c_hash is
+	// computed over SHA-512 as well.
+	jose.EdDSA: sha512.New,
 }
 
 // AccessTokenHash computes the at_hash/c_hash value for the given signing

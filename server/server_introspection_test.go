@@ -11,12 +11,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v4"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/introspection"
+	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/memory"
 )
 
 func toJSON(a interface{}) string {
@@ -256,4 +259,71 @@ func TestHandleIntrospect(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestHandleIntrospectEdDSA drives the full introspection endpoint with an
+// EdDSA-signed access token. It is a regression test for guessTokenType: without
+// SupportedSigningAlgs on its verifier config, go-oidc defaults to RS256 only and
+// rejects the EdDSA token, so the access token is mis-classified as a refresh
+// token and introspection returns active: false.
+func TestHandleIntrospectEdDSA(t *testing.T) {
+	t0 := time.Now()
+
+	ctx := t.Context()
+
+	now := func() time.Time { return t0 }
+
+	logger := newLogger(t)
+
+	refreshTokenPolicy := tokens.NewRefreshStrategy(true, 24*time.Hour, 0, 0, now)
+
+	localConfig := signer.LocalConfig{
+		KeysRotationPeriod: time.Hour.String(),
+		Algorithm:          jose.EdDSA,
+	}
+	eddsaSigner, err := localConfig.Open(ctx, memory.New(logger), time.Hour, now, logger)
+	require.NoError(t, err)
+
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.Issuer += "/non-root-path"
+		c.RefreshTokenPolicy = refreshTokenPolicy
+		c.Now = now
+		c.Signer = eddsaSigner
+	})
+	defer httpServer.Close()
+
+	mockTestStorage(t, s.storage)
+
+	activeAccessToken, expiry, err := s.issuer.SignIDToken(ctx, tokens.Authorization{
+		Client: storage.Client{ID: "test"},
+		Claims: storage.Claims{
+			UserID:        "1",
+			Username:      "jane",
+			Email:         "jane.doe@example.com",
+			EmailVerified: true,
+			Groups:        []string{"a", "b"},
+		},
+		Scopes:      []string{"openid", "email", "profile", "groups"},
+		Nonce:       "foo",
+		ConnectorID: "test",
+	}, "", "")
+	require.NoError(t, err)
+
+	// The full /token/introspect endpoint must report the EdDSA access token as
+	// active, which only happens if guessTokenType classified it as an access token.
+	data := url.Values{}
+	data.Set("token", activeAccessToken)
+
+	u, err := url.Parse(s.issuerURL.String())
+	require.NoError(t, err)
+	u.Path = path.Join(u.Path, "token", "introspect")
+
+	req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(data.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	rr := httptest.NewRecorder()
+	s.ServeHTTP(rr, req)
+
+	require.Equal(t, 200, rr.Code)
+	require.JSONEq(t, toJSON(getIntrospectionValue(s.issuerURL.URL, t0, expiry, "access_token")), rr.Body.String())
 }
