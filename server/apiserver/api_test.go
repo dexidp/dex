@@ -14,6 +14,7 @@ import (
 
 	"github.com/dexidp/dex/api/v2"
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
 )
@@ -41,7 +42,7 @@ func newAPI(t *testing.T, s storage.Storage, logger *slog.Logger) *apiClient {
 	}
 
 	serv := grpc.NewServer()
-	api.RegisterDexServer(serv, NewAPI(s, logger, "test", nil, nil, nil))
+	api.RegisterDexServer(serv, NewAPI(s, logger, "test", nil, nil, nil, tokens.SubjectOrderUserConnector))
 	go serv.Serve(l)
 
 	// NewClient will retry automatically if the serv.Serve() goroutine

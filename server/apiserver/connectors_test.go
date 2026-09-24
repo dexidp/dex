@@ -9,6 +9,7 @@ import (
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/connector/mock"
 	"github.com/dexidp/dex/server/connectors"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage/memory"
 )
 
@@ -26,7 +27,7 @@ func TestConnectorCacheInvalidation(t *testing.T) {
 
 	// This test exercises connector-cache invalidation, not discovery, so no
 	// discovery handler is wired (GetDiscovery guards against nil).
-	apiServer := NewAPI(s, logger, "test", conns, nil, nil)
+	apiServer := NewAPI(s, logger, "test", conns, nil, nil, tokens.SubjectOrderUserConnector)
 	ctx := context.Background()
 
 	connID := "mock-conn"
