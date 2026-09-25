@@ -77,7 +77,7 @@ web:
   # tlsCurvePreferences:
   # - X25519
   # - X25519MLKEM768
-  # - P256
+  # - CurveP256
 
 # Configuration for dex appearance
 # frontend:
