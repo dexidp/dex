@@ -37,6 +37,7 @@ import (
 
 	"github.com/dexidp/dex/api/v2"
 	"github.com/dexidp/dex/pkg/featureflags"
+	"github.com/dexidp/dex/pkg/health"
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/server/apiserver"
 	"github.com/dexidp/dex/server/authflow"
@@ -471,7 +472,12 @@ func runServe(options serveOptions) error {
 	healthChecker.RegisterCheck(
 		&checks.CustomCheck{
 			CheckName: "storage",
-			CheckFunc: storage.NewCustomHealthCheckFunc(serverConfig.Storage, serverConfig.Now),
+			// The check performs I/O; wrapped so that an unresponsive backend
+			// cannot leave it hanging. See health.NewTimeoutCheckFunc.
+			CheckFunc: health.NewTimeoutCheckFunc(
+				storage.NewCustomHealthCheckFunc(serverConfig.Storage, serverConfig.Now),
+				health.DefaultTimeout,
+			),
 		},
 		gosundheit.ExecutionPeriod(15*time.Second),
 		gosundheit.InitiallyPassing(true),
