@@ -34,6 +34,18 @@ func ParseCrossClientScope(scope string) (string, bool) {
 	return scope[len(scopeCrossClientPrefix):], true
 }
 
+// HasAllowedScopePrefix reports whether scope starts with one of the
+// configured allowed prefixes, letting deployments recognize additional,
+// non-standard scopes beyond Dex's fixed set.
+func HasAllowedScopePrefix(allowedPrefixes []string, scope string) bool {
+	for _, prefix := range allowedPrefixes {
+		if strings.HasPrefix(scope, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // ParseScopes translates the requested OIDC scopes into the connector.Scopes a
 // connector needs when authenticating or refreshing a user.
 func ParseScopes(scopes []string) connector.Scopes {

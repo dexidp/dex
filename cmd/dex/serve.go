@@ -303,6 +303,9 @@ func runServe(options serveOptions) error {
 	if featureflags.ContinueOnConnectorFailure.Enabled() {
 		logger.Info("continue on connector failure feature flag enabled")
 	}
+	if len(c.OAuth2.AllowedScopePrefixes) > 0 {
+		logger.Info("config allowed scope prefixes", "prefixes", strings.Join(c.OAuth2.AllowedScopePrefixes, ","))
+	}
 
 	// explicitly convert to UTC.
 	now := func() time.Time { return time.Now().UTC() }
@@ -374,6 +377,7 @@ func runServe(options serveOptions) error {
 		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
 		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
 		PasswordConnector:      c.OAuth2.PasswordConnector,
+		AllowedScopePrefixes:   c.OAuth2.AllowedScopePrefixes,
 		PKCE: authflow.PKCEConfig{
 			Enforce:                       c.OAuth2.PKCE.Enforce,
 			CodeChallengeMethodsSupported: c.OAuth2.PKCE.CodeChallengeMethodsSupported,
