@@ -10,6 +10,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 )
@@ -27,6 +29,11 @@ type Issuer struct {
 
 	// Refresh persists and rotates refresh tokens.
 	Refresh *RefreshStore
+
+	// Connectors resolves the connector for a token's ConnectorID, giving
+	// SignIDToken a chance to offer it as a connector.PayloadExtender. Optional;
+	// callers that never issue connector-backed tokens (e.g. tests) can leave it nil.
+	Connectors *connectors.Cache
 }
 
 // NewIssuer wires an issuer from the shared dependencies.
@@ -181,11 +188,55 @@ func (i *Issuer) SignIDToken(ctx context.Context, auth Authorization, accessToke
 		return "", expiry, fmt.Errorf("could not serialize claims: %v", err)
 	}
 
+	// Give the connector a chance to extend the payload with additional claims
+	// derived from the connector data it stashed during login.
+	if auth.ConnectorID != "" && len(auth.ConnectorData) > 0 && i.Connectors != nil {
+		conn, err := i.Connectors.Get(ctx, auth.ConnectorID)
+		if err == nil && conn.Connector != nil {
+			if extender, ok := conn.Connector.(connector.PayloadExtender); ok {
+				extended, err := extender.ExtendPayload(auth.Scopes, payload, auth.ConnectorData)
+				if err != nil {
+					i.logger.WarnContext(ctx, "failed to extend id token payload", "err", err)
+				} else {
+					payload = extended
+					// A connector's ExtendPayload can overwrite the exp claim
+					// (e.g. the HSDP connector deliberately shortens it for
+					// Service identities to match the underlying IAM token's
+					// own lifetime, rather than Dex's own idTokensValidFor).
+					// Keep the returned expiry in sync with whatever ended up
+					// in the signed payload - otherwise a caller computing
+					// expires_in from the returned expiry (e.g. the
+					// token-exchange grant) reports a stale, longer value
+					// than what's actually in the token, so every consumer
+					// that trusts expires_in over the token's own exp claim
+					// caches it far past its real expiry.
+					if overriddenExpiry, ok := expClaimFromPayload(payload); ok {
+						expiry = overriddenExpiry
+					}
+				}
+			}
+		}
+	}
+
 	idToken, err := i.signer.Sign(ctx, payload)
 	if err != nil {
 		return "", expiry, fmt.Errorf("failed to sign payload: %v", err)
 	}
 	return idToken, expiry, nil
+}
+
+// expClaimFromPayload extracts the "exp" claim from a serialized token
+// payload, if present and numeric. Used to keep SignIDToken's returned
+// expiry consistent with whatever a connector's ExtendPayload may have
+// overwritten the exp claim to - see its call site's comment.
+func expClaimFromPayload(payload []byte) (time.Time, bool) {
+	var claims struct {
+		Exp int64 `json:"exp"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil || claims.Exp == 0 {
+		return time.Time{}, false
+	}
+	return time.Unix(claims.Exp, 0), true
 }
 
 // crossClientTrusted reports whether peerID's client trusts clientID as a peer.
