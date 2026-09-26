@@ -19,6 +19,7 @@ func (d *Database) CreateRefresh(ctx context.Context, refresh storage.RefreshTok
 		SetClaimsUsername(refresh.Claims.Username).
 		SetClaimsPreferredUsername(refresh.Claims.PreferredUsername).
 		SetClaimsGroups(refresh.Claims.Groups).
+		SetClaimsAmr(refresh.Claims.Amr).
 		SetConnectorID(refresh.ConnectorID).
 		SetConnectorData(refresh.ConnectorData).
 		SetToken(refresh.Token).
@@ -92,6 +93,7 @@ func (d *Database) UpdateRefreshToken(ctx context.Context, id string, updater fu
 		SetClaimsUsername(newtToken.Claims.Username).
 		SetClaimsPreferredUsername(newtToken.Claims.PreferredUsername).
 		SetClaimsGroups(newtToken.Claims.Groups).
+		SetClaimsAmr(newtToken.Claims.Amr).
 		SetConnectorID(newtToken.ConnectorID).
 		SetConnectorData(newtToken.ConnectorData).
 		SetToken(newtToken.Token).

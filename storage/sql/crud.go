@@ -145,10 +145,10 @@ func (c *conn) CreateAuthRequest(ctx context.Context, a storage.AuthRequest) err
 			hmac_key,
 			mfa_validated,
 			webauthn_session_data,
-			prompt, max_age, auth_time
+			prompt, max_age, auth_time, claims_amr
 		)
 		values (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27
 		);
 	`,
 		a.ID, a.ClientID, encoder(a.ResponseTypes), encoder(a.Scopes), a.RedirectURI, a.Nonce, a.State,
@@ -161,7 +161,7 @@ func (c *conn) CreateAuthRequest(ctx context.Context, a storage.AuthRequest) err
 		a.HMACKey,
 		a.MFAValidated,
 		a.WebAuthnSessionData,
-		a.Prompt, a.MaxAge, a.AuthTime,
+		a.Prompt, a.MaxAge, a.AuthTime, encoder(a.Claims.Amr),
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -197,8 +197,8 @@ func (c *conn) UpdateAuthRequest(ctx context.Context, id string, updater func(a 
 				hmac_key = $20,
 				mfa_validated = $21,
 				webauthn_session_data = $22,
-				prompt = $23, max_age = $24, auth_time = $25
-			where id = $26;
+				prompt = $23, max_age = $24, auth_time = $25, claims_amr = $26
+			where id = $27;
 		`,
 			a.ClientID, encoder(a.ResponseTypes), encoder(a.Scopes), a.RedirectURI, a.Nonce, a.State,
 			a.ForceApprovalPrompt, a.LoggedIn,
@@ -210,7 +210,7 @@ func (c *conn) UpdateAuthRequest(ctx context.Context, id string, updater func(a 
 			a.PKCE.CodeChallenge, a.PKCE.CodeChallengeMethod, a.HMACKey,
 			a.MFAValidated,
 			a.WebAuthnSessionData,
-			a.Prompt, a.MaxAge, a.AuthTime,
+			a.Prompt, a.MaxAge, a.AuthTime, encoder(a.Claims.Amr),
 			r.ID,
 		)
 		if err != nil {
@@ -235,7 +235,7 @@ func getAuthRequest(ctx context.Context, q querier, id string) (a storage.AuthRe
 			code_challenge, code_challenge_method, hmac_key,
 			mfa_validated,
 			webauthn_session_data,
-			prompt, max_age, auth_time
+			prompt, max_age, auth_time, claims_amr
 		from auth_request where id = $1;
 	`, id).Scan(
 		&a.ID, &a.ClientID, decoder(&a.ResponseTypes), decoder(&a.Scopes), &a.RedirectURI, &a.Nonce, &a.State,
@@ -247,7 +247,7 @@ func getAuthRequest(ctx context.Context, q querier, id string) (a storage.AuthRe
 		&a.PKCE.CodeChallenge, &a.PKCE.CodeChallengeMethod, &a.HMACKey,
 		&a.MFAValidated,
 		&a.WebAuthnSessionData,
-		&a.Prompt, &a.MaxAge, &a.AuthTime,
+		&a.Prompt, &a.MaxAge, &a.AuthTime, decoder(&a.Claims.Amr),
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -267,15 +267,15 @@ func (c *conn) CreateAuthCode(ctx context.Context, a storage.AuthCode) error {
 			connector_id, connector_data,
 			expiry,
 			code_challenge, code_challenge_method,
-			auth_time, session_id
+			auth_time, session_id, claims_amr
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19);
 	`,
 		a.ID, a.ClientID, encoder(a.Scopes), a.Nonce, a.RedirectURI, a.Claims.UserID,
 		a.Claims.Username, a.Claims.PreferredUsername, a.Claims.Email, a.Claims.EmailVerified,
 		encoder(a.Claims.Groups), a.ConnectorID, a.ConnectorData, a.Expiry,
 		a.PKCE.CodeChallenge, a.PKCE.CodeChallengeMethod,
-		a.AuthTime, a.SessionID,
+		a.AuthTime, a.SessionID, encoder(a.Claims.Amr),
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -295,14 +295,14 @@ func (c *conn) GetAuthCode(ctx context.Context, id string) (a storage.AuthCode, 
 			connector_id, connector_data,
 			expiry,
 			code_challenge, code_challenge_method,
-			auth_time, session_id
+			auth_time, session_id, claims_amr
 		from auth_code where id = $1;
 	`, id).Scan(
 		&a.ID, &a.ClientID, decoder(&a.Scopes), &a.Nonce, &a.RedirectURI, &a.Claims.UserID,
 		&a.Claims.Username, &a.Claims.PreferredUsername, &a.Claims.Email, &a.Claims.EmailVerified,
 		decoder(&a.Claims.Groups), &a.ConnectorID, &a.ConnectorData, &a.Expiry,
 		&a.PKCE.CodeChallenge, &a.PKCE.CodeChallengeMethod,
-		&a.AuthTime, &a.SessionID,
+		&a.AuthTime, &a.SessionID, decoder(&a.Claims.Amr),
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -320,16 +320,16 @@ func (c *conn) CreateRefresh(ctx context.Context, r storage.RefreshToken) error 
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
 			connector_id, connector_data,
-			token, obsolete_token, created_at, last_used
+			token, obsolete_token, created_at, last_used, claims_amr
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17);
 	`,
 		r.ID, r.ClientID, encoder(r.Scopes), r.Nonce,
 		r.Claims.UserID, r.Claims.Username, r.Claims.PreferredUsername,
 		r.Claims.Email, r.Claims.EmailVerified,
 		encoder(r.Claims.Groups),
 		r.ConnectorID, r.ConnectorData,
-		r.Token, r.ObsoleteToken, r.CreatedAt, r.LastUsed,
+		r.Token, r.ObsoleteToken, r.CreatedAt, r.LastUsed, encoder(r.Claims.Amr),
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -364,18 +364,20 @@ func (c *conn) UpdateRefreshToken(ctx context.Context, id string, updater func(o
 				connector_id = $10,
 				connector_data = $11,
 				token = $12,
-                obsolete_token = $13,
+				obsolete_token = $13,
 				created_at = $14,
-				last_used = $15
+				last_used = $15,
+				claims_amr = $16
 			where
-				id = $16
+				id = $17
 		`,
 			r.ClientID, encoder(r.Scopes), r.Nonce,
 			r.Claims.UserID, r.Claims.Username, r.Claims.PreferredUsername,
 			r.Claims.Email, r.Claims.EmailVerified,
 			encoder(r.Claims.Groups),
 			r.ConnectorID, r.ConnectorData,
-			r.Token, r.ObsoleteToken, r.CreatedAt, r.LastUsed, id,
+			r.Token, r.ObsoleteToken, r.CreatedAt, r.LastUsed, encoder(r.Claims.Amr),
+			id,
 		)
 		if err != nil {
 			return fmt.Errorf("update refresh token: %v", err)
@@ -396,7 +398,7 @@ func getRefresh(ctx context.Context, q querier, id string) (storage.RefreshToken
 			claims_email, claims_email_verified,
 			claims_groups,
 			connector_id, connector_data,
-			token, obsolete_token, created_at, last_used
+			token, obsolete_token, created_at, last_used, claims_amr
 		from refresh_token where id = $1;
 	`, id))
 }
@@ -408,7 +410,7 @@ func (c *conn) ListRefreshTokens(ctx context.Context) ([]storage.RefreshToken, e
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
 			connector_id, connector_data,
-			token, obsolete_token, created_at, last_used
+			token, obsolete_token, created_at, last_used, claims_amr
 		from refresh_token;
 	`)
 	if err != nil {
@@ -437,7 +439,7 @@ func scanRefresh(s scanner) (r storage.RefreshToken, err error) {
 		&r.Claims.Email, &r.Claims.EmailVerified,
 		decoder(&r.Claims.Groups),
 		&r.ConnectorID, &r.ConnectorData,
-		&r.Token, &r.ObsoleteToken, &r.CreatedAt, &r.LastUsed,
+		&r.Token, &r.ObsoleteToken, &r.CreatedAt, &r.LastUsed, decoder(&r.Claims.Amr),
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -835,17 +837,17 @@ func (c *conn) CreateUserIdentity(ctx context.Context, u storage.UserIdentity) e
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
 			consents, mfa_secrets, webauthn_credentials,
-			created_at, last_login, blocked_until
+			created_at, last_login, blocked_until, claims_amr
 		)
 		values (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
 		);
 	`,
 		u.UserID, u.ConnectorID,
 		u.Claims.UserID, u.Claims.Username, u.Claims.PreferredUsername,
 		u.Claims.Email, u.Claims.EmailVerified, encoder(u.Claims.Groups),
 		encoder(u.Consents), encoder(u.MFASecrets), encoder(u.WebAuthnCredentials),
-		u.CreatedAt, u.LastLogin, u.BlockedUntil,
+		u.CreatedAt, u.LastLogin, u.BlockedUntil, encoder(u.Claims.Amr),
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -881,13 +883,14 @@ func (c *conn) UpdateUserIdentity(ctx context.Context, userID, connectorID strin
 				webauthn_credentials = $9,
 				created_at = $10,
 				last_login = $11,
-				blocked_until = $12
-			where user_id = $13 AND connector_id = $14;
+				blocked_until = $12,
+				claims_amr = $13
+			where user_id = $14 AND connector_id = $15;
 		`,
 			newIdentity.Claims.UserID, newIdentity.Claims.Username, newIdentity.Claims.PreferredUsername,
 			newIdentity.Claims.Email, newIdentity.Claims.EmailVerified, encoder(newIdentity.Claims.Groups),
 			encoder(newIdentity.Consents), encoder(newIdentity.MFASecrets), encoder(newIdentity.WebAuthnCredentials),
-			newIdentity.CreatedAt, newIdentity.LastLogin, newIdentity.BlockedUntil,
+			newIdentity.CreatedAt, newIdentity.LastLogin, newIdentity.BlockedUntil, encoder(newIdentity.Claims.Amr),
 			u.UserID, u.ConnectorID,
 		)
 		if err != nil {
@@ -908,7 +911,7 @@ func getUserIdentity(ctx context.Context, q querier, userID, connectorID string)
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
 			consents, mfa_secrets, webauthn_credentials,
-			created_at, last_login, blocked_until
+			created_at, last_login, blocked_until, claims_amr
 		from user_identity
 		where user_id = $1 AND connector_id = $2;
 		`, userID, connectorID))
@@ -921,7 +924,7 @@ func (c *conn) ListUserIdentities(ctx context.Context) ([]storage.UserIdentity, 
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
 			consents, mfa_secrets, webauthn_credentials,
-			created_at, last_login, blocked_until
+			created_at, last_login, blocked_until, claims_amr
 		from user_identity;
 	`)
 	if err != nil {
@@ -950,7 +953,7 @@ func scanUserIdentity(s scanner) (u storage.UserIdentity, err error) {
 		&u.Claims.UserID, &u.Claims.Username, &u.Claims.PreferredUsername,
 		&u.Claims.Email, &u.Claims.EmailVerified, decoder(&u.Claims.Groups),
 		decoder(&u.Consents), &mfaSecrets, &webauthnCreds,
-		&u.CreatedAt, &u.LastLogin, &u.BlockedUntil,
+		&u.CreatedAt, &u.LastLogin, &u.BlockedUntil, decoder(&u.Claims.Amr),
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {

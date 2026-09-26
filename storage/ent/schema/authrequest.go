@@ -96,6 +96,8 @@ func (AuthRequest) Fields() []ent.Field {
 		field.Text("prompt").SchemaType(textSchema).Default(""),
 		field.Int("max_age").Default(-1),
 		field.Time("auth_time").SchemaType(timeSchema).Optional(),
+		field.JSON("claims_amr", []string{}).
+			Optional(),
 	}
 }
 

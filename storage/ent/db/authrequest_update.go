@@ -392,6 +392,24 @@ func (_u *AuthRequestUpdate) ClearAuthTime() *AuthRequestUpdate {
 	return _u
 }
 
+// SetClaimsAmr sets the "claims_amr" field.
+func (_u *AuthRequestUpdate) SetClaimsAmr(v []string) *AuthRequestUpdate {
+	_u.mutation.SetClaimsAmr(v)
+	return _u
+}
+
+// AppendClaimsAmr appends value to the "claims_amr" field.
+func (_u *AuthRequestUpdate) AppendClaimsAmr(v []string) *AuthRequestUpdate {
+	_u.mutation.AppendClaimsAmr(v)
+	return _u
+}
+
+// ClearClaimsAmr clears the value of the "claims_amr" field.
+func (_u *AuthRequestUpdate) ClearClaimsAmr() *AuthRequestUpdate {
+	_u.mutation.ClearClaimsAmr()
+	return _u
+}
+
 // Mutation returns the AuthRequestMutation object of the builder.
 func (_u *AuthRequestUpdate) Mutation() *AuthRequestMutation {
 	return _u.mutation
@@ -543,6 +561,17 @@ func (_u *AuthRequestUpdate) sqlSave(ctx context.Context) (_node int, err error)
 	}
 	if _u.mutation.AuthTimeCleared() {
 		_spec.ClearField(authrequest.FieldAuthTime, field.TypeTime)
+	}
+	if value, ok := _u.mutation.ClaimsAmr(); ok {
+		_spec.SetField(authrequest.FieldClaimsAmr, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedClaimsAmr(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, authrequest.FieldClaimsAmr, value)
+		})
+	}
+	if _u.mutation.ClaimsAmrCleared() {
+		_spec.ClearField(authrequest.FieldClaimsAmr, field.TypeJSON)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -927,6 +956,24 @@ func (_u *AuthRequestUpdateOne) ClearAuthTime() *AuthRequestUpdateOne {
 	return _u
 }
 
+// SetClaimsAmr sets the "claims_amr" field.
+func (_u *AuthRequestUpdateOne) SetClaimsAmr(v []string) *AuthRequestUpdateOne {
+	_u.mutation.SetClaimsAmr(v)
+	return _u
+}
+
+// AppendClaimsAmr appends value to the "claims_amr" field.
+func (_u *AuthRequestUpdateOne) AppendClaimsAmr(v []string) *AuthRequestUpdateOne {
+	_u.mutation.AppendClaimsAmr(v)
+	return _u
+}
+
+// ClearClaimsAmr clears the value of the "claims_amr" field.
+func (_u *AuthRequestUpdateOne) ClearClaimsAmr() *AuthRequestUpdateOne {
+	_u.mutation.ClearClaimsAmr()
+	return _u
+}
+
 // Mutation returns the AuthRequestMutation object of the builder.
 func (_u *AuthRequestUpdateOne) Mutation() *AuthRequestMutation {
 	return _u.mutation
@@ -1108,6 +1155,17 @@ func (_u *AuthRequestUpdateOne) sqlSave(ctx context.Context) (_node *AuthRequest
 	}
 	if _u.mutation.AuthTimeCleared() {
 		_spec.ClearField(authrequest.FieldAuthTime, field.TypeTime)
+	}
+	if value, ok := _u.mutation.ClaimsAmr(); ok {
+		_spec.SetField(authrequest.FieldClaimsAmr, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedClaimsAmr(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, authrequest.FieldClaimsAmr, value)
+		})
+	}
+	if _u.mutation.ClaimsAmrCleared() {
+		_spec.ClearField(authrequest.FieldClaimsAmr, field.TypeJSON)
 	}
 	_node = &AuthRequest{config: _u.config}
 	_spec.Assign = _node.assignValues

@@ -45,6 +45,8 @@ const (
 	FieldAuthTime = "auth_time"
 	// FieldSessionID holds the string denoting the session_id field in the database.
 	FieldSessionID = "session_id"
+	// FieldClaimsAmr holds the string denoting the claims_amr field in the database.
+	FieldClaimsAmr = "claims_amr"
 	// Table holds the table name of the authcode in the database.
 	Table = "auth_codes"
 )
@@ -69,6 +71,7 @@ var Columns = []string{
 	FieldCodeChallengeMethod,
 	FieldAuthTime,
 	FieldSessionID,
+	FieldClaimsAmr,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
