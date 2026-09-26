@@ -176,6 +176,8 @@ func (i *Issuer) SignIDToken(ctx context.Context, auth Authorization, accessToke
 		tok.AuthorizingParty = clientID
 	}
 
+	tok.Amr = auth.Claims.Amr
+
 	payload, err := json.Marshal(tok)
 	if err != nil {
 		return "", expiry, fmt.Errorf("could not serialize claims: %v", err)

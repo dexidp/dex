@@ -4,6 +4,7 @@ package microsoft
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -80,6 +81,10 @@ type Config struct {
 	// following values: "name", "email", "mailNickname" or "onPremisesSamAccountName".
 	// If unset, the preferred_username field will remain empty.
 	PreferredUsernameField string `json:"preferredUsernameField"`
+
+	// PropagateAmrClaim extracts the "amr" claim from the access_token issued
+	// by Microsoft and inserts it into the tokens issued by dex
+	PropagateAmrClaim bool `json:"propagateAmrClaim"`
 }
 
 // Open returns a strategy for logging in through Microsoft.
@@ -103,6 +108,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 		domainHint:             c.DomainHint,
 		scopes:                 c.Scopes,
 		preferredUsernameField: c.PreferredUsernameField,
+		propagateAmrClaim:      c.PropagateAmrClaim,
 	}
 
 	if m.apiURL == "" {
@@ -161,6 +167,7 @@ type microsoftConnector struct {
 	domainHint             string
 	scopes                 []string
 	preferredUsernameField string
+	propagateAmrClaim      bool
 }
 
 func (c *microsoftConnector) isOrgTenant() bool {
@@ -334,6 +341,13 @@ func (c *microsoftConnector) HandleCallback(s connector.Scopes, connData []byte,
 		}
 		identity.ConnectorData = connData
 	}
+	if c.propagateAmrClaim {
+		amr, err := amrFromAccessToken(token.AccessToken)
+		if err != nil {
+			return identity, fmt.Errorf("microsoft: read amr claim: %v", err)
+		}
+		identity.Amr = amr
+	}
 
 	return identity, nil
 }
@@ -430,6 +444,14 @@ func (c *microsoftConnector) Refresh(ctx context.Context, s connector.Scopes, id
 			return identity, fmt.Errorf("microsoft: get groups: %w", err)
 		}
 		identity.Groups = groups
+	}
+
+	if c.propagateAmrClaim {
+		amr, err := amrFromAccessToken(tok.AccessToken)
+		if err != nil {
+			return identity, fmt.Errorf("microsoft: read amr claim: %v", err)
+		}
+		identity.Amr = amr
 	}
 
 	return identity, nil
@@ -660,6 +682,26 @@ func (c *microsoftConnector) post(ctx context.Context, client *http.Client, reqU
 	}
 
 	return next, nil
+}
+
+// amrFromAccessToken extracts the amr claim from the access_token
+// It takes the token "as-is" and does not perform signature validation.
+func amrFromAccessToken(token string) ([]string, error) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("invalid JWT")
+	}
+	b, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("JWT base64 decode: %v", err)
+	}
+	var amr []string
+	if err = json.Unmarshal(b, &struct {
+		Amr *[]string `json:"amr"`
+	}{&amr}); err != nil {
+		return nil, fmt.Errorf("JSON decode: %v", err)
+	}
+	return amr, nil
 }
 
 type graphError struct {

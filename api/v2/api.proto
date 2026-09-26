@@ -436,6 +436,7 @@ message UserIdentity {
   int64 created_at = 9;
   int64 last_login = 10;
   int64 blocked_until = 11;
+  repeated string amr = 12;
 }
 
 // GetUserIdentityReq is a request to retrieve a user identity.

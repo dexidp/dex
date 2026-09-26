@@ -25,6 +25,7 @@ func (d *Database) CreateAuthRequest(ctx context.Context, authRequest storage.Au
 		SetClaimsUsername(authRequest.Claims.Username).
 		SetClaimsPreferredUsername(authRequest.Claims.PreferredUsername).
 		SetClaimsGroups(authRequest.Claims.Groups).
+		SetClaimsAmr(authRequest.Claims.Amr).
 		SetCodeChallenge(authRequest.PKCE.CodeChallenge).
 		SetCodeChallengeMethod(authRequest.PKCE.CodeChallengeMethod).
 		// Save utc time into database because ent doesn't support comparing dates with different timezones
@@ -94,6 +95,7 @@ func (d *Database) UpdateAuthRequest(ctx context.Context, id string, updater fun
 		SetClaimsUsername(newAuthRequest.Claims.Username).
 		SetClaimsPreferredUsername(newAuthRequest.Claims.PreferredUsername).
 		SetClaimsGroups(newAuthRequest.Claims.Groups).
+		SetClaimsAmr(newAuthRequest.Claims.Amr).
 		SetCodeChallenge(newAuthRequest.PKCE.CodeChallenge).
 		SetCodeChallengeMethod(newAuthRequest.PKCE.CodeChallengeMethod).
 		// Save utc time into database because ent doesn't support comparing dates with different timezones

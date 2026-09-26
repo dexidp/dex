@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"time"
 
 	"github.com/dexidp/dex/server/connectors"
@@ -182,9 +183,14 @@ func (h *Handler) CompleteStep(ctx context.Context, authReq storage.AuthRequest,
 
 // markValidated records that the auth request has satisfied MFA, so the /auth
 // dispatcher stops routing it back to the MFA entry.
+// This also appends the general "mfa" value to the amr claim
+// if it has not been added yet.
 func (h *Handler) markValidated(ctx context.Context, authReqID string) error {
 	return h.Storage.UpdateAuthRequest(ctx, authReqID, func(old storage.AuthRequest) (storage.AuthRequest, error) {
 		old.MFAValidated = true
+		if !slices.Contains(old.Claims.Amr, "mfa") {
+			old.Claims.Amr = append(old.Claims.Amr, "mfa")
+		}
 		return old, nil
 	})
 }

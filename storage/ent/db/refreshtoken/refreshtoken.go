@@ -43,6 +43,8 @@ const (
 	FieldCreatedAt = "created_at"
 	// FieldLastUsed holds the string denoting the last_used field in the database.
 	FieldLastUsed = "last_used"
+	// FieldClaimsAmr holds the string denoting the claims_amr field in the database.
+	FieldClaimsAmr = "claims_amr"
 	// Table holds the table name of the refreshtoken in the database.
 	Table = "refresh_tokens"
 )
@@ -65,6 +67,7 @@ var Columns = []string{
 	FieldObsoleteToken,
 	FieldCreatedAt,
 	FieldLastUsed,
+	FieldClaimsAmr,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
