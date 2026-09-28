@@ -16,3 +16,12 @@ services:
         volumes:
             - ./connector/ldap/testdata/certs:/container/service/slapd/assets/certs
             - ./connector/ldap/testdata/schema.ldif:/container/service/slapd/assets/config/bootstrap/ldif/99-schema.ldif
+
+    authproxy-nginx:
+        image: nginx:1.27-alpine
+        volumes:
+            - ./connector/authproxy/testdata/nginx.conf:/etc/nginx/nginx.conf:ro
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        ports:
+            - 18081:80
