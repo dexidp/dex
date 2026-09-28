@@ -507,4 +507,9 @@ var migrations = []migration{
 			`alter table auth_code add column session_id text not null default '';`,
 		},
 	},
+	{
+		stmts: []string{
+			`alter table auth_session add column connector_data bytea;`,
+		},
+	},
 }

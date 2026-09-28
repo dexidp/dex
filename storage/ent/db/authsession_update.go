@@ -76,6 +76,18 @@ func (_u *AuthSessionUpdate) SetClientStates(v []byte) *AuthSessionUpdate {
 	return _u
 }
 
+// SetConnectorData sets the "connector_data" field.
+func (_u *AuthSessionUpdate) SetConnectorData(v []byte) *AuthSessionUpdate {
+	_u.mutation.SetConnectorData(v)
+	return _u
+}
+
+// ClearConnectorData clears the value of the "connector_data" field.
+func (_u *AuthSessionUpdate) ClearConnectorData() *AuthSessionUpdate {
+	_u.mutation.ClearConnectorData()
+	return _u
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_u *AuthSessionUpdate) SetCreatedAt(v time.Time) *AuthSessionUpdate {
 	_u.mutation.SetCreatedAt(v)
@@ -248,6 +260,12 @@ func (_u *AuthSessionUpdate) sqlSave(ctx context.Context) (_node int, err error)
 	if value, ok := _u.mutation.ClientStates(); ok {
 		_spec.SetField(authsession.FieldClientStates, field.TypeBytes, value)
 	}
+	if value, ok := _u.mutation.ConnectorData(); ok {
+		_spec.SetField(authsession.FieldConnectorData, field.TypeBytes, value)
+	}
+	if _u.mutation.ConnectorDataCleared() {
+		_spec.ClearField(authsession.FieldConnectorData, field.TypeBytes)
+	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(authsession.FieldCreatedAt, field.TypeTime, value)
 	}
@@ -337,6 +355,18 @@ func (_u *AuthSessionUpdateOne) SetNillableSecret(v *string) *AuthSessionUpdateO
 // SetClientStates sets the "client_states" field.
 func (_u *AuthSessionUpdateOne) SetClientStates(v []byte) *AuthSessionUpdateOne {
 	_u.mutation.SetClientStates(v)
+	return _u
+}
+
+// SetConnectorData sets the "connector_data" field.
+func (_u *AuthSessionUpdateOne) SetConnectorData(v []byte) *AuthSessionUpdateOne {
+	_u.mutation.SetConnectorData(v)
+	return _u
+}
+
+// ClearConnectorData clears the value of the "connector_data" field.
+func (_u *AuthSessionUpdateOne) ClearConnectorData() *AuthSessionUpdateOne {
+	_u.mutation.ClearConnectorData()
 	return _u
 }
 
@@ -541,6 +571,12 @@ func (_u *AuthSessionUpdateOne) sqlSave(ctx context.Context) (_node *AuthSession
 	}
 	if value, ok := _u.mutation.ClientStates(); ok {
 		_spec.SetField(authsession.FieldClientStates, field.TypeBytes, value)
+	}
+	if value, ok := _u.mutation.ConnectorData(); ok {
+		_spec.SetField(authsession.FieldConnectorData, field.TypeBytes, value)
+	}
+	if _u.mutation.ConnectorDataCleared() {
+		_spec.ClearField(authsession.FieldConnectorData, field.TypeBytes)
 	}
 	if value, ok := _u.mutation.CreatedAt(); ok {
 		_spec.SetField(authsession.FieldCreatedAt, field.TypeTime, value)

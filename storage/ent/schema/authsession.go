@@ -27,6 +27,8 @@ func (AuthSession) Fields() []ent.Field {
 			SchemaType(textSchema).
 			NotEmpty(),
 		field.Bytes("client_states"),
+		field.Bytes("connector_data").
+			Optional(),
 		field.Time("created_at").
 			SchemaType(timeSchema),
 		field.Time("last_activity").
