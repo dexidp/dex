@@ -30,23 +30,78 @@ type Cache struct {
 	conns   map[string]Connector
 	storage storage.Storage
 	resolve ResolveFunc
+	ctx     context.Context
+
+	// openLocks serializes Open calls per connector ID so concurrent misses for
+	// the same ID resolve and start a single lifecycle-managed instance rather
+	// than leaking one. Entries are created on first use and never removed; the
+	// number of connector IDs is small and bounded.
+	openLocks map[string]*sync.Mutex
 }
 
 // NewCache returns an empty cache backed by the given storage and resolver.
-func NewCache(storage storage.Storage, resolve ResolveFunc) *Cache {
+// ctx bounds the lifetime of any connector background work started via Open.
+func NewCache(ctx context.Context, storage storage.Storage, resolve ResolveFunc) *Cache {
 	return &Cache{
-		conns:   make(map[string]Connector),
-		storage: storage,
-		resolve: resolve,
+		conns:     make(map[string]Connector),
+		storage:   storage,
+		resolve:   resolve,
+		ctx:       ctx,
+		openLocks: make(map[string]*sync.Mutex),
 	}
+}
+
+// openLock returns the per-ID mutex that serializes Open calls for connID.
+func (c *Cache) openLock(connID string) *sync.Mutex {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	l, ok := c.openLocks[connID]
+	if !ok {
+		l = &sync.Mutex{}
+		c.openLocks[connID] = l
+	}
+	return l
 }
 
 // Open builds the connector for the given stored connector and records it in the
 // cache, replacing any existing entry for the same ID.
 func (c *Cache) Open(conn storage.Connector) (Connector, error) {
+	// Serialize per ID so concurrent opens of the same connector resolve and
+	// start a single instance; otherwise the loser of a concurrent race would
+	// leak its started background work with no handle to stop it.
+	lock := c.openLock(conn.ID)
+	lock.Lock()
+	defer lock.Unlock()
+
+	// Re-check under the per-ID lock: a concurrent opener may have already
+	// built and cached exactly this connector. Return it rather than starting
+	// a second lifecycle instance.
+	c.mu.Lock()
+	existing, ok := c.conns[conn.ID]
+	c.mu.Unlock()
+	if ok && existing.ResourceVersion == conn.ResourceVersion && existing.Type == conn.Type {
+		return existing, nil
+	}
+
 	impl, err := c.resolve(conn)
 	if err != nil {
 		return Connector{}, fmt.Errorf("failed to open connector: %v", err)
+	}
+
+	// Stop any lifecycle-managed instance previously cached under this ID.
+	c.mu.Lock()
+	prev, hadPrev := c.conns[conn.ID]
+	c.mu.Unlock()
+	if hadPrev {
+		if lc, ok := prev.Connector.(connector.LifecycleConnector); ok {
+			lc.Close()
+		}
+	}
+
+	if lc, ok := impl.(connector.LifecycleConnector); ok {
+		if err := lc.Start(c.ctx); err != nil {
+			return Connector{}, fmt.Errorf("failed to start connector %s: %v", conn.ID, err)
+		}
 	}
 
 	opened := Connector{
@@ -87,11 +142,21 @@ func (c *Cache) Len() int {
 	return len(c.conns)
 }
 
-// Close removes the connector from the in-memory cache.
+// Close stops any lifecycle-managed work and removes the connector from the
+// in-memory cache.
 func (c *Cache) Close(id string) {
 	c.mu.Lock()
-	delete(c.conns, id)
+	conn, ok := c.conns[id]
+	if ok {
+		delete(c.conns, id)
+	}
 	c.mu.Unlock()
+
+	if ok {
+		if lc, ok := conn.Connector.(connector.LifecycleConnector); ok {
+			lc.Close()
+		}
+	}
 }
 
 // Get returns the connector with the given id, opening (or reopening) it when it
