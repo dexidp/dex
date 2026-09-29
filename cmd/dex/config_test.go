@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"log/slog"
 	"os"
@@ -84,6 +85,26 @@ func TestInvalidRefreshTokenLifetime(t *testing.T) {
 	err := configuration.Validate()
 	require.Error(t, err)
 	require.Contains(t, err.Error(), `client "proxy"`)
+}
+
+// TestValidateStoresParsedTLSSettings ensures the cipher suite and curve IDs
+// parsed during Validate are retained on the Config used by runServe.
+func TestValidateStoresParsedTLSSettings(t *testing.T) {
+	c := Config{
+		Issuer:  "http://127.0.0.1:5556/dex",
+		Storage: Storage{Type: "sqlite3", Config: &sql.SQLite3{File: "examples/dex.db"}},
+		Web: Web{
+			HTTPS:               "127.0.0.1:5556",
+			TLSCert:             "cert.pem",
+			TLSKey:              "key.pem",
+			TLSCiphers:          []string{"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"},
+			TLSCurvePreferences: []string{"X25519"},
+		},
+	}
+
+	require.NoError(t, c.Validate())
+	require.Equal(t, []uint16{tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384}, c.Web.tlsCipherIDs)
+	require.Equal(t, []tls.CurveID{tls.X25519}, c.Web.tlsCurveIDs)
 }
 
 func TestUnmarshalConfig(t *testing.T) {
