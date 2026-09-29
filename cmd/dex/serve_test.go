@@ -31,6 +31,34 @@ func TestNewLogger(t *testing.T) {
 	})
 }
 
+func TestApplyWebTLSPreferences(t *testing.T) {
+	defaultCiphers := []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256}
+
+	t.Run("configured", func(t *testing.T) {
+		cfg := &tls.Config{CipherSuites: defaultCiphers}
+		err := applyWebTLSPreferences(cfg, Web{
+			TLSCiphers:          []string{"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"},
+			TLSCurvePreferences: []string{"X25519"},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, []uint16{tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384}, cfg.CipherSuites)
+		assert.Equal(t, []tls.CurveID{tls.X25519}, cfg.CurvePreferences)
+	})
+
+	t.Run("not configured", func(t *testing.T) {
+		cfg := &tls.Config{CipherSuites: defaultCiphers}
+		require.NoError(t, applyWebTLSPreferences(cfg, Web{}))
+		assert.Equal(t, defaultCiphers, cfg.CipherSuites)
+		assert.Nil(t, cfg.CurvePreferences)
+	})
+
+	t.Run("invalid", func(t *testing.T) {
+		cfg := &tls.Config{}
+		err := applyWebTLSPreferences(cfg, Web{TLSCiphers: []string{"TLS_FAKE_CIPHER"}})
+		assert.ErrorContains(t, err, `invalid TLS cipher suites: unsupported cipher suite "TLS_FAKE_CIPHER"`)
+	})
+}
+
 func TestParseCurvePreferences(t *testing.T) {
 	tests := []struct {
 		name        string

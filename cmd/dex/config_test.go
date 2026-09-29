@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"log/slog"
 	"os"
@@ -87,24 +86,23 @@ func TestInvalidRefreshTokenLifetime(t *testing.T) {
 	require.Contains(t, err.Error(), `client "proxy"`)
 }
 
-// TestValidateStoresParsedTLSSettings ensures the cipher suite and curve IDs
-// parsed during Validate are retained on the Config used by runServe.
-func TestValidateStoresParsedTLSSettings(t *testing.T) {
-	c := Config{
-		Issuer:  "http://127.0.0.1:5556/dex",
+// TestInvalidTLSPreferences: bad cipher suite and curve names must be reported
+// alongside the other config errors instead of hiding them.
+func TestInvalidTLSPreferences(t *testing.T) {
+	configuration := Config{
 		Storage: Storage{Type: "sqlite3", Config: &sql.SQLite3{File: "examples/dex.db"}},
 		Web: Web{
-			HTTPS:               "127.0.0.1:5556",
-			TLSCert:             "cert.pem",
-			TLSKey:              "key.pem",
-			TLSCiphers:          []string{"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"},
-			TLSCurvePreferences: []string{"X25519"},
+			HTTP:                "127.0.0.1:5556",
+			TLSCiphers:          []string{"TLS_FAKE_CIPHER"},
+			TLSCurvePreferences: []string{"UnknownCurve"},
 		},
 	}
 
-	require.NoError(t, c.Validate())
-	require.Equal(t, []uint16{tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384}, c.Web.tlsCipherIDs)
-	require.Equal(t, []tls.CurveID{tls.X25519}, c.Web.tlsCurveIDs)
+	err := configuration.Validate()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no issuer specified in config file")
+	require.Contains(t, err.Error(), `invalid TLS cipher suites: unsupported cipher suite "TLS_FAKE_CIPHER"`)
+	require.Contains(t, err.Error(), `invalid TLS curve preferences: unknown curve: "UnknownCurve"`)
 }
 
 func TestUnmarshalConfig(t *testing.T) {

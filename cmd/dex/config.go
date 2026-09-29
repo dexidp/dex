@@ -112,27 +112,19 @@ func (c Config) Validate() error {
 		{c.GRPC.TLSMaxVersion != "" && c.GRPC.TLSMinVersion != "" && c.GRPC.TLSMinVersion > c.GRPC.TLSMaxVersion, "TLSMinVersion greater than TLSMaxVersion"},
 	}
 
-	if len(c.Web.TLSCiphers) > 0 {
-		ciphers, err := parseCipherSuites(c.Web.TLSCiphers)
-		if err != nil {
-			return fmt.Errorf("invalid TLS cipher suites: %w", err)
-		}
-		c.Web.tlsCipherIDs = ciphers
-	}
-
-	if len(c.Web.TLSCurvePreferences) > 0 {
-		curves, err := parseCurvePreferences(c.Web.TLSCurvePreferences)
-		if err != nil {
-			return fmt.Errorf("invalid TLS curve preferences: %w", err)
-		}
-		c.Web.tlsCurveIDs = curves
-	}
 	var checkErrors []string
 
 	for _, check := range checks {
 		if check.bad {
 			checkErrors = append(checkErrors, check.errMsg)
 		}
+	}
+
+	if _, err := parseCipherSuites(c.Web.TLSCiphers); err != nil {
+		checkErrors = append(checkErrors, fmt.Sprintf("invalid TLS cipher suites: %v", err))
+	}
+	if _, err := parseCurvePreferences(c.Web.TLSCurvePreferences); err != nil {
+		checkErrors = append(checkErrors, fmt.Sprintf("invalid TLS curve preferences: %v", err))
 	}
 
 	if len(checkErrors) != 0 {
@@ -292,8 +284,6 @@ type Web struct {
 	AllowedOrigins      []string       `json:"allowedOrigins"`
 	AllowedHeaders      []string       `json:"allowedHeaders"`
 	ClientRemoteIP      ClientRemoteIP `json:"clientRemoteIP"`
-	tlsCipherIDs        []uint16
-	tlsCurveIDs         []tls.CurveID
 }
 
 var allowedCurveNames = func() map[string]tls.CurveID {

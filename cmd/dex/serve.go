@@ -563,20 +563,14 @@ func runServe(options serveOptions) error {
 			tlsMaxVersion = allowedTLSVersions[c.Web.TLSMaxVersion]
 		}
 
-		cipherSuites := allowedTLSCiphers
-		if len(c.Web.tlsCipherIDs) > 0 {
-			cipherSuites = c.Web.tlsCipherIDs
-		}
-		curvePreferences := []tls.CurveID(nil)
-		if len(c.Web.tlsCurveIDs) > 0 {
-			curvePreferences = c.Web.tlsCurveIDs
-		}
 		baseTLSConfig := &tls.Config{
 			MinVersion:               uint16(tlsMinVersion),
 			MaxVersion:               uint16(tlsMaxVersion),
-			CipherSuites:             cipherSuites,
+			CipherSuites:             allowedTLSCiphers,
 			PreferServerCipherSuites: true,
-			CurvePreferences:         curvePreferences,
+		}
+		if err := applyWebTLSPreferences(baseTLSConfig, c.Web); err != nil {
+			return fmt.Errorf("invalid config: %v", err)
 		}
 
 		tlsConfig, err := newTLSReloader(logger, c.Web.TLSCert, c.Web.TLSKey, "", baseTLSConfig)
@@ -647,6 +641,26 @@ func runServe(options serveOptions) error {
 			return fmt.Errorf("run groups: %w", err)
 		}
 		logger.Info("shutdown now", "err", err)
+	}
+	return nil
+}
+
+// applyWebTLSPreferences sets the cipher suites and curve preferences configured in web on cfg.
+// Settings that are not configured leave cfg unchanged.
+func applyWebTLSPreferences(cfg *tls.Config, web Web) error {
+	if len(web.TLSCiphers) > 0 {
+		ciphers, err := parseCipherSuites(web.TLSCiphers)
+		if err != nil {
+			return fmt.Errorf("invalid TLS cipher suites: %w", err)
+		}
+		cfg.CipherSuites = ciphers
+	}
+	if len(web.TLSCurvePreferences) > 0 {
+		curves, err := parseCurvePreferences(web.TLSCurvePreferences)
+		if err != nil {
+			return fmt.Errorf("invalid TLS curve preferences: %w", err)
+		}
+		cfg.CurvePreferences = curves
 	}
 	return nil
 }
