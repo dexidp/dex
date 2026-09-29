@@ -134,6 +134,8 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 		AuthTime:    authTime,
 		SessionID:   sessionID,
 	}
+	// Add amr claim to the new tokens based on the refresh_token
+	auth.Claims.Amr = refreshToken.Claims.Amr
 
 	accessToken, _, err := g.issuer.SignAccessToken(ctx, auth)
 	if err != nil {

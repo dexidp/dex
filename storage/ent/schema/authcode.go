@@ -88,6 +88,8 @@ func (AuthCode) Fields() []ent.Field {
 			SchemaType(textSchema).
 			Default("").
 			Optional(),
+		field.JSON("claims_amr", []string{}).
+			Optional(),
 	}
 }
 

@@ -285,6 +285,24 @@ func (_u *AuthCodeUpdate) ClearSessionID() *AuthCodeUpdate {
 	return _u
 }
 
+// SetClaimsAmr sets the "claims_amr" field.
+func (_u *AuthCodeUpdate) SetClaimsAmr(v []string) *AuthCodeUpdate {
+	_u.mutation.SetClaimsAmr(v)
+	return _u
+}
+
+// AppendClaimsAmr appends value to the "claims_amr" field.
+func (_u *AuthCodeUpdate) AppendClaimsAmr(v []string) *AuthCodeUpdate {
+	_u.mutation.AppendClaimsAmr(v)
+	return _u
+}
+
+// ClearClaimsAmr clears the value of the "claims_amr" field.
+func (_u *AuthCodeUpdate) ClearClaimsAmr() *AuthCodeUpdate {
+	_u.mutation.ClearClaimsAmr()
+	return _u
+}
+
 // Mutation returns the AuthCodeMutation object of the builder.
 func (_u *AuthCodeUpdate) Mutation() *AuthCodeMutation {
 	return _u.mutation
@@ -444,6 +462,17 @@ func (_u *AuthCodeUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.SessionIDCleared() {
 		_spec.ClearField(authcode.FieldSessionID, field.TypeString)
+	}
+	if value, ok := _u.mutation.ClaimsAmr(); ok {
+		_spec.SetField(authcode.FieldClaimsAmr, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedClaimsAmr(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, authcode.FieldClaimsAmr, value)
+		})
+	}
+	if _u.mutation.ClaimsAmrCleared() {
+		_spec.ClearField(authcode.FieldClaimsAmr, field.TypeJSON)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -721,6 +750,24 @@ func (_u *AuthCodeUpdateOne) ClearSessionID() *AuthCodeUpdateOne {
 	return _u
 }
 
+// SetClaimsAmr sets the "claims_amr" field.
+func (_u *AuthCodeUpdateOne) SetClaimsAmr(v []string) *AuthCodeUpdateOne {
+	_u.mutation.SetClaimsAmr(v)
+	return _u
+}
+
+// AppendClaimsAmr appends value to the "claims_amr" field.
+func (_u *AuthCodeUpdateOne) AppendClaimsAmr(v []string) *AuthCodeUpdateOne {
+	_u.mutation.AppendClaimsAmr(v)
+	return _u
+}
+
+// ClearClaimsAmr clears the value of the "claims_amr" field.
+func (_u *AuthCodeUpdateOne) ClearClaimsAmr() *AuthCodeUpdateOne {
+	_u.mutation.ClearClaimsAmr()
+	return _u
+}
+
 // Mutation returns the AuthCodeMutation object of the builder.
 func (_u *AuthCodeUpdateOne) Mutation() *AuthCodeMutation {
 	return _u.mutation
@@ -910,6 +957,17 @@ func (_u *AuthCodeUpdateOne) sqlSave(ctx context.Context) (_node *AuthCode, err 
 	}
 	if _u.mutation.SessionIDCleared() {
 		_spec.ClearField(authcode.FieldSessionID, field.TypeString)
+	}
+	if value, ok := _u.mutation.ClaimsAmr(); ok {
+		_spec.SetField(authcode.FieldClaimsAmr, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedClaimsAmr(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, authcode.FieldClaimsAmr, value)
+		})
+	}
+	if _u.mutation.ClaimsAmrCleared() {
+		_spec.ClearField(authcode.FieldClaimsAmr, field.TypeJSON)
 	}
 	_node = &AuthCode{config: _u.config}
 	_spec.Assign = _node.assignValues

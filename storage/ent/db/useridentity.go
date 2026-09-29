@@ -46,6 +46,8 @@ type UserIdentity struct {
 	LastLogin time.Time `json:"last_login,omitempty"`
 	// BlockedUntil holds the value of the "blocked_until" field.
 	BlockedUntil time.Time `json:"blocked_until,omitempty"`
+	// ClaimsAmr holds the value of the "claims_amr" field.
+	ClaimsAmr    []string `json:"claims_amr,omitempty"`
 	selectValues sql.SelectValues
 }
 
@@ -54,7 +56,7 @@ func (*UserIdentity) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case useridentity.FieldClaimsGroups, useridentity.FieldConsents, useridentity.FieldMfaSecrets, useridentity.FieldWebauthnCredentials:
+		case useridentity.FieldClaimsGroups, useridentity.FieldConsents, useridentity.FieldMfaSecrets, useridentity.FieldWebauthnCredentials, useridentity.FieldClaimsAmr:
 			values[i] = new([]byte)
 		case useridentity.FieldClaimsEmailVerified:
 			values[i] = new(sql.NullBool)
@@ -169,6 +171,14 @@ func (_m *UserIdentity) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.BlockedUntil = value.Time
 			}
+		case useridentity.FieldClaimsAmr:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field claims_amr", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.ClaimsAmr); err != nil {
+					return fmt.Errorf("unmarshal field claims_amr: %w", err)
+				}
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -250,6 +260,9 @@ func (_m *UserIdentity) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("blocked_until=")
 	builder.WriteString(_m.BlockedUntil.Format(time.ANSIC))
+	builder.WriteString(", ")
+	builder.WriteString("claims_amr=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ClaimsAmr))
 	builder.WriteByte(')')
 	return builder.String()
 }

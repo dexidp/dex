@@ -31,6 +31,7 @@ func storageUserIdentityToAPI(u storage.UserIdentity) *api.UserIdentity {
 		CreatedAt:     unixOrZero(u.CreatedAt),
 		LastLogin:     unixOrZero(u.LastLogin),
 		BlockedUntil:  unixOrZero(u.BlockedUntil),
+		Amr:           u.Claims.Amr,
 	}
 
 	return identity
