@@ -93,6 +93,7 @@ func TestRefreshTokenExpirationScenarios(t *testing.T) {
 		name        string
 		policy      *tokens.RefreshStrategy
 		useObsolete bool
+		refreshID   string // refresh token ID sent by the client; defaults to "test"
 		error       string
 	}{
 		{
@@ -108,12 +109,12 @@ func TestRefreshTokenExpirationScenarios(t *testing.T) {
 		{
 			name:   "Expired because not used",
 			policy: tokens.NewRefreshStrategy(false, 0, time.Second*60, 0, func() time.Time { return t0.Add(time.Hour) }),
-			error:  `{"error":"invalid_request","error_description":"Refresh token expired."}`,
+			error:  `{"error":"invalid_grant","error_description":"Refresh token expired."}`,
 		},
 		{
 			name:   "Absolutely expired",
 			policy: tokens.NewRefreshStrategy(true, time.Second*60, 0, 0, func() time.Time { return t0.Add(time.Hour) }),
-			error:  `{"error":"invalid_request","error_description":"Refresh token expired."}`,
+			error:  `{"error":"invalid_grant","error_description":"Refresh token expired."}`,
 		},
 		{
 			name:        "Obsolete tokens are allowed",
@@ -125,13 +126,19 @@ func TestRefreshTokenExpirationScenarios(t *testing.T) {
 			name:        "Obsolete tokens are not allowed",
 			useObsolete: true,
 			policy:      tokens.NewRefreshStrategy(true, 0, 0, 0, func() time.Time { return t0.Add(time.Second * 25) }),
-			error:       `{"error":"invalid_request","error_description":"Refresh token is invalid or has already been claimed by another client."}`,
+			error:       `{"error":"invalid_grant","error_description":"Refresh token is invalid or has already been claimed by another client."}`,
 		},
 		{
 			name:        "Obsolete tokens are allowed but token is expired globally",
 			useObsolete: true,
 			policy:      tokens.NewRefreshStrategy(true, time.Second*20, 0, time.Second*30, func() time.Time { return t0.Add(time.Second * 25) }),
-			error:       `{"error":"invalid_request","error_description":"Refresh token expired."}`,
+			error:       `{"error":"invalid_grant","error_description":"Refresh token expired."}`,
+		},
+		{
+			name:      "Unknown token, for example replaced by a newer login",
+			policy:    tokens.NewRefreshStrategy(true, 0, 0, 0, nil),
+			refreshID: "replaced",
+			error:     `{"error":"invalid_grant","error_description":"Refresh token is invalid or has already been claimed by another client."}`,
 		},
 	}
 
@@ -149,7 +156,11 @@ func TestRefreshTokenExpirationScenarios(t *testing.T) {
 			u, err := url.Parse(s.issuerURL.String())
 			require.NoError(t, err)
 
-			tokenData, err := internal.Marshal(&internal.RefreshToken{RefreshId: "test", Token: "bar"})
+			refreshID := "test"
+			if tc.refreshID != "" {
+				refreshID = tc.refreshID
+			}
+			tokenData, err := internal.Marshal(&internal.RefreshToken{RefreshId: refreshID, Token: "bar"})
 			require.NoError(t, err)
 
 			u.Path = path.Join(u.Path, "/token")
