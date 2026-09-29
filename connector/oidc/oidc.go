@@ -47,6 +47,13 @@ type Config struct {
 	ClientSecret string `json:"clientSecret"`
 	RedirectURI  string `json:"redirectURI"`
 
+	// AllowRedirectMismatch skips the check that requires the OIDC callback URL
+	// received at runtime to match RedirectURI in the configuration. This is
+	// useful when a reverse proxy terminates TLS and forwards the request, so
+	// the callback URL seen by dex differs from the one configured with the
+	// upstream identity provider.
+	AllowRedirectMismatch bool `json:"allowRedirectMismatch"`
+
 	// The section to override options discovered automatically from
 	// the providers' discovery URL (.well-known/openid-configuration).
 	ProviderDiscoveryOverrides ProviderDiscoveryOverrides `json:"providerDiscoveryOverrides"`
@@ -374,8 +381,9 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 
 	clientID := c.ClientID
 	return &oidcConnector{
-		provider:    provider,
-		redirectURI: c.RedirectURI,
+		provider:              provider,
+		redirectURI:           c.RedirectURI,
+		allowRedirectMismatch: c.AllowRedirectMismatch,
 		oauth2Config: &oauth2.Config{
 			ClientID:     clientID,
 			ClientSecret: c.ClientSecret,
@@ -421,6 +429,7 @@ var (
 type oidcConnector struct {
 	provider                  *oidc.Provider
 	redirectURI               string
+	allowRedirectMismatch     bool
 	oauth2Config              *oauth2.Config
 	verifier                  *oidc.IDTokenVerifier
 	cancel                    context.CancelFunc
@@ -452,8 +461,8 @@ func (c *oidcConnector) Close() error {
 }
 
 func (c *oidcConnector) LoginURL(s connector.Scopes, callbackURL, state string) (string, []byte, error) {
-	if c.redirectURI != callbackURL {
-		return "", nil, fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
+	if !c.allowRedirectMismatch && c.redirectURI != callbackURL {
+		return "", nil, fmt.Errorf("allowRedirectMismatch is false and expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
 	}
 
 	var opts []oauth2.AuthCodeOption
