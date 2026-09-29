@@ -666,21 +666,25 @@ func applyWebTLSPreferences(cfg *tls.Config, web Web) error {
 }
 
 // parseCipherSuites parses a list of cipher suite names and returns their corresponding IDs.
+// Only TLS 1.0–1.2 cipher suites are accepted, since TLS 1.3 cipher suites are not configurable.
 func parseCipherSuites(names []string) ([]uint16, error) {
-	cipherMap := make(map[string]uint16)
+	cipherMap := make(map[string]*tls.CipherSuite)
 	for _, cs := range tls.CipherSuites() {
-		cipherMap[cs.Name] = cs.ID
+		cipherMap[cs.Name] = cs
 	}
 	for _, cs := range tls.InsecureCipherSuites() {
-		cipherMap[cs.Name] = cs.ID
+		cipherMap[cs.Name] = cs
 	}
 	ids := make([]uint16, 0, len(names))
 	for _, name := range names {
-		id, ok := cipherMap[name]
+		cs, ok := cipherMap[name]
 		if !ok {
 			return nil, fmt.Errorf("unsupported cipher suite %q", name)
 		}
-		ids = append(ids, id)
+		if !slices.ContainsFunc(cs.SupportedVersions, func(v uint16) bool { return v <= tls.VersionTLS12 }) {
+			return nil, fmt.Errorf("cipher suite %q is TLS 1.3 only: TLS 1.3 cipher suites are not configurable", name)
+		}
+		ids = append(ids, cs.ID)
 	}
 	return ids, nil
 }

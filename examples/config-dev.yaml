@@ -68,7 +68,9 @@ web:
   # tlsMinVersion: "1.2"
   # tlsMaxVersion: "1.3"
 
-  # Cipher suites supported by the server.
+  # Cipher suites supported by the server for TLS 1.2 and lower.
+  # TLS 1.3 cipher suites (e.g. TLS_AES_128_GCM_SHA256) are not configurable and
+  # are rejected. This setting has no effect when tlsMinVersion is "1.3".
   # tlsCiphers:
   # - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
   # - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384

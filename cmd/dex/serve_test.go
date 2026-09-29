@@ -193,6 +193,15 @@ func TestParseCipherSuites(t *testing.T) {
 			wantErr:     true,
 			errContains: `unsupported cipher suite "TLS_FAKE_CIPHER"`,
 		},
+		{
+			name: "TLS 1.3 cipher",
+			input: []string{
+				"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+				"TLS_AES_256_GCM_SHA384",
+			},
+			wantErr:     true,
+			errContains: `cipher suite "TLS_AES_256_GCM_SHA384" is TLS 1.3 only`,
+		},
 	}
 
 	for _, tt := range tests {
