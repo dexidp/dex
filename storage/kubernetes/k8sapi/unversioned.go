@@ -49,4 +49,10 @@ type ListMeta struct {
 	// Read-only.
 	// More info: http://releases.k8s.io/release-1.3/docs/devel/api-conventions.md#concurrency-control-and-consistency
 	ResourceVersion string `json:"resourceVersion,omitempty" protobuf:"bytes,2,opt,name=resourceVersion"`
+
+	// Continue may be set if the user set a limit on the number of items returned, and indicates that
+	// the server has more data available. The value is opaque and may be used as the 'continue' parameter
+	// to retrieve the next set of results.
+	// Read-only.
+	Continue string `json:"continue,omitempty" protobuf:"bytes,3,opt,name=continue"`
 }
