@@ -35,6 +35,10 @@ type Handler struct {
 	SupportedResponseTypes map[string]bool
 	PKCE                   PKCEConfig
 	AuthRequestsValidFor   time.Duration
+	// AllowedScopePrefixes lists additional scope prefixes accepted as recognized
+	// beyond the fixed set (openid, offline_access, email, profile, groups,
+	// federated:id) and cross-client audience scopes.
+	AllowedScopePrefixes []string
 
 	// Sessions owns the session cookie, SSO lookup and auth-session CRUD.
 	Sessions *session.Manager

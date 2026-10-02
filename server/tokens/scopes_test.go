@@ -22,3 +22,13 @@ func TestParseCrossClientScope(t *testing.T) {
 		require.Equal(t, "", peer)
 	}
 }
+
+func TestHasAllowedScopePrefix(t *testing.T) {
+	prefixes := []string{"urn:example:", "custom:"}
+
+	require.True(t, HasAllowedScopePrefix(prefixes, "urn:example:read"))
+	require.True(t, HasAllowedScopePrefix(prefixes, "custom:anything"))
+	require.False(t, HasAllowedScopePrefix(prefixes, "openid"))
+	require.False(t, HasAllowedScopePrefix(nil, "urn:example:read"))
+	require.False(t, HasAllowedScopePrefix(prefixes, ""))
+}

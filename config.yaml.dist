@@ -138,6 +138,10 @@ web:
 #     enforce: false
 #     # Supported code challenge methods. Defaults to ["S256", "plain"].
 #     codeChallengeMethodsSupported: ["S256", "plain"]
+#
+#   # List of additional scope prefixes to accept as recognized (non-standard,
+#   # non-cross-client) scopes.
+#   allowedScopePrefixes: ["urn:example:"]
 
 # Static clients registered in Dex by default.
 #
