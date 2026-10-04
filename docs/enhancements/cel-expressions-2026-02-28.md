@@ -307,6 +307,7 @@ typed as `cel.ObjectType`:
 | `identity.preferred_username` | `string` | `connector.Identity.PreferredUsername` |
 | `identity.email` | `string` | `connector.Identity.Email` |
 | `identity.email_verified` | `bool` | `connector.Identity.EmailVerified` |
+| `identity.picture` | `string` | `connector.Identity.Picture` |
 | `identity.groups` | `list(string)` | `connector.Identity.Groups` |
 
 **`RequestVariables()`** — the `request` variable (from `RequestContext`),

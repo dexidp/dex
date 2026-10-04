@@ -99,6 +99,11 @@ func ClaimsPreferredUsername(v string) predicate.RefreshToken {
 	return predicate.RefreshToken(sql.FieldEQ(FieldClaimsPreferredUsername, v))
 }
 
+// ClaimsPicture applies equality check predicate on the "claims_picture" field. It's identical to ClaimsPictureEQ.
+func ClaimsPicture(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldEQ(FieldClaimsPicture, v))
+}
+
 // ConnectorID applies equality check predicate on the "connector_id" field. It's identical to ConnectorIDEQ.
 func ConnectorID(v string) predicate.RefreshToken {
 	return predicate.RefreshToken(sql.FieldEQ(FieldConnectorID, v))
@@ -547,6 +552,71 @@ func ClaimsPreferredUsernameEqualFold(v string) predicate.RefreshToken {
 // ClaimsPreferredUsernameContainsFold applies the ContainsFold predicate on the "claims_preferred_username" field.
 func ClaimsPreferredUsernameContainsFold(v string) predicate.RefreshToken {
 	return predicate.RefreshToken(sql.FieldContainsFold(FieldClaimsPreferredUsername, v))
+}
+
+// ClaimsPictureEQ applies the EQ predicate on the "claims_picture" field.
+func ClaimsPictureEQ(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldEQ(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureNEQ applies the NEQ predicate on the "claims_picture" field.
+func ClaimsPictureNEQ(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldNEQ(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureIn applies the In predicate on the "claims_picture" field.
+func ClaimsPictureIn(vs ...string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldIn(FieldClaimsPicture, vs...))
+}
+
+// ClaimsPictureNotIn applies the NotIn predicate on the "claims_picture" field.
+func ClaimsPictureNotIn(vs ...string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldNotIn(FieldClaimsPicture, vs...))
+}
+
+// ClaimsPictureGT applies the GT predicate on the "claims_picture" field.
+func ClaimsPictureGT(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldGT(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureGTE applies the GTE predicate on the "claims_picture" field.
+func ClaimsPictureGTE(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldGTE(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureLT applies the LT predicate on the "claims_picture" field.
+func ClaimsPictureLT(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldLT(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureLTE applies the LTE predicate on the "claims_picture" field.
+func ClaimsPictureLTE(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldLTE(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureContains applies the Contains predicate on the "claims_picture" field.
+func ClaimsPictureContains(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldContains(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureHasPrefix applies the HasPrefix predicate on the "claims_picture" field.
+func ClaimsPictureHasPrefix(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldHasPrefix(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureHasSuffix applies the HasSuffix predicate on the "claims_picture" field.
+func ClaimsPictureHasSuffix(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldHasSuffix(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureEqualFold applies the EqualFold predicate on the "claims_picture" field.
+func ClaimsPictureEqualFold(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldEqualFold(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureContainsFold applies the ContainsFold predicate on the "claims_picture" field.
+func ClaimsPictureContainsFold(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldContainsFold(FieldClaimsPicture, v))
 }
 
 // ConnectorIDEQ applies the EQ predicate on the "connector_id" field.

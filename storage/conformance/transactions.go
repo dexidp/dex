@@ -90,6 +90,7 @@ func testAuthRequestConcurrentUpdate(t *testing.T, s storage.Storage) {
 			Username:      "jane",
 			Email:         "jane.doe@example.com",
 			EmailVerified: true,
+			Picture:       "https://example.com/jane.png",
 			Groups:        []string{"a", "b"},
 		},
 		HMACKey: []byte("hmac_key"),

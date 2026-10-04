@@ -79,6 +79,7 @@ func TestHandleDiscovery(t *testing.T) {
 			"locale",
 			"name",
 			"preferred_username",
+			"picture",
 			"at_hash",
 			"groups",
 			"federated_claims",

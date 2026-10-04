@@ -41,6 +41,7 @@ func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity
 		PreferredUsername: identity.PreferredUsername,
 		Email:             identity.Email,
 		EmailVerified:     identity.EmailVerified,
+		Picture:           tokens.PictureClaim(identity.Picture),
 		Groups:            identity.Groups,
 	}
 

@@ -46,6 +46,8 @@ type AuthRequest struct {
 	ClaimsGroups []string `json:"claims_groups,omitempty"`
 	// ClaimsPreferredUsername holds the value of the "claims_preferred_username" field.
 	ClaimsPreferredUsername string `json:"claims_preferred_username,omitempty"`
+	// ClaimsPicture holds the value of the "claims_picture" field.
+	ClaimsPicture string `json:"claims_picture,omitempty"`
 	// ConnectorID holds the value of the "connector_id" field.
 	ConnectorID string `json:"connector_id,omitempty"`
 	// ConnectorData holds the value of the "connector_data" field.
@@ -82,7 +84,7 @@ func (*AuthRequest) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case authrequest.FieldMaxAge:
 			values[i] = new(sql.NullInt64)
-		case authrequest.FieldID, authrequest.FieldClientID, authrequest.FieldRedirectURI, authrequest.FieldNonce, authrequest.FieldState, authrequest.FieldClaimsUserID, authrequest.FieldClaimsUsername, authrequest.FieldClaimsEmail, authrequest.FieldClaimsPreferredUsername, authrequest.FieldConnectorID, authrequest.FieldCodeChallenge, authrequest.FieldCodeChallengeMethod, authrequest.FieldPrompt:
+		case authrequest.FieldID, authrequest.FieldClientID, authrequest.FieldRedirectURI, authrequest.FieldNonce, authrequest.FieldState, authrequest.FieldClaimsUserID, authrequest.FieldClaimsUsername, authrequest.FieldClaimsEmail, authrequest.FieldClaimsPreferredUsername, authrequest.FieldClaimsPicture, authrequest.FieldConnectorID, authrequest.FieldCodeChallenge, authrequest.FieldCodeChallengeMethod, authrequest.FieldPrompt:
 			values[i] = new(sql.NullString)
 		case authrequest.FieldExpiry, authrequest.FieldAuthTime:
 			values[i] = new(sql.NullTime)
@@ -196,6 +198,12 @@ func (_m *AuthRequest) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field claims_preferred_username", values[i])
 			} else if value.Valid {
 				_m.ClaimsPreferredUsername = value.String
+			}
+		case authrequest.FieldClaimsPicture:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field claims_picture", values[i])
+			} else if value.Valid {
+				_m.ClaimsPicture = value.String
 			}
 		case authrequest.FieldConnectorID:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -340,6 +348,9 @@ func (_m *AuthRequest) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("claims_preferred_username=")
 	builder.WriteString(_m.ClaimsPreferredUsername)
+	builder.WriteString(", ")
+	builder.WriteString("claims_picture=")
+	builder.WriteString(_m.ClaimsPicture)
 	builder.WriteString(", ")
 	builder.WriteString("connector_id=")
 	builder.WriteString(_m.ConnectorID)

@@ -89,6 +89,11 @@ func ClaimsPreferredUsername(v string) predicate.UserIdentity {
 	return predicate.UserIdentity(sql.FieldEQ(FieldClaimsPreferredUsername, v))
 }
 
+// ClaimsPicture applies equality check predicate on the "claims_picture" field. It's identical to ClaimsPictureEQ.
+func ClaimsPicture(v string) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldEQ(FieldClaimsPicture, v))
+}
+
 // ClaimsEmail applies equality check predicate on the "claims_email" field. It's identical to ClaimsEmailEQ.
 func ClaimsEmail(v string) predicate.UserIdentity {
 	return predicate.UserIdentity(sql.FieldEQ(FieldClaimsEmail, v))
@@ -452,6 +457,71 @@ func ClaimsPreferredUsernameEqualFold(v string) predicate.UserIdentity {
 // ClaimsPreferredUsernameContainsFold applies the ContainsFold predicate on the "claims_preferred_username" field.
 func ClaimsPreferredUsernameContainsFold(v string) predicate.UserIdentity {
 	return predicate.UserIdentity(sql.FieldContainsFold(FieldClaimsPreferredUsername, v))
+}
+
+// ClaimsPictureEQ applies the EQ predicate on the "claims_picture" field.
+func ClaimsPictureEQ(v string) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldEQ(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureNEQ applies the NEQ predicate on the "claims_picture" field.
+func ClaimsPictureNEQ(v string) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldNEQ(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureIn applies the In predicate on the "claims_picture" field.
+func ClaimsPictureIn(vs ...string) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldIn(FieldClaimsPicture, vs...))
+}
+
+// ClaimsPictureNotIn applies the NotIn predicate on the "claims_picture" field.
+func ClaimsPictureNotIn(vs ...string) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldNotIn(FieldClaimsPicture, vs...))
+}
+
+// ClaimsPictureGT applies the GT predicate on the "claims_picture" field.
+func ClaimsPictureGT(v string) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldGT(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureGTE applies the GTE predicate on the "claims_picture" field.
+func ClaimsPictureGTE(v string) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldGTE(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureLT applies the LT predicate on the "claims_picture" field.
+func ClaimsPictureLT(v string) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldLT(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureLTE applies the LTE predicate on the "claims_picture" field.
+func ClaimsPictureLTE(v string) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldLTE(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureContains applies the Contains predicate on the "claims_picture" field.
+func ClaimsPictureContains(v string) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldContains(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureHasPrefix applies the HasPrefix predicate on the "claims_picture" field.
+func ClaimsPictureHasPrefix(v string) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldHasPrefix(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureHasSuffix applies the HasSuffix predicate on the "claims_picture" field.
+func ClaimsPictureHasSuffix(v string) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldHasSuffix(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureEqualFold applies the EqualFold predicate on the "claims_picture" field.
+func ClaimsPictureEqualFold(v string) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldEqualFold(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureContainsFold applies the ContainsFold predicate on the "claims_picture" field.
+func ClaimsPictureContainsFold(v string) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldContainsFold(FieldClaimsPicture, v))
 }
 
 // ClaimsEmailEQ applies the EQ predicate on the "claims_email" field.

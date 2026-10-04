@@ -21,6 +21,8 @@ const (
 	FieldClaimsUsername = "claims_username"
 	// FieldClaimsPreferredUsername holds the string denoting the claims_preferred_username field in the database.
 	FieldClaimsPreferredUsername = "claims_preferred_username"
+	// FieldClaimsPicture holds the string denoting the claims_picture field in the database.
+	FieldClaimsPicture = "claims_picture"
 	// FieldClaimsEmail holds the string denoting the claims_email field in the database.
 	FieldClaimsEmail = "claims_email"
 	// FieldClaimsEmailVerified holds the string denoting the claims_email_verified field in the database.
@@ -51,6 +53,7 @@ var Columns = []string{
 	FieldClaimsUserID,
 	FieldClaimsUsername,
 	FieldClaimsPreferredUsername,
+	FieldClaimsPicture,
 	FieldClaimsEmail,
 	FieldClaimsEmailVerified,
 	FieldClaimsGroups,
@@ -83,6 +86,8 @@ var (
 	DefaultClaimsUsername string
 	// DefaultClaimsPreferredUsername holds the default value on creation for the "claims_preferred_username" field.
 	DefaultClaimsPreferredUsername string
+	// DefaultClaimsPicture holds the default value on creation for the "claims_picture" field.
+	DefaultClaimsPicture string
 	// DefaultClaimsEmail holds the default value on creation for the "claims_email" field.
 	DefaultClaimsEmail string
 	// DefaultClaimsEmailVerified holds the default value on creation for the "claims_email_verified" field.
@@ -122,6 +127,11 @@ func ByClaimsUsername(opts ...sql.OrderTermOption) OrderOption {
 // ByClaimsPreferredUsername orders the results by the claims_preferred_username field.
 func ByClaimsPreferredUsername(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldClaimsPreferredUsername, opts...).ToFunc()
+}
+
+// ByClaimsPicture orders the results by the claims_picture field.
+func ByClaimsPicture(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldClaimsPicture, opts...).ToFunc()
 }
 
 // ByClaimsEmail orders the results by the claims_email field.

@@ -75,6 +75,7 @@ func TestHandleCallBackForGroupsInUserInfo(t *testing.T) {
 		"user_id_key":        "test-user-id",
 		"user_name_key":      "test-username",
 		"preferred_username": "test-preferred-username",
+		"picture":            "https://avatars.example.com/test.png",
 		"mail":               "mod_mail",
 		"has_verified_email": false,
 		"groups_key":         []string{"admin-group", "user-group"},
@@ -96,6 +97,7 @@ func TestHandleCallBackForGroupsInUserInfo(t *testing.T) {
 	assert.Equal(t, identity.UserID, "test-user-id")
 	assert.Equal(t, identity.Username, "test-username")
 	assert.Equal(t, identity.PreferredUsername, "test-preferred-username")
+	assert.Equal(t, identity.Picture, "https://avatars.example.com/test.png")
 	assert.Equal(t, identity.Email, "mod_mail")
 	assert.Equal(t, identity.EmailVerified, false)
 }
@@ -108,6 +110,7 @@ func TestHandleCallBackForGroupMapsInUserInfo(t *testing.T) {
 		"user_id_key":        "test-user-id",
 		"user_name_key":      "test-username",
 		"preferred_username": "test-preferred-username",
+		"picture":            "https://avatars.example.com/test.png",
 		"mail":               "mod_mail",
 		"has_verified_email": false,
 		"groups_key": []interface{}{
@@ -132,6 +135,7 @@ func TestHandleCallBackForGroupMapsInUserInfo(t *testing.T) {
 	assert.Equal(t, identity.UserID, "test-user-id")
 	assert.Equal(t, identity.Username, "test-username")
 	assert.Equal(t, identity.PreferredUsername, "test-preferred-username")
+	assert.Equal(t, identity.Picture, "https://avatars.example.com/test.png")
 	assert.Equal(t, identity.Email, "mod_mail")
 	assert.Equal(t, identity.EmailVerified, false)
 }
@@ -146,6 +150,7 @@ func TestHandleCallBackForGroupsInToken(t *testing.T) {
 		"user_id_key":        "test-user-id",
 		"user_name_key":      "test-username",
 		"preferred_username": "test-preferred-username",
+		"picture":            "https://avatars.example.com/test.png",
 		"email":              "test-email",
 		"email_verified":     true,
 	}
@@ -162,6 +167,7 @@ func TestHandleCallBackForGroupsInToken(t *testing.T) {
 	assert.Equal(t, len(identity.Groups), 1)
 	assert.Equal(t, identity.Groups[0], "test-group")
 	assert.Equal(t, identity.PreferredUsername, "test-preferred-username")
+	assert.Equal(t, identity.Picture, "https://avatars.example.com/test.png")
 	assert.Equal(t, identity.UserID, "test-user-id")
 	assert.Equal(t, identity.Username, "test-username")
 	assert.Equal(t, identity.Email, "")
@@ -176,6 +182,7 @@ func TestHandleCallbackForNumericUserID(t *testing.T) {
 		"user_id_key":        1000,
 		"user_name_key":      "test-username",
 		"preferred_username": "test-preferred-username",
+		"picture":            "https://avatars.example.com/test.png",
 		"mail":               "mod_mail",
 		"has_verified_email": false,
 	}
@@ -192,6 +199,7 @@ func TestHandleCallbackForNumericUserID(t *testing.T) {
 	assert.Equal(t, identity.UserID, "1000")
 	assert.Equal(t, identity.Username, "test-username")
 	assert.Equal(t, identity.PreferredUsername, "test-preferred-username")
+	assert.Equal(t, identity.Picture, "https://avatars.example.com/test.png")
 	assert.Equal(t, identity.Email, "mod_mail")
 	assert.Equal(t, identity.EmailVerified, false)
 }
