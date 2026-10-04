@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
+	"unicode/utf8"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
@@ -116,6 +117,7 @@ func IdentityFromClaims(claims storage.Claims) connector.Identity {
 		PreferredUsername: claims.PreferredUsername,
 		Email:             claims.Email,
 		EmailVerified:     claims.EmailVerified,
+		Picture:           claims.Picture,
 		Groups:            claims.Groups,
 	}
 }
@@ -130,8 +132,24 @@ func ClaimsFromIdentity(identity connector.Identity) storage.Claims {
 		PreferredUsername: identity.PreferredUsername,
 		Email:             identity.Email,
 		EmailVerified:     identity.EmailVerified,
+		Picture:           PictureClaim(identity.Picture),
 		Groups:            identity.Groups,
 	}
+}
+
+// MaxPictureLength is the longest picture URL, in characters, that dex keeps.
+// It matches the narrowest column any storage backend gives the claim: ent maps
+// text fields to varchar(384) on MySQL.
+const MaxPictureLength = 384
+
+// PictureClaim returns the picture URL to store and issue, or "" when it is
+// longer than MaxPictureLength. A longer value, such as an inline data: URL,
+// would fail to persist on MySQL, and a truncated URL would point nowhere.
+func PictureClaim(picture string) string {
+	if utf8.RuneCountInString(picture) > MaxPictureLength {
+		return ""
+	}
+	return picture
 }
 
 // Rotate advances the stored refresh token according to the rotation strategy and
@@ -203,6 +221,7 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 		old.Claims.PreferredUsername = ident.PreferredUsername
 		old.Claims.Email = ident.Email
 		old.Claims.EmailVerified = ident.EmailVerified
+		old.Claims.Picture = PictureClaim(ident.Picture)
 		old.Claims.Groups = ident.Groups
 
 		return old, nil

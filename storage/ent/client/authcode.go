@@ -19,6 +19,7 @@ func (d *Database) CreateAuthCode(ctx context.Context, code storage.AuthCode) er
 		SetClaimsEmailVerified(code.Claims.EmailVerified).
 		SetClaimsUsername(code.Claims.Username).
 		SetClaimsPreferredUsername(code.Claims.PreferredUsername).
+		SetClaimsPicture(code.Claims.Picture).
 		SetClaimsGroups(code.Claims.Groups).
 		SetCodeChallenge(code.PKCE.CodeChallenge).
 		SetCodeChallengeMethod(code.PKCE.CodeChallengeMethod).

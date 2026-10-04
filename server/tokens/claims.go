@@ -86,6 +86,7 @@ type IDTokenClaims struct {
 
 	Name              string `json:"name,omitempty"`
 	PreferredUsername string `json:"preferred_username,omitempty"`
+	Picture           string `json:"picture,omitempty"`
 
 	FederatedIDClaims *FederatedIDClaims `json:"federated_claims,omitempty"`
 }

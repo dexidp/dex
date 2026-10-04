@@ -15,7 +15,7 @@ import (
 // tests that the email is used as their username when they have no username set
 func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
 	s := newTestServer(map[string]interface{}{
-		"/api/v1/user": giteaUser{Email: "some@email.com", ID: 12345678},
+		"/api/v1/user": giteaUser{Email: "some@email.com", ID: 12345678, AvatarURL: "https://avatars.example.com/some.png"},
 		"/login/oauth/access_token": map[string]interface{}{
 			"access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
 			"expires_in":   "30",
@@ -35,6 +35,7 @@ func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
 	expectNil(t, err)
 	expectEquals(t, identity.Username, "some@email.com")
 	expectEquals(t, identity.UserID, "12345678")
+	expectEquals(t, identity.Picture, "https://avatars.example.com/some.png")
 
 	c = giteaConnector{baseURL: s.URL, httpClient: newClient()}
 	identity, err = c.HandleCallback(connector.Scopes{}, nil, req)

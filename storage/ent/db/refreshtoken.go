@@ -36,6 +36,8 @@ type RefreshToken struct {
 	ClaimsGroups []string `json:"claims_groups,omitempty"`
 	// ClaimsPreferredUsername holds the value of the "claims_preferred_username" field.
 	ClaimsPreferredUsername string `json:"claims_preferred_username,omitempty"`
+	// ClaimsPicture holds the value of the "claims_picture" field.
+	ClaimsPicture string `json:"claims_picture,omitempty"`
 	// ConnectorID holds the value of the "connector_id" field.
 	ConnectorID string `json:"connector_id,omitempty"`
 	// ConnectorData holds the value of the "connector_data" field.
@@ -60,7 +62,7 @@ func (*RefreshToken) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case refreshtoken.FieldClaimsEmailVerified:
 			values[i] = new(sql.NullBool)
-		case refreshtoken.FieldID, refreshtoken.FieldClientID, refreshtoken.FieldNonce, refreshtoken.FieldClaimsUserID, refreshtoken.FieldClaimsUsername, refreshtoken.FieldClaimsEmail, refreshtoken.FieldClaimsPreferredUsername, refreshtoken.FieldConnectorID, refreshtoken.FieldToken, refreshtoken.FieldObsoleteToken:
+		case refreshtoken.FieldID, refreshtoken.FieldClientID, refreshtoken.FieldNonce, refreshtoken.FieldClaimsUserID, refreshtoken.FieldClaimsUsername, refreshtoken.FieldClaimsEmail, refreshtoken.FieldClaimsPreferredUsername, refreshtoken.FieldClaimsPicture, refreshtoken.FieldConnectorID, refreshtoken.FieldToken, refreshtoken.FieldObsoleteToken:
 			values[i] = new(sql.NullString)
 		case refreshtoken.FieldCreatedAt, refreshtoken.FieldLastUsed:
 			values[i] = new(sql.NullTime)
@@ -142,6 +144,12 @@ func (_m *RefreshToken) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field claims_preferred_username", values[i])
 			} else if value.Valid {
 				_m.ClaimsPreferredUsername = value.String
+			}
+		case refreshtoken.FieldClaimsPicture:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field claims_picture", values[i])
+			} else if value.Valid {
+				_m.ClaimsPicture = value.String
 			}
 		case refreshtoken.FieldConnectorID:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -241,6 +249,9 @@ func (_m *RefreshToken) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("claims_preferred_username=")
 	builder.WriteString(_m.ClaimsPreferredUsername)
+	builder.WriteString(", ")
+	builder.WriteString("claims_picture=")
+	builder.WriteString(_m.ClaimsPicture)
 	builder.WriteString(", ")
 	builder.WriteString("connector_id=")
 	builder.WriteString(_m.ConnectorID)

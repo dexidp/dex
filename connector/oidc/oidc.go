@@ -114,6 +114,9 @@ type Config struct {
 		// Configurable key which contains the email claims
 		EmailKey string `json:"email"` // defaults to "email"
 
+		// Configurable key which contains the picture claims
+		PictureKey string `json:"picture"` // defaults to "picture"
+
 		// Configurable key which contains the groups claims
 		GroupsKey string `json:"groups"` // defaults to "groups"
 	} `json:"claimMapping"`
@@ -401,6 +404,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		overrideClaimMapping:      c.OverrideClaimMapping,
 		preferredUsernameKey:      c.ClaimMapping.PreferredUsernameKey,
 		emailKey:                  c.ClaimMapping.EmailKey,
+		pictureKey:                c.ClaimMapping.PictureKey,
 		groupsKey:                 c.ClaimMapping.GroupsKey,
 		newGroupFromClaims:        c.ClaimMutations.NewGroupFromClaims,
 		groupsFilter:              groupsFilter,
@@ -437,6 +441,7 @@ type oidcConnector struct {
 	overrideClaimMapping      bool
 	preferredUsernameKey      string
 	emailKey                  string
+	pictureKey                string
 	groupsKey                 string
 	newGroupFromClaims        []NewGroupFromClaims
 	groupsFilter              *regexp.Regexp
@@ -638,6 +643,11 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		preferredUsername, _ = claims[c.preferredUsernameKey].(string)
 	}
 
+	picture, found := claims["picture"].(string)
+	if (!found || c.overrideClaimMapping) && c.pictureKey != "" {
+		picture, _ = claims[c.pictureKey].(string)
+	}
+
 	hasEmailScope := false
 	for _, s := range c.oauth2Config.Scopes {
 		if s == "email" {
@@ -760,6 +770,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		PreferredUsername: preferredUsername,
 		Email:             email,
 		EmailVerified:     emailVerified,
+		Picture:           picture,
 		Groups:            groups,
 		ConnectorData:     connData,
 	}

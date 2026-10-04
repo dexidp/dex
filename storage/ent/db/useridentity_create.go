@@ -74,6 +74,20 @@ func (_c *UserIdentityCreate) SetNillableClaimsPreferredUsername(v *string) *Use
 	return _c
 }
 
+// SetClaimsPicture sets the "claims_picture" field.
+func (_c *UserIdentityCreate) SetClaimsPicture(v string) *UserIdentityCreate {
+	_c.mutation.SetClaimsPicture(v)
+	return _c
+}
+
+// SetNillableClaimsPicture sets the "claims_picture" field if the given value is not nil.
+func (_c *UserIdentityCreate) SetNillableClaimsPicture(v *string) *UserIdentityCreate {
+	if v != nil {
+		_c.SetClaimsPicture(*v)
+	}
+	return _c
+}
+
 // SetClaimsEmail sets the "claims_email" field.
 func (_c *UserIdentityCreate) SetClaimsEmail(v string) *UserIdentityCreate {
 	_c.mutation.SetClaimsEmail(v)
@@ -197,6 +211,10 @@ func (_c *UserIdentityCreate) defaults() {
 		v := useridentity.DefaultClaimsPreferredUsername
 		_c.mutation.SetClaimsPreferredUsername(v)
 	}
+	if _, ok := _c.mutation.ClaimsPicture(); !ok {
+		v := useridentity.DefaultClaimsPicture
+		_c.mutation.SetClaimsPicture(v)
+	}
 	if _, ok := _c.mutation.ClaimsEmail(); !ok {
 		v := useridentity.DefaultClaimsEmail
 		_c.mutation.SetClaimsEmail(v)
@@ -233,6 +251,9 @@ func (_c *UserIdentityCreate) check() error {
 	}
 	if _, ok := _c.mutation.ClaimsPreferredUsername(); !ok {
 		return &ValidationError{Name: "claims_preferred_username", err: errors.New(`db: missing required field "UserIdentity.claims_preferred_username"`)}
+	}
+	if _, ok := _c.mutation.ClaimsPicture(); !ok {
+		return &ValidationError{Name: "claims_picture", err: errors.New(`db: missing required field "UserIdentity.claims_picture"`)}
 	}
 	if _, ok := _c.mutation.ClaimsEmail(); !ok {
 		return &ValidationError{Name: "claims_email", err: errors.New(`db: missing required field "UserIdentity.claims_email"`)}
@@ -311,6 +332,10 @@ func (_c *UserIdentityCreate) createSpec() (*UserIdentity, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.ClaimsPreferredUsername(); ok {
 		_spec.SetField(useridentity.FieldClaimsPreferredUsername, field.TypeString, value)
 		_node.ClaimsPreferredUsername = value
+	}
+	if value, ok := _c.mutation.ClaimsPicture(); ok {
+		_spec.SetField(useridentity.FieldClaimsPicture, field.TypeString, value)
+		_node.ClaimsPicture = value
 	}
 	if value, ok := _c.mutation.ClaimsEmail(); ok {
 		_spec.SetField(useridentity.FieldClaimsEmail, field.TypeString, value)

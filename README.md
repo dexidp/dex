@@ -66,23 +66,23 @@ Depending on the connectors limitations in protocols can prevent dex from issuin
 
 Dex implements the following connectors:
 
-| Name | supports refresh tokens | supports groups claim | supports preferred_username claim | status | notes |
-| ---- | ----------------------- | --------------------- | --------------------------------- | ------ | ----- |
-| [LDAP](https://dexidp.io/docs/connectors/ldap/) | yes | yes | yes | stable | |
-| [GitHub](https://dexidp.io/docs/connectors/github/) | yes | yes | yes | stable | |
-| [SAML 2.0](https://dexidp.io/docs/connectors/saml/) | no | yes | no | stable | WARNING: Unmaintained and likely vulnerable to auth bypasses ([#1884](https://github.com/dexidp/dex/discussions/1884)) |
-| [GitLab](https://dexidp.io/docs/connectors/gitlab/) | yes | yes | yes | beta | |
-| [OpenID Connect](https://dexidp.io/docs/connectors/oidc/) | yes | yes | yes | beta | Includes Salesforce, Azure, etc. |
-| [OAuth 2.0](https://dexidp.io/docs/connectors/oauth/) | no | yes | yes | alpha | |
-| [Google](https://dexidp.io/docs/connectors/google/) | yes | yes | yes | alpha | |
-| [LinkedIn](https://dexidp.io/docs/connectors/linkedin/) | yes | no | no | beta | |
-| [Microsoft](https://dexidp.io/docs/connectors/microsoft/) | yes | yes | no | beta | |
-| [AuthProxy](https://dexidp.io/docs/connectors/authproxy/) | no | yes | no | alpha | Authentication proxies such as Apache2 mod_auth, etc. |
-| [Bitbucket Cloud](https://dexidp.io/docs/connectors/bitbucketcloud/) | yes | yes | no | alpha | |
-| [OpenShift](https://dexidp.io/docs/connectors/openshift/) | yes | yes | no | alpha | |
-| [Atlassian Crowd](https://dexidp.io/docs/connectors/atlassian-crowd/) | yes | yes | yes * | beta | preferred_username claim must be configured through config |
-| [Gitea](https://dexidp.io/docs/connectors/gitea/) | yes | no | yes | beta | |
-| [OpenStack Keystone](https://dexidp.io/docs/connectors/keystone/) | yes | yes | no | alpha | |
+| Name | supports refresh tokens | supports groups claim | supports preferred_username claim | supports picture claim | status | notes |
+| ---- | ----------------------- | --------------------- | --------------------------------- | ---------------------- | ------ | ----- |
+| [LDAP](https://dexidp.io/docs/connectors/ldap/) | yes | yes | yes | no | stable | |
+| [GitHub](https://dexidp.io/docs/connectors/github/) | yes | yes | yes | yes | stable | |
+| [SAML 2.0](https://dexidp.io/docs/connectors/saml/) | no | yes | no | no | stable | WARNING: Unmaintained and likely vulnerable to auth bypasses ([#1884](https://github.com/dexidp/dex/discussions/1884)) |
+| [GitLab](https://dexidp.io/docs/connectors/gitlab/) | yes | yes | yes | yes | beta | |
+| [OpenID Connect](https://dexidp.io/docs/connectors/oidc/) | yes | yes | yes | yes | beta | Includes Salesforce, Azure, etc. |
+| [OAuth 2.0](https://dexidp.io/docs/connectors/oauth/) | no | yes | yes | yes | alpha | |
+| [Google](https://dexidp.io/docs/connectors/google/) | yes | yes | yes | yes | alpha | |
+| [LinkedIn](https://dexidp.io/docs/connectors/linkedin/) | yes | no | no | no | beta | |
+| [Microsoft](https://dexidp.io/docs/connectors/microsoft/) | yes | yes | no | no | beta | |
+| [AuthProxy](https://dexidp.io/docs/connectors/authproxy/) | no | yes | no | no | alpha | Authentication proxies such as Apache2 mod_auth, etc. |
+| [Bitbucket Cloud](https://dexidp.io/docs/connectors/bitbucketcloud/) | yes | yes | no | yes | alpha | |
+| [OpenShift](https://dexidp.io/docs/connectors/openshift/) | yes | yes | no | no | alpha | |
+| [Atlassian Crowd](https://dexidp.io/docs/connectors/atlassian-crowd/) | yes | yes | yes * | no | beta | preferred_username claim must be configured through config |
+| [Gitea](https://dexidp.io/docs/connectors/gitea/) | yes | no | yes | yes | beta | |
+| [OpenStack Keystone](https://dexidp.io/docs/connectors/keystone/) | yes | yes | no | no | alpha | |
 
 Stable, beta, and alpha are defined as:
 

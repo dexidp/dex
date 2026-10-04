@@ -43,11 +43,12 @@ type Org struct {
 }
 
 type giteaUser struct {
-	ID       int    `json:"id"`
-	Name     string `json:"full_name"`
-	Username string `json:"login"`
-	Email    string `json:"email"`
-	IsAdmin  bool   `json:"is_admin"`
+	ID        int    `json:"id"`
+	Name      string `json:"full_name"`
+	Username  string `json:"login"`
+	Email     string `json:"email"`
+	IsAdmin   bool   `json:"is_admin"`
+	AvatarURL string `json:"avatar_url"`
 }
 
 // Open returns a strategy for logging in through Gitea
@@ -157,6 +158,7 @@ func (c *giteaConnector) HandleCallback(s connector.Scopes, connData []byte, r *
 		PreferredUsername: user.Username,
 		Email:             user.Email,
 		EmailVerified:     true,
+		Picture:           user.AvatarURL,
 	}
 	if c.useLoginAsID {
 		identity.UserID = user.Username
@@ -261,6 +263,7 @@ func (c *giteaConnector) Refresh(ctx context.Context, s connector.Scopes, ident 
 	ident.Username = username
 	ident.PreferredUsername = user.Username
 	ident.Email = user.Email
+	ident.Picture = user.AvatarURL
 
 	// Only set identity.Groups if 'orgs', 'org', or 'groups' scope are specified.
 	if c.groupsRequired() {

@@ -54,6 +54,7 @@ func TestHandleCallback(t *testing.T) {
 		userNameKey               string
 		overrideClaimMapping      bool
 		preferredUsernameKey      string
+		pictureKey                string
 		emailKey                  string
 		groupsKey                 string
 		insecureSkipEmailVerified bool
@@ -62,6 +63,7 @@ func TestHandleCallback(t *testing.T) {
 		expectUserName            string
 		expectGroups              []string
 		expectPreferredUsername   string
+		expectPicture             string
 		expectedEmailField        string
 		token                     map[string]interface{}
 		groupsRegex               string
@@ -78,10 +80,60 @@ func TestHandleCallback(t *testing.T) {
 			expectUserName:     "namevalue",
 			expectGroups:       []string{"group1", "group2"},
 			expectedEmailField: "emailvalue",
+			expectPicture:      "https://example.com/picture.png",
 			token: map[string]interface{}{
 				"sub":            "subvalue",
 				"name":           "namevalue",
 				"groups":         []string{"group1", "group2"},
+				"email":          "emailvalue",
+				"email_verified": true,
+				"picture":        "https://example.com/picture.png",
+			},
+		},
+		{
+			name:               "withPictureKey",
+			pictureKey:         "avatar_key",
+			expectUserID:       "subvalue",
+			expectUserName:     "namevalue",
+			expectPicture:      "https://example.com/avatar.png",
+			expectedEmailField: "emailvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"avatar_key":     "https://example.com/avatar.png",
+				"email":          "emailvalue",
+				"email_verified": true,
+			},
+		},
+		{
+			name:               "standardPictureWinsOverPictureKey",
+			pictureKey:         "avatar_key",
+			expectUserID:       "subvalue",
+			expectUserName:     "namevalue",
+			expectPicture:      "https://example.com/picture.png",
+			expectedEmailField: "emailvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"picture":        "https://example.com/picture.png",
+				"avatar_key":     "https://example.com/avatar.png",
+				"email":          "emailvalue",
+				"email_verified": true,
+			},
+		},
+		{
+			name:                 "overrideWithPictureKey",
+			overrideClaimMapping: true,
+			pictureKey:           "avatar_key",
+			expectUserID:         "subvalue",
+			expectUserName:       "namevalue",
+			expectPicture:        "https://example.com/avatar.png",
+			expectedEmailField:   "emailvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"picture":        "https://example.com/picture.png",
+				"avatar_key":     "https://example.com/avatar.png",
 				"email":          "emailvalue",
 				"email_verified": true,
 			},
@@ -554,6 +606,7 @@ func TestHandleCallback(t *testing.T) {
 				PKCEChallenge:             tc.pkceChallenge,
 			}
 			config.ClaimMapping.PreferredUsernameKey = tc.preferredUsernameKey
+			config.ClaimMapping.PictureKey = tc.pictureKey
 			config.ClaimMapping.EmailKey = tc.emailKey
 			config.ClaimMapping.GroupsKey = tc.groupsKey
 			config.ClaimMutations.NewGroupFromClaims = tc.newGroupFromClaims
@@ -583,6 +636,7 @@ func TestHandleCallback(t *testing.T) {
 			expectEquals(t, identity.UserID, tc.expectUserID)
 			expectEquals(t, identity.Username, tc.expectUserName)
 			expectEquals(t, identity.PreferredUsername, tc.expectPreferredUsername)
+			expectEquals(t, identity.Picture, tc.expectPicture)
 			expectEquals(t, identity.Email, tc.expectedEmailField)
 			expectEquals(t, identity.EmailVerified, true)
 			expectEquals(t, identity.Groups, tc.expectGroups)
