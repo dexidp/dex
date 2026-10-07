@@ -750,7 +750,7 @@ func pprofHandler(router *http.ServeMux) {
 }
 
 // newTLSReloader returns a [tls.Config] with GetCertificate or GetConfigForClient set
-// to reload certificates from the given paths on SIGHUP or on file creates (atomic update via rename).
+// to reload certificates from the given paths on SIGHUP, file writes, or atomic file and projected volume updates.
 func newTLSReloader(logger *slog.Logger, certFile, keyFile, caFile string, baseConfig *tls.Config) (*tls.Config, error) {
 	// trigger reload on channel
 	sigc := make(chan os.Signal, 1)
@@ -807,7 +807,10 @@ func newTLSReloader(logger *slog.Logger, certFile, keyFile, caFile string, baseC
 			case sig := <-sigc:
 				logger.Debug("reloading cert from signal", "signal", sig)
 			case evt := <-watcher.Events:
-				if _, ok := watchFiles[evt.Name]; !ok || !evt.Has(fsnotify.Create) {
+				_, watchedFile := watchFiles[evt.Name]
+				_, watchedDir := watchDirs[filepath.Dir(evt.Name)]
+				projectedUpdate := watchedDir && filepath.Base(evt.Name) == "..data" && evt.Has(fsnotify.Create)
+				if !projectedUpdate && (!watchedFile || !evt.Has(fsnotify.Create|fsnotify.Write)) {
 					continue loop
 				}
 				logger.Debug("reloading cert from fsnotify", "event", evt.Name, "operation", evt.Op.String())
@@ -818,6 +821,7 @@ func newTLSReloader(logger *slog.Logger, certFile, keyFile, caFile string, baseC
 			loaded, err := loadTLSConfig(certFile, keyFile, caFile, baseConfig)
 			if err != nil {
 				logger.Error("reload TLS config", "err", err)
+				continue
 			}
 			ptr.Store(loaded)
 		}
