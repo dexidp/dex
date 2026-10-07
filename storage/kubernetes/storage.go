@@ -47,6 +47,7 @@ const (
 const (
 	crdHandlingEnsure = "ensure"
 	crdHandlingCheck  = "check"
+	crdHandlingSkip   = "skip"
 )
 
 var _ storage.Storage = (*client)(nil)
@@ -63,6 +64,8 @@ type Config struct {
 	// Supported values:
 	// - "ensure": Attempt to create all missing CRDs. If any CRD creation fails, initialization fails. (default)
 	// - "check": Fail immediately if any CRDs are missing with message "storage is not initialized, CRDs are not created"
+	// - "skip": Bypass all CRD detection and creation, allowing Dex to run without permissions
+	//   to manage Custom Resource Definitions.
 	CRDHandling string `json:"crdHandling"`
 }
 
@@ -157,6 +160,11 @@ func (c *Config) open(logger *slog.Logger, waitForResources bool) (*client, erro
 //
 // Creating a custom resource does not mean that they'll be immediately available.
 func (cli *client) registerCustomResources() bool {
+	if cli.crdHandling == crdHandlingSkip {
+		cli.logger.Info("crdHandling is 'skip', skipping CRD detection and creation")
+		return true
+	}
+
 	definitions := customResourceDefinitions(cli.crdAPIVersion)
 
 	// First pass: collect all CRDs that don't exist

@@ -44,6 +44,7 @@ storage:
   # type: kubernetes
   # config:
   #   kubeConfigFile: $HOME/.kube/config
+  #   # crdHandling: ensure # one of "ensure", "check" or "skip"; "skip" disables CRD detection and creation
 
 # Configuration for the HTTP endpoints.
 web:
