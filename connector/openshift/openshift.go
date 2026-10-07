@@ -44,7 +44,6 @@ type openshiftConnector struct {
 	apiURL           string
 	redirectURI      string
 	clientID         string
-	clientSecret     string
 	clientSecretFile string
 	cancel           context.CancelFunc
 	logger           *slog.Logger
@@ -93,13 +92,9 @@ func (c *Config) OpenWithHTTPClient(id string, logger *slog.Logger,
 
 	clientSecret := c.ClientSecret
 	if c.ClientSecretFile != "" {
-		clientSecretBytes, err := os.ReadFile(c.ClientSecretFile)
+		clientSecret, err = readClientSecretFile(c.ClientSecretFile)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read client secret file %q: %w", c.ClientSecretFile, err)
-		}
-		clientSecret = strings.TrimSpace(string(clientSecretBytes))
-		if clientSecret == "" {
-			return nil, fmt.Errorf("client secret file %q contains no valid secret", c.ClientSecretFile)
+			return nil, err
 		}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -115,7 +110,6 @@ func (c *Config) OpenWithHTTPClient(id string, logger *slog.Logger,
 		apiURL:           c.Issuer,
 		cancel:           cancel,
 		clientID:         c.ClientID,
-		clientSecret:     c.ClientSecret,
 		clientSecretFile: c.ClientSecretFile,
 		insecureCA:       c.InsecureCA,
 		logger:           logger.With(slog.Group("connector", "type", "openshift", "id", id)),
@@ -299,17 +293,26 @@ func (c *openshiftConnector) currentOAuth2Config() (*oauth2.Config, error) {
 	if c.clientSecretFile == "" {
 		return c.oauth2Config, nil
 	}
-	clientSecretBytes, err := os.ReadFile(c.clientSecretFile)
+	clientSecret, err := readClientSecretFile(c.clientSecretFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read client secret file %q: %w", c.clientSecretFile, err)
+		return nil, err
 	}
 	cfg := *c.oauth2Config
-	clientSecret := strings.TrimSpace(string(clientSecretBytes))
-	if clientSecret == "" {
-		return nil, fmt.Errorf("client secret file %q contains no valid secret", c.clientSecretFile)
-	}
 	cfg.ClientSecret = clientSecret
 	return &cfg, nil
+}
+
+// readClientSecretFile reads the client secret from path, trimming surrounding whitespace.
+func readClientSecretFile(path string) (string, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to read client secret file %q: %w", path, err)
+	}
+	clientSecret := strings.TrimSpace(string(b))
+	if clientSecret == "" {
+		return "", fmt.Errorf("client secret file %q contains no valid secret", path)
+	}
+	return clientSecret, nil
 }
 
 func validateAllowedGroups(userGroups, allowedGroups []string) bool {
