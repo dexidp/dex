@@ -50,7 +50,7 @@ func TestOpen(t *testing.T) {
 	expectEquals(t, ok, true)
 	expectEquals(t, oc.apiURL, s.URL)
 	expectEquals(t, oc.clientID, "testClientId")
-	expectEquals(t, oc.clientSecret, "testClientSecret")
+	expectEquals(t, oc.oauth2Config.ClientSecret, "testClientSecret")
 	expectEquals(t, oc.redirectURI, "https://localhost/callback")
 	expectEquals(t, oc.oauth2Config.Endpoint.AuthURL, fmt.Sprintf("%s/oauth/authorize", s.URL))
 	expectEquals(t, oc.oauth2Config.Endpoint.TokenURL, fmt.Sprintf("%s/oauth/token", s.URL))
@@ -283,7 +283,6 @@ func TestOpenWithClientSecretFile(t *testing.T) {
 	expectNil(t, err)
 	oc, ok := oconfig.(*openshiftConnector)
 	expectEquals(t, ok, true)
-	expectEquals(t, oc.clientSecret, "")
 	expectEquals(t, oc.clientSecretFile, clientSecretFile)
 	expectEquals(t, oc.oauth2Config.ClientSecret, "client-secret-from-file")
 }
