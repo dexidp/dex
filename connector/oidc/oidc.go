@@ -568,13 +568,25 @@ func (c *oidcConnector) TokenIdentity(ctx context.Context, subjectTokenType, sub
 	return c.createIdentity(ctx, identity, token, exchangeCaller)
 }
 
+// verifyError wraps err from a token verification with msg. A failure to fetch
+// the issuer's signing keys becomes a connector.UpstreamUnavailableError.
+// go-oidc formats that failure into the verification error with %v, so it can
+// only be recognized by go-oidc's "fetching keys" wording.
+func verifyError(msg string, err error) error {
+	err = fmt.Errorf("%s: %v", msg, err)
+	if strings.Contains(err.Error(), "fetching keys") {
+		return &connector.UpstreamUnavailableError{Err: err}
+	}
+	return err
+}
+
 func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.Identity, token *oauth2.Token, caller caller) (connector.Identity, error) {
 	var claims map[string]interface{}
 
 	if rawIDToken, ok := token.Extra("id_token").(string); ok {
 		idToken, err := c.verifier.Verify(ctx, rawIDToken)
 		if err != nil {
-			return identity, fmt.Errorf("oidc: failed to verify ID Token: %v", err)
+			return identity, verifyError("oidc: failed to verify ID Token", err)
 		}
 
 		if err := idToken.Claims(&claims); err != nil {
@@ -586,7 +598,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 			// Verify only works on ID tokens
 			idToken, err := c.provider.Verifier(&oidc.Config{SkipClientIDCheck: true}).Verify(ctx, token.AccessToken)
 			if err != nil {
-				return identity, fmt.Errorf("oidc: failed to verify token: %v", err)
+				return identity, verifyError("oidc: failed to verify token", err)
 			}
 			if err := idToken.Claims(&claims); err != nil {
 				return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)

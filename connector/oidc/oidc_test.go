@@ -13,8 +13,11 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1117,4 +1120,67 @@ func TestEndSessionURLOverride(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, "https://custom.example.com/logout", conn.endSessionURL)
+}
+
+func TestTokenIdentityKeysUnavailable(t *testing.T) {
+	backend, err := setupServer(map[string]any{
+		"sub":  "subvalue",
+		"name": "namevalue",
+	}, true)
+	require.NoError(t, err)
+	defer backend.Close()
+	backendURL, err := url.Parse(backend.URL)
+	require.NoError(t, err)
+	proxy := httputil.NewSingleHostReverseProxy(backendURL)
+
+	// While keysDown is set, the keys endpoint fails.
+	var keysDown atomic.Bool
+	keysDown.Store(true)
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/keys" && keysDown.Load() {
+			http.Error(w, "unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		proxy.ServeHTTP(w, r)
+	}))
+	defer testServer.Close()
+
+	conn, err := newConnector(Config{
+		Issuer: testServer.URL,
+		Scopes: []string{"openid", "groups"},
+	})
+	require.NoError(t, err)
+
+	res, err := http.Get(testServer.URL + "/token")
+	require.NoError(t, err)
+	defer res.Body.Close()
+	var tokenResponse map[string]any
+	require.NoError(t, json.NewDecoder(res.Body).Decode(&tokenResponse))
+	idToken := tokenResponse["id_token"].(string)
+
+	const tokenTypeID = "urn:ietf:params:oauth:token-type:id_token"
+	ctx := context.Background()
+
+	var unavailableErr *connector.UpstreamUnavailableError
+	_, err = conn.TokenIdentity(ctx, tokenTypeID, idToken)
+	require.ErrorAs(t, err, &unavailableErr)
+
+	keysDown.Store(false)
+	identity, err := conn.TokenIdentity(ctx, tokenTypeID, idToken)
+	require.NoError(t, err)
+	expectEquals(t, identity.UserID, "subvalue")
+
+	// A token signed with another key does not verify. That is not an outage.
+	otherKey, err := rsa.GenerateKey(rand.Reader, 1024)
+	require.NoError(t, err)
+	forged, err := newToken(&jose.JSONWebKey{Key: otherKey, KeyID: "keyId", Algorithm: "RSA"}, map[string]any{
+		"iss": testServer.URL,
+		"sub": "subvalue",
+		"aud": "clientID",
+		"exp": time.Now().Add(time.Hour).Unix(),
+	})
+	require.NoError(t, err)
+	_, err = conn.TokenIdentity(ctx, tokenTypeID, forged)
+	require.Error(t, err)
+	require.False(t, errors.As(err, &unavailableErr), "a token that does not verify is not an upstream outage: %v", err)
 }
