@@ -20,6 +20,7 @@ func (d *Database) CreateAuthCode(ctx context.Context, code storage.AuthCode) er
 		SetClaimsUsername(code.Claims.Username).
 		SetClaimsPreferredUsername(code.Claims.PreferredUsername).
 		SetClaimsGroups(code.Claims.Groups).
+		SetClaimsAmr(code.Claims.Amr).
 		SetCodeChallenge(code.PKCE.CodeChallenge).
 		SetCodeChallengeMethod(code.PKCE.CodeChallengeMethod).
 		// Save utc time into database because ent doesn't support comparing dates with different timezones

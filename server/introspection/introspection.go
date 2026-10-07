@@ -103,6 +103,8 @@ type IntrospectionExtra struct {
 
 	Groups []string `json:"groups,omitempty"`
 
+	Amr []string `json:"amr,omitempty"`
+
 	Name              string `json:"name,omitempty"`
 	PreferredUsername string `json:"preferred_username,omitempty"`
 
@@ -277,6 +279,7 @@ func (h *Handler) introspectRefreshToken(ctx context.Context, token string) (*In
 			Email:             refresh.Claims.Email,
 			EmailVerified:     &refresh.Claims.EmailVerified,
 			Groups:            refresh.Claims.Groups,
+			Amr:               refresh.Claims.Amr,
 			Name:              refresh.Claims.Username,
 			PreferredUsername: refresh.Claims.PreferredUsername,
 		},

@@ -86,6 +86,8 @@ func (RefreshToken) Fields() []ent.Field {
 		field.Time("last_used").
 			SchemaType(timeSchema).
 			Default(time.Now),
+		field.JSON("claims_amr", []string{}).
+			Optional(),
 	}
 }
 

@@ -162,6 +162,12 @@ func (_c *AuthCodeCreate) SetNillableSessionID(v *string) *AuthCodeCreate {
 	return _c
 }
 
+// SetClaimsAmr sets the "claims_amr" field.
+func (_c *AuthCodeCreate) SetClaimsAmr(v []string) *AuthCodeCreate {
+	_c.mutation.SetClaimsAmr(v)
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *AuthCodeCreate) SetID(v string) *AuthCodeCreate {
 	_c.mutation.SetID(v)
@@ -401,6 +407,10 @@ func (_c *AuthCodeCreate) createSpec() (*AuthCode, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.SessionID(); ok {
 		_spec.SetField(authcode.FieldSessionID, field.TypeString, value)
 		_node.SessionID = value
+	}
+	if value, ok := _c.mutation.ClaimsAmr(); ok {
+		_spec.SetField(authcode.FieldClaimsAmr, field.TypeJSON, value)
+		_node.ClaimsAmr = value
 	}
 	return _node, _spec
 }

@@ -217,6 +217,24 @@ func (_u *UserIdentityUpdate) SetNillableBlockedUntil(v *time.Time) *UserIdentit
 	return _u
 }
 
+// SetClaimsAmr sets the "claims_amr" field.
+func (_u *UserIdentityUpdate) SetClaimsAmr(v []string) *UserIdentityUpdate {
+	_u.mutation.SetClaimsAmr(v)
+	return _u
+}
+
+// AppendClaimsAmr appends value to the "claims_amr" field.
+func (_u *UserIdentityUpdate) AppendClaimsAmr(v []string) *UserIdentityUpdate {
+	_u.mutation.AppendClaimsAmr(v)
+	return _u
+}
+
+// ClearClaimsAmr clears the value of the "claims_amr" field.
+func (_u *UserIdentityUpdate) ClearClaimsAmr() *UserIdentityUpdate {
+	_u.mutation.ClearClaimsAmr()
+	return _u
+}
+
 // Mutation returns the UserIdentityMutation object of the builder.
 func (_u *UserIdentityUpdate) Mutation() *UserIdentityMutation {
 	return _u.mutation
@@ -331,6 +349,17 @@ func (_u *UserIdentityUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if value, ok := _u.mutation.BlockedUntil(); ok {
 		_spec.SetField(useridentity.FieldBlockedUntil, field.TypeTime, value)
+	}
+	if value, ok := _u.mutation.ClaimsAmr(); ok {
+		_spec.SetField(useridentity.FieldClaimsAmr, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedClaimsAmr(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, useridentity.FieldClaimsAmr, value)
+		})
+	}
+	if _u.mutation.ClaimsAmrCleared() {
+		_spec.ClearField(useridentity.FieldClaimsAmr, field.TypeJSON)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -540,6 +569,24 @@ func (_u *UserIdentityUpdateOne) SetNillableBlockedUntil(v *time.Time) *UserIden
 	return _u
 }
 
+// SetClaimsAmr sets the "claims_amr" field.
+func (_u *UserIdentityUpdateOne) SetClaimsAmr(v []string) *UserIdentityUpdateOne {
+	_u.mutation.SetClaimsAmr(v)
+	return _u
+}
+
+// AppendClaimsAmr appends value to the "claims_amr" field.
+func (_u *UserIdentityUpdateOne) AppendClaimsAmr(v []string) *UserIdentityUpdateOne {
+	_u.mutation.AppendClaimsAmr(v)
+	return _u
+}
+
+// ClearClaimsAmr clears the value of the "claims_amr" field.
+func (_u *UserIdentityUpdateOne) ClearClaimsAmr() *UserIdentityUpdateOne {
+	_u.mutation.ClearClaimsAmr()
+	return _u
+}
+
 // Mutation returns the UserIdentityMutation object of the builder.
 func (_u *UserIdentityUpdateOne) Mutation() *UserIdentityMutation {
 	return _u.mutation
@@ -684,6 +731,17 @@ func (_u *UserIdentityUpdateOne) sqlSave(ctx context.Context) (_node *UserIdenti
 	}
 	if value, ok := _u.mutation.BlockedUntil(); ok {
 		_spec.SetField(useridentity.FieldBlockedUntil, field.TypeTime, value)
+	}
+	if value, ok := _u.mutation.ClaimsAmr(); ok {
+		_spec.SetField(useridentity.FieldClaimsAmr, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedClaimsAmr(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, useridentity.FieldClaimsAmr, value)
+		})
+	}
+	if _u.mutation.ClaimsAmrCleared() {
+		_spec.ClearField(useridentity.FieldClaimsAmr, field.TypeJSON)
 	}
 	_node = &UserIdentity{config: _u.config}
 	_spec.Assign = _node.assignValues

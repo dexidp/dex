@@ -67,7 +67,9 @@ type AuthRequest struct {
 	// MaxAge holds the value of the "max_age" field.
 	MaxAge int `json:"max_age,omitempty"`
 	// AuthTime holds the value of the "auth_time" field.
-	AuthTime     time.Time `json:"auth_time,omitempty"`
+	AuthTime time.Time `json:"auth_time,omitempty"`
+	// ClaimsAmr holds the value of the "claims_amr" field.
+	ClaimsAmr    []string `json:"claims_amr,omitempty"`
 	selectValues sql.SelectValues
 }
 
@@ -76,7 +78,7 @@ func (*AuthRequest) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case authrequest.FieldScopes, authrequest.FieldResponseTypes, authrequest.FieldClaimsGroups, authrequest.FieldConnectorData, authrequest.FieldHmacKey, authrequest.FieldWebauthnSessionData:
+		case authrequest.FieldScopes, authrequest.FieldResponseTypes, authrequest.FieldClaimsGroups, authrequest.FieldConnectorData, authrequest.FieldHmacKey, authrequest.FieldWebauthnSessionData, authrequest.FieldClaimsAmr:
 			values[i] = new([]byte)
 		case authrequest.FieldForceApprovalPrompt, authrequest.FieldLoggedIn, authrequest.FieldClaimsEmailVerified, authrequest.FieldMfaValidated:
 			values[i] = new(sql.NullBool)
@@ -263,6 +265,14 @@ func (_m *AuthRequest) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.AuthTime = value.Time
 			}
+		case authrequest.FieldClaimsAmr:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field claims_amr", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.ClaimsAmr); err != nil {
+					return fmt.Errorf("unmarshal field claims_amr: %w", err)
+				}
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -377,6 +387,9 @@ func (_m *AuthRequest) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("auth_time=")
 	builder.WriteString(_m.AuthTime.Format(time.ANSIC))
+	builder.WriteString(", ")
+	builder.WriteString("claims_amr=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ClaimsAmr))
 	builder.WriteByte(')')
 	return builder.String()
 }

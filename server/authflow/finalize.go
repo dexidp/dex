@@ -42,6 +42,7 @@ func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity
 		Email:             identity.Email,
 		EmailVerified:     identity.EmailVerified,
 		Groups:            identity.Groups,
+		Amr:               identity.Amr,
 	}
 
 	updater := func(a storage.AuthRequest) (storage.AuthRequest, error) {
@@ -66,7 +67,7 @@ func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity
 	h.Logger.InfoContext(ctx, "login successful",
 		"connector_id", authReq.ConnectorID, "user_id", claims.UserID,
 		"username", claims.Username, "preferred_username", claims.PreferredUsername,
-		"email", email, "groups", claims.Groups)
+		"email", email, "groups", claims.Groups, "amr", claims.Amr)
 
 	offlineAccessRequested := false
 	for _, scope := range authReq.Scopes {

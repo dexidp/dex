@@ -245,6 +245,24 @@ func (_u *RefreshTokenUpdate) SetNillableLastUsed(v *time.Time) *RefreshTokenUpd
 	return _u
 }
 
+// SetClaimsAmr sets the "claims_amr" field.
+func (_u *RefreshTokenUpdate) SetClaimsAmr(v []string) *RefreshTokenUpdate {
+	_u.mutation.SetClaimsAmr(v)
+	return _u
+}
+
+// AppendClaimsAmr appends value to the "claims_amr" field.
+func (_u *RefreshTokenUpdate) AppendClaimsAmr(v []string) *RefreshTokenUpdate {
+	_u.mutation.AppendClaimsAmr(v)
+	return _u
+}
+
+// ClearClaimsAmr clears the value of the "claims_amr" field.
+func (_u *RefreshTokenUpdate) ClearClaimsAmr() *RefreshTokenUpdate {
+	_u.mutation.ClearClaimsAmr()
+	return _u
+}
+
 // Mutation returns the RefreshTokenMutation object of the builder.
 func (_u *RefreshTokenUpdate) Mutation() *RefreshTokenMutation {
 	return _u.mutation
@@ -387,6 +405,17 @@ func (_u *RefreshTokenUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if value, ok := _u.mutation.LastUsed(); ok {
 		_spec.SetField(refreshtoken.FieldLastUsed, field.TypeTime, value)
+	}
+	if value, ok := _u.mutation.ClaimsAmr(); ok {
+		_spec.SetField(refreshtoken.FieldClaimsAmr, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedClaimsAmr(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, refreshtoken.FieldClaimsAmr, value)
+		})
+	}
+	if _u.mutation.ClaimsAmrCleared() {
+		_spec.ClearField(refreshtoken.FieldClaimsAmr, field.TypeJSON)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -624,6 +653,24 @@ func (_u *RefreshTokenUpdateOne) SetNillableLastUsed(v *time.Time) *RefreshToken
 	return _u
 }
 
+// SetClaimsAmr sets the "claims_amr" field.
+func (_u *RefreshTokenUpdateOne) SetClaimsAmr(v []string) *RefreshTokenUpdateOne {
+	_u.mutation.SetClaimsAmr(v)
+	return _u
+}
+
+// AppendClaimsAmr appends value to the "claims_amr" field.
+func (_u *RefreshTokenUpdateOne) AppendClaimsAmr(v []string) *RefreshTokenUpdateOne {
+	_u.mutation.AppendClaimsAmr(v)
+	return _u
+}
+
+// ClearClaimsAmr clears the value of the "claims_amr" field.
+func (_u *RefreshTokenUpdateOne) ClearClaimsAmr() *RefreshTokenUpdateOne {
+	_u.mutation.ClearClaimsAmr()
+	return _u
+}
+
 // Mutation returns the RefreshTokenMutation object of the builder.
 func (_u *RefreshTokenUpdateOne) Mutation() *RefreshTokenMutation {
 	return _u.mutation
@@ -796,6 +843,17 @@ func (_u *RefreshTokenUpdateOne) sqlSave(ctx context.Context) (_node *RefreshTok
 	}
 	if value, ok := _u.mutation.LastUsed(); ok {
 		_spec.SetField(refreshtoken.FieldLastUsed, field.TypeTime, value)
+	}
+	if value, ok := _u.mutation.ClaimsAmr(); ok {
+		_spec.SetField(refreshtoken.FieldClaimsAmr, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedClaimsAmr(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, refreshtoken.FieldClaimsAmr, value)
+		})
+	}
+	if _u.mutation.ClaimsAmrCleared() {
+		_spec.ClearField(refreshtoken.FieldClaimsAmr, field.TypeJSON)
 	}
 	_node = &RefreshToken{config: _u.config}
 	_spec.Assign = _node.assignValues

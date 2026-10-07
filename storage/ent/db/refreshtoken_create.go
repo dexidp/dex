@@ -150,6 +150,12 @@ func (_c *RefreshTokenCreate) SetNillableLastUsed(v *time.Time) *RefreshTokenCre
 	return _c
 }
 
+// SetClaimsAmr sets the "claims_amr" field.
+func (_c *RefreshTokenCreate) SetClaimsAmr(v []string) *RefreshTokenCreate {
+	_c.mutation.SetClaimsAmr(v)
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *RefreshTokenCreate) SetID(v string) *RefreshTokenCreate {
 	_c.mutation.SetID(v)
@@ -380,6 +386,10 @@ func (_c *RefreshTokenCreate) createSpec() (*RefreshToken, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.LastUsed(); ok {
 		_spec.SetField(refreshtoken.FieldLastUsed, field.TypeTime, value)
 		_node.LastUsed = value
+	}
+	if value, ok := _c.mutation.ClaimsAmr(); ok {
+		_spec.SetField(refreshtoken.FieldClaimsAmr, field.TypeJSON, value)
+		_node.ClaimsAmr = value
 	}
 	return _node, _spec
 }

@@ -69,6 +69,7 @@ type IDTokenClaims struct {
 	AuthorizingParty string   `json:"azp,omitempty"`
 	Nonce            string   `json:"nonce,omitempty"`
 	AuthTime         int64    `json:"auth_time,omitempty"`
+	Amr              []string `json:"amr,omitempty"`
 
 	// SessionID is the OIDC "sid" claim: the browser session this token was issued
 	// under. Present only when sessions are enabled. It lets an RP correlate a
