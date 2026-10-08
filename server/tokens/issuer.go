@@ -151,6 +151,7 @@ func (i *Issuer) SignIDToken(ctx context.Context, auth Authorization, accessToke
 		case scope == ScopeProfile:
 			tok.Name = auth.Claims.Username
 			tok.PreferredUsername = auth.Claims.PreferredUsername
+			tok.Picture = auth.Claims.Picture
 		case scope == ScopeFederatedID:
 			tok.FederatedIDClaims = &FederatedIDClaims{
 				ConnectorID: auth.ConnectorID,

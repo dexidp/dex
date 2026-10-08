@@ -119,6 +119,11 @@ func ClaimsPreferredUsername(v string) predicate.AuthRequest {
 	return predicate.AuthRequest(sql.FieldEQ(FieldClaimsPreferredUsername, v))
 }
 
+// ClaimsPicture applies equality check predicate on the "claims_picture" field. It's identical to ClaimsPictureEQ.
+func ClaimsPicture(v string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldEQ(FieldClaimsPicture, v))
+}
+
 // ConnectorID applies equality check predicate on the "connector_id" field. It's identical to ConnectorIDEQ.
 func ConnectorID(v string) predicate.AuthRequest {
 	return predicate.AuthRequest(sql.FieldEQ(FieldConnectorID, v))
@@ -752,6 +757,71 @@ func ClaimsPreferredUsernameEqualFold(v string) predicate.AuthRequest {
 // ClaimsPreferredUsernameContainsFold applies the ContainsFold predicate on the "claims_preferred_username" field.
 func ClaimsPreferredUsernameContainsFold(v string) predicate.AuthRequest {
 	return predicate.AuthRequest(sql.FieldContainsFold(FieldClaimsPreferredUsername, v))
+}
+
+// ClaimsPictureEQ applies the EQ predicate on the "claims_picture" field.
+func ClaimsPictureEQ(v string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldEQ(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureNEQ applies the NEQ predicate on the "claims_picture" field.
+func ClaimsPictureNEQ(v string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldNEQ(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureIn applies the In predicate on the "claims_picture" field.
+func ClaimsPictureIn(vs ...string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldIn(FieldClaimsPicture, vs...))
+}
+
+// ClaimsPictureNotIn applies the NotIn predicate on the "claims_picture" field.
+func ClaimsPictureNotIn(vs ...string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldNotIn(FieldClaimsPicture, vs...))
+}
+
+// ClaimsPictureGT applies the GT predicate on the "claims_picture" field.
+func ClaimsPictureGT(v string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldGT(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureGTE applies the GTE predicate on the "claims_picture" field.
+func ClaimsPictureGTE(v string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldGTE(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureLT applies the LT predicate on the "claims_picture" field.
+func ClaimsPictureLT(v string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldLT(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureLTE applies the LTE predicate on the "claims_picture" field.
+func ClaimsPictureLTE(v string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldLTE(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureContains applies the Contains predicate on the "claims_picture" field.
+func ClaimsPictureContains(v string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldContains(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureHasPrefix applies the HasPrefix predicate on the "claims_picture" field.
+func ClaimsPictureHasPrefix(v string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldHasPrefix(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureHasSuffix applies the HasSuffix predicate on the "claims_picture" field.
+func ClaimsPictureHasSuffix(v string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldHasSuffix(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureEqualFold applies the EqualFold predicate on the "claims_picture" field.
+func ClaimsPictureEqualFold(v string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldEqualFold(FieldClaimsPicture, v))
+}
+
+// ClaimsPictureContainsFold applies the ContainsFold predicate on the "claims_picture" field.
+func ClaimsPictureContainsFold(v string) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldContainsFold(FieldClaimsPicture, v))
 }
 
 // ConnectorIDEQ applies the EQ predicate on the "connector_id" field.

@@ -147,7 +147,7 @@ func (h *Handler) Construct(ctx context.Context) Document {
 		AuthMethods:       []string{"client_secret_basic", "client_secret_post"},
 		Claims: []string{
 			"iss", "sub", "aud", "iat", "exp", "email", "email_verified",
-			"locale", "name", "preferred_username", "at_hash", "groups",
+			"locale", "name", "preferred_username", "picture", "at_hash", "groups",
 			"federated_claims",
 		},
 	}

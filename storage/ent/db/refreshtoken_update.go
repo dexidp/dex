@@ -163,6 +163,20 @@ func (_u *RefreshTokenUpdate) SetNillableClaimsPreferredUsername(v *string) *Ref
 	return _u
 }
 
+// SetClaimsPicture sets the "claims_picture" field.
+func (_u *RefreshTokenUpdate) SetClaimsPicture(v string) *RefreshTokenUpdate {
+	_u.mutation.SetClaimsPicture(v)
+	return _u
+}
+
+// SetNillableClaimsPicture sets the "claims_picture" field if the given value is not nil.
+func (_u *RefreshTokenUpdate) SetNillableClaimsPicture(v *string) *RefreshTokenUpdate {
+	if v != nil {
+		_u.SetClaimsPicture(*v)
+	}
+	return _u
+}
+
 // SetConnectorID sets the "connector_id" field.
 func (_u *RefreshTokenUpdate) SetConnectorID(v string) *RefreshTokenUpdate {
 	_u.mutation.SetConnectorID(v)
@@ -367,6 +381,9 @@ func (_u *RefreshTokenUpdate) sqlSave(ctx context.Context) (_node int, err error
 	if value, ok := _u.mutation.ClaimsPreferredUsername(); ok {
 		_spec.SetField(refreshtoken.FieldClaimsPreferredUsername, field.TypeString, value)
 	}
+	if value, ok := _u.mutation.ClaimsPicture(); ok {
+		_spec.SetField(refreshtoken.FieldClaimsPicture, field.TypeString, value)
+	}
 	if value, ok := _u.mutation.ConnectorID(); ok {
 		_spec.SetField(refreshtoken.FieldConnectorID, field.TypeString, value)
 	}
@@ -538,6 +555,20 @@ func (_u *RefreshTokenUpdateOne) SetClaimsPreferredUsername(v string) *RefreshTo
 func (_u *RefreshTokenUpdateOne) SetNillableClaimsPreferredUsername(v *string) *RefreshTokenUpdateOne {
 	if v != nil {
 		_u.SetClaimsPreferredUsername(*v)
+	}
+	return _u
+}
+
+// SetClaimsPicture sets the "claims_picture" field.
+func (_u *RefreshTokenUpdateOne) SetClaimsPicture(v string) *RefreshTokenUpdateOne {
+	_u.mutation.SetClaimsPicture(v)
+	return _u
+}
+
+// SetNillableClaimsPicture sets the "claims_picture" field if the given value is not nil.
+func (_u *RefreshTokenUpdateOne) SetNillableClaimsPicture(v *string) *RefreshTokenUpdateOne {
+	if v != nil {
+		_u.SetClaimsPicture(*v)
 	}
 	return _u
 }
@@ -775,6 +806,9 @@ func (_u *RefreshTokenUpdateOne) sqlSave(ctx context.Context) (_node *RefreshTok
 	}
 	if value, ok := _u.mutation.ClaimsPreferredUsername(); ok {
 		_spec.SetField(refreshtoken.FieldClaimsPreferredUsername, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ClaimsPicture(); ok {
+		_spec.SetField(refreshtoken.FieldClaimsPicture, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.ConnectorID(); ok {
 		_spec.SetField(refreshtoken.FieldConnectorID, field.TypeString, value)

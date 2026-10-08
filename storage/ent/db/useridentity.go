@@ -28,6 +28,8 @@ type UserIdentity struct {
 	ClaimsUsername string `json:"claims_username,omitempty"`
 	// ClaimsPreferredUsername holds the value of the "claims_preferred_username" field.
 	ClaimsPreferredUsername string `json:"claims_preferred_username,omitempty"`
+	// ClaimsPicture holds the value of the "claims_picture" field.
+	ClaimsPicture string `json:"claims_picture,omitempty"`
 	// ClaimsEmail holds the value of the "claims_email" field.
 	ClaimsEmail string `json:"claims_email,omitempty"`
 	// ClaimsEmailVerified holds the value of the "claims_email_verified" field.
@@ -58,7 +60,7 @@ func (*UserIdentity) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case useridentity.FieldClaimsEmailVerified:
 			values[i] = new(sql.NullBool)
-		case useridentity.FieldID, useridentity.FieldUserID, useridentity.FieldConnectorID, useridentity.FieldClaimsUserID, useridentity.FieldClaimsUsername, useridentity.FieldClaimsPreferredUsername, useridentity.FieldClaimsEmail:
+		case useridentity.FieldID, useridentity.FieldUserID, useridentity.FieldConnectorID, useridentity.FieldClaimsUserID, useridentity.FieldClaimsUsername, useridentity.FieldClaimsPreferredUsername, useridentity.FieldClaimsPicture, useridentity.FieldClaimsEmail:
 			values[i] = new(sql.NullString)
 		case useridentity.FieldCreatedAt, useridentity.FieldLastLogin, useridentity.FieldBlockedUntil:
 			values[i] = new(sql.NullTime)
@@ -112,6 +114,12 @@ func (_m *UserIdentity) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field claims_preferred_username", values[i])
 			} else if value.Valid {
 				_m.ClaimsPreferredUsername = value.String
+			}
+		case useridentity.FieldClaimsPicture:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field claims_picture", values[i])
+			} else if value.Valid {
+				_m.ClaimsPicture = value.String
 			}
 		case useridentity.FieldClaimsEmail:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -219,6 +227,9 @@ func (_m *UserIdentity) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("claims_preferred_username=")
 	builder.WriteString(_m.ClaimsPreferredUsername)
+	builder.WriteString(", ")
+	builder.WriteString("claims_picture=")
+	builder.WriteString(_m.ClaimsPicture)
 	builder.WriteString(", ")
 	builder.WriteString("claims_email=")
 	builder.WriteString(_m.ClaimsEmail)

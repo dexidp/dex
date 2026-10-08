@@ -26,6 +26,7 @@ create table auth_request
     connector_data            blob,
     expiry                    timestamp not null,
     claims_preferred_username text default '' not null,
+    claims_picture            text default '' not null,
     code_challenge            text default '' not null,
     code_challenge_method     text default '' not null,
     hmac_key                  blob
@@ -70,6 +71,9 @@ func (AuthRequest) Fields() []ent.Field {
 		field.JSON("claims_groups", []string{}).
 			Optional(),
 		field.Text("claims_preferred_username").
+			SchemaType(textSchema).
+			Default(""),
+		field.Text("claims_picture").
 			SchemaType(textSchema).
 			Default(""),
 
