@@ -28,6 +28,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 		clients                []storage.Client
 		supportedResponseTypes []string
 		pkce                   PKCEConfig
+		allowedScopePrefixes   []string
 
 		usePOST bool
 
@@ -380,6 +381,40 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				"scope":                 "openid email profile",
 			},
 		},
+		{
+			name: "unrecognized scope rejected without allowed prefix",
+			clients: []storage.Client{
+				{
+					ID:           "bar",
+					RedirectURIs: []string{"https://example.com/bar"},
+				},
+			},
+			supportedResponseTypes: []string{"code"},
+			queryParams: map[string]string{
+				"client_id":     "bar",
+				"redirect_uri":  "https://example.com/bar",
+				"response_type": "code",
+				"scope":         "openid custom:read",
+			},
+			expectedError: &redirectedAuthErr{Type: oauth2.InvalidScope},
+		},
+		{
+			name: "unrecognized scope accepted with matching allowed prefix",
+			clients: []storage.Client{
+				{
+					ID:           "bar",
+					RedirectURIs: []string{"https://example.com/bar"},
+				},
+			},
+			supportedResponseTypes: []string{"code"},
+			allowedScopePrefixes:   []string{"custom:"},
+			queryParams: map[string]string{
+				"client_id":     "bar",
+				"redirect_uri":  "https://example.com/bar",
+				"response_type": "code",
+				"scope":         "openid custom:read",
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -390,6 +425,7 @@ func TestParseAuthorizationRequest(t *testing.T) {
 				if len(tc.pkce.CodeChallengeMethodsSupported) > 0 || tc.pkce.Enforce {
 					c.PKCE = tc.pkce
 				}
+				c.AllowedScopePrefixes = tc.allowedScopePrefixes
 			})
 			defer httpServer.Close()
 
