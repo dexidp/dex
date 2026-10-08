@@ -83,6 +83,14 @@ func (d dexAPI) ListUserIdentities(ctx context.Context, req *api.ListUserIdentit
 	}, nil
 }
 
+// readOnlyPasswords is implemented by the storage wrapper that serves static
+// passwords from the config file. It is an assertion rather than part of the
+// Storage interface because only the purge needs to ask the question, and only
+// to refuse rather than to act.
+type readOnlyPasswords interface {
+	IsStaticPassword(email string) bool
+}
+
 func (d dexAPI) DeleteUserIdentity(ctx context.Context, req *api.DeleteUserIdentityReq) (*api.DeleteUserIdentityResp, error) {
 	if !featureflags.APISessionsIdentitiesCRUD.Enabled() {
 		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APISessionsIdentitiesCRUD.Name)
@@ -104,6 +112,19 @@ func (d dexAPI) DeleteUserIdentity(ctx context.Context, req *api.DeleteUserIdent
 		}
 		d.logger.Error("api: failed to get user identity during purge", "err", err)
 		return nil, fmt.Errorf("delete user identity: %v", err)
+	}
+
+	// The cascade spans several stores and dex has no transaction across them, so
+	// the one step that fails for a predictable reason is checked before anything
+	// is destroyed. A password served from the config file cannot be deleted
+	// through the API; discovering that at the password step would leave the user
+	// signed out everywhere, their tokens revoked, and their account still there,
+	// with no way to finish from here.
+	if email := identity.Claims.Email; email != "" {
+		if ro, ok := d.s.(readOnlyPasswords); ok && ro.IsStaticPassword(email) {
+			return nil, fmt.Errorf("purge user identity: the password for %q comes from dex's configuration file "+
+				"and cannot be deleted through the API; remove the user from the config file first. Nothing was deleted", email)
+		}
 	}
 
 	// Cascade deletes. A real (non-not-found) failure aborts the purge and returns
