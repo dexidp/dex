@@ -25,6 +25,8 @@ type AuthSession struct {
 	Secret string `json:"secret,omitempty"`
 	// ClientStates holds the value of the "client_states" field.
 	ClientStates []byte `json:"client_states,omitempty"`
+	// ConnectorData holds the value of the "connector_data" field.
+	ConnectorData []byte `json:"connector_data,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// LastActivity holds the value of the "last_activity" field.
@@ -47,7 +49,7 @@ func (*AuthSession) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case authsession.FieldClientStates, authsession.FieldLogoutState:
+		case authsession.FieldClientStates, authsession.FieldConnectorData, authsession.FieldLogoutState:
 			values[i] = new([]byte)
 		case authsession.FieldID, authsession.FieldUserID, authsession.FieldConnectorID, authsession.FieldSecret, authsession.FieldIPAddress, authsession.FieldUserAgent:
 			values[i] = new(sql.NullString)
@@ -97,6 +99,12 @@ func (_m *AuthSession) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field client_states", values[i])
 			} else if value != nil {
 				_m.ClientStates = *value
+			}
+		case authsession.FieldConnectorData:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field connector_data", values[i])
+			} else if value != nil {
+				_m.ConnectorData = *value
 			}
 		case authsession.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -187,6 +195,9 @@ func (_m *AuthSession) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("client_states=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ClientStates))
+	builder.WriteString(", ")
+	builder.WriteString("connector_data=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ConnectorData))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

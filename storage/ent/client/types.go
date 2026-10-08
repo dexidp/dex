@@ -241,6 +241,7 @@ func toStorageAuthSession(s *db.AuthSession) storage.AuthSession {
 		Secret:         s.Secret,
 		UserID:         s.UserID,
 		ConnectorID:    s.ConnectorID,
+		ConnectorData:  s.ConnectorData,
 		CreatedAt:      s.CreatedAt,
 		LastActivity:   s.LastActivity,
 		IPAddress:      s.IPAddress,

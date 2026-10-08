@@ -334,6 +334,7 @@ type AuthSession struct {
 	UserID         string                              `json:"user_id,omitempty"`
 	ConnectorID    string                              `json:"connector_id,omitempty"`
 	ClientStates   map[string]*storage.ClientAuthState `json:"client_states,omitempty"`
+	ConnectorData  []byte                              `json:"connector_data,omitempty"`
 	CreatedAt      time.Time                           `json:"created_at"`
 	LastActivity   time.Time                           `json:"last_activity"`
 	IPAddress      string                              `json:"ip_address,omitempty"`
@@ -350,6 +351,7 @@ func fromStorageAuthSession(s storage.AuthSession) AuthSession {
 		UserID:         s.UserID,
 		ConnectorID:    s.ConnectorID,
 		ClientStates:   s.ClientStates,
+		ConnectorData:  s.ConnectorData,
 		CreatedAt:      s.CreatedAt,
 		LastActivity:   s.LastActivity,
 		IPAddress:      s.IPAddress,
@@ -367,6 +369,7 @@ func toStorageAuthSession(s AuthSession) storage.AuthSession {
 		UserID:         s.UserID,
 		ConnectorID:    s.ConnectorID,
 		ClientStates:   s.ClientStates,
+		ConnectorData:  s.ConnectorData,
 		CreatedAt:      s.CreatedAt,
 		LastActivity:   s.LastActivity,
 		IPAddress:      s.IPAddress,
