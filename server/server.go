@@ -26,6 +26,7 @@ import (
 	"github.com/dexidp/dex/server/logout"
 	"github.com/dexidp/dex/server/mfa"
 	"github.com/dexidp/dex/server/oauth2"
+	"github.com/dexidp/dex/server/registration"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/templates"
@@ -115,14 +116,15 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 	// Build the discovery handler once from config; both the mounted HTTP route
 	// and the gRPC API (via Discovery) serve this same handler.
 	s.discovery = &discovery.Handler{
-		IssuerURL:       s.issuerURL,
-		Templates:       s.templates,
-		Signer:          c.Signer,
-		Logger:          s.logger,
-		ResponseTypes:   rc.responseTypes,
-		GrantTypes:      rc.grantTypes,
-		PKCEMethods:     c.PKCE.CodeChallengeMethodsSupported,
-		SessionsEnabled: c.SessionConfig != nil,
+		IssuerURL:           s.issuerURL,
+		Templates:           s.templates,
+		Signer:              c.Signer,
+		Logger:              s.logger,
+		ResponseTypes:       rc.responseTypes,
+		GrantTypes:          rc.grantTypes,
+		PKCEMethods:         c.PKCE.CodeChallengeMethodsSupported,
+		SessionsEnabled:     c.SessionConfig != nil,
+		RegistrationEnabled: c.DynamicClientRegistration != nil,
 	}
 
 	if err := s.openConnectors(ctx, c); err != nil {
@@ -233,7 +235,7 @@ func (s *Server) mount(routes router.Mux, c Config, rc resolvedConfig) {
 	// rest.
 	sessions := s.sessions
 
-	for _, h := range []router.Handler{
+	handlers := []router.Handler{
 		s.discovery,
 		&grants.Handler{
 			Issuer:              s.issuer,
@@ -325,7 +327,18 @@ func (s *Server) mount(routes router.Mux, c Config, rc resolvedConfig) {
 			Now:         rc.now,
 			Backchannel: s.backchannel,
 		},
-	} {
+	}
+	if c.DynamicClientRegistration != nil {
+		handlers = append(handlers, &registration.Handler{
+			Storage:            s.storage,
+			Logger:             s.logger,
+			InitialAccessToken: c.DynamicClientRegistration.InitialAccessToken,
+			GrantTypes:         rc.grantTypes,
+			ResponseTypes:      rc.responseTypes,
+			Now:                rc.now,
+		})
+	}
+	for _, h := range handlers {
 		h.Mount(routes)
 	}
 

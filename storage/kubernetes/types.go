@@ -286,6 +286,15 @@ type Client struct {
 	Name    string `json:"name,omitempty"`
 	LogoURL string `json:"logoURL,omitempty"`
 
+	DynamicallyRegistered   bool     `json:"dynamicallyRegistered,omitempty"`
+	GrantTypes              []string `json:"grantTypes,omitempty"`
+	ResponseTypes           []string `json:"responseTypes,omitempty"`
+	AllowedScopes           []string `json:"allowedScopes,omitempty"`
+	TokenEndpointAuthMethod string   `json:"tokenEndpointAuthMethod,omitempty"`
+	RegistrationTime        int64    `json:"registrationTime,omitempty"`
+	RegistrationTokenID     string   `json:"registrationTokenID,omitempty"`
+	RegistrationExpiresAt   int64    `json:"registrationExpiresAt,omitempty"`
+
 	AllowedConnectors []string `json:"allowedConnectors,omitempty"`
 
 	MFAChain []string `json:"mfaChain,omitempty"`
@@ -316,37 +325,53 @@ func (cli *client) fromStorageClient(c storage.Client) Client {
 			Name:      cli.idToName(c.ID),
 			Namespace: cli.namespace,
 		},
-		ID:                     c.ID,
-		Secret:                 c.Secret,
-		RedirectURIs:           c.RedirectURIs,
-		TrustedPeers:           c.TrustedPeers,
-		Public:                 c.Public,
-		Name:                   c.Name,
-		LogoURL:                c.LogoURL,
-		AllowedConnectors:      c.AllowedConnectors,
-		MFAChain:               c.MFAChain,
-		PostLogoutRedirectURIs: c.PostLogoutRedirectURIs,
-		SSOSharedWith:          c.SSOSharedWith,
-		BackchannelLogoutURI:   c.BackchannelLogoutURI,
-		RefreshTokenLifetime:   c.RefreshTokenLifetime,
+		ID:                      c.ID,
+		Secret:                  c.Secret,
+		RedirectURIs:            c.RedirectURIs,
+		TrustedPeers:            c.TrustedPeers,
+		Public:                  c.Public,
+		Name:                    c.Name,
+		LogoURL:                 c.LogoURL,
+		DynamicallyRegistered:   c.DynamicallyRegistered,
+		GrantTypes:              c.GrantTypes,
+		ResponseTypes:           c.ResponseTypes,
+		AllowedScopes:           c.AllowedScopes,
+		TokenEndpointAuthMethod: c.TokenEndpointAuthMethod,
+		RegistrationTime:        c.RegistrationTime,
+		RegistrationTokenID:     c.RegistrationTokenID,
+		RegistrationExpiresAt:   c.RegistrationExpiresAt,
+		AllowedConnectors:       c.AllowedConnectors,
+		MFAChain:                c.MFAChain,
+		PostLogoutRedirectURIs:  c.PostLogoutRedirectURIs,
+		SSOSharedWith:           c.SSOSharedWith,
+		BackchannelLogoutURI:    c.BackchannelLogoutURI,
+		RefreshTokenLifetime:    c.RefreshTokenLifetime,
 	}
 }
 
 func toStorageClient(c Client) storage.Client {
 	return storage.Client{
-		ID:                     c.ID,
-		Secret:                 c.Secret,
-		RedirectURIs:           c.RedirectURIs,
-		TrustedPeers:           c.TrustedPeers,
-		Public:                 c.Public,
-		Name:                   c.Name,
-		LogoURL:                c.LogoURL,
-		AllowedConnectors:      c.AllowedConnectors,
-		MFAChain:               c.MFAChain,
-		PostLogoutRedirectURIs: c.PostLogoutRedirectURIs,
-		SSOSharedWith:          c.SSOSharedWith,
-		BackchannelLogoutURI:   c.BackchannelLogoutURI,
-		RefreshTokenLifetime:   c.RefreshTokenLifetime,
+		ID:                      c.ID,
+		Secret:                  c.Secret,
+		RedirectURIs:            c.RedirectURIs,
+		TrustedPeers:            c.TrustedPeers,
+		Public:                  c.Public,
+		Name:                    c.Name,
+		LogoURL:                 c.LogoURL,
+		DynamicallyRegistered:   c.DynamicallyRegistered,
+		GrantTypes:              c.GrantTypes,
+		ResponseTypes:           c.ResponseTypes,
+		AllowedScopes:           c.AllowedScopes,
+		TokenEndpointAuthMethod: c.TokenEndpointAuthMethod,
+		RegistrationTime:        c.RegistrationTime,
+		RegistrationTokenID:     c.RegistrationTokenID,
+		RegistrationExpiresAt:   c.RegistrationExpiresAt,
+		AllowedConnectors:       c.AllowedConnectors,
+		MFAChain:                c.MFAChain,
+		PostLogoutRedirectURIs:  c.PostLogoutRedirectURIs,
+		SSOSharedWith:           c.SSOSharedWith,
+		BackchannelLogoutURI:    c.BackchannelLogoutURI,
+		RefreshTokenLifetime:    c.RefreshTokenLifetime,
 	}
 }
 

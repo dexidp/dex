@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"slices"
 	"strings"
 	"time"
 
@@ -199,6 +200,18 @@ type Client struct {
 	Name    string `json:"name"`
 	LogoURL string `json:"logoURL"`
 
+	// DynamicallyRegistered marks clients created through RFC 7591. The
+	// registered metadata below is enforced only for these clients so existing
+	// statically configured clients retain their historical behavior.
+	DynamicallyRegistered   bool     `json:"dynamicallyRegistered,omitempty"`
+	GrantTypes              []string `json:"grantTypes,omitempty"`
+	ResponseTypes           []string `json:"responseTypes,omitempty"`
+	AllowedScopes           []string `json:"allowedScopes,omitempty"`
+	TokenEndpointAuthMethod string   `json:"tokenEndpointAuthMethod,omitempty"`
+	RegistrationTime        int64    `json:"registrationTime,omitempty"`
+	RegistrationTokenID     string   `json:"registrationTokenID,omitempty"`
+	RegistrationExpiresAt   int64    `json:"registrationExpiresAt,omitempty"`
+
 	// AllowedConnectors is a list of connector IDs that the client is allowed to use for authentication.
 	// If empty, all connectors are allowed.
 	AllowedConnectors []string `json:"allowedConnectors"`
@@ -218,6 +231,45 @@ type Client struct {
 	// client_credentials grant. Kept separate from core Client fields to avoid mixing
 	// application identity (ID, secret, redirect URIs) with user-like identity attributes.
 	ClientCredentialsClaims *ClientCredentialsClaims `json:"clientCredentialsClaims,omitempty"`
+}
+
+// AllowsGrantType reports whether an RFC 7591 client registered the grant.
+// Legacy clients have no per-client registration policy and remain unrestricted.
+func (c Client) AllowsGrantType(grantType string) bool {
+	return !c.DynamicallyRegistered || slices.Contains(c.GrantTypes, grantType)
+}
+
+// AllowsResponseType reports whether an RFC 7591 client registered the exact
+// response-type set. Ordering is insignificant in an OAuth response_type value.
+func (c Client) AllowsResponseType(responseTypes []string) bool {
+	if !c.DynamicallyRegistered {
+		return true
+	}
+	want := slices.Clone(responseTypes)
+	slices.Sort(want)
+	for _, registered := range c.ResponseTypes {
+		got := strings.Fields(registered)
+		slices.Sort(got)
+		if slices.Equal(got, want) {
+			return true
+		}
+	}
+	return false
+}
+
+// AllowsScopes reports whether requested scopes are within the client's
+// registered scope declaration. Registration assigns the openid scope when a
+// request omits scope, so an empty declaration grants no scopes.
+func (c Client) AllowsScopes(scopes []string) bool {
+	if !c.DynamicallyRegistered {
+		return true
+	}
+	for _, scope := range scopes {
+		if !slices.Contains(c.AllowedScopes, scope) {
+			return false
+		}
+	}
+	return true
 }
 
 // Refresh token lifetimes, the values Client.RefreshTokenLifetime accepts.

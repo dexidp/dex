@@ -6613,6 +6613,19 @@ type OAuth2ClientMutation struct {
 	public                          *bool
 	name                            *string
 	logo_url                        *string
+	dynamically_registered          *bool
+	grant_types                     *[]string
+	appendgrant_types               []string
+	response_types                  *[]string
+	appendresponse_types            []string
+	allowed_scopes                  *[]string
+	appendallowed_scopes            []string
+	token_endpoint_auth_method      *string
+	registration_time               *int64
+	addregistration_time            *int64
+	registration_token_id           *string
+	registration_expires_at         *int64
+	addregistration_expires_at      *int64
 	allowed_connectors              *[]string
 	appendallowed_connectors        []string
 	mfa_chain                       *[]string
@@ -7006,6 +7019,447 @@ func (m *OAuth2ClientMutation) OldLogoURL(ctx context.Context) (v string, err er
 // ResetLogoURL resets all changes to the "logo_url" field.
 func (m *OAuth2ClientMutation) ResetLogoURL() {
 	m.logo_url = nil
+}
+
+// SetDynamicallyRegistered sets the "dynamically_registered" field.
+func (m *OAuth2ClientMutation) SetDynamicallyRegistered(b bool) {
+	m.dynamically_registered = &b
+}
+
+// DynamicallyRegistered returns the value of the "dynamically_registered" field in the mutation.
+func (m *OAuth2ClientMutation) DynamicallyRegistered() (r bool, exists bool) {
+	v := m.dynamically_registered
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDynamicallyRegistered returns the old "dynamically_registered" field's value of the OAuth2Client entity.
+// If the OAuth2Client object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuth2ClientMutation) OldDynamicallyRegistered(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDynamicallyRegistered is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDynamicallyRegistered requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDynamicallyRegistered: %w", err)
+	}
+	return oldValue.DynamicallyRegistered, nil
+}
+
+// ResetDynamicallyRegistered resets all changes to the "dynamically_registered" field.
+func (m *OAuth2ClientMutation) ResetDynamicallyRegistered() {
+	m.dynamically_registered = nil
+}
+
+// SetGrantTypes sets the "grant_types" field.
+func (m *OAuth2ClientMutation) SetGrantTypes(s []string) {
+	m.grant_types = &s
+	m.appendgrant_types = nil
+}
+
+// GrantTypes returns the value of the "grant_types" field in the mutation.
+func (m *OAuth2ClientMutation) GrantTypes() (r []string, exists bool) {
+	v := m.grant_types
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGrantTypes returns the old "grant_types" field's value of the OAuth2Client entity.
+// If the OAuth2Client object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuth2ClientMutation) OldGrantTypes(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGrantTypes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGrantTypes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGrantTypes: %w", err)
+	}
+	return oldValue.GrantTypes, nil
+}
+
+// AppendGrantTypes adds s to the "grant_types" field.
+func (m *OAuth2ClientMutation) AppendGrantTypes(s []string) {
+	m.appendgrant_types = append(m.appendgrant_types, s...)
+}
+
+// AppendedGrantTypes returns the list of values that were appended to the "grant_types" field in this mutation.
+func (m *OAuth2ClientMutation) AppendedGrantTypes() ([]string, bool) {
+	if len(m.appendgrant_types) == 0 {
+		return nil, false
+	}
+	return m.appendgrant_types, true
+}
+
+// ClearGrantTypes clears the value of the "grant_types" field.
+func (m *OAuth2ClientMutation) ClearGrantTypes() {
+	m.grant_types = nil
+	m.appendgrant_types = nil
+	m.clearedFields[oauth2client.FieldGrantTypes] = struct{}{}
+}
+
+// GrantTypesCleared returns if the "grant_types" field was cleared in this mutation.
+func (m *OAuth2ClientMutation) GrantTypesCleared() bool {
+	_, ok := m.clearedFields[oauth2client.FieldGrantTypes]
+	return ok
+}
+
+// ResetGrantTypes resets all changes to the "grant_types" field.
+func (m *OAuth2ClientMutation) ResetGrantTypes() {
+	m.grant_types = nil
+	m.appendgrant_types = nil
+	delete(m.clearedFields, oauth2client.FieldGrantTypes)
+}
+
+// SetResponseTypes sets the "response_types" field.
+func (m *OAuth2ClientMutation) SetResponseTypes(s []string) {
+	m.response_types = &s
+	m.appendresponse_types = nil
+}
+
+// ResponseTypes returns the value of the "response_types" field in the mutation.
+func (m *OAuth2ClientMutation) ResponseTypes() (r []string, exists bool) {
+	v := m.response_types
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResponseTypes returns the old "response_types" field's value of the OAuth2Client entity.
+// If the OAuth2Client object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuth2ClientMutation) OldResponseTypes(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResponseTypes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResponseTypes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResponseTypes: %w", err)
+	}
+	return oldValue.ResponseTypes, nil
+}
+
+// AppendResponseTypes adds s to the "response_types" field.
+func (m *OAuth2ClientMutation) AppendResponseTypes(s []string) {
+	m.appendresponse_types = append(m.appendresponse_types, s...)
+}
+
+// AppendedResponseTypes returns the list of values that were appended to the "response_types" field in this mutation.
+func (m *OAuth2ClientMutation) AppendedResponseTypes() ([]string, bool) {
+	if len(m.appendresponse_types) == 0 {
+		return nil, false
+	}
+	return m.appendresponse_types, true
+}
+
+// ClearResponseTypes clears the value of the "response_types" field.
+func (m *OAuth2ClientMutation) ClearResponseTypes() {
+	m.response_types = nil
+	m.appendresponse_types = nil
+	m.clearedFields[oauth2client.FieldResponseTypes] = struct{}{}
+}
+
+// ResponseTypesCleared returns if the "response_types" field was cleared in this mutation.
+func (m *OAuth2ClientMutation) ResponseTypesCleared() bool {
+	_, ok := m.clearedFields[oauth2client.FieldResponseTypes]
+	return ok
+}
+
+// ResetResponseTypes resets all changes to the "response_types" field.
+func (m *OAuth2ClientMutation) ResetResponseTypes() {
+	m.response_types = nil
+	m.appendresponse_types = nil
+	delete(m.clearedFields, oauth2client.FieldResponseTypes)
+}
+
+// SetAllowedScopes sets the "allowed_scopes" field.
+func (m *OAuth2ClientMutation) SetAllowedScopes(s []string) {
+	m.allowed_scopes = &s
+	m.appendallowed_scopes = nil
+}
+
+// AllowedScopes returns the value of the "allowed_scopes" field in the mutation.
+func (m *OAuth2ClientMutation) AllowedScopes() (r []string, exists bool) {
+	v := m.allowed_scopes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAllowedScopes returns the old "allowed_scopes" field's value of the OAuth2Client entity.
+// If the OAuth2Client object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuth2ClientMutation) OldAllowedScopes(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAllowedScopes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAllowedScopes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAllowedScopes: %w", err)
+	}
+	return oldValue.AllowedScopes, nil
+}
+
+// AppendAllowedScopes adds s to the "allowed_scopes" field.
+func (m *OAuth2ClientMutation) AppendAllowedScopes(s []string) {
+	m.appendallowed_scopes = append(m.appendallowed_scopes, s...)
+}
+
+// AppendedAllowedScopes returns the list of values that were appended to the "allowed_scopes" field in this mutation.
+func (m *OAuth2ClientMutation) AppendedAllowedScopes() ([]string, bool) {
+	if len(m.appendallowed_scopes) == 0 {
+		return nil, false
+	}
+	return m.appendallowed_scopes, true
+}
+
+// ClearAllowedScopes clears the value of the "allowed_scopes" field.
+func (m *OAuth2ClientMutation) ClearAllowedScopes() {
+	m.allowed_scopes = nil
+	m.appendallowed_scopes = nil
+	m.clearedFields[oauth2client.FieldAllowedScopes] = struct{}{}
+}
+
+// AllowedScopesCleared returns if the "allowed_scopes" field was cleared in this mutation.
+func (m *OAuth2ClientMutation) AllowedScopesCleared() bool {
+	_, ok := m.clearedFields[oauth2client.FieldAllowedScopes]
+	return ok
+}
+
+// ResetAllowedScopes resets all changes to the "allowed_scopes" field.
+func (m *OAuth2ClientMutation) ResetAllowedScopes() {
+	m.allowed_scopes = nil
+	m.appendallowed_scopes = nil
+	delete(m.clearedFields, oauth2client.FieldAllowedScopes)
+}
+
+// SetTokenEndpointAuthMethod sets the "token_endpoint_auth_method" field.
+func (m *OAuth2ClientMutation) SetTokenEndpointAuthMethod(s string) {
+	m.token_endpoint_auth_method = &s
+}
+
+// TokenEndpointAuthMethod returns the value of the "token_endpoint_auth_method" field in the mutation.
+func (m *OAuth2ClientMutation) TokenEndpointAuthMethod() (r string, exists bool) {
+	v := m.token_endpoint_auth_method
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTokenEndpointAuthMethod returns the old "token_endpoint_auth_method" field's value of the OAuth2Client entity.
+// If the OAuth2Client object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuth2ClientMutation) OldTokenEndpointAuthMethod(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTokenEndpointAuthMethod is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTokenEndpointAuthMethod requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTokenEndpointAuthMethod: %w", err)
+	}
+	return oldValue.TokenEndpointAuthMethod, nil
+}
+
+// ClearTokenEndpointAuthMethod clears the value of the "token_endpoint_auth_method" field.
+func (m *OAuth2ClientMutation) ClearTokenEndpointAuthMethod() {
+	m.token_endpoint_auth_method = nil
+	m.clearedFields[oauth2client.FieldTokenEndpointAuthMethod] = struct{}{}
+}
+
+// TokenEndpointAuthMethodCleared returns if the "token_endpoint_auth_method" field was cleared in this mutation.
+func (m *OAuth2ClientMutation) TokenEndpointAuthMethodCleared() bool {
+	_, ok := m.clearedFields[oauth2client.FieldTokenEndpointAuthMethod]
+	return ok
+}
+
+// ResetTokenEndpointAuthMethod resets all changes to the "token_endpoint_auth_method" field.
+func (m *OAuth2ClientMutation) ResetTokenEndpointAuthMethod() {
+	m.token_endpoint_auth_method = nil
+	delete(m.clearedFields, oauth2client.FieldTokenEndpointAuthMethod)
+}
+
+// SetRegistrationTime sets the "registration_time" field.
+func (m *OAuth2ClientMutation) SetRegistrationTime(i int64) {
+	m.registration_time = &i
+	m.addregistration_time = nil
+}
+
+// RegistrationTime returns the value of the "registration_time" field in the mutation.
+func (m *OAuth2ClientMutation) RegistrationTime() (r int64, exists bool) {
+	v := m.registration_time
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRegistrationTime returns the old "registration_time" field's value of the OAuth2Client entity.
+// If the OAuth2Client object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuth2ClientMutation) OldRegistrationTime(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRegistrationTime is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRegistrationTime requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRegistrationTime: %w", err)
+	}
+	return oldValue.RegistrationTime, nil
+}
+
+// AddRegistrationTime adds i to the "registration_time" field.
+func (m *OAuth2ClientMutation) AddRegistrationTime(i int64) {
+	if m.addregistration_time != nil {
+		*m.addregistration_time += i
+	} else {
+		m.addregistration_time = &i
+	}
+}
+
+// AddedRegistrationTime returns the value that was added to the "registration_time" field in this mutation.
+func (m *OAuth2ClientMutation) AddedRegistrationTime() (r int64, exists bool) {
+	v := m.addregistration_time
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRegistrationTime resets all changes to the "registration_time" field.
+func (m *OAuth2ClientMutation) ResetRegistrationTime() {
+	m.registration_time = nil
+	m.addregistration_time = nil
+}
+
+// SetRegistrationTokenID sets the "registration_token_id" field.
+func (m *OAuth2ClientMutation) SetRegistrationTokenID(s string) {
+	m.registration_token_id = &s
+}
+
+// RegistrationTokenID returns the value of the "registration_token_id" field in the mutation.
+func (m *OAuth2ClientMutation) RegistrationTokenID() (r string, exists bool) {
+	v := m.registration_token_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRegistrationTokenID returns the old "registration_token_id" field's value of the OAuth2Client entity.
+// If the OAuth2Client object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuth2ClientMutation) OldRegistrationTokenID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRegistrationTokenID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRegistrationTokenID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRegistrationTokenID: %w", err)
+	}
+	return oldValue.RegistrationTokenID, nil
+}
+
+// ClearRegistrationTokenID clears the value of the "registration_token_id" field.
+func (m *OAuth2ClientMutation) ClearRegistrationTokenID() {
+	m.registration_token_id = nil
+	m.clearedFields[oauth2client.FieldRegistrationTokenID] = struct{}{}
+}
+
+// RegistrationTokenIDCleared returns if the "registration_token_id" field was cleared in this mutation.
+func (m *OAuth2ClientMutation) RegistrationTokenIDCleared() bool {
+	_, ok := m.clearedFields[oauth2client.FieldRegistrationTokenID]
+	return ok
+}
+
+// ResetRegistrationTokenID resets all changes to the "registration_token_id" field.
+func (m *OAuth2ClientMutation) ResetRegistrationTokenID() {
+	m.registration_token_id = nil
+	delete(m.clearedFields, oauth2client.FieldRegistrationTokenID)
+}
+
+// SetRegistrationExpiresAt sets the "registration_expires_at" field.
+func (m *OAuth2ClientMutation) SetRegistrationExpiresAt(i int64) {
+	m.registration_expires_at = &i
+	m.addregistration_expires_at = nil
+}
+
+// RegistrationExpiresAt returns the value of the "registration_expires_at" field in the mutation.
+func (m *OAuth2ClientMutation) RegistrationExpiresAt() (r int64, exists bool) {
+	v := m.registration_expires_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRegistrationExpiresAt returns the old "registration_expires_at" field's value of the OAuth2Client entity.
+// If the OAuth2Client object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuth2ClientMutation) OldRegistrationExpiresAt(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRegistrationExpiresAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRegistrationExpiresAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRegistrationExpiresAt: %w", err)
+	}
+	return oldValue.RegistrationExpiresAt, nil
+}
+
+// AddRegistrationExpiresAt adds i to the "registration_expires_at" field.
+func (m *OAuth2ClientMutation) AddRegistrationExpiresAt(i int64) {
+	if m.addregistration_expires_at != nil {
+		*m.addregistration_expires_at += i
+	} else {
+		m.addregistration_expires_at = &i
+	}
+}
+
+// AddedRegistrationExpiresAt returns the value that was added to the "registration_expires_at" field in this mutation.
+func (m *OAuth2ClientMutation) AddedRegistrationExpiresAt() (r int64, exists bool) {
+	v := m.addregistration_expires_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRegistrationExpiresAt resets all changes to the "registration_expires_at" field.
+func (m *OAuth2ClientMutation) ResetRegistrationExpiresAt() {
+	m.registration_expires_at = nil
+	m.addregistration_expires_at = nil
 }
 
 // SetAllowedConnectors sets the "allowed_connectors" field.
@@ -7449,7 +7903,7 @@ func (m *OAuth2ClientMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *OAuth2ClientMutation) Fields() []string {
-	fields := make([]string, 0, 13)
+	fields := make([]string, 0, 21)
 	if m.secret != nil {
 		fields = append(fields, oauth2client.FieldSecret)
 	}
@@ -7467,6 +7921,30 @@ func (m *OAuth2ClientMutation) Fields() []string {
 	}
 	if m.logo_url != nil {
 		fields = append(fields, oauth2client.FieldLogoURL)
+	}
+	if m.dynamically_registered != nil {
+		fields = append(fields, oauth2client.FieldDynamicallyRegistered)
+	}
+	if m.grant_types != nil {
+		fields = append(fields, oauth2client.FieldGrantTypes)
+	}
+	if m.response_types != nil {
+		fields = append(fields, oauth2client.FieldResponseTypes)
+	}
+	if m.allowed_scopes != nil {
+		fields = append(fields, oauth2client.FieldAllowedScopes)
+	}
+	if m.token_endpoint_auth_method != nil {
+		fields = append(fields, oauth2client.FieldTokenEndpointAuthMethod)
+	}
+	if m.registration_time != nil {
+		fields = append(fields, oauth2client.FieldRegistrationTime)
+	}
+	if m.registration_token_id != nil {
+		fields = append(fields, oauth2client.FieldRegistrationTokenID)
+	}
+	if m.registration_expires_at != nil {
+		fields = append(fields, oauth2client.FieldRegistrationExpiresAt)
 	}
 	if m.allowed_connectors != nil {
 		fields = append(fields, oauth2client.FieldAllowedConnectors)
@@ -7509,6 +7987,22 @@ func (m *OAuth2ClientMutation) Field(name string) (ent.Value, bool) {
 		return m.Name()
 	case oauth2client.FieldLogoURL:
 		return m.LogoURL()
+	case oauth2client.FieldDynamicallyRegistered:
+		return m.DynamicallyRegistered()
+	case oauth2client.FieldGrantTypes:
+		return m.GrantTypes()
+	case oauth2client.FieldResponseTypes:
+		return m.ResponseTypes()
+	case oauth2client.FieldAllowedScopes:
+		return m.AllowedScopes()
+	case oauth2client.FieldTokenEndpointAuthMethod:
+		return m.TokenEndpointAuthMethod()
+	case oauth2client.FieldRegistrationTime:
+		return m.RegistrationTime()
+	case oauth2client.FieldRegistrationTokenID:
+		return m.RegistrationTokenID()
+	case oauth2client.FieldRegistrationExpiresAt:
+		return m.RegistrationExpiresAt()
 	case oauth2client.FieldAllowedConnectors:
 		return m.AllowedConnectors()
 	case oauth2client.FieldMfaChain:
@@ -7544,6 +8038,22 @@ func (m *OAuth2ClientMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldName(ctx)
 	case oauth2client.FieldLogoURL:
 		return m.OldLogoURL(ctx)
+	case oauth2client.FieldDynamicallyRegistered:
+		return m.OldDynamicallyRegistered(ctx)
+	case oauth2client.FieldGrantTypes:
+		return m.OldGrantTypes(ctx)
+	case oauth2client.FieldResponseTypes:
+		return m.OldResponseTypes(ctx)
+	case oauth2client.FieldAllowedScopes:
+		return m.OldAllowedScopes(ctx)
+	case oauth2client.FieldTokenEndpointAuthMethod:
+		return m.OldTokenEndpointAuthMethod(ctx)
+	case oauth2client.FieldRegistrationTime:
+		return m.OldRegistrationTime(ctx)
+	case oauth2client.FieldRegistrationTokenID:
+		return m.OldRegistrationTokenID(ctx)
+	case oauth2client.FieldRegistrationExpiresAt:
+		return m.OldRegistrationExpiresAt(ctx)
 	case oauth2client.FieldAllowedConnectors:
 		return m.OldAllowedConnectors(ctx)
 	case oauth2client.FieldMfaChain:
@@ -7609,6 +8119,62 @@ func (m *OAuth2ClientMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetLogoURL(v)
 		return nil
+	case oauth2client.FieldDynamicallyRegistered:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDynamicallyRegistered(v)
+		return nil
+	case oauth2client.FieldGrantTypes:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGrantTypes(v)
+		return nil
+	case oauth2client.FieldResponseTypes:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResponseTypes(v)
+		return nil
+	case oauth2client.FieldAllowedScopes:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAllowedScopes(v)
+		return nil
+	case oauth2client.FieldTokenEndpointAuthMethod:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTokenEndpointAuthMethod(v)
+		return nil
+	case oauth2client.FieldRegistrationTime:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRegistrationTime(v)
+		return nil
+	case oauth2client.FieldRegistrationTokenID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRegistrationTokenID(v)
+		return nil
+	case oauth2client.FieldRegistrationExpiresAt:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRegistrationExpiresAt(v)
+		return nil
 	case oauth2client.FieldAllowedConnectors:
 		v, ok := value.([]string)
 		if !ok {
@@ -7665,13 +8231,26 @@ func (m *OAuth2ClientMutation) SetField(name string, value ent.Value) error {
 // AddedFields returns all numeric fields that were incremented/decremented during
 // this mutation.
 func (m *OAuth2ClientMutation) AddedFields() []string {
-	return nil
+	var fields []string
+	if m.addregistration_time != nil {
+		fields = append(fields, oauth2client.FieldRegistrationTime)
+	}
+	if m.addregistration_expires_at != nil {
+		fields = append(fields, oauth2client.FieldRegistrationExpiresAt)
+	}
+	return fields
 }
 
 // AddedField returns the numeric value that was incremented/decremented on a field
 // with the given name. The second boolean return value indicates that this field
 // was not set, or was not defined in the schema.
 func (m *OAuth2ClientMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case oauth2client.FieldRegistrationTime:
+		return m.AddedRegistrationTime()
+	case oauth2client.FieldRegistrationExpiresAt:
+		return m.AddedRegistrationExpiresAt()
+	}
 	return nil, false
 }
 
@@ -7680,6 +8259,20 @@ func (m *OAuth2ClientMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *OAuth2ClientMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case oauth2client.FieldRegistrationTime:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRegistrationTime(v)
+		return nil
+	case oauth2client.FieldRegistrationExpiresAt:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRegistrationExpiresAt(v)
+		return nil
 	}
 	return fmt.Errorf("unknown OAuth2Client numeric field %s", name)
 }
@@ -7693,6 +8286,21 @@ func (m *OAuth2ClientMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(oauth2client.FieldTrustedPeers) {
 		fields = append(fields, oauth2client.FieldTrustedPeers)
+	}
+	if m.FieldCleared(oauth2client.FieldGrantTypes) {
+		fields = append(fields, oauth2client.FieldGrantTypes)
+	}
+	if m.FieldCleared(oauth2client.FieldResponseTypes) {
+		fields = append(fields, oauth2client.FieldResponseTypes)
+	}
+	if m.FieldCleared(oauth2client.FieldAllowedScopes) {
+		fields = append(fields, oauth2client.FieldAllowedScopes)
+	}
+	if m.FieldCleared(oauth2client.FieldTokenEndpointAuthMethod) {
+		fields = append(fields, oauth2client.FieldTokenEndpointAuthMethod)
+	}
+	if m.FieldCleared(oauth2client.FieldRegistrationTokenID) {
+		fields = append(fields, oauth2client.FieldRegistrationTokenID)
 	}
 	if m.FieldCleared(oauth2client.FieldAllowedConnectors) {
 		fields = append(fields, oauth2client.FieldAllowedConnectors)
@@ -7734,6 +8342,21 @@ func (m *OAuth2ClientMutation) ClearField(name string) error {
 		return nil
 	case oauth2client.FieldTrustedPeers:
 		m.ClearTrustedPeers()
+		return nil
+	case oauth2client.FieldGrantTypes:
+		m.ClearGrantTypes()
+		return nil
+	case oauth2client.FieldResponseTypes:
+		m.ClearResponseTypes()
+		return nil
+	case oauth2client.FieldAllowedScopes:
+		m.ClearAllowedScopes()
+		return nil
+	case oauth2client.FieldTokenEndpointAuthMethod:
+		m.ClearTokenEndpointAuthMethod()
+		return nil
+	case oauth2client.FieldRegistrationTokenID:
+		m.ClearRegistrationTokenID()
 		return nil
 	case oauth2client.FieldAllowedConnectors:
 		m.ClearAllowedConnectors()
@@ -7781,6 +8404,30 @@ func (m *OAuth2ClientMutation) ResetField(name string) error {
 		return nil
 	case oauth2client.FieldLogoURL:
 		m.ResetLogoURL()
+		return nil
+	case oauth2client.FieldDynamicallyRegistered:
+		m.ResetDynamicallyRegistered()
+		return nil
+	case oauth2client.FieldGrantTypes:
+		m.ResetGrantTypes()
+		return nil
+	case oauth2client.FieldResponseTypes:
+		m.ResetResponseTypes()
+		return nil
+	case oauth2client.FieldAllowedScopes:
+		m.ResetAllowedScopes()
+		return nil
+	case oauth2client.FieldTokenEndpointAuthMethod:
+		m.ResetTokenEndpointAuthMethod()
+		return nil
+	case oauth2client.FieldRegistrationTime:
+		m.ResetRegistrationTime()
+		return nil
+	case oauth2client.FieldRegistrationTokenID:
+		m.ResetRegistrationTokenID()
+		return nil
+	case oauth2client.FieldRegistrationExpiresAt:
+		m.ResetRegistrationExpiresAt()
 		return nil
 	case oauth2client.FieldAllowedConnectors:
 		m.ResetAllowedConnectors()

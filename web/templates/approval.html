@@ -3,6 +3,14 @@
 <div class="theme-panel">
   <h2 class="theme-heading">Grant Access</h2>
 
+  {{ if .DynamicallyRegistered }}
+  <div class="dex-subtle-text">
+    This application registered itself with Dex. Verify the application before granting access.
+    <br>Client ID: <code>{{ .ClientID }}</code>
+    {{ if .RedirectOrigin }}<br>Redirect destination: <code>{{ .RedirectOrigin }}</code>{{ end }}
+  </div>
+  {{ end }}
+
   <hr class="dex-separator">
   <div>
     {{ if .Scopes }}
