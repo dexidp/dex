@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -687,4 +688,45 @@ func TestRefreshTokenSID(t *testing.T) {
 			assert.Equal(t, tc.wantSID, decodeJWTClaims(t, resp.IDToken)["sid"])
 		})
 	}
+}
+
+func TestRefreshDoesNotLogConnectorData(t *testing.T) {
+	const upstreamToken = "upstream-refresh-token-must-not-be-logged"
+
+	var logBuf bytes.Buffer
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.Logger = slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	})
+	defer httpServer.Close()
+
+	mockRefreshTokenTestStorage(t, s.storage, false)
+	// Connectors keep upstream credentials in the connector data, for example the
+	// upstream refresh token, so it must stay out of the logs at every level.
+	err := s.storage.UpdateRefreshToken(t.Context(), "test", func(r storage.RefreshToken) (storage.RefreshToken, error) {
+		r.ConnectorData = []byte(`{"refreshToken":"` + upstreamToken + `"}`)
+		return r, nil
+	})
+	require.NoError(t, err)
+
+	tokenData, err := internal.Marshal(&internal.RefreshToken{RefreshId: "test", Token: "bar"})
+	require.NoError(t, err)
+
+	v := url.Values{}
+	v.Add("grant_type", "refresh_token")
+	v.Add("refresh_token", tokenData)
+	req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(v.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth("test", "barfoo")
+
+	rr := httptest.NewRecorder()
+	s.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	logs := logBuf.String()
+	require.Contains(t, logs, "connector data before refresh", "the refresh debug logs were not written")
+	require.Contains(t, logs, "saved connector data", "the refresh debug logs were not written")
+	require.NotContains(t, logs, upstreamToken)
+	// The mock connector returns its own connector data on refresh, so also check that
+	// no log line carries the connector data itself.
+	require.NotContains(t, logs, "connector_data=")
 }
