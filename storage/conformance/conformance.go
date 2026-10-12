@@ -424,8 +424,41 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 		t.Errorf("expected nil SSOSharedWith, got %v", gc.SSOSharedWith)
 	}
 
+	listClientsByID := func() map[string]storage.Client {
+		clients, err := s.ListClients(ctx)
+		if err != nil {
+			t.Fatalf("list clients: %v", err)
+		}
+		byID := make(map[string]storage.Client, len(clients))
+		for _, c := range clients {
+			byID[c.ID] = c
+		}
+		return byID
+	}
+
+	// ListClients must return each client exactly as GetClient does.
+	listed := listClientsByID()
+	for _, id := range []string{id1, id2} {
+		want, err := s.GetClient(ctx, id)
+		if err != nil {
+			t.Fatalf("get client: %v", err)
+		}
+		got, ok := listed[id]
+		if !ok {
+			t.Errorf("client %q missing from list", id)
+			continue
+		}
+		if diff := pretty.Compare(want, got); diff != "" {
+			t.Errorf("listed client %q did not match: %s", id, diff)
+		}
+	}
+
 	if err := s.DeleteClient(ctx, id1); err != nil {
 		t.Fatalf("delete client: %v", err)
+	}
+
+	if _, ok := listClientsByID()[id1]; ok {
+		t.Errorf("deleted client %q still listed", id1)
 	}
 
 	if err := s.DeleteClient(ctx, id2); err != nil {
