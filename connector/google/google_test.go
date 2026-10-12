@@ -449,3 +449,61 @@ func TestPromptTypeConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestMatchHostedDomain(t *testing.T) {
+	tests := []struct {
+		name    string
+		claim   string
+		allowed []string
+		want    bool
+	}{
+		{
+			name:    "exact match",
+			claim:   "example.com",
+			allowed: []string{"example.com"},
+			want:    true,
+		},
+		{
+			name:    "exact match within multiple",
+			claim:   "example.com",
+			allowed: []string{"foo.com", "example.com", "bar.com"},
+			want:    true,
+		},
+		{
+			name:    "no match",
+			claim:   "ferrix.ai",
+			allowed: []string{"example.com"},
+			want:    false,
+		},
+		{
+			name:    "wildcard accepts any non-empty hd",
+			claim:   "ferrix.ai",
+			allowed: []string{"*"},
+			want:    true,
+		},
+		{
+			name:    "wildcard alongside explicit domains",
+			claim:   "anything.dev",
+			allowed: []string{"example.com", "*"},
+			want:    true,
+		},
+		{
+			name:    "wildcard rejects empty hd claim",
+			claim:   "",
+			allowed: []string{"*"},
+			want:    false,
+		},
+		{
+			name:    "empty claim with explicit domains",
+			claim:   "",
+			allowed: []string{"example.com"},
+			want:    false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, matchHostedDomain(tc.claim, tc.allowed))
+		})
+	}
+}
