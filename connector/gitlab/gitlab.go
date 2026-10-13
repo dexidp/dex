@@ -230,7 +230,7 @@ func (c *gitlabConnector) identity(ctx context.Context, s connector.Scopes, toke
 	if c.groupsRequired(s.Groups) {
 		groups, err := c.resolveIdentityGroups(ctx, client, s.Groups, user.Username, user.ID)
 		if err != nil {
-			return identity, fmt.Errorf("gitlab: get groups: %v", err)
+			return identity, fmt.Errorf("gitlab: get groups: %w", err)
 		}
 		identity.Groups = groups
 	}
@@ -374,7 +374,7 @@ func (c *gitlabConnector) resolveIdentityGroups(ctx context.Context, client *htt
 	if len(c.groups) > 0 {
 		filteredGroups := groups.Filter(gitlabGroups, c.groups)
 		if len(filteredGroups) == 0 {
-			return nil, fmt.Errorf("gitlab: user %q is not in any of the required groups", userLogin)
+			return nil, &connector.UserNotInRequiredGroupsError{UserID: userLogin, Groups: c.groups}
 		}
 		return filteredGroups, nil
 	} else if groupScope {
