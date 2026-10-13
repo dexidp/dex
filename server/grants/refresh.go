@@ -264,7 +264,7 @@ func (g *refresh) refreshWithConnector(ctx context.Context, conn connectors.Conn
 	}
 
 	ident.ConnectorData = connectorData
-	g.logger.Debug("connector data before refresh", "connector_data", ident.ConnectorData)
+	g.logger.DebugContext(ctx, "connector data before refresh", "user_id", ident.UserID, "connector_data_bytes", len(ident.ConnectorData))
 
 	newIdent, err := refreshConn.Refresh(ctx, tokens.ParseScopes(scopes), ident)
 	if err != nil {

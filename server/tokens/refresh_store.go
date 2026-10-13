@@ -238,7 +238,7 @@ func (rt *RefreshStore) updateOfflineSession(ctx context.Context, refresh *stora
 			old.ConnectorData = ident.ConnectorData
 		}
 
-		rt.logger.DebugContext(ctx, "saved connector data", "user_id", ident.UserID, "connector_data", ident.ConnectorData)
+		rt.logger.DebugContext(ctx, "saved connector data", "user_id", ident.UserID, "connector_data_bytes", len(ident.ConnectorData))
 		return old, nil
 	}
 
