@@ -144,6 +144,12 @@ func (_c *UserIdentityCreate) SetBlockedUntil(v time.Time) *UserIdentityCreate {
 	return _c
 }
 
+// SetClaimsAmr sets the "claims_amr" field.
+func (_c *UserIdentityCreate) SetClaimsAmr(v []string) *UserIdentityCreate {
+	_c.mutation.SetClaimsAmr(v)
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *UserIdentityCreate) SetID(v string) *UserIdentityCreate {
 	_c.mutation.SetID(v)
@@ -347,6 +353,10 @@ func (_c *UserIdentityCreate) createSpec() (*UserIdentity, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.BlockedUntil(); ok {
 		_spec.SetField(useridentity.FieldBlockedUntil, field.TypeTime, value)
 		_node.BlockedUntil = value
+	}
+	if value, ok := _c.mutation.ClaimsAmr(); ok {
+		_spec.SetField(useridentity.FieldClaimsAmr, field.TypeJSON, value)
+		_node.ClaimsAmr = value
 	}
 	return _node, _spec
 }

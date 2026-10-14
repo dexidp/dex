@@ -874,6 +874,16 @@ func LastUsedLTE(v time.Time) predicate.RefreshToken {
 	return predicate.RefreshToken(sql.FieldLTE(FieldLastUsed, v))
 }
 
+// ClaimsAmrIsNil applies the IsNil predicate on the "claims_amr" field.
+func ClaimsAmrIsNil() predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldIsNull(FieldClaimsAmr))
+}
+
+// ClaimsAmrNotNil applies the NotNil predicate on the "claims_amr" field.
+func ClaimsAmrNotNil() predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldNotNull(FieldClaimsAmr))
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.RefreshToken) predicate.RefreshToken {
 	return predicate.RefreshToken(sql.AndPredicates(predicates...))

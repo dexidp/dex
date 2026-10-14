@@ -226,6 +226,12 @@ func (_c *AuthRequestCreate) SetNillableAuthTime(v *time.Time) *AuthRequestCreat
 	return _c
 }
 
+// SetClaimsAmr sets the "claims_amr" field.
+func (_c *AuthRequestCreate) SetClaimsAmr(v []string) *AuthRequestCreate {
+	_c.mutation.SetClaimsAmr(v)
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *AuthRequestCreate) SetID(v string) *AuthRequestCreate {
 	_c.mutation.SetID(v)
@@ -491,6 +497,10 @@ func (_c *AuthRequestCreate) createSpec() (*AuthRequest, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.AuthTime(); ok {
 		_spec.SetField(authrequest.FieldAuthTime, field.TypeTime, value)
 		_node.AuthTime = value
+	}
+	if value, ok := _c.mutation.ClaimsAmr(); ok {
+		_spec.SetField(authrequest.FieldClaimsAmr, field.TypeJSON, value)
+		_node.ClaimsAmr = value
 	}
 	return _node, _spec
 }

@@ -1294,6 +1294,16 @@ func AuthTimeNotNil() predicate.AuthRequest {
 	return predicate.AuthRequest(sql.FieldNotNull(FieldAuthTime))
 }
 
+// ClaimsAmrIsNil applies the IsNil predicate on the "claims_amr" field.
+func ClaimsAmrIsNil() predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldIsNull(FieldClaimsAmr))
+}
+
+// ClaimsAmrNotNil applies the NotNil predicate on the "claims_amr" field.
+func ClaimsAmrNotNil() predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldNotNull(FieldClaimsAmr))
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.AuthRequest) predicate.AuthRequest {
 	return predicate.AuthRequest(sql.AndPredicates(predicates...))

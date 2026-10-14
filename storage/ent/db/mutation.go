@@ -76,6 +76,8 @@ type AuthCodeMutation struct {
 	code_challenge_method     *string
 	auth_time                 *time.Time
 	session_id                *string
+	claims_amr                *[]string
+	appendclaims_amr          []string
 	clearedFields             map[string]struct{}
 	done                      bool
 	oldValue                  func(context.Context) (*AuthCode, error)
@@ -895,6 +897,71 @@ func (m *AuthCodeMutation) ResetSessionID() {
 	delete(m.clearedFields, authcode.FieldSessionID)
 }
 
+// SetClaimsAmr sets the "claims_amr" field.
+func (m *AuthCodeMutation) SetClaimsAmr(s []string) {
+	m.claims_amr = &s
+	m.appendclaims_amr = nil
+}
+
+// ClaimsAmr returns the value of the "claims_amr" field in the mutation.
+func (m *AuthCodeMutation) ClaimsAmr() (r []string, exists bool) {
+	v := m.claims_amr
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldClaimsAmr returns the old "claims_amr" field's value of the AuthCode entity.
+// If the AuthCode object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AuthCodeMutation) OldClaimsAmr(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldClaimsAmr is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldClaimsAmr requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldClaimsAmr: %w", err)
+	}
+	return oldValue.ClaimsAmr, nil
+}
+
+// AppendClaimsAmr adds s to the "claims_amr" field.
+func (m *AuthCodeMutation) AppendClaimsAmr(s []string) {
+	m.appendclaims_amr = append(m.appendclaims_amr, s...)
+}
+
+// AppendedClaimsAmr returns the list of values that were appended to the "claims_amr" field in this mutation.
+func (m *AuthCodeMutation) AppendedClaimsAmr() ([]string, bool) {
+	if len(m.appendclaims_amr) == 0 {
+		return nil, false
+	}
+	return m.appendclaims_amr, true
+}
+
+// ClearClaimsAmr clears the value of the "claims_amr" field.
+func (m *AuthCodeMutation) ClearClaimsAmr() {
+	m.claims_amr = nil
+	m.appendclaims_amr = nil
+	m.clearedFields[authcode.FieldClaimsAmr] = struct{}{}
+}
+
+// ClaimsAmrCleared returns if the "claims_amr" field was cleared in this mutation.
+func (m *AuthCodeMutation) ClaimsAmrCleared() bool {
+	_, ok := m.clearedFields[authcode.FieldClaimsAmr]
+	return ok
+}
+
+// ResetClaimsAmr resets all changes to the "claims_amr" field.
+func (m *AuthCodeMutation) ResetClaimsAmr() {
+	m.claims_amr = nil
+	m.appendclaims_amr = nil
+	delete(m.clearedFields, authcode.FieldClaimsAmr)
+}
+
 // Where appends a list predicates to the AuthCodeMutation builder.
 func (m *AuthCodeMutation) Where(ps ...predicate.AuthCode) {
 	m.predicates = append(m.predicates, ps...)
@@ -929,7 +996,7 @@ func (m *AuthCodeMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AuthCodeMutation) Fields() []string {
-	fields := make([]string, 0, 17)
+	fields := make([]string, 0, 18)
 	if m.client_id != nil {
 		fields = append(fields, authcode.FieldClientID)
 	}
@@ -981,6 +1048,9 @@ func (m *AuthCodeMutation) Fields() []string {
 	if m.session_id != nil {
 		fields = append(fields, authcode.FieldSessionID)
 	}
+	if m.claims_amr != nil {
+		fields = append(fields, authcode.FieldClaimsAmr)
+	}
 	return fields
 }
 
@@ -1023,6 +1093,8 @@ func (m *AuthCodeMutation) Field(name string) (ent.Value, bool) {
 		return m.AuthTime()
 	case authcode.FieldSessionID:
 		return m.SessionID()
+	case authcode.FieldClaimsAmr:
+		return m.ClaimsAmr()
 	}
 	return nil, false
 }
@@ -1066,6 +1138,8 @@ func (m *AuthCodeMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldAuthTime(ctx)
 	case authcode.FieldSessionID:
 		return m.OldSessionID(ctx)
+	case authcode.FieldClaimsAmr:
+		return m.OldClaimsAmr(ctx)
 	}
 	return nil, fmt.Errorf("unknown AuthCode field %s", name)
 }
@@ -1194,6 +1268,13 @@ func (m *AuthCodeMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetSessionID(v)
 		return nil
+	case authcode.FieldClaimsAmr:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetClaimsAmr(v)
+		return nil
 	}
 	return fmt.Errorf("unknown AuthCode field %s", name)
 }
@@ -1239,6 +1320,9 @@ func (m *AuthCodeMutation) ClearedFields() []string {
 	if m.FieldCleared(authcode.FieldSessionID) {
 		fields = append(fields, authcode.FieldSessionID)
 	}
+	if m.FieldCleared(authcode.FieldClaimsAmr) {
+		fields = append(fields, authcode.FieldClaimsAmr)
+	}
 	return fields
 }
 
@@ -1267,6 +1351,9 @@ func (m *AuthCodeMutation) ClearField(name string) error {
 		return nil
 	case authcode.FieldSessionID:
 		m.ClearSessionID()
+		return nil
+	case authcode.FieldClaimsAmr:
+		m.ClearClaimsAmr()
 		return nil
 	}
 	return fmt.Errorf("unknown AuthCode nullable field %s", name)
@@ -1326,6 +1413,9 @@ func (m *AuthCodeMutation) ResetField(name string) error {
 		return nil
 	case authcode.FieldSessionID:
 		m.ResetSessionID()
+		return nil
+	case authcode.FieldClaimsAmr:
+		m.ResetClaimsAmr()
 		return nil
 	}
 	return fmt.Errorf("unknown AuthCode field %s", name)
@@ -1414,6 +1504,8 @@ type AuthRequestMutation struct {
 	max_age                   *int
 	addmax_age                *int
 	auth_time                 *time.Time
+	claims_amr                *[]string
+	appendclaims_amr          []string
 	clearedFields             map[string]struct{}
 	done                      bool
 	oldValue                  func(context.Context) (*AuthRequest, error)
@@ -2570,6 +2662,71 @@ func (m *AuthRequestMutation) ResetAuthTime() {
 	delete(m.clearedFields, authrequest.FieldAuthTime)
 }
 
+// SetClaimsAmr sets the "claims_amr" field.
+func (m *AuthRequestMutation) SetClaimsAmr(s []string) {
+	m.claims_amr = &s
+	m.appendclaims_amr = nil
+}
+
+// ClaimsAmr returns the value of the "claims_amr" field in the mutation.
+func (m *AuthRequestMutation) ClaimsAmr() (r []string, exists bool) {
+	v := m.claims_amr
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldClaimsAmr returns the old "claims_amr" field's value of the AuthRequest entity.
+// If the AuthRequest object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AuthRequestMutation) OldClaimsAmr(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldClaimsAmr is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldClaimsAmr requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldClaimsAmr: %w", err)
+	}
+	return oldValue.ClaimsAmr, nil
+}
+
+// AppendClaimsAmr adds s to the "claims_amr" field.
+func (m *AuthRequestMutation) AppendClaimsAmr(s []string) {
+	m.appendclaims_amr = append(m.appendclaims_amr, s...)
+}
+
+// AppendedClaimsAmr returns the list of values that were appended to the "claims_amr" field in this mutation.
+func (m *AuthRequestMutation) AppendedClaimsAmr() ([]string, bool) {
+	if len(m.appendclaims_amr) == 0 {
+		return nil, false
+	}
+	return m.appendclaims_amr, true
+}
+
+// ClearClaimsAmr clears the value of the "claims_amr" field.
+func (m *AuthRequestMutation) ClearClaimsAmr() {
+	m.claims_amr = nil
+	m.appendclaims_amr = nil
+	m.clearedFields[authrequest.FieldClaimsAmr] = struct{}{}
+}
+
+// ClaimsAmrCleared returns if the "claims_amr" field was cleared in this mutation.
+func (m *AuthRequestMutation) ClaimsAmrCleared() bool {
+	_, ok := m.clearedFields[authrequest.FieldClaimsAmr]
+	return ok
+}
+
+// ResetClaimsAmr resets all changes to the "claims_amr" field.
+func (m *AuthRequestMutation) ResetClaimsAmr() {
+	m.claims_amr = nil
+	m.appendclaims_amr = nil
+	delete(m.clearedFields, authrequest.FieldClaimsAmr)
+}
+
 // Where appends a list predicates to the AuthRequestMutation builder.
 func (m *AuthRequestMutation) Where(ps ...predicate.AuthRequest) {
 	m.predicates = append(m.predicates, ps...)
@@ -2604,7 +2761,7 @@ func (m *AuthRequestMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AuthRequestMutation) Fields() []string {
-	fields := make([]string, 0, 25)
+	fields := make([]string, 0, 26)
 	if m.client_id != nil {
 		fields = append(fields, authrequest.FieldClientID)
 	}
@@ -2680,6 +2837,9 @@ func (m *AuthRequestMutation) Fields() []string {
 	if m.auth_time != nil {
 		fields = append(fields, authrequest.FieldAuthTime)
 	}
+	if m.claims_amr != nil {
+		fields = append(fields, authrequest.FieldClaimsAmr)
+	}
 	return fields
 }
 
@@ -2738,6 +2898,8 @@ func (m *AuthRequestMutation) Field(name string) (ent.Value, bool) {
 		return m.MaxAge()
 	case authrequest.FieldAuthTime:
 		return m.AuthTime()
+	case authrequest.FieldClaimsAmr:
+		return m.ClaimsAmr()
 	}
 	return nil, false
 }
@@ -2797,6 +2959,8 @@ func (m *AuthRequestMutation) OldField(ctx context.Context, name string) (ent.Va
 		return m.OldMaxAge(ctx)
 	case authrequest.FieldAuthTime:
 		return m.OldAuthTime(ctx)
+	case authrequest.FieldClaimsAmr:
+		return m.OldClaimsAmr(ctx)
 	}
 	return nil, fmt.Errorf("unknown AuthRequest field %s", name)
 }
@@ -2981,6 +3145,13 @@ func (m *AuthRequestMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetAuthTime(v)
 		return nil
+	case authrequest.FieldClaimsAmr:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetClaimsAmr(v)
+		return nil
 	}
 	return fmt.Errorf("unknown AuthRequest field %s", name)
 }
@@ -3044,6 +3215,9 @@ func (m *AuthRequestMutation) ClearedFields() []string {
 	if m.FieldCleared(authrequest.FieldAuthTime) {
 		fields = append(fields, authrequest.FieldAuthTime)
 	}
+	if m.FieldCleared(authrequest.FieldClaimsAmr) {
+		fields = append(fields, authrequest.FieldClaimsAmr)
+	}
 	return fields
 }
 
@@ -3075,6 +3249,9 @@ func (m *AuthRequestMutation) ClearField(name string) error {
 		return nil
 	case authrequest.FieldAuthTime:
 		m.ClearAuthTime()
+		return nil
+	case authrequest.FieldClaimsAmr:
+		m.ClearClaimsAmr()
 		return nil
 	}
 	return fmt.Errorf("unknown AuthRequest nullable field %s", name)
@@ -3158,6 +3335,9 @@ func (m *AuthRequestMutation) ResetField(name string) error {
 		return nil
 	case authrequest.FieldAuthTime:
 		m.ResetAuthTime()
+		return nil
+	case authrequest.FieldClaimsAmr:
+		m.ResetClaimsAmr()
 		return nil
 	}
 	return fmt.Errorf("unknown AuthRequest field %s", name)
@@ -9156,6 +9336,8 @@ type RefreshTokenMutation struct {
 	obsolete_token            *string
 	created_at                *time.Time
 	last_used                 *time.Time
+	claims_amr                *[]string
+	appendclaims_amr          []string
 	clearedFields             map[string]struct{}
 	done                      bool
 	oldValue                  func(context.Context) (*RefreshToken, error)
@@ -9877,6 +10059,71 @@ func (m *RefreshTokenMutation) ResetLastUsed() {
 	m.last_used = nil
 }
 
+// SetClaimsAmr sets the "claims_amr" field.
+func (m *RefreshTokenMutation) SetClaimsAmr(s []string) {
+	m.claims_amr = &s
+	m.appendclaims_amr = nil
+}
+
+// ClaimsAmr returns the value of the "claims_amr" field in the mutation.
+func (m *RefreshTokenMutation) ClaimsAmr() (r []string, exists bool) {
+	v := m.claims_amr
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldClaimsAmr returns the old "claims_amr" field's value of the RefreshToken entity.
+// If the RefreshToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RefreshTokenMutation) OldClaimsAmr(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldClaimsAmr is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldClaimsAmr requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldClaimsAmr: %w", err)
+	}
+	return oldValue.ClaimsAmr, nil
+}
+
+// AppendClaimsAmr adds s to the "claims_amr" field.
+func (m *RefreshTokenMutation) AppendClaimsAmr(s []string) {
+	m.appendclaims_amr = append(m.appendclaims_amr, s...)
+}
+
+// AppendedClaimsAmr returns the list of values that were appended to the "claims_amr" field in this mutation.
+func (m *RefreshTokenMutation) AppendedClaimsAmr() ([]string, bool) {
+	if len(m.appendclaims_amr) == 0 {
+		return nil, false
+	}
+	return m.appendclaims_amr, true
+}
+
+// ClearClaimsAmr clears the value of the "claims_amr" field.
+func (m *RefreshTokenMutation) ClearClaimsAmr() {
+	m.claims_amr = nil
+	m.appendclaims_amr = nil
+	m.clearedFields[refreshtoken.FieldClaimsAmr] = struct{}{}
+}
+
+// ClaimsAmrCleared returns if the "claims_amr" field was cleared in this mutation.
+func (m *RefreshTokenMutation) ClaimsAmrCleared() bool {
+	_, ok := m.clearedFields[refreshtoken.FieldClaimsAmr]
+	return ok
+}
+
+// ResetClaimsAmr resets all changes to the "claims_amr" field.
+func (m *RefreshTokenMutation) ResetClaimsAmr() {
+	m.claims_amr = nil
+	m.appendclaims_amr = nil
+	delete(m.clearedFields, refreshtoken.FieldClaimsAmr)
+}
+
 // Where appends a list predicates to the RefreshTokenMutation builder.
 func (m *RefreshTokenMutation) Where(ps ...predicate.RefreshToken) {
 	m.predicates = append(m.predicates, ps...)
@@ -9911,7 +10158,7 @@ func (m *RefreshTokenMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *RefreshTokenMutation) Fields() []string {
-	fields := make([]string, 0, 15)
+	fields := make([]string, 0, 16)
 	if m.client_id != nil {
 		fields = append(fields, refreshtoken.FieldClientID)
 	}
@@ -9957,6 +10204,9 @@ func (m *RefreshTokenMutation) Fields() []string {
 	if m.last_used != nil {
 		fields = append(fields, refreshtoken.FieldLastUsed)
 	}
+	if m.claims_amr != nil {
+		fields = append(fields, refreshtoken.FieldClaimsAmr)
+	}
 	return fields
 }
 
@@ -9995,6 +10245,8 @@ func (m *RefreshTokenMutation) Field(name string) (ent.Value, bool) {
 		return m.CreatedAt()
 	case refreshtoken.FieldLastUsed:
 		return m.LastUsed()
+	case refreshtoken.FieldClaimsAmr:
+		return m.ClaimsAmr()
 	}
 	return nil, false
 }
@@ -10034,6 +10286,8 @@ func (m *RefreshTokenMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldCreatedAt(ctx)
 	case refreshtoken.FieldLastUsed:
 		return m.OldLastUsed(ctx)
+	case refreshtoken.FieldClaimsAmr:
+		return m.OldClaimsAmr(ctx)
 	}
 	return nil, fmt.Errorf("unknown RefreshToken field %s", name)
 }
@@ -10148,6 +10402,13 @@ func (m *RefreshTokenMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetLastUsed(v)
 		return nil
+	case refreshtoken.FieldClaimsAmr:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetClaimsAmr(v)
+		return nil
 	}
 	return fmt.Errorf("unknown RefreshToken field %s", name)
 }
@@ -10187,6 +10448,9 @@ func (m *RefreshTokenMutation) ClearedFields() []string {
 	if m.FieldCleared(refreshtoken.FieldConnectorData) {
 		fields = append(fields, refreshtoken.FieldConnectorData)
 	}
+	if m.FieldCleared(refreshtoken.FieldClaimsAmr) {
+		fields = append(fields, refreshtoken.FieldClaimsAmr)
+	}
 	return fields
 }
 
@@ -10209,6 +10473,9 @@ func (m *RefreshTokenMutation) ClearField(name string) error {
 		return nil
 	case refreshtoken.FieldConnectorData:
 		m.ClearConnectorData()
+		return nil
+	case refreshtoken.FieldClaimsAmr:
+		m.ClearClaimsAmr()
 		return nil
 	}
 	return fmt.Errorf("unknown RefreshToken nullable field %s", name)
@@ -10262,6 +10529,9 @@ func (m *RefreshTokenMutation) ResetField(name string) error {
 		return nil
 	case refreshtoken.FieldLastUsed:
 		m.ResetLastUsed()
+		return nil
+	case refreshtoken.FieldClaimsAmr:
+		m.ResetClaimsAmr()
 		return nil
 	}
 	return fmt.Errorf("unknown RefreshToken field %s", name)
@@ -10336,6 +10606,8 @@ type UserIdentityMutation struct {
 	created_at                *time.Time
 	last_login                *time.Time
 	blocked_until             *time.Time
+	claims_amr                *[]string
+	appendclaims_amr          []string
 	clearedFields             map[string]struct{}
 	done                      bool
 	oldValue                  func(context.Context) (*UserIdentity, error)
@@ -11005,6 +11277,71 @@ func (m *UserIdentityMutation) ResetBlockedUntil() {
 	m.blocked_until = nil
 }
 
+// SetClaimsAmr sets the "claims_amr" field.
+func (m *UserIdentityMutation) SetClaimsAmr(s []string) {
+	m.claims_amr = &s
+	m.appendclaims_amr = nil
+}
+
+// ClaimsAmr returns the value of the "claims_amr" field in the mutation.
+func (m *UserIdentityMutation) ClaimsAmr() (r []string, exists bool) {
+	v := m.claims_amr
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldClaimsAmr returns the old "claims_amr" field's value of the UserIdentity entity.
+// If the UserIdentity object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserIdentityMutation) OldClaimsAmr(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldClaimsAmr is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldClaimsAmr requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldClaimsAmr: %w", err)
+	}
+	return oldValue.ClaimsAmr, nil
+}
+
+// AppendClaimsAmr adds s to the "claims_amr" field.
+func (m *UserIdentityMutation) AppendClaimsAmr(s []string) {
+	m.appendclaims_amr = append(m.appendclaims_amr, s...)
+}
+
+// AppendedClaimsAmr returns the list of values that were appended to the "claims_amr" field in this mutation.
+func (m *UserIdentityMutation) AppendedClaimsAmr() ([]string, bool) {
+	if len(m.appendclaims_amr) == 0 {
+		return nil, false
+	}
+	return m.appendclaims_amr, true
+}
+
+// ClearClaimsAmr clears the value of the "claims_amr" field.
+func (m *UserIdentityMutation) ClearClaimsAmr() {
+	m.claims_amr = nil
+	m.appendclaims_amr = nil
+	m.clearedFields[useridentity.FieldClaimsAmr] = struct{}{}
+}
+
+// ClaimsAmrCleared returns if the "claims_amr" field was cleared in this mutation.
+func (m *UserIdentityMutation) ClaimsAmrCleared() bool {
+	_, ok := m.clearedFields[useridentity.FieldClaimsAmr]
+	return ok
+}
+
+// ResetClaimsAmr resets all changes to the "claims_amr" field.
+func (m *UserIdentityMutation) ResetClaimsAmr() {
+	m.claims_amr = nil
+	m.appendclaims_amr = nil
+	delete(m.clearedFields, useridentity.FieldClaimsAmr)
+}
+
 // Where appends a list predicates to the UserIdentityMutation builder.
 func (m *UserIdentityMutation) Where(ps ...predicate.UserIdentity) {
 	m.predicates = append(m.predicates, ps...)
@@ -11039,7 +11376,7 @@ func (m *UserIdentityMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserIdentityMutation) Fields() []string {
-	fields := make([]string, 0, 14)
+	fields := make([]string, 0, 15)
 	if m.user_id != nil {
 		fields = append(fields, useridentity.FieldUserID)
 	}
@@ -11082,6 +11419,9 @@ func (m *UserIdentityMutation) Fields() []string {
 	if m.blocked_until != nil {
 		fields = append(fields, useridentity.FieldBlockedUntil)
 	}
+	if m.claims_amr != nil {
+		fields = append(fields, useridentity.FieldClaimsAmr)
+	}
 	return fields
 }
 
@@ -11118,6 +11458,8 @@ func (m *UserIdentityMutation) Field(name string) (ent.Value, bool) {
 		return m.LastLogin()
 	case useridentity.FieldBlockedUntil:
 		return m.BlockedUntil()
+	case useridentity.FieldClaimsAmr:
+		return m.ClaimsAmr()
 	}
 	return nil, false
 }
@@ -11155,6 +11497,8 @@ func (m *UserIdentityMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldLastLogin(ctx)
 	case useridentity.FieldBlockedUntil:
 		return m.OldBlockedUntil(ctx)
+	case useridentity.FieldClaimsAmr:
+		return m.OldClaimsAmr(ctx)
 	}
 	return nil, fmt.Errorf("unknown UserIdentity field %s", name)
 }
@@ -11262,6 +11606,13 @@ func (m *UserIdentityMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetBlockedUntil(v)
 		return nil
+	case useridentity.FieldClaimsAmr:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetClaimsAmr(v)
+		return nil
 	}
 	return fmt.Errorf("unknown UserIdentity field %s", name)
 }
@@ -11301,6 +11652,9 @@ func (m *UserIdentityMutation) ClearedFields() []string {
 	if m.FieldCleared(useridentity.FieldWebauthnCredentials) {
 		fields = append(fields, useridentity.FieldWebauthnCredentials)
 	}
+	if m.FieldCleared(useridentity.FieldClaimsAmr) {
+		fields = append(fields, useridentity.FieldClaimsAmr)
+	}
 	return fields
 }
 
@@ -11323,6 +11677,9 @@ func (m *UserIdentityMutation) ClearField(name string) error {
 		return nil
 	case useridentity.FieldWebauthnCredentials:
 		m.ClearWebauthnCredentials()
+		return nil
+	case useridentity.FieldClaimsAmr:
+		m.ClearClaimsAmr()
 		return nil
 	}
 	return fmt.Errorf("unknown UserIdentity nullable field %s", name)
@@ -11373,6 +11730,9 @@ func (m *UserIdentityMutation) ResetField(name string) error {
 		return nil
 	case useridentity.FieldBlockedUntil:
 		m.ResetBlockedUntil()
+		return nil
+	case useridentity.FieldClaimsAmr:
+		m.ResetClaimsAmr()
 		return nil
 	}
 	return fmt.Errorf("unknown UserIdentity field %s", name)

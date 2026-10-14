@@ -117,6 +117,7 @@ func IdentityFromClaims(claims storage.Claims) connector.Identity {
 		Email:             claims.Email,
 		EmailVerified:     claims.EmailVerified,
 		Groups:            claims.Groups,
+		Amr:               claims.Amr,
 	}
 }
 
@@ -131,6 +132,7 @@ func ClaimsFromIdentity(identity connector.Identity) storage.Claims {
 		Email:             identity.Email,
 		EmailVerified:     identity.EmailVerified,
 		Groups:            identity.Groups,
+		Amr:               identity.Amr,
 	}
 }
 
@@ -204,6 +206,7 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 		old.Claims.Email = ident.Email
 		old.Claims.EmailVerified = ident.EmailVerified
 		old.Claims.Groups = ident.Groups
+		old.Claims.Amr = ident.Amr
 
 		return old, nil
 	}

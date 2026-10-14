@@ -51,7 +51,9 @@ type AuthCode struct {
 	// AuthTime holds the value of the "auth_time" field.
 	AuthTime time.Time `json:"auth_time,omitempty"`
 	// SessionID holds the value of the "session_id" field.
-	SessionID    string `json:"session_id,omitempty"`
+	SessionID string `json:"session_id,omitempty"`
+	// ClaimsAmr holds the value of the "claims_amr" field.
+	ClaimsAmr    []string `json:"claims_amr,omitempty"`
 	selectValues sql.SelectValues
 }
 
@@ -60,7 +62,7 @@ func (*AuthCode) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case authcode.FieldScopes, authcode.FieldClaimsGroups, authcode.FieldConnectorData:
+		case authcode.FieldScopes, authcode.FieldClaimsGroups, authcode.FieldConnectorData, authcode.FieldClaimsAmr:
 			values[i] = new([]byte)
 		case authcode.FieldClaimsEmailVerified:
 			values[i] = new(sql.NullBool)
@@ -195,6 +197,14 @@ func (_m *AuthCode) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.SessionID = value.String
 			}
+		case authcode.FieldClaimsAmr:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field claims_amr", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.ClaimsAmr); err != nil {
+					return fmt.Errorf("unmarshal field claims_amr: %w", err)
+				}
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -283,6 +293,9 @@ func (_m *AuthCode) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("session_id=")
 	builder.WriteString(_m.SessionID)
+	builder.WriteString(", ")
+	builder.WriteString("claims_amr=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ClaimsAmr))
 	builder.WriteByte(')')
 	return builder.String()
 }
