@@ -101,10 +101,11 @@ func TestUserPassword(t *testing.T) {
 
 func TestIdentityFromCrowdUser(t *testing.T) {
 	user := crowdUser{
-		Key:    "12345",
-		Name:   "testuser",
-		Active: true,
-		Email:  "testuser@example.com",
+		Key:         "12345",
+		Name:        "testuser",
+		DisplayName: "Test User",
+		Active:      true,
+		Email:       "testuser@example.com",
 	}
 
 	c := newTestCrowdConnector("/")
@@ -116,7 +117,7 @@ func TestIdentityFromCrowdUser(t *testing.T) {
 	// Test unconfigured behavior
 	i := c.identityFromCrowdUser(user)
 	expectEquals(t, i.UserID, "12345")
-	expectEquals(t, i.Username, "testuser")
+	expectEquals(t, i.Username, "Test User")
 	expectEquals(t, i.Email, "testuser@example.com")
 	expectEquals(t, i.EmailVerified, true)
 
