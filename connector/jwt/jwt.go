@@ -394,7 +394,7 @@ func (c *jwtConnector) createIdentity(claims map[string]any) (connector.Identity
 		return connector.Identity{}, errors.New("jwt: missing \"email_verified\" claim")
 	}
 
-	groups, err := c.extractGroups(claims)
+	groups, err := c.extractGroups(claims, userID)
 	if err != nil {
 		return connector.Identity{}, err
 	}
@@ -409,7 +409,9 @@ func (c *jwtConnector) createIdentity(claims map[string]any) (connector.Identity
 	}, nil
 }
 
-func (c *jwtConnector) extractGroups(claims map[string]any) ([]string, error) {
+// extractGroups returns the identity's groups. userID is the identity's user
+// ID (from userIDKey), reported when allowedGroups rejects the login.
+func (c *jwtConnector) extractGroups(claims map[string]any, userID string) ([]string, error) {
 	groupsKey := "groups"
 	if c.groupsKey != "" {
 		groupsKey = c.groupsKey
@@ -433,7 +435,6 @@ func (c *jwtConnector) extractGroups(claims map[string]any) ([]string, error) {
 	if len(c.allowedGroups) > 0 {
 		groups = groups_pkg.Filter(groups, c.allowedGroups)
 		if len(groups) == 0 {
-			userID, _ := claims["sub"].(string)
 			return nil, &connector.UserNotInRequiredGroupsError{
 				UserID: userID,
 				Groups: c.allowedGroups,

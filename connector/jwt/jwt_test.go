@@ -631,6 +631,31 @@ func TestHandleCallbackAllowedGroupsError(t *testing.T) {
 	}
 }
 
+// The error must carry the identity's user ID, which comes from userIDKey,
+// not unconditionally from "sub".
+func TestHandleCallbackAllowedGroupsErrorUsesUserIDKey(t *testing.T) {
+	provider := newTestProvider(t)
+	conn := newConnector(t, Config{
+		Issuer:        provider.issuer(),
+		JWKSURL:       provider.jwksURL(),
+		UserIDKey:     "oid",
+		AllowedGroups: []string{"nobody"},
+	})
+
+	claims := baseClaims(provider.issuer())
+	claims["oid"] = "object-id"
+	req := requestWithToken(t, "Authorization", "Bearer "+signToken(t, provider.key, claims))
+	_, err := conn.HandleCallback(connector.Scopes{Groups: true}, nil, req)
+
+	var groupsErr *connector.UserNotInRequiredGroupsError
+	if !errors.As(err, &groupsErr) {
+		t.Fatalf("expected a UserNotInRequiredGroupsError, got %v", err)
+	}
+	if groupsErr.UserID != "object-id" {
+		t.Fatalf("expected user ID %q, got %q", "object-id", groupsErr.UserID)
+	}
+}
+
 func TestHandleCallbackRoleMapping(t *testing.T) {
 	provider := newTestProvider(t)
 
