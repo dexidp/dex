@@ -229,11 +229,12 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 // updated connector data, on the user's offline session.
 func (rt *RefreshStore) updateOfflineSession(ctx context.Context, refresh *storage.RefreshToken, ident connector.Identity, lastUsed time.Time) error {
 	offlineSessionUpdater := func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
-		if old.Refresh[refresh.ClientID].ID != refresh.ID {
+		ref := old.Refresh[refresh.ClientID]
+		if ref == nil || ref.ID != refresh.ID {
 			return old, errors.New("refresh token invalid")
 		}
 
-		old.Refresh[refresh.ClientID].LastUsed = lastUsed
+		ref.LastUsed = lastUsed
 		if len(ident.ConnectorData) > 0 {
 			old.ConnectorData = ident.ConnectorData
 		}
