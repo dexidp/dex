@@ -270,6 +270,15 @@ func TestDeviceTokenResponse(t *testing.T) {
 				t.Errorf("Unexpected Response Type.  Expected %v got %v", tc.expectedResponseCode, rr.Code)
 			}
 
+			if tc.expectedResponseCode == http.StatusOK {
+				if rr.Header().Get("Cache-Control") != "no-store" {
+					t.Errorf("expected Cache-Control: no-store, got %q", rr.Header().Get("Cache-Control"))
+				}
+				if rr.Header().Get("Pragma") != "no-cache" {
+					t.Errorf("expected Pragma: no-cache, got %q", rr.Header().Get("Pragma"))
+				}
+			}
+
 			body, err := io.ReadAll(rr.Body)
 			if err != nil {
 				t.Errorf("Could read token response %v", err)

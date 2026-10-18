@@ -99,6 +99,8 @@ type storedResponse string
 
 func (s storedResponse) Write(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
 	_, err := w.Write([]byte(s))
 	return err
 }
