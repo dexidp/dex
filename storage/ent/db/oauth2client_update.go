@@ -277,30 +277,7 @@ func (_u *OAuth2ClientUpdate) ExecX(ctx context.Context) {
 	}
 }
 
-// check runs all checks and user-defined validators on the builder.
-func (_u *OAuth2ClientUpdate) check() error {
-	if v, ok := _u.mutation.Secret(); ok {
-		if err := oauth2client.SecretValidator(v); err != nil {
-			return &ValidationError{Name: "secret", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.secret": %w`, err)}
-		}
-	}
-	if v, ok := _u.mutation.Name(); ok {
-		if err := oauth2client.NameValidator(v); err != nil {
-			return &ValidationError{Name: "name", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.name": %w`, err)}
-		}
-	}
-	if v, ok := _u.mutation.LogoURL(); ok {
-		if err := oauth2client.LogoURLValidator(v); err != nil {
-			return &ValidationError{Name: "logo_url", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.logo_url": %w`, err)}
-		}
-	}
-	return nil
-}
-
 func (_u *OAuth2ClientUpdate) sqlSave(ctx context.Context) (_node int, err error) {
-	if err := _u.check(); err != nil {
-		return _node, err
-	}
 	_spec := sqlgraph.NewUpdateSpec(oauth2client.Table, oauth2client.Columns, sqlgraph.NewFieldSpec(oauth2client.FieldID, field.TypeString))
 	if ps := _u.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
@@ -686,30 +663,7 @@ func (_u *OAuth2ClientUpdateOne) ExecX(ctx context.Context) {
 	}
 }
 
-// check runs all checks and user-defined validators on the builder.
-func (_u *OAuth2ClientUpdateOne) check() error {
-	if v, ok := _u.mutation.Secret(); ok {
-		if err := oauth2client.SecretValidator(v); err != nil {
-			return &ValidationError{Name: "secret", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.secret": %w`, err)}
-		}
-	}
-	if v, ok := _u.mutation.Name(); ok {
-		if err := oauth2client.NameValidator(v); err != nil {
-			return &ValidationError{Name: "name", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.name": %w`, err)}
-		}
-	}
-	if v, ok := _u.mutation.LogoURL(); ok {
-		if err := oauth2client.LogoURLValidator(v); err != nil {
-			return &ValidationError{Name: "logo_url", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.logo_url": %w`, err)}
-		}
-	}
-	return nil
-}
-
 func (_u *OAuth2ClientUpdateOne) sqlSave(ctx context.Context) (_node *OAuth2Client, err error) {
-	if err := _u.check(); err != nil {
-		return _node, err
-	}
 	_spec := sqlgraph.NewUpdateSpec(oauth2client.Table, oauth2client.Columns, sqlgraph.NewFieldSpec(oauth2client.FieldID, field.TypeString))
 	id, ok := _u.mutation.ID()
 	if !ok {
