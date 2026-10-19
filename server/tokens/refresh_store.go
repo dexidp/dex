@@ -138,21 +138,37 @@ func ClaimsFromIdentity(identity connector.Identity) storage.Claims {
 // syncs the offline session. It returns the marshaled token to hand back to the
 // client and the identity its claims were refreshed to.
 //
-// freshIdentity supplies the up-to-date identity. It is invoked inside the
-// storage transaction, and only when a token is actually minted, so the upstream
-// connector is contacted at most once even under concurrent refreshes.
+// Rotation runs as claim, resolve, finalize — three steps that never overlap a
+// storage transaction with connector work. The claim transaction decides from
+// the live row whether the token reuses (it is inside its reuse window) or
+// rotates, and a rotating claim advances the token's last-used time immediately,
+// so a concurrent request then takes the reuse path instead of resolving the
+// connector a second time. freshIdentity is invoked between the two
+// transactions: outside any transaction — it may read storage or contact an
+// upstream provider — and at most once, only when a rotation actually mints. A
+// resolution that fails, or a finalize that fails after it, leaves the claimed
+// token reusable within its window; the next refresh past the window retries
+// the rotation. The finalize transaction replaces the token, obsoleting the
+// previous one, and writes the refreshed claims.
+//
+// The updaters both transactions run are pure: they only transform the row they
+// are given. Backends that serialize on a single connection or lock (SQLite,
+// memory) deadlock when an updater reads storage — the refresh endpoint
+// deadlocked exactly there while identity resolution ran inside the rotation
+// transaction — and this structure rules that out for every connector, including
+// ones outside this repository.
 func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.RefreshToken, requestToken *internal.RefreshToken, strategy *RefreshStrategy, freshIdentity func(context.Context) (connector.Identity, error)) (string, connector.Identity, error) {
-	var idErr error
-
 	newToken := &internal.RefreshToken{
 		Token:     requestToken.Token,
 		RefreshId: requestToken.RefreshId,
 	}
 
-	lastUsed := rt.now()
 	ident := IdentityFromClaims(storageToken.Claims)
+	lastUsed := rt.now()
+	mint := false
 
-	refreshTokenUpdater := func(old storage.RefreshToken) (storage.RefreshToken, error) {
+	// Claim: decide reuse or rotation from the live row.
+	claim := func(old storage.RefreshToken) (storage.RefreshToken, error) {
 		rotationEnabled := strategy.RotationEnabled()
 		reusingAllowed := strategy.AllowedToReuse(old.LastUsed)
 
@@ -182,35 +198,66 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 				return old, errors.New("refresh token claimed twice")
 			}
 
-			// Issue a new refresh token, keeping the previous one claimable within reuse.
-			old.ObsoleteToken = old.Token
-			newToken.Token = storage.NewID()
+			// Claim the rotation: advancing last-used now puts the token inside
+			// its reuse window, so a concurrent request reuses what this one is
+			// about to mint rather than resolving the connector again.
+			old.LastUsed = lastUsed
+			old.ConnectorData = nil
+			mint = true
+			return old, nil
 		}
 
-		old.Token = newToken.Token
+		// Rotation disabled and the token is past its reuse window: refresh the
+		// claims in place, keeping the token itself.
 		old.LastUsed = lastUsed
-
-		// ConnectorData has been moved to the offline session.
 		old.ConnectorData = nil
-
-		ident, idErr = freshIdentity(ctx)
-		if idErr != nil {
-			return old, idErr
-		}
-
-		// Refresh the stored claims. UserID intentionally left untouched.
-		old.Claims.Username = ident.Username
-		old.Claims.PreferredUsername = ident.PreferredUsername
-		old.Claims.Email = ident.Email
-		old.Claims.EmailVerified = ident.EmailVerified
-		old.Claims.Groups = ident.Groups
-
+		mint = true
 		return old, nil
 	}
 
-	if err := rt.storage.UpdateRefreshToken(ctx, storageToken.ID, refreshTokenUpdater); err != nil {
+	if err := rt.storage.UpdateRefreshToken(ctx, storageToken.ID, claim); err != nil {
 		rt.logger.ErrorContext(ctx, "failed to update refresh token", "err", err)
 		return "", ident, err
+	}
+
+	if mint {
+		// Resolve the identity outside any transaction: the connector may read
+		// storage (the password DB does) or contact an upstream provider.
+		var idErr error
+		ident, idErr = freshIdentity(ctx)
+		if idErr != nil {
+			return "", ident, idErr
+		}
+
+		// Finalize: replace the token and write the refreshed claims.
+		finalize := func(old storage.RefreshToken) (storage.RefreshToken, error) {
+			if old.Token != requestToken.Token {
+				return old, errors.New("refresh token claimed twice")
+			}
+
+			if strategy.RotationEnabled() {
+				// Issue a new refresh token, keeping the previous one claimable within reuse.
+				old.ObsoleteToken = old.Token
+				newToken.Token = storage.NewID()
+				old.Token = newToken.Token
+			}
+
+			// Refresh the stored claims. UserID intentionally left untouched.
+			old.Claims.Username = ident.Username
+			old.Claims.PreferredUsername = ident.PreferredUsername
+			old.Claims.Email = ident.Email
+			old.Claims.EmailVerified = ident.EmailVerified
+			old.Claims.Groups = ident.Groups
+
+			old.LastUsed = lastUsed
+			old.ConnectorData = nil
+			return old, nil
+		}
+
+		if err := rt.storage.UpdateRefreshToken(ctx, storageToken.ID, finalize); err != nil {
+			rt.logger.ErrorContext(ctx, "failed to update refresh token", "err", err)
+			return "", ident, err
+		}
 	}
 
 	if err := rt.updateOfflineSession(ctx, storageToken, ident, lastUsed); err != nil {

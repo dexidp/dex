@@ -109,11 +109,10 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 	// instead of contacting the connector (which may fail if the upstream token
 	// has expired). Otherwise re-read the identity from the connector.
 	//
-	// The connector data is resolved before Rotate starts: Rotate invokes
-	// freshIdentity from inside the UpdateRefreshToken transaction, and the
-	// SQLite storage pools a single connection (SetMaxOpenConns(1)), so a
-	// storage read issued from that callback waits forever for the connection
-	// the transaction already holds.
+	// The connector data is resolved before Rotate starts so the callback
+	// consumes an already-resolved value: Rotate invokes freshIdentity between
+	// its storage transactions and at most once per rotation — see
+	// RefreshStore.Rotate for the claim/resolve/finalize steps.
 	var connectorData []byte
 	var connectorDataErr error
 	if userIdent == nil {
