@@ -145,18 +145,19 @@ func ClaimsFromIdentity(identity connector.Identity) storage.Claims {
 // so a concurrent request then takes the reuse path instead of resolving the
 // connector a second time. freshIdentity is invoked between the two
 // transactions: outside any transaction — it may read storage or contact an
-// upstream provider — and at most once, only when a rotation actually mints. A
-// resolution that fails, or a finalize that fails after it, leaves the claimed
-// token reusable within its window; the next refresh past the window retries
-// the rotation. The finalize transaction replaces the token, obsoleting the
+// upstream provider — and at most once, only when the stored claims are being
+// refreshed. A resolution that fails, or a finalize that fails after it, undoes
+// the claim, so a failed rotation opens no reuse window and the next refresh
+// retries it: the all-or-nothing denial of the previous single-transaction
+// rotation. The finalize transaction replaces the token, obsoleting the
 // previous one, and writes the refreshed claims.
 //
-// The updaters both transactions run are pure: they only transform the row they
-// are given. Backends that serialize on a single connection or lock (SQLite,
-// memory) deadlock when an updater reads storage — the refresh endpoint
-// deadlocked exactly there while identity resolution ran inside the rotation
-// transaction — and this structure rules that out for every connector, including
-// ones outside this repository.
+// The updaters both transactions run issue no storage reads and perform no I/O
+// beyond writing the row they return. Backends that serialize on a single
+// connection or lock (SQLite, memory) deadlock when an updater reads storage —
+// the refresh endpoint deadlocked exactly there while identity resolution ran
+// inside the rotation transaction — and this structure rules that out for every
+// connector, including ones outside this repository.
 func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.RefreshToken, requestToken *internal.RefreshToken, strategy *RefreshStrategy, freshIdentity func(context.Context) (connector.Identity, error)) (string, connector.Identity, error) {
 	newToken := &internal.RefreshToken{
 		Token:     requestToken.Token,
@@ -166,9 +167,14 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 	ident := IdentityFromClaims(storageToken.Claims)
 	lastUsed := rt.now()
 	mint := false
+	var claimedFrom time.Time
 
 	// Claim: decide reuse or rotation from the live row.
 	claim := func(old storage.RefreshToken) (storage.RefreshToken, error) {
+		// Reset per execution: a backend that retries the updater (kubernetes,
+		// on conflict) must not carry a stale decision from an earlier run.
+		mint = false
+
 		rotationEnabled := strategy.RotationEnabled()
 		reusingAllowed := strategy.AllowedToReuse(old.LastUsed)
 
@@ -197,18 +203,14 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 			if old.Token != requestToken.Token {
 				return old, errors.New("refresh token claimed twice")
 			}
-
-			// Claim the rotation: advancing last-used now puts the token inside
-			// its reuse window, so a concurrent request reuses what this one is
-			// about to mint rather than resolving the connector again.
-			old.LastUsed = lastUsed
-			old.ConnectorData = nil
-			mint = true
-			return old, nil
 		}
 
-		// Rotation disabled and the token is past its reuse window: refresh the
-		// claims in place, keeping the token itself.
+		// Claim the rotation — or, with rotation disabled and the token past
+		// its reuse window, the in-place claims refresh. Advancing last-used
+		// now puts the token inside its reuse window, so a concurrent request
+		// reuses what this one is about to mint rather than resolving the
+		// connector again. Should the rotation fail, undoClaim rolls it back.
+		claimedFrom = old.LastUsed
 		old.LastUsed = lastUsed
 		old.ConnectorData = nil
 		mint = true
@@ -216,7 +218,7 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 	}
 
 	if err := rt.storage.UpdateRefreshToken(ctx, storageToken.ID, claim); err != nil {
-		rt.logger.ErrorContext(ctx, "failed to update refresh token", "err", err)
+		rt.logger.ErrorContext(ctx, "failed to claim refresh token rotation", "err", err)
 		return "", ident, err
 	}
 
@@ -226,6 +228,7 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 		var idErr error
 		ident, idErr = freshIdentity(ctx)
 		if idErr != nil {
+			rt.undoClaim(ctx, storageToken.ID, requestToken.Token, lastUsed, claimedFrom)
 			return "", ident, idErr
 		}
 
@@ -249,13 +252,13 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 			old.Claims.EmailVerified = ident.EmailVerified
 			old.Claims.Groups = ident.Groups
 
-			old.LastUsed = lastUsed
 			old.ConnectorData = nil
 			return old, nil
 		}
 
 		if err := rt.storage.UpdateRefreshToken(ctx, storageToken.ID, finalize); err != nil {
-			rt.logger.ErrorContext(ctx, "failed to update refresh token", "err", err)
+			rt.logger.ErrorContext(ctx, "failed to finalize refresh token rotation", "err", err)
+			rt.undoClaim(ctx, storageToken.ID, requestToken.Token, lastUsed, claimedFrom)
 			return "", ident, err
 		}
 	}
@@ -270,6 +273,24 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 	}
 
 	return rawToken, ident, nil
+}
+
+// undoClaim rolls a claim back after a failed resolution or finalize, so a
+// failure does not leave the token reusable within a window that minted
+// nothing — the all-or-nothing denial of the previous single-transaction
+// rotation. The guard applies only to a row still showing our own claim; an
+// undo that itself fails is logged and otherwise ignored, leaving at worst a
+// reusable window.
+func (rt *RefreshStore) undoClaim(ctx context.Context, id, token string, lastUsed, claimedFrom time.Time) {
+	err := rt.storage.UpdateRefreshToken(ctx, id, func(old storage.RefreshToken) (storage.RefreshToken, error) {
+		if old.Token == token && !old.LastUsed.Before(lastUsed) {
+			old.LastUsed = claimedFrom
+		}
+		return old, nil
+	})
+	if err != nil {
+		rt.logger.ErrorContext(ctx, "failed to undo refresh token claim", "err", err)
+	}
 }
 
 // updateOfflineSession records the refresh token's new last-used time, and any

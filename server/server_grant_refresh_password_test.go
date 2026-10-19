@@ -16,11 +16,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"path"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -71,9 +73,9 @@ func (g *reentrancyGuard) GetOfflineSessions(ctx context.Context, userID string,
 	return g.Storage.GetOfflineSessions(ctx, userID, connID)
 }
 
-// seedLocalPasswordDB creates a confidential client, opens the local password
-// connector and creates one storage-backed password user.
-func seedLocalPasswordDB(t *testing.T, s *Server) {
+// seedLocalClientAndConnector creates a confidential client and opens the
+// local password connector.
+func seedLocalClientAndConnector(t *testing.T, s *Server) {
 	t.Helper()
 	ctx := t.Context()
 
@@ -94,19 +96,14 @@ func seedLocalPasswordDB(t *testing.T, s *Server) {
 	require.NoError(t, s.storage.CreateConnector(ctx, localConn))
 	_, err = s.connectors.Open(localConn)
 	require.NoError(t, err)
+}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte("secret"), bcrypt.DefaultCost)
-	require.NoError(t, err)
-	err = s.storage.CreatePassword(ctx, storage.Password{
-		Email:         "user@example.com",
-		Username:      "user-login",
-		Name:          "User Full Name",
-		EmailVerified: boolPtr(false),
-		UserID:        "user-id",
-		Groups:        []string{"team-a"},
-		Hash:          hash,
-	})
-	require.NoError(t, err)
+// seedLocalPasswordDB seeds the client, the local connector and one
+// storage-backed password user.
+func seedLocalPasswordDB(t *testing.T, s *Server) {
+	t.Helper()
+	seedLocalClientAndConnector(t, s)
+	seedLocalPasswordUser(t, s)
 }
 
 type tokenResponse struct {
@@ -143,12 +140,13 @@ func doPasswordGrant(t *testing.T, s *Server) string {
 	return resp.RefreshToken
 }
 
-// doRefreshGrant redeems a refresh token. A non-zero timeout bounds the
-// request both ways: the request context, so a deadlock surfaces as a context
-// error where database/sql honors it, and a watchdog around the call itself,
-// because a wedged single-connection pool can block past any context. Either
-// way a regression fails in bounded time instead of hanging the package.
-func doRefreshGrant(t *testing.T, s *Server, refreshToken string, timeout time.Duration) tokenResponse {
+// refreshGrantRaw redeems a refresh token and reports the response recorder
+// without asserting the outcome. A non-zero timeout bounds the request both
+// ways: the request context, so a deadlock surfaces as a context error where
+// database/sql honors it, and a watchdog around the call itself, because a
+// wedged single-connection pool can block past any context. Either way a
+// regression fails in bounded time instead of hanging the package.
+func refreshGrantRaw(t *testing.T, s *Server, refreshToken string, timeout time.Duration) *httptest.ResponseRecorder {
 	t.Helper()
 
 	u, err := url.Parse(s.issuerURL.String())
@@ -183,6 +181,13 @@ func doRefreshGrant(t *testing.T, s *Server, refreshToken string, timeout time.D
 	} else {
 		<-done
 	}
+	return rr
+}
+
+// doRefreshGrant redeems a refresh token and asserts it succeeds.
+func doRefreshGrant(t *testing.T, s *Server, refreshToken string, timeout time.Duration) tokenResponse {
+	t.Helper()
+	rr := refreshGrantRaw(t, s, refreshToken, timeout)
 	require.Equal(t, http.StatusOK, rr.Code, "refresh grant failed: %s", rr.Body.String())
 
 	var resp tokenResponse
@@ -245,23 +250,7 @@ func TestRefreshGrantStaticPasswordUser(t *testing.T) {
 		}
 	})
 	defer httpServer.Close()
-
-	ctx := t.Context()
-	require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
-		ID:           "test",
-		Secret:       "barfoo",
-		RedirectURIs: []string{"foo://bar.com/", "https://auth.example.com"},
-		Name:         "dex client",
-	}))
-	localConn := storage.Connector{
-		ID:              "local",
-		Type:            connectors.LocalConnector,
-		Name:            "Email",
-		ResourceVersion: "1",
-	}
-	require.NoError(t, s.storage.CreateConnector(ctx, localConn))
-	_, err := s.connectors.Open(localConn)
-	require.NoError(t, err)
+	seedLocalClientAndConnector(t, s)
 
 	first := doPasswordGrant(t, s)
 	second := doRefreshGrant(t, s, first, 0)
@@ -323,11 +312,11 @@ func TestRefreshGrantPasswordDBReuseWindow(t *testing.T) {
 	require.Equal(t, second.RefreshToken, retried.RefreshToken, "in-window retry failed after the user was deleted")
 }
 
-// TestRefreshGrantResolveFailureKeepsTokenUsable pins the failure semantics of
-// the two-step rotation: a resolution that fails after the claim errors the
-// grant but leaves the token claimable within its reuse window, and the next
-// refresh past the window retries the rotation and succeeds.
-func TestRefreshGrantResolveFailureKeepsTokenUsable(t *testing.T) {
+// TestRefreshGrantResolveFailureDeniesUntilResolved pins the failure semantics
+// of the two-step rotation: a resolution that fails undoes the claim — the
+// grant errors, no reuse window opens (an immediate retry fails again), and
+// once the user resolves (here: is re-created) the next refresh rotates.
+func TestRefreshGrantResolveFailureDeniesUntilResolved(t *testing.T) {
 	const reuseWindow = 30 * time.Second
 
 	now := time.Now().UTC()
@@ -345,53 +334,76 @@ func TestRefreshGrantResolveFailureKeepsTokenUsable(t *testing.T) {
 	first := doPasswordGrant(t, s)
 
 	// Age the token past its window and delete the user: the rotation is
-	// claimed, resolution cannot find the user, and the grant errors.
+	// claimed, resolution cannot find the user, and the grant errors — with
+	// the claim undone, so an immediate retry (still nominally within the
+	// window) fails again instead of minting from stale claims.
 	require.NoError(t, s.storage.DeletePassword(t.Context(), "user@example.com"))
 	now = now.Add(reuseWindow + time.Second)
 	require.Equal(t, http.StatusInternalServerError, refreshGrantStatus(t, s, first, 10*time.Second))
 
-	// The claimed token still redeems within its window — same token back, no
-	// resolution, no mint.
 	now = now.Add(time.Second)
-	redeemed := doRefreshGrant(t, s, first, 0)
-	require.Equal(t, first, redeemed.RefreshToken, "claimed token did not redeem itself within the reuse window")
+	require.Equal(t, http.StatusInternalServerError, refreshGrantStatus(t, s, first, 10*time.Second), "in-window retry after a failed resolution must not succeed from stale claims")
 
-	// Past the window, with the user back, the rotation retries and mints.
+	// With the user back, the next refresh performs the rotation.
 	seedLocalPasswordUser(t, s)
-	now = now.Add(reuseWindow + time.Second)
 	rotated := doRefreshGrant(t, s, first, 0)
-	require.NotEqual(t, first, rotated.RefreshToken, "rotation did not retry past the reuse window")
+	require.NotEqual(t, first, rotated.RefreshToken, "rotation did not retry after the failure")
+}
+
+// TestRefreshGrantFinalizeFailureUndoesClaim pins the other failure window: a
+// finalize that fails after a successful resolution also undoes the claim, so
+// the immediate retry re-rotates instead of reusing the un-rotated token with
+// stale claims.
+func TestRefreshGrantFinalizeFailureUndoesClaim(t *testing.T) {
+	const reuseWindow = 30 * time.Second
+
+	now := time.Now().UTC()
+	clock := func() time.Time { return now }
+
+	failing := &finalizingStorage{Storage: memory.New(newLogger(t))}
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.PasswordConnector = "local"
+		c.Storage = failing
+		c.Now = clock
+		c.RefreshTokenPolicy = tokens.NewRefreshStrategy(true, 0, 0, reuseWindow, clock)
+	})
+	defer httpServer.Close()
+	seedLocalPasswordDB(t, s)
+
+	first := doPasswordGrant(t, s)
+
+	now = now.Add(reuseWindow + time.Second)
+	failing.failFinalize.Store(true)
+	require.Equal(t, http.StatusInternalServerError, refreshGrantStatus(t, s, first, 10*time.Second), "refresh must fail when the finalize transaction fails")
+
+	// The retry (within the window) must rotate: with the claim undone it
+	// re-enters the mint path rather than reusing the un-rotated token.
+	now = now.Add(time.Second)
+	retried := doRefreshGrant(t, s, first, 0)
+	require.NotEqual(t, first, retried.RefreshToken, "in-window retry reused the un-rotated token: the finalize failure did not undo the claim")
+}
+
+// finalizingStorage fails exactly one finalize transaction, one-shot: the
+// second UpdateRefreshToken after a reset fails once, later ones (including the
+// claim-undo it triggers) succeed.
+type finalizingStorage struct {
+	storage.Storage
+	failFinalize atomic.Bool
+	updates      atomic.Int32
+}
+
+func (f *finalizingStorage) UpdateRefreshToken(ctx context.Context, id string, updater func(r storage.RefreshToken) (storage.RefreshToken, error)) error {
+	if f.updates.Add(1) == 2 && f.failFinalize.CompareAndSwap(true, false) {
+		return errors.New("injected finalize failure")
+	}
+	return f.Storage.UpdateRefreshToken(ctx, id, updater)
 }
 
 // refreshGrantStatus performs a refresh grant and reports only its HTTP status,
 // bounded by a watchdog like doRefreshGrant.
 func refreshGrantStatus(t *testing.T, s *Server, refreshToken string, timeout time.Duration) int {
 	t.Helper()
-
-	u, err := url.Parse(s.issuerURL.String())
-	require.NoError(t, err)
-	u.Path = path.Join(u.Path, "/token")
-
-	v := url.Values{}
-	v.Add("grant_type", "refresh_token")
-	v.Add("refresh_token", refreshToken)
-
-	req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(v.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.SetBasicAuth("test", "barfoo")
-
-	rr := httptest.NewRecorder()
-	done := make(chan struct{})
-	go func() {
-		s.ServeHTTP(rr, req)
-		close(done)
-	}()
-	select {
-	case <-done:
-	case <-time.After(timeout + 5*time.Second):
-		t.Fatalf("refresh grant did not complete within %s: the rotation transaction is deadlocked on its own storage read", timeout)
-	}
-	return rr.Code
+	return refreshGrantRaw(t, s, refreshToken, timeout).Code
 }
 
 // seedLocalPasswordUser re-creates the password user removed by a deletion
@@ -413,25 +425,28 @@ func seedLocalPasswordUser(t *testing.T, s *Server) {
 
 // TestRefreshGrantUpstreamConnectorRefreshedAtMostOnce pins both sides of the
 // contract for an upstream-facing connector: its Refresh runs outside the
-// rotation transactions (the guard fails any storage read issued from inside
-// one), and at most once per rotation — across a rotation and an in-window
-// retry of the obsolete token, exactly once, because the retry reuses the
-// already-rotated token without contacting it again.
+// rotation transactions (it reads storage itself — the guard fails any such
+// read issued from inside an updater), and at most once per rotation — across
+// a rotation and an in-window retry of the obsolete token, exactly once,
+// because the retry reuses the already-rotated token without contacting it
+// again. The offline session must also carry the connector data the refreshed
+// identity returned.
 func TestRefreshGrantUpstreamConnectorRefreshedAtMostOnce(t *testing.T) {
 	const reuseWindow = 30 * time.Second
 
 	now := time.Now().UTC()
 	clock := func() time.Time { return now }
 
+	guard := &reentrancyGuard{Storage: memory.New(newLogger(t))}
 	httpServer, s := newTestServer(t, func(c *Config) {
-		c.Storage = &reentrancyGuard{Storage: memory.New(newLogger(t))}
+		c.Storage = guard
 		c.Now = clock
 		c.RefreshTokenPolicy = tokens.NewRefreshStrategy(true, 0, 0, reuseWindow, clock)
 	})
 	defer httpServer.Close()
 	mockRefreshTokenTestStorage(t, s.storage, false)
 
-	counting := &countingRefreshConnector{Connector: mock.NewCallbackConnector(newLogger(t))}
+	counting := &countingRefreshConnector{Connector: mock.NewCallbackConnector(newLogger(t)), store: guard}
 	s.connectors.Set("test", connectors.Connector{
 		Type: "mockCallback",
 		// The stored connector row has no resource version; a mismatching one
@@ -440,50 +455,96 @@ func TestRefreshGrantUpstreamConnectorRefreshedAtMostOnce(t *testing.T) {
 		Connector:       counting,
 	})
 
-	u, err := url.Parse(s.issuerURL.String())
+	tokenData, err := internal.Marshal(&internal.RefreshToken{RefreshId: "test", Token: "bar"})
 	require.NoError(t, err)
-	u.Path = path.Join(u.Path, "/token")
 
-	refresh := func(token string) tokenResponse {
-		v := url.Values{}
-		v.Add("grant_type", "refresh_token")
-		v.Add("refresh_token", token)
+	now = now.Add(reuseWindow + time.Second)
+	rotated := doRefreshGrant(t, s, tokenData, 0)
+	require.NotEmpty(t, rotated.RefreshToken)
 
-		req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(v.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		req.SetBasicAuth("test", "barfoo")
+	now = now.Add(time.Second)
+	retried := doRefreshGrant(t, s, tokenData, 0)
+	require.Equal(t, rotated.RefreshToken, retried.RefreshToken)
 
-		rr := httptest.NewRecorder()
-		s.ServeHTTP(rr, req)
-		require.Equal(t, http.StatusOK, rr.Code, "refresh grant failed: %s", rr.Body.String())
+	require.Equal(t, int32(1), counting.refreshCalls.Load(), "upstream connector Refresh must be called exactly once")
 
-		var resp tokenResponse
-		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
-		return resp
-	}
+	// The refreshed identity's connector data lands on the offline session.
+	sess, err := s.storage.GetOfflineSessions(t.Context(), "1", "test")
+	require.NoError(t, err)
+	require.Equal(t, []byte("foobar"), sess.ConnectorData, "offline session did not carry the refreshed connector data")
+}
+
+// TestRefreshGrantConcurrentRequestsResolveOnce pins the concurrency property
+// the claim step provides: two truly concurrent refreshes of the same token
+// both succeed, both receive the same rotated token, and the connector is
+// resolved exactly once. Uses plain memory storage — the reentrancyGuard is
+// not safe for concurrent use.
+func TestRefreshGrantConcurrentRequestsResolveOnce(t *testing.T) {
+	const reuseWindow = 30 * time.Second
+
+	now := time.Now().UTC()
+	clock := func() time.Time { return now }
+
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.Storage = memory.New(newLogger(t))
+		c.Now = clock
+		c.RefreshTokenPolicy = tokens.NewRefreshStrategy(true, 0, 0, reuseWindow, clock)
+	})
+	defer httpServer.Close()
+	mockRefreshTokenTestStorage(t, s.storage, false)
+
+	counting := &countingRefreshConnector{Connector: mock.NewCallbackConnector(newLogger(t))}
+	s.connectors.Set("test", connectors.Connector{
+		Type:            "mockCallback",
+		ResourceVersion: "",
+		Connector:       counting,
+	})
 
 	tokenData, err := internal.Marshal(&internal.RefreshToken{RefreshId: "test", Token: "bar"})
 	require.NoError(t, err)
 
 	now = now.Add(reuseWindow + time.Second)
-	rotated := refresh(tokenData)
-	require.NotEmpty(t, rotated.RefreshToken)
 
-	now = now.Add(time.Second)
-	retried := refresh(tokenData)
-	require.Equal(t, rotated.RefreshToken, retried.RefreshToken)
+	results := make([]tokenResponse, 2)
+	var wg sync.WaitGroup
+	for i := range results {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			results[i] = doRefreshGrant(t, s, tokenData, 0)
+		}(i)
+	}
+	wg.Wait()
 
-	require.Equal(t, int32(1), counting.refreshCalls.Load(), "upstream connector Refresh must be called exactly once")
+	// One request rotates; the concurrent one either reuses the still-current
+	// old token (it ran during the resolve gap) or redeems the rotated one (it
+	// ran after the finalize). Both outcomes are valid, and redeeming either
+	// within the window converges to the current token.
+	converged := make([]string, 2)
+	for i, tok := range []string{results[0].RefreshToken, results[1].RefreshToken} {
+		converged[i] = doRefreshGrant(t, s, tok, 0).RefreshToken
+	}
+	require.Equal(t, converged[0], converged[1], "redeeming either concurrently issued token must converge to the current one")
+
+	require.Equal(t, int32(1), counting.refreshCalls.Load(), "concurrent refreshes must resolve the connector exactly once")
 }
 
-// countingRefreshConnector counts Refresh calls on a wrapped connector.
+// countingRefreshConnector counts Refresh calls on a wrapped connector. A
+// non-nil store makes Refresh issue a storage read itself, so tests can prove
+// the call happens outside any rotation updater.
 type countingRefreshConnector struct {
 	connector.Connector
 	refreshCalls atomic.Int32
+	store        storage.Storage
 }
 
 func (c *countingRefreshConnector) Refresh(ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
 	c.refreshCalls.Add(1)
+	if c.store != nil {
+		if _, err := c.store.GetPassword(ctx, "probe@example.com"); err != nil && !errors.Is(err, storage.ErrNotFound) {
+			return identity, err
+		}
+	}
 	refreshConn, ok := c.Connector.(connector.RefreshConnector)
 	if !ok {
 		return identity, nil

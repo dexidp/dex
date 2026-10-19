@@ -113,8 +113,8 @@ type RefreshConnector interface {
 	//
 	// Refresh runs outside any storage transaction — it may read storage (the
 	// built-in password DB does) or contact an upstream provider — and is
-	// invoked at most once per rotation, only when a new token is actually
-	// minted. See RefreshStore.Rotate for the rotation steps.
+	// invoked at most once per refresh that refreshes the stored claims. See
+	// RefreshStore.Rotate for the rotation steps.
 	Refresh(ctx context.Context, s Scopes, identity Identity) (Identity, error)
 }
 
