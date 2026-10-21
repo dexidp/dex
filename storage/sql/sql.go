@@ -23,6 +23,11 @@ type flavor struct {
 
 	// Does the flavor support timezones?
 	supportsTimezones bool
+
+	// Does the flavor reject the zero time.Time? The MySQL driver sends it
+	// as '0000-00-00', which the default sql_mode (NO_ZERO_DATE with
+	// STRICT_TRANS_TABLES) refuses for datetime columns.
+	rejectsZeroTime bool
 }
 
 // A regexp with a replacement string.
@@ -99,6 +104,7 @@ var (
 			// Change default timestamp to fit datetime.
 			{regexp.MustCompile(`0001-01-01 00:00:00 UTC`), "1000-01-01 00:00:00"},
 		},
+		rejectsZeroTime: true,
 	}
 )
 
@@ -120,10 +126,26 @@ func (c *conn) translateArgs(args []interface{}) []interface{} {
 
 	for i, arg := range args {
 		if t, ok := arg.(time.Time); ok {
+			if t.IsZero() && c.flavor.rejectsZeroTime {
+				t = unsetTime
+			}
 			args[i] = t.UTC()
 		}
 	}
 	return args
+}
+
+// unsetTime is stored instead of the zero time.Time where the database
+// cannot hold it. It matches the default of the auth_time columns.
+var unsetTime = time.Unix(0, 0).UTC()
+
+// fromStoredTime maps unsetTime back to the zero time.Time, so an unset
+// timestamp reads back as unset on every flavor.
+func fromStoredTime(t time.Time) time.Time {
+	if t.Equal(unsetTime) {
+		return time.Time{}
+	}
+	return t
 }
 
 // conn is the main database connection.
