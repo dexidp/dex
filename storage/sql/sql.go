@@ -10,6 +10,8 @@ import (
 	// import third party drivers
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/dexidp/dex/storage/sqlretry"
 )
 
 // flavor represents a specific SQL implementation, and is used to translate query strings
@@ -132,6 +134,11 @@ type conn struct {
 	flavor             *flavor
 	logger             *slog.Logger
 	alreadyExistsCheck func(err error) bool
+
+	// txRetryCheck reports whether err is a transient transaction failure
+	// (serialization failure or deadlock) that is safe to retry by re-running
+	// the whole transaction. It is driver-specific and may be nil (no retries).
+	txRetryCheck func(err error) bool
 }
 
 func (c *conn) Close() error {
@@ -172,6 +179,20 @@ func (c *conn) ExecTx(fn func(tx *trans) error) error {
 		return err
 	}
 	return sqlTx.Commit()
+}
+
+// execTxWithRetry runs an ExecTx, retrying the whole transaction on transient
+// serialization/deadlock failures. Retrying is safe because the closure re-reads
+// current state in a fresh transaction on each attempt.
+func (c *conn) execTxWithRetry(fn func(tx *trans) error) error {
+	return sqlretry.Do(
+		func() error { return c.ExecTx(fn) },
+		c.txRetryCheck,
+		func(attempt int, err error) {
+			c.logger.Warn("retrying transaction after transient failure",
+				"attempt", attempt, "max_attempts", sqlretry.MaxRetries, "err", err)
+		},
+	)
 }
 
 type trans struct {

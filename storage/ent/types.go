@@ -13,6 +13,11 @@ type NetworkDB struct {
 	MaxOpenConns    int // default: 5
 	MaxIdleConns    int // default: 5
 	ConnMaxLifetime int // Seconds, default: not set
+
+	// RetryOnSerializationFailure enables bounded, jittered retry of refresh-token
+	// updates aborted by transient serialization failures / deadlocks under
+	// SERIALIZABLE isolation. Off by default. Retry parameters are not configurable.
+	RetryOnSerializationFailure bool
 }
 
 // SSL represents SSL options for network databases.

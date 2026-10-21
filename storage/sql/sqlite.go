@@ -45,7 +45,7 @@ func (s *SQLite3) open(logger *slog.Logger) (*conn, error) {
 		return sqlErr.ExtendedCode == sqlite3.ErrConstraintPrimaryKey
 	}
 
-	c := &conn{db, &flavorSQLite3, logger, errCheck}
+	c := &conn{db, &flavorSQLite3, logger, errCheck, nil}
 	if _, err := c.migrate(); err != nil {
 		return nil, fmt.Errorf("failed to perform migrations: %v", err)
 	}
