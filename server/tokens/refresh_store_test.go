@@ -137,3 +137,27 @@ func TestRefreshStoreRevoke(t *testing.T) {
 	require.Empty(t, sess.Refresh)
 	require.Equal(t, []byte("cd"), sess.ConnectorData)
 }
+
+func TestRefreshStoreUpdateOfflineSessionAfterRevoke(t *testing.T) {
+	ctx := context.Background()
+	rt, store := newTestStore(t)
+
+	stored := storage.RefreshToken{
+		ID: "r1", Token: "t1", ClientID: "client-1", ConnectorID: "mock",
+		Claims: storage.Claims{UserID: "u1", Username: "alice"}, CreatedAt: time.Now(), LastUsed: time.Now(),
+	}
+	require.NoError(t, store.CreateRefresh(ctx, stored))
+	require.NoError(t, store.CreateOfflineSessions(ctx, storage.OfflineSessions{
+		UserID: "u1", ConnID: "mock",
+		Refresh: map[string]*storage.RefreshTokenRef{"client-1": {ID: "r1", ClientID: "client-1"}},
+	}))
+
+	// The token is revoked after the caller loaded it, e.g. while a rotation is in flight.
+	rt.RevokeClients(ctx, "u1", "mock", []string{"client-1"})
+
+	var err error
+	require.NotPanics(t, func() {
+		err = rt.updateOfflineSession(ctx, &stored, connector.Identity{UserID: "u1"}, time.Now())
+	})
+	require.Error(t, err)
+}
