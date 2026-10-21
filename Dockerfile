@@ -2,11 +2,13 @@ ARG BASE_IMAGE=alpine
 
 FROM --platform=$BUILDPLATFORM tonistiigi/xx:1.9.0@sha256:c64defb9ed5a91eacb37f96ccc3d4cd72521c4bd18d5442905b95e2226b0e707 AS xx
 
-FROM --platform=$BUILDPLATFORM golang:1.27.1-alpine3.24@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine3.24@sha256:f2c872bcee949b7be9c490efd02b48a8a2fbf947cdf533f1c58525ec9d8170fd AS builder
 
 COPY --from=xx / /
 
-RUN apk add --update alpine-sdk ca-certificates openssl clang lld
+# --upgrade makes sure the CA bundle copied into the final image is the latest
+# one, even when the base image ships an older ca-certificates package.
+RUN apk add --update --upgrade alpine-sdk ca-certificates openssl clang lld
 
 ARG TARGETPLATFORM
 
