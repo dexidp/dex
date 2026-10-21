@@ -147,15 +147,46 @@ func (h *Handler) parseDeviceCodeRequest(r *http.Request) (deviceCodeRequest, *d
 		scopes = []string{"openid"}
 	}
 
+	// Client credentials come from the Authorization header when present,
+	// otherwise from the form, as at the token endpoint (see grants.parseRequest).
+	clientID, clientSecret := r.Form.Get("client_id"), r.Form.Get("client_secret")
+	if id, secret, ok := r.BasicAuth(); ok {
+		var err error
+		if clientID, err = url.QueryUnescape(id); err != nil {
+			return deviceCodeRequest{}, &deviceFlowError{status: http.StatusBadRequest, code: oauth2.InvalidRequest, message: "client_id improperly encoded"}
+		}
+		if clientSecret, err = url.QueryUnescape(secret); err != nil {
+			return deviceCodeRequest{}, &deviceFlowError{status: http.StatusBadRequest, code: oauth2.InvalidRequest, message: "client_secret improperly encoded"}
+		}
+	}
+
 	return deviceCodeRequest{
-		clientID:     r.Form.Get("client_id"),
-		clientSecret: r.Form.Get("client_secret"),
+		clientID:     clientID,
+		clientSecret: clientSecret,
 		scopes:       scopes,
 		pkce: storage.PKCE{
 			CodeChallenge:       r.Form.Get("code_challenge"),
 			CodeChallengeMethod: method,
 		},
 	}, nil
+}
+
+// authenticateClient checks the request's client credentials against the
+// registered client (RFC 8628 §3.1, RFC 6749 §3.2.1), so a code is only issued
+// to a client that can complete the flow.
+func (h *Handler) authenticateClient(ctx context.Context, req deviceCodeRequest) *deviceFlowError {
+	client, err := h.Storage.GetClient(ctx, req.clientID)
+	if err != nil {
+		if err != storage.ErrNotFound {
+			h.Logger.ErrorContext(ctx, "failed to get client", "err", err)
+			return &deviceFlowError{status: http.StatusInternalServerError, code: oauth2.ServerError}
+		}
+		return &deviceFlowError{status: http.StatusUnauthorized, code: oauth2.InvalidClient, message: "Invalid client credentials."}
+	}
+	if subtle.ConstantTimeCompare([]byte(client.Secret), []byte(req.clientSecret)) != 1 {
+		return &deviceFlowError{status: http.StatusUnauthorized, code: oauth2.InvalidClient, message: "Invalid client credentials."}
+	}
+	return nil
 }
 
 // createDeviceAuthorization mints and stores the device and user codes and builds
@@ -219,6 +250,11 @@ func (h *Handler) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 
 	req, ferr := h.parseDeviceCodeRequest(r)
 	if ferr != nil {
+		h.writeFlowError(r, w, ferr)
+		return
+	}
+
+	if ferr := h.authenticateClient(r.Context(), req); ferr != nil {
 		h.writeFlowError(r, w, ferr)
 		return
 	}
