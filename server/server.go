@@ -154,8 +154,9 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 }
 
 // openConnectors opens every connector in storage into the cache. Nothing is
-// served without at least one, so an empty set is an error; so is a single
-// failure, unless the server is configured to start on a subset.
+// served without at least one, so an empty set is an error unless the connectors
+// API can add one later; so is a single failure, unless the server is configured
+// to start on a subset.
 func (s *Server) openConnectors(ctx context.Context, c Config) error {
 	// This list includes the static connectors defined in the ConfigMap and
 	// dynamic connectors retrieved from the storage.
@@ -165,7 +166,13 @@ func (s *Server) openConnectors(ctx context.Context, c Config) error {
 	}
 
 	if len(storageConnectors) == 0 && s.connectors.Len() == 0 {
-		return errors.New("server: no connectors specified")
+		if !c.AllowEmptyConnectors {
+			return errors.New("server: no connectors specified")
+		}
+
+		s.logger.Warn("server: no connectors specified, waiting for the connectors API to add one")
+
+		return nil
 	}
 
 	var failedCount int

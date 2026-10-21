@@ -1732,6 +1732,7 @@ func TestConnectorFailureHandling(t *testing.T) {
 		name                       string
 		connectors                 []storage.Connector
 		continueOnConnectorFailure bool
+		allowEmptyConnectors       bool
 		wantErr                    bool
 		wantErrContains            string
 		expectConnectors           []string // IDs of connectors that should be loaded successfully
@@ -1862,6 +1863,36 @@ func TestConnectorFailureHandling(t *testing.T) {
 			wantErr:                    true,
 			wantErrContains:            "no connectors specified",
 		},
+		{
+			name:                       "no connectors with empty connectors allowed",
+			connectors:                 []storage.Connector{},
+			continueOnConnectorFailure: true,
+			allowEmptyConnectors:       true,
+			wantErr:                    false,
+			expectConnectors:           []string{},
+		},
+		{
+			name:                       "no connectors with empty connectors allowed and no partial start",
+			connectors:                 []storage.Connector{},
+			continueOnConnectorFailure: false,
+			allowEmptyConnectors:       true,
+			wantErr:                    false,
+			expectConnectors:           []string{},
+		},
+		{
+			name: "all connectors fail with empty connectors allowed",
+			connectors: []storage.Connector{
+				{
+					ID:   "bad",
+					Type: "nonexistent",
+					Name: "Bad",
+				},
+			},
+			continueOnConnectorFailure: true,
+			allowEmptyConnectors:       true,
+			wantErr:                    true,
+			wantErrContains:            "failed to open all connectors (1/1)",
+		},
 	}
 
 	for _, tc := range tests {
@@ -1883,6 +1914,7 @@ func TestConnectorFailureHandling(t *testing.T) {
 				PrometheusRegistry:         prometheus.NewRegistry(),
 				HealthChecker:              gosundheit.New(),
 				ContinueOnConnectorFailure: tc.continueOnConnectorFailure,
+				AllowEmptyConnectors:       tc.allowEmptyConnectors,
 				Signer:                     sig,
 			}
 

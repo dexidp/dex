@@ -391,6 +391,7 @@ func runServe(options serveOptions) error {
 		PrometheusRegistry:         prometheusRegistry,
 		HealthChecker:              healthChecker,
 		ContinueOnConnectorFailure: featureflags.ContinueOnConnectorFailure.Enabled(),
+		AllowEmptyConnectors:       featureflags.APIConnectorsCRUD.Enabled(),
 		Signer:                     signerInstance,
 		IDTokensValidFor:           idTokensValidFor,
 		MFAProviders:               buildMFAProviders(c.MFA.Authenticators, c.Issuer, logger),
