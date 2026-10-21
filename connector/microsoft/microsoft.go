@@ -10,6 +10,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -42,10 +44,11 @@ const (
 	scopeOfflineAccess = "offline_access"
 )
 
-// Config holds configuration options for microsoft logins.
+// Config holds configuration options for Microsoft logins.
 type Config struct {
 	ClientID             string          `json:"clientID"`
 	ClientSecret         string          `json:"clientSecret"`
+	ClientAssertion      string          `json:"clientAssertion"`
 	RedirectURI          string          `json:"redirectURI"`
 	Tenant               string          `json:"tenant"`
 	OnlySecurityGroups   bool            `json:"onlySecurityGroups"`
@@ -53,6 +56,15 @@ type Config struct {
 	GroupNameFormat      GroupNameFormat `json:"groupNameFormat"`
 	UseGroupsAsWhitelist bool            `json:"useGroupsAsWhitelist"`
 	EmailToLowercase     bool            `json:"emailToLowercase"`
+
+	// BatchGroupLookups controls whether group name lookups are split into
+	// batches of 1000 IDs (the Graph API's per-request limit for
+	// /directoryObjects/getByIds). When false (the default), all group IDs
+	// are sent in a single request, which fails for users in more than 1000
+	// groups — this preserves existing behavior for deployments that haven't
+	// opted in. When true, lookups are chunked, adding one Graph API request
+	// per 1000 groups a user belongs to.
+	BatchGroupLookups bool `json:"batchGroupLookups"`
 
 	APIURL   string `json:"apiURL"`
 	GraphURL string `json:"graphURL"`
@@ -78,11 +90,13 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 		redirectURI:            c.RedirectURI,
 		clientID:               c.ClientID,
 		clientSecret:           c.ClientSecret,
+		clientAssertion:        c.ClientAssertion,
 		tenant:                 c.Tenant,
 		onlySecurityGroups:     c.OnlySecurityGroups,
 		groups:                 c.Groups,
 		groupNameFormat:        c.GroupNameFormat,
 		useGroupsAsWhitelist:   c.UseGroupsAsWhitelist,
+		batchGroupLookups:      c.BatchGroupLookups,
 		logger:                 logger.With(slog.Group("connector", "type", "microsoft", "id", id)),
 		emailToLowercase:       c.EmailToLowercase,
 		promptType:             c.PromptType,
@@ -134,11 +148,13 @@ type microsoftConnector struct {
 	redirectURI            string
 	clientID               string
 	clientSecret           string
+	clientAssertion        string
 	tenant                 string
 	onlySecurityGroups     bool
 	groupNameFormat        GroupNameFormat
 	groups                 []string
 	useGroupsAsWhitelist   bool
+	batchGroupLookups      bool
 	logger                 *slog.Logger
 	emailToLowercase       bool
 	promptType             string
@@ -170,9 +186,8 @@ func (c *microsoftConnector) oauth2Config(scopes connector.Scopes) *oauth2.Confi
 		microsoftScopes = append(microsoftScopes, scopeOfflineAccess)
 	}
 
-	return &oauth2.Config{
-		ClientID:     c.clientID,
-		ClientSecret: c.clientSecret,
+	config := &oauth2.Config{
+		ClientID: c.clientID,
 		Endpoint: oauth2.Endpoint{
 			AuthURL:  c.apiURL + "/" + c.tenant + "/oauth2/v2.0/authorize",
 			TokenURL: c.apiURL + "/" + c.tenant + "/oauth2/v2.0/token",
@@ -180,6 +195,15 @@ func (c *microsoftConnector) oauth2Config(scopes connector.Scopes) *oauth2.Confi
 		Scopes:      microsoftScopes,
 		RedirectURL: c.redirectURI,
 	}
+
+	// Only set ClientSecret if not using client assertion
+	if c.clientAssertion == "" {
+		config.ClientSecret = c.clientSecret
+	} else {
+		config.Endpoint.AuthStyle = oauth2.AuthStyleInParams
+	}
+
+	return config
 }
 
 func (c *microsoftConnector) LoginURL(scopes connector.Scopes, callbackURL, state string) (string, []byte, error) {
@@ -198,6 +222,46 @@ func (c *microsoftConnector) LoginURL(scopes connector.Scopes, callbackURL, stat
 	return c.oauth2Config(scopes).AuthCodeURL(state, options...), nil, nil
 }
 
+// assertionTransport is an http.RoundTripper that intercepts token endpoint requests
+// and injects client_assertion parameters for refresh token flow.
+// Note: For initial token exchange, we use oauth2.SetAuthURLParam instead.
+type assertionTransport struct {
+	assertion string
+	tokenURL  string
+	base      http.RoundTripper
+}
+
+func (t *assertionTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Only modify requests to the token endpoint
+	if req.URL.String() != t.tokenURL {
+		return t.base.RoundTrip(req)
+	}
+
+	// Read the original request body
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read request body: %v", err)
+	}
+	req.Body.Close()
+
+	// Parse the form data
+	values, err := url.ParseQuery(string(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse request body: %v", err)
+	}
+
+	// Add client_assertion parameters (no need to delete client_secret since it's not set)
+	values.Set("client_assertion", t.assertion)
+	values.Set("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer")
+
+	// Create new request with modified body
+	newBody := strings.NewReader(values.Encode())
+	req.Body = io.NopCloser(newBody)
+	req.ContentLength = int64(len(values.Encode()))
+
+	return t.base.RoundTrip(req)
+}
+
 func (c *microsoftConnector) HandleCallback(s connector.Scopes, connData []byte, r *http.Request) (identity connector.Identity, err error) {
 	q := r.URL.Query()
 	if errType := q.Get("error"); errType != "" {
@@ -207,6 +271,24 @@ func (c *microsoftConnector) HandleCallback(s connector.Scopes, connData []byte,
 	oauth2Config := c.oauth2Config(s)
 
 	ctx := r.Context()
+
+	// If using client assertion, wrap the HTTP client with a custom transport
+	if c.clientAssertion != "" {
+		assertionBytes, err := os.ReadFile(c.clientAssertion)
+		if err != nil {
+			return identity, fmt.Errorf("microsoft: failed to read client assertion: %v", err)
+		}
+
+		// Create HTTP client with custom transport that injects client_assertion
+		httpClient := &http.Client{
+			Transport: &assertionTransport{
+				assertion: strings.TrimSpace(string(assertionBytes)),
+				tokenURL:  oauth2Config.Endpoint.TokenURL,
+				base:      http.DefaultTransport,
+			},
+		}
+		ctx = context.WithValue(ctx, oauth2.HTTPClient, httpClient)
+	}
 
 	token, err := oauth2Config.Exchange(ctx, q.Get("code"))
 	if err != nil {
@@ -296,6 +378,24 @@ func (c *microsoftConnector) Refresh(ctx context.Context, s connector.Scopes, id
 		AccessToken:  data.AccessToken,
 		RefreshToken: data.RefreshToken,
 		Expiry:       data.Expiry,
+	}
+
+	// If using client assertion, wrap the HTTP client with a custom transport
+	if c.clientAssertion != "" {
+		assertionBytes, err := os.ReadFile(c.clientAssertion)
+		if err != nil {
+			return identity, fmt.Errorf("microsoft: failed to read client assertion: %v", err)
+		}
+
+		oauth2Config := c.oauth2Config(s)
+		httpClient := &http.Client{
+			Transport: &assertionTransport{
+				assertion: strings.TrimSpace(string(assertionBytes)),
+				tokenURL:  oauth2Config.Endpoint.TokenURL,
+				base:      http.DefaultTransport,
+			},
+		}
+		ctx = context.WithValue(ctx, oauth2.HTTPClient, httpClient)
 	}
 
 	client := oauth2.NewClient(ctx, &notifyRefreshTokenSource{
@@ -478,32 +578,53 @@ func (c *microsoftConnector) getGroupIDs(ctx context.Context, client *http.Clien
 
 func (c *microsoftConnector) getGroupNames(ctx context.Context, client *http.Client, ids []string) (groups []string, err error) {
 	if len(ids) == 0 {
-		return
+		return nil, nil
 	}
 
-	// https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/api/directoryobject_getbyids
-	in := &struct {
-		IDs   []string `json:"ids"`
-		Types []string `json:"types"`
-	}{ids, []string{"group"}}
-	reqURL := c.graphURL + "/v1.0/directoryObjects/getByIds"
-	for {
-		var out []group
-		var next string
+	// Graph API caps /directoryObjects/getByIds at 1000 identifiers per request.
+	// See: https://learn.microsoft.com/en-us/graph/api/directoryobject-getbyids?view=graph-rest-1.0&tabs=http#http-request
+	const maxBatchSize = 1000
 
-		next, err = c.post(ctx, client, reqURL, in, &out)
-		if err != nil {
-			return groups, err
-		}
-
-		for _, g := range out {
-			groups = append(groups, g.Name)
-		}
-		if next == "" {
-			return
-		}
-		reqURL = next
+	// Default to a single request covering all IDs, matching pre-existing
+	// behavior. Only chunk into multiple requests when BatchGroupLookups is
+	// enabled, since that trades a login failure (>1000 groups) for
+	// additional Graph API requests.
+	batchSize := len(ids)
+	if c.batchGroupLookups {
+		batchSize = maxBatchSize
 	}
+
+	for i := 0; i < len(ids); i += batchSize {
+		end := i + batchSize
+		if end > len(ids) {
+			end = len(ids)
+		}
+
+		// https://developer.microsoft.com/en-us/graph/docs/api-reference/v1.0/api/directoryobject_getbyids
+		in := &struct {
+			IDs   []string `json:"ids"`
+			Types []string `json:"types"`
+		}{ids[i:end], []string{"group"}}
+		reqURL := c.graphURL + "/v1.0/directoryObjects/getByIds"
+		for {
+			var out []group
+			var next string
+
+			next, err = c.post(ctx, client, reqURL, in, &out)
+			if err != nil {
+				return groups, err
+			}
+
+			for _, g := range out {
+				groups = append(groups, g.Name)
+			}
+			if next == "" {
+				break
+			}
+			reqURL = next
+		}
+	}
+	return groups, err
 }
 
 func (c *microsoftConnector) post(ctx context.Context, client *http.Client, reqURL string, in interface{}, out interface{}) (string, error) {

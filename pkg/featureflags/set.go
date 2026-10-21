@@ -24,4 +24,7 @@ var (
 
 	// SessionsEnabled enables experimental auth sessions support.
 	SessionsEnabled = newFlag("sessions_enabled", false)
+
+	// APISessionsIdentitiesCRUD allows CRUD operations on auth sessions and user identities through the gRPC API.
+	APISessionsIdentitiesCRUD = newFlag("api_sessions_identities_crud", false)
 )

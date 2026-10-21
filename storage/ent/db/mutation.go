@@ -75,6 +75,7 @@ type AuthCodeMutation struct {
 	code_challenge            *string
 	code_challenge_method     *string
 	auth_time                 *time.Time
+	session_id                *string
 	clearedFields             map[string]struct{}
 	done                      bool
 	oldValue                  func(context.Context) (*AuthCode, error)
@@ -845,6 +846,55 @@ func (m *AuthCodeMutation) ResetAuthTime() {
 	delete(m.clearedFields, authcode.FieldAuthTime)
 }
 
+// SetSessionID sets the "session_id" field.
+func (m *AuthCodeMutation) SetSessionID(s string) {
+	m.session_id = &s
+}
+
+// SessionID returns the value of the "session_id" field in the mutation.
+func (m *AuthCodeMutation) SessionID() (r string, exists bool) {
+	v := m.session_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSessionID returns the old "session_id" field's value of the AuthCode entity.
+// If the AuthCode object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AuthCodeMutation) OldSessionID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSessionID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSessionID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSessionID: %w", err)
+	}
+	return oldValue.SessionID, nil
+}
+
+// ClearSessionID clears the value of the "session_id" field.
+func (m *AuthCodeMutation) ClearSessionID() {
+	m.session_id = nil
+	m.clearedFields[authcode.FieldSessionID] = struct{}{}
+}
+
+// SessionIDCleared returns if the "session_id" field was cleared in this mutation.
+func (m *AuthCodeMutation) SessionIDCleared() bool {
+	_, ok := m.clearedFields[authcode.FieldSessionID]
+	return ok
+}
+
+// ResetSessionID resets all changes to the "session_id" field.
+func (m *AuthCodeMutation) ResetSessionID() {
+	m.session_id = nil
+	delete(m.clearedFields, authcode.FieldSessionID)
+}
+
 // Where appends a list predicates to the AuthCodeMutation builder.
 func (m *AuthCodeMutation) Where(ps ...predicate.AuthCode) {
 	m.predicates = append(m.predicates, ps...)
@@ -879,7 +929,7 @@ func (m *AuthCodeMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AuthCodeMutation) Fields() []string {
-	fields := make([]string, 0, 16)
+	fields := make([]string, 0, 17)
 	if m.client_id != nil {
 		fields = append(fields, authcode.FieldClientID)
 	}
@@ -928,6 +978,9 @@ func (m *AuthCodeMutation) Fields() []string {
 	if m.auth_time != nil {
 		fields = append(fields, authcode.FieldAuthTime)
 	}
+	if m.session_id != nil {
+		fields = append(fields, authcode.FieldSessionID)
+	}
 	return fields
 }
 
@@ -968,6 +1021,8 @@ func (m *AuthCodeMutation) Field(name string) (ent.Value, bool) {
 		return m.CodeChallengeMethod()
 	case authcode.FieldAuthTime:
 		return m.AuthTime()
+	case authcode.FieldSessionID:
+		return m.SessionID()
 	}
 	return nil, false
 }
@@ -1009,6 +1064,8 @@ func (m *AuthCodeMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldCodeChallengeMethod(ctx)
 	case authcode.FieldAuthTime:
 		return m.OldAuthTime(ctx)
+	case authcode.FieldSessionID:
+		return m.OldSessionID(ctx)
 	}
 	return nil, fmt.Errorf("unknown AuthCode field %s", name)
 }
@@ -1130,6 +1187,13 @@ func (m *AuthCodeMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetAuthTime(v)
 		return nil
+	case authcode.FieldSessionID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSessionID(v)
+		return nil
 	}
 	return fmt.Errorf("unknown AuthCode field %s", name)
 }
@@ -1172,6 +1236,9 @@ func (m *AuthCodeMutation) ClearedFields() []string {
 	if m.FieldCleared(authcode.FieldAuthTime) {
 		fields = append(fields, authcode.FieldAuthTime)
 	}
+	if m.FieldCleared(authcode.FieldSessionID) {
+		fields = append(fields, authcode.FieldSessionID)
+	}
 	return fields
 }
 
@@ -1197,6 +1264,9 @@ func (m *AuthCodeMutation) ClearField(name string) error {
 		return nil
 	case authcode.FieldAuthTime:
 		m.ClearAuthTime()
+		return nil
+	case authcode.FieldSessionID:
+		m.ClearSessionID()
 		return nil
 	}
 	return fmt.Errorf("unknown AuthCode nullable field %s", name)
@@ -1253,6 +1323,9 @@ func (m *AuthCodeMutation) ResetField(name string) error {
 		return nil
 	case authcode.FieldAuthTime:
 		m.ResetAuthTime()
+		return nil
+	case authcode.FieldSessionID:
+		m.ResetSessionID()
 		return nil
 	}
 	return fmt.Errorf("unknown AuthCode field %s", name)
@@ -3146,7 +3219,7 @@ type AuthSessionMutation struct {
 	id              *string
 	user_id         *string
 	connector_id    *string
-	nonce           *string
+	secret          *string
 	client_states   *[]byte
 	created_at      *time.Time
 	last_activity   *time.Time
@@ -3154,6 +3227,7 @@ type AuthSessionMutation struct {
 	user_agent      *string
 	absolute_expiry *time.Time
 	idle_expiry     *time.Time
+	logout_state    *[]byte
 	clearedFields   map[string]struct{}
 	done            bool
 	oldValue        func(context.Context) (*AuthSession, error)
@@ -3336,40 +3410,40 @@ func (m *AuthSessionMutation) ResetConnectorID() {
 	m.connector_id = nil
 }
 
-// SetNonce sets the "nonce" field.
-func (m *AuthSessionMutation) SetNonce(s string) {
-	m.nonce = &s
+// SetSecret sets the "secret" field.
+func (m *AuthSessionMutation) SetSecret(s string) {
+	m.secret = &s
 }
 
-// Nonce returns the value of the "nonce" field in the mutation.
-func (m *AuthSessionMutation) Nonce() (r string, exists bool) {
-	v := m.nonce
+// Secret returns the value of the "secret" field in the mutation.
+func (m *AuthSessionMutation) Secret() (r string, exists bool) {
+	v := m.secret
 	if v == nil {
 		return
 	}
 	return *v, true
 }
 
-// OldNonce returns the old "nonce" field's value of the AuthSession entity.
+// OldSecret returns the old "secret" field's value of the AuthSession entity.
 // If the AuthSession object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *AuthSessionMutation) OldNonce(ctx context.Context) (v string, err error) {
+func (m *AuthSessionMutation) OldSecret(ctx context.Context) (v string, err error) {
 	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldNonce is only allowed on UpdateOne operations")
+		return v, errors.New("OldSecret is only allowed on UpdateOne operations")
 	}
 	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldNonce requires an ID field in the mutation")
+		return v, errors.New("OldSecret requires an ID field in the mutation")
 	}
 	oldValue, err := m.oldValue(ctx)
 	if err != nil {
-		return v, fmt.Errorf("querying old value for OldNonce: %w", err)
+		return v, fmt.Errorf("querying old value for OldSecret: %w", err)
 	}
-	return oldValue.Nonce, nil
+	return oldValue.Secret, nil
 }
 
-// ResetNonce resets all changes to the "nonce" field.
-func (m *AuthSessionMutation) ResetNonce() {
-	m.nonce = nil
+// ResetSecret resets all changes to the "secret" field.
+func (m *AuthSessionMutation) ResetSecret() {
+	m.secret = nil
 }
 
 // SetClientStates sets the "client_states" field.
@@ -3624,6 +3698,55 @@ func (m *AuthSessionMutation) ResetIdleExpiry() {
 	m.idle_expiry = nil
 }
 
+// SetLogoutState sets the "logout_state" field.
+func (m *AuthSessionMutation) SetLogoutState(b []byte) {
+	m.logout_state = &b
+}
+
+// LogoutState returns the value of the "logout_state" field in the mutation.
+func (m *AuthSessionMutation) LogoutState() (r []byte, exists bool) {
+	v := m.logout_state
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLogoutState returns the old "logout_state" field's value of the AuthSession entity.
+// If the AuthSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AuthSessionMutation) OldLogoutState(ctx context.Context) (v []byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLogoutState is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLogoutState requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLogoutState: %w", err)
+	}
+	return oldValue.LogoutState, nil
+}
+
+// ClearLogoutState clears the value of the "logout_state" field.
+func (m *AuthSessionMutation) ClearLogoutState() {
+	m.logout_state = nil
+	m.clearedFields[authsession.FieldLogoutState] = struct{}{}
+}
+
+// LogoutStateCleared returns if the "logout_state" field was cleared in this mutation.
+func (m *AuthSessionMutation) LogoutStateCleared() bool {
+	_, ok := m.clearedFields[authsession.FieldLogoutState]
+	return ok
+}
+
+// ResetLogoutState resets all changes to the "logout_state" field.
+func (m *AuthSessionMutation) ResetLogoutState() {
+	m.logout_state = nil
+	delete(m.clearedFields, authsession.FieldLogoutState)
+}
+
 // Where appends a list predicates to the AuthSessionMutation builder.
 func (m *AuthSessionMutation) Where(ps ...predicate.AuthSession) {
 	m.predicates = append(m.predicates, ps...)
@@ -3658,15 +3781,15 @@ func (m *AuthSessionMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AuthSessionMutation) Fields() []string {
-	fields := make([]string, 0, 10)
+	fields := make([]string, 0, 11)
 	if m.user_id != nil {
 		fields = append(fields, authsession.FieldUserID)
 	}
 	if m.connector_id != nil {
 		fields = append(fields, authsession.FieldConnectorID)
 	}
-	if m.nonce != nil {
-		fields = append(fields, authsession.FieldNonce)
+	if m.secret != nil {
+		fields = append(fields, authsession.FieldSecret)
 	}
 	if m.client_states != nil {
 		fields = append(fields, authsession.FieldClientStates)
@@ -3689,6 +3812,9 @@ func (m *AuthSessionMutation) Fields() []string {
 	if m.idle_expiry != nil {
 		fields = append(fields, authsession.FieldIdleExpiry)
 	}
+	if m.logout_state != nil {
+		fields = append(fields, authsession.FieldLogoutState)
+	}
 	return fields
 }
 
@@ -3701,8 +3827,8 @@ func (m *AuthSessionMutation) Field(name string) (ent.Value, bool) {
 		return m.UserID()
 	case authsession.FieldConnectorID:
 		return m.ConnectorID()
-	case authsession.FieldNonce:
-		return m.Nonce()
+	case authsession.FieldSecret:
+		return m.Secret()
 	case authsession.FieldClientStates:
 		return m.ClientStates()
 	case authsession.FieldCreatedAt:
@@ -3717,6 +3843,8 @@ func (m *AuthSessionMutation) Field(name string) (ent.Value, bool) {
 		return m.AbsoluteExpiry()
 	case authsession.FieldIdleExpiry:
 		return m.IdleExpiry()
+	case authsession.FieldLogoutState:
+		return m.LogoutState()
 	}
 	return nil, false
 }
@@ -3730,8 +3858,8 @@ func (m *AuthSessionMutation) OldField(ctx context.Context, name string) (ent.Va
 		return m.OldUserID(ctx)
 	case authsession.FieldConnectorID:
 		return m.OldConnectorID(ctx)
-	case authsession.FieldNonce:
-		return m.OldNonce(ctx)
+	case authsession.FieldSecret:
+		return m.OldSecret(ctx)
 	case authsession.FieldClientStates:
 		return m.OldClientStates(ctx)
 	case authsession.FieldCreatedAt:
@@ -3746,6 +3874,8 @@ func (m *AuthSessionMutation) OldField(ctx context.Context, name string) (ent.Va
 		return m.OldAbsoluteExpiry(ctx)
 	case authsession.FieldIdleExpiry:
 		return m.OldIdleExpiry(ctx)
+	case authsession.FieldLogoutState:
+		return m.OldLogoutState(ctx)
 	}
 	return nil, fmt.Errorf("unknown AuthSession field %s", name)
 }
@@ -3769,12 +3899,12 @@ func (m *AuthSessionMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetConnectorID(v)
 		return nil
-	case authsession.FieldNonce:
+	case authsession.FieldSecret:
 		v, ok := value.(string)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
-		m.SetNonce(v)
+		m.SetSecret(v)
 		return nil
 	case authsession.FieldClientStates:
 		v, ok := value.([]byte)
@@ -3825,6 +3955,13 @@ func (m *AuthSessionMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetIdleExpiry(v)
 		return nil
+	case authsession.FieldLogoutState:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLogoutState(v)
+		return nil
 	}
 	return fmt.Errorf("unknown AuthSession field %s", name)
 }
@@ -3854,7 +3991,11 @@ func (m *AuthSessionMutation) AddField(name string, value ent.Value) error {
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *AuthSessionMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(authsession.FieldLogoutState) {
+		fields = append(fields, authsession.FieldLogoutState)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -3867,6 +4008,11 @@ func (m *AuthSessionMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *AuthSessionMutation) ClearField(name string) error {
+	switch name {
+	case authsession.FieldLogoutState:
+		m.ClearLogoutState()
+		return nil
+	}
 	return fmt.Errorf("unknown AuthSession nullable field %s", name)
 }
 
@@ -3880,8 +4026,8 @@ func (m *AuthSessionMutation) ResetField(name string) error {
 	case authsession.FieldConnectorID:
 		m.ResetConnectorID()
 		return nil
-	case authsession.FieldNonce:
-		m.ResetNonce()
+	case authsession.FieldSecret:
+		m.ResetSecret()
 		return nil
 	case authsession.FieldClientStates:
 		m.ResetClientStates()
@@ -3903,6 +4049,9 @@ func (m *AuthSessionMutation) ResetField(name string) error {
 		return nil
 	case authsession.FieldIdleExpiry:
 		m.ResetIdleExpiry()
+		return nil
+	case authsession.FieldLogoutState:
+		m.ResetLogoutState()
 		return nil
 	}
 	return fmt.Errorf("unknown AuthSession field %s", name)
@@ -6472,6 +6621,8 @@ type OAuth2ClientMutation struct {
 	appendpost_logout_redirect_uris []string
 	sso_shared_with                 *[]string
 	appendsso_shared_with           []string
+	backchannel_logout_uri          *string
+	refresh_token_lifetime          *string
 	client_credentials_claims       **storage.ClientCredentialsClaims
 	clearedFields                   map[string]struct{}
 	done                            bool
@@ -7117,6 +7268,104 @@ func (m *OAuth2ClientMutation) ResetSSOSharedWith() {
 	delete(m.clearedFields, oauth2client.FieldSSOSharedWith)
 }
 
+// SetBackchannelLogoutURI sets the "backchannel_logout_uri" field.
+func (m *OAuth2ClientMutation) SetBackchannelLogoutURI(s string) {
+	m.backchannel_logout_uri = &s
+}
+
+// BackchannelLogoutURI returns the value of the "backchannel_logout_uri" field in the mutation.
+func (m *OAuth2ClientMutation) BackchannelLogoutURI() (r string, exists bool) {
+	v := m.backchannel_logout_uri
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBackchannelLogoutURI returns the old "backchannel_logout_uri" field's value of the OAuth2Client entity.
+// If the OAuth2Client object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuth2ClientMutation) OldBackchannelLogoutURI(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBackchannelLogoutURI is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBackchannelLogoutURI requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBackchannelLogoutURI: %w", err)
+	}
+	return oldValue.BackchannelLogoutURI, nil
+}
+
+// ClearBackchannelLogoutURI clears the value of the "backchannel_logout_uri" field.
+func (m *OAuth2ClientMutation) ClearBackchannelLogoutURI() {
+	m.backchannel_logout_uri = nil
+	m.clearedFields[oauth2client.FieldBackchannelLogoutURI] = struct{}{}
+}
+
+// BackchannelLogoutURICleared returns if the "backchannel_logout_uri" field was cleared in this mutation.
+func (m *OAuth2ClientMutation) BackchannelLogoutURICleared() bool {
+	_, ok := m.clearedFields[oauth2client.FieldBackchannelLogoutURI]
+	return ok
+}
+
+// ResetBackchannelLogoutURI resets all changes to the "backchannel_logout_uri" field.
+func (m *OAuth2ClientMutation) ResetBackchannelLogoutURI() {
+	m.backchannel_logout_uri = nil
+	delete(m.clearedFields, oauth2client.FieldBackchannelLogoutURI)
+}
+
+// SetRefreshTokenLifetime sets the "refresh_token_lifetime" field.
+func (m *OAuth2ClientMutation) SetRefreshTokenLifetime(s string) {
+	m.refresh_token_lifetime = &s
+}
+
+// RefreshTokenLifetime returns the value of the "refresh_token_lifetime" field in the mutation.
+func (m *OAuth2ClientMutation) RefreshTokenLifetime() (r string, exists bool) {
+	v := m.refresh_token_lifetime
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRefreshTokenLifetime returns the old "refresh_token_lifetime" field's value of the OAuth2Client entity.
+// If the OAuth2Client object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuth2ClientMutation) OldRefreshTokenLifetime(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRefreshTokenLifetime is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRefreshTokenLifetime requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRefreshTokenLifetime: %w", err)
+	}
+	return oldValue.RefreshTokenLifetime, nil
+}
+
+// ClearRefreshTokenLifetime clears the value of the "refresh_token_lifetime" field.
+func (m *OAuth2ClientMutation) ClearRefreshTokenLifetime() {
+	m.refresh_token_lifetime = nil
+	m.clearedFields[oauth2client.FieldRefreshTokenLifetime] = struct{}{}
+}
+
+// RefreshTokenLifetimeCleared returns if the "refresh_token_lifetime" field was cleared in this mutation.
+func (m *OAuth2ClientMutation) RefreshTokenLifetimeCleared() bool {
+	_, ok := m.clearedFields[oauth2client.FieldRefreshTokenLifetime]
+	return ok
+}
+
+// ResetRefreshTokenLifetime resets all changes to the "refresh_token_lifetime" field.
+func (m *OAuth2ClientMutation) ResetRefreshTokenLifetime() {
+	m.refresh_token_lifetime = nil
+	delete(m.clearedFields, oauth2client.FieldRefreshTokenLifetime)
+}
+
 // SetClientCredentialsClaims sets the "client_credentials_claims" field.
 func (m *OAuth2ClientMutation) SetClientCredentialsClaims(scc *storage.ClientCredentialsClaims) {
 	m.client_credentials_claims = &scc
@@ -7200,7 +7449,7 @@ func (m *OAuth2ClientMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *OAuth2ClientMutation) Fields() []string {
-	fields := make([]string, 0, 11)
+	fields := make([]string, 0, 13)
 	if m.secret != nil {
 		fields = append(fields, oauth2client.FieldSecret)
 	}
@@ -7230,6 +7479,12 @@ func (m *OAuth2ClientMutation) Fields() []string {
 	}
 	if m.sso_shared_with != nil {
 		fields = append(fields, oauth2client.FieldSSOSharedWith)
+	}
+	if m.backchannel_logout_uri != nil {
+		fields = append(fields, oauth2client.FieldBackchannelLogoutURI)
+	}
+	if m.refresh_token_lifetime != nil {
+		fields = append(fields, oauth2client.FieldRefreshTokenLifetime)
 	}
 	if m.client_credentials_claims != nil {
 		fields = append(fields, oauth2client.FieldClientCredentialsClaims)
@@ -7262,6 +7517,10 @@ func (m *OAuth2ClientMutation) Field(name string) (ent.Value, bool) {
 		return m.PostLogoutRedirectUris()
 	case oauth2client.FieldSSOSharedWith:
 		return m.SSOSharedWith()
+	case oauth2client.FieldBackchannelLogoutURI:
+		return m.BackchannelLogoutURI()
+	case oauth2client.FieldRefreshTokenLifetime:
+		return m.RefreshTokenLifetime()
 	case oauth2client.FieldClientCredentialsClaims:
 		return m.ClientCredentialsClaims()
 	}
@@ -7293,6 +7552,10 @@ func (m *OAuth2ClientMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldPostLogoutRedirectUris(ctx)
 	case oauth2client.FieldSSOSharedWith:
 		return m.OldSSOSharedWith(ctx)
+	case oauth2client.FieldBackchannelLogoutURI:
+		return m.OldBackchannelLogoutURI(ctx)
+	case oauth2client.FieldRefreshTokenLifetime:
+		return m.OldRefreshTokenLifetime(ctx)
 	case oauth2client.FieldClientCredentialsClaims:
 		return m.OldClientCredentialsClaims(ctx)
 	}
@@ -7374,6 +7637,20 @@ func (m *OAuth2ClientMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetSSOSharedWith(v)
 		return nil
+	case oauth2client.FieldBackchannelLogoutURI:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBackchannelLogoutURI(v)
+		return nil
+	case oauth2client.FieldRefreshTokenLifetime:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRefreshTokenLifetime(v)
+		return nil
 	case oauth2client.FieldClientCredentialsClaims:
 		v, ok := value.(*storage.ClientCredentialsClaims)
 		if !ok {
@@ -7429,6 +7706,12 @@ func (m *OAuth2ClientMutation) ClearedFields() []string {
 	if m.FieldCleared(oauth2client.FieldSSOSharedWith) {
 		fields = append(fields, oauth2client.FieldSSOSharedWith)
 	}
+	if m.FieldCleared(oauth2client.FieldBackchannelLogoutURI) {
+		fields = append(fields, oauth2client.FieldBackchannelLogoutURI)
+	}
+	if m.FieldCleared(oauth2client.FieldRefreshTokenLifetime) {
+		fields = append(fields, oauth2client.FieldRefreshTokenLifetime)
+	}
 	if m.FieldCleared(oauth2client.FieldClientCredentialsClaims) {
 		fields = append(fields, oauth2client.FieldClientCredentialsClaims)
 	}
@@ -7463,6 +7746,12 @@ func (m *OAuth2ClientMutation) ClearField(name string) error {
 		return nil
 	case oauth2client.FieldSSOSharedWith:
 		m.ClearSSOSharedWith()
+		return nil
+	case oauth2client.FieldBackchannelLogoutURI:
+		m.ClearBackchannelLogoutURI()
+		return nil
+	case oauth2client.FieldRefreshTokenLifetime:
+		m.ClearRefreshTokenLifetime()
 		return nil
 	case oauth2client.FieldClientCredentialsClaims:
 		m.ClearClientCredentialsClaims()
@@ -7504,6 +7793,12 @@ func (m *OAuth2ClientMutation) ResetField(name string) error {
 		return nil
 	case oauth2client.FieldSSOSharedWith:
 		m.ResetSSOSharedWith()
+		return nil
+	case oauth2client.FieldBackchannelLogoutURI:
+		m.ResetBackchannelLogoutURI()
+		return nil
+	case oauth2client.FieldRefreshTokenLifetime:
+		m.ResetRefreshTokenLifetime()
 		return nil
 	case oauth2client.FieldClientCredentialsClaims:
 		m.ResetClientCredentialsClaims()

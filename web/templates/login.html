@@ -5,11 +5,9 @@
   <div>
     {{ range $c := .Connectors }}
       <div class="theme-form-row">
-        <a href="{{ $c.URL }}" target="_self">
-          <button class="dex-btn theme-btn-provider">
-            <span class="dex-btn-icon dex-btn-icon--{{ $c.Type }}"></span>
-            <span class="dex-btn-text">Log in with {{ $c.Name }}</span>
-          </button>
+        <a href="{{ $c.URL }}" class="dex-btn dex-btn-provider theme-btn-provider">
+          <span class="dex-btn-icon dex-btn-icon--{{ $c.Type }}"></span>
+          <span class="dex-btn-text">Log in with {{ $c.Name }}</span>
         </a>
       </div>
     {{ end }}

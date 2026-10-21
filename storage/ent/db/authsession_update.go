@@ -56,16 +56,16 @@ func (_u *AuthSessionUpdate) SetNillableConnectorID(v *string) *AuthSessionUpdat
 	return _u
 }
 
-// SetNonce sets the "nonce" field.
-func (_u *AuthSessionUpdate) SetNonce(v string) *AuthSessionUpdate {
-	_u.mutation.SetNonce(v)
+// SetSecret sets the "secret" field.
+func (_u *AuthSessionUpdate) SetSecret(v string) *AuthSessionUpdate {
+	_u.mutation.SetSecret(v)
 	return _u
 }
 
-// SetNillableNonce sets the "nonce" field if the given value is not nil.
-func (_u *AuthSessionUpdate) SetNillableNonce(v *string) *AuthSessionUpdate {
+// SetNillableSecret sets the "secret" field if the given value is not nil.
+func (_u *AuthSessionUpdate) SetNillableSecret(v *string) *AuthSessionUpdate {
 	if v != nil {
-		_u.SetNonce(*v)
+		_u.SetSecret(*v)
 	}
 	return _u
 }
@@ -160,6 +160,18 @@ func (_u *AuthSessionUpdate) SetNillableIdleExpiry(v *time.Time) *AuthSessionUpd
 	return _u
 }
 
+// SetLogoutState sets the "logout_state" field.
+func (_u *AuthSessionUpdate) SetLogoutState(v []byte) *AuthSessionUpdate {
+	_u.mutation.SetLogoutState(v)
+	return _u
+}
+
+// ClearLogoutState clears the value of the "logout_state" field.
+func (_u *AuthSessionUpdate) ClearLogoutState() *AuthSessionUpdate {
+	_u.mutation.ClearLogoutState()
+	return _u
+}
+
 // Mutation returns the AuthSessionMutation object of the builder.
 func (_u *AuthSessionUpdate) Mutation() *AuthSessionMutation {
 	return _u.mutation
@@ -204,9 +216,9 @@ func (_u *AuthSessionUpdate) check() error {
 			return &ValidationError{Name: "connector_id", err: fmt.Errorf(`db: validator failed for field "AuthSession.connector_id": %w`, err)}
 		}
 	}
-	if v, ok := _u.mutation.Nonce(); ok {
-		if err := authsession.NonceValidator(v); err != nil {
-			return &ValidationError{Name: "nonce", err: fmt.Errorf(`db: validator failed for field "AuthSession.nonce": %w`, err)}
+	if v, ok := _u.mutation.Secret(); ok {
+		if err := authsession.SecretValidator(v); err != nil {
+			return &ValidationError{Name: "secret", err: fmt.Errorf(`db: validator failed for field "AuthSession.secret": %w`, err)}
 		}
 	}
 	return nil
@@ -230,8 +242,8 @@ func (_u *AuthSessionUpdate) sqlSave(ctx context.Context) (_node int, err error)
 	if value, ok := _u.mutation.ConnectorID(); ok {
 		_spec.SetField(authsession.FieldConnectorID, field.TypeString, value)
 	}
-	if value, ok := _u.mutation.Nonce(); ok {
-		_spec.SetField(authsession.FieldNonce, field.TypeString, value)
+	if value, ok := _u.mutation.Secret(); ok {
+		_spec.SetField(authsession.FieldSecret, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.ClientStates(); ok {
 		_spec.SetField(authsession.FieldClientStates, field.TypeBytes, value)
@@ -253,6 +265,12 @@ func (_u *AuthSessionUpdate) sqlSave(ctx context.Context) (_node int, err error)
 	}
 	if value, ok := _u.mutation.IdleExpiry(); ok {
 		_spec.SetField(authsession.FieldIdleExpiry, field.TypeTime, value)
+	}
+	if value, ok := _u.mutation.LogoutState(); ok {
+		_spec.SetField(authsession.FieldLogoutState, field.TypeBytes, value)
+	}
+	if _u.mutation.LogoutStateCleared() {
+		_spec.ClearField(authsession.FieldLogoutState, field.TypeBytes)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -302,16 +320,16 @@ func (_u *AuthSessionUpdateOne) SetNillableConnectorID(v *string) *AuthSessionUp
 	return _u
 }
 
-// SetNonce sets the "nonce" field.
-func (_u *AuthSessionUpdateOne) SetNonce(v string) *AuthSessionUpdateOne {
-	_u.mutation.SetNonce(v)
+// SetSecret sets the "secret" field.
+func (_u *AuthSessionUpdateOne) SetSecret(v string) *AuthSessionUpdateOne {
+	_u.mutation.SetSecret(v)
 	return _u
 }
 
-// SetNillableNonce sets the "nonce" field if the given value is not nil.
-func (_u *AuthSessionUpdateOne) SetNillableNonce(v *string) *AuthSessionUpdateOne {
+// SetNillableSecret sets the "secret" field if the given value is not nil.
+func (_u *AuthSessionUpdateOne) SetNillableSecret(v *string) *AuthSessionUpdateOne {
 	if v != nil {
-		_u.SetNonce(*v)
+		_u.SetSecret(*v)
 	}
 	return _u
 }
@@ -406,6 +424,18 @@ func (_u *AuthSessionUpdateOne) SetNillableIdleExpiry(v *time.Time) *AuthSession
 	return _u
 }
 
+// SetLogoutState sets the "logout_state" field.
+func (_u *AuthSessionUpdateOne) SetLogoutState(v []byte) *AuthSessionUpdateOne {
+	_u.mutation.SetLogoutState(v)
+	return _u
+}
+
+// ClearLogoutState clears the value of the "logout_state" field.
+func (_u *AuthSessionUpdateOne) ClearLogoutState() *AuthSessionUpdateOne {
+	_u.mutation.ClearLogoutState()
+	return _u
+}
+
 // Mutation returns the AuthSessionMutation object of the builder.
 func (_u *AuthSessionUpdateOne) Mutation() *AuthSessionMutation {
 	return _u.mutation
@@ -463,9 +493,9 @@ func (_u *AuthSessionUpdateOne) check() error {
 			return &ValidationError{Name: "connector_id", err: fmt.Errorf(`db: validator failed for field "AuthSession.connector_id": %w`, err)}
 		}
 	}
-	if v, ok := _u.mutation.Nonce(); ok {
-		if err := authsession.NonceValidator(v); err != nil {
-			return &ValidationError{Name: "nonce", err: fmt.Errorf(`db: validator failed for field "AuthSession.nonce": %w`, err)}
+	if v, ok := _u.mutation.Secret(); ok {
+		if err := authsession.SecretValidator(v); err != nil {
+			return &ValidationError{Name: "secret", err: fmt.Errorf(`db: validator failed for field "AuthSession.secret": %w`, err)}
 		}
 	}
 	return nil
@@ -506,8 +536,8 @@ func (_u *AuthSessionUpdateOne) sqlSave(ctx context.Context) (_node *AuthSession
 	if value, ok := _u.mutation.ConnectorID(); ok {
 		_spec.SetField(authsession.FieldConnectorID, field.TypeString, value)
 	}
-	if value, ok := _u.mutation.Nonce(); ok {
-		_spec.SetField(authsession.FieldNonce, field.TypeString, value)
+	if value, ok := _u.mutation.Secret(); ok {
+		_spec.SetField(authsession.FieldSecret, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.ClientStates(); ok {
 		_spec.SetField(authsession.FieldClientStates, field.TypeBytes, value)
@@ -529,6 +559,12 @@ func (_u *AuthSessionUpdateOne) sqlSave(ctx context.Context) (_node *AuthSession
 	}
 	if value, ok := _u.mutation.IdleExpiry(); ok {
 		_spec.SetField(authsession.FieldIdleExpiry, field.TypeTime, value)
+	}
+	if value, ok := _u.mutation.LogoutState(); ok {
+		_spec.SetField(authsession.FieldLogoutState, field.TypeBytes, value)
+	}
+	if _u.mutation.LogoutStateCleared() {
+		_spec.ClearField(authsession.FieldLogoutState, field.TypeBytes)
 	}
 	_node = &AuthSession{config: _u.config}
 	_spec.Assign = _node.assignValues

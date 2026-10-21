@@ -148,6 +148,20 @@ func (_c *AuthCodeCreate) SetNillableAuthTime(v *time.Time) *AuthCodeCreate {
 	return _c
 }
 
+// SetSessionID sets the "session_id" field.
+func (_c *AuthCodeCreate) SetSessionID(v string) *AuthCodeCreate {
+	_c.mutation.SetSessionID(v)
+	return _c
+}
+
+// SetNillableSessionID sets the "session_id" field if the given value is not nil.
+func (_c *AuthCodeCreate) SetNillableSessionID(v *string) *AuthCodeCreate {
+	if v != nil {
+		_c.SetSessionID(*v)
+	}
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *AuthCodeCreate) SetID(v string) *AuthCodeCreate {
 	_c.mutation.SetID(v)
@@ -200,6 +214,10 @@ func (_c *AuthCodeCreate) defaults() {
 	if _, ok := _c.mutation.CodeChallengeMethod(); !ok {
 		v := authcode.DefaultCodeChallengeMethod
 		_c.mutation.SetCodeChallengeMethod(v)
+	}
+	if _, ok := _c.mutation.SessionID(); !ok {
+		v := authcode.DefaultSessionID
+		_c.mutation.SetSessionID(v)
 	}
 }
 
@@ -379,6 +397,10 @@ func (_c *AuthCodeCreate) createSpec() (*AuthCode, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.AuthTime(); ok {
 		_spec.SetField(authcode.FieldAuthTime, field.TypeTime, value)
 		_node.AuthTime = value
+	}
+	if value, ok := _c.mutation.SessionID(); ok {
+		_spec.SetField(authcode.FieldSessionID, field.TypeString, value)
+		_node.SessionID = value
 	}
 	return _node, _spec
 }

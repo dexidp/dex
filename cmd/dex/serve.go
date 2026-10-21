@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -15,6 +16,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -38,7 +40,13 @@ import (
 	"github.com/dexidp/dex/api/v2"
 	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server"
+	"github.com/dexidp/dex/server/apiserver"
+	"github.com/dexidp/dex/server/authflow"
+	"github.com/dexidp/dex/server/connectors"
+	"github.com/dexidp/dex/server/mfa"
+	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/signer"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -257,7 +265,7 @@ func runServe(options serveOptions) error {
 			return fmt.Errorf("invalid config: no config field for connector %q", c.ID)
 		}
 		for _, gt := range c.GrantTypes {
-			if !server.ConnectorGrantTypes[gt] {
+			if !connectors.ConnectorGrantTypes[gt] {
 				return fmt.Errorf("invalid config: unknown grant type %q for connector %q", gt, c.ID)
 			}
 		}
@@ -273,9 +281,9 @@ func runServe(options serveOptions) error {
 
 	if c.EnablePasswordDB {
 		storageConnectors = append(storageConnectors, storage.Connector{
-			ID:   server.LocalConnector,
+			ID:   connectors.LocalConnector,
 			Name: "Email",
-			Type: server.LocalConnector,
+			Type: connectors.LocalConnector,
 		})
 		logger.Info("config connector: local passwords enabled")
 	}
@@ -368,7 +376,7 @@ func runServe(options serveOptions) error {
 		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
 		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
 		PasswordConnector:      c.OAuth2.PasswordConnector,
-		PKCE: server.PKCEConfig{
+		PKCE: authflow.PKCEConfig{
 			Enforce:                       c.OAuth2.PKCE.Enforce,
 			CodeChallengeMethodsSupported: c.OAuth2.PKCE.CodeChallengeMethodsSupported,
 		},
@@ -405,7 +413,7 @@ func runServe(options serveOptions) error {
 		logger.Info("config device requests", "valid_for", deviceRequests)
 		serverConfig.DeviceRequestsValidFor = deviceRequests
 	}
-	refreshTokenPolicy, err := server.NewRefreshTokenPolicy(
+	refreshTokenPolicy, err := tokens.NewRefreshTokenPolicy(
 		logger,
 		c.Expiry.RefreshTokens.DisableRotation,
 		c.Expiry.RefreshTokens.ValidIfNotUsedFor,
@@ -435,6 +443,11 @@ func runServe(options serveOptions) error {
 	serverConfig.TrustedRealIPCIDRs, err = c.Web.ClientRemoteIP.ParseTrustedProxies()
 	if err != nil {
 		return fmt.Errorf("failed to parse client remote IP settings: %v", err)
+	}
+	if serverConfig.RealIPHeader != "" && len(serverConfig.TrustedRealIPCIDRs) == 0 {
+		logger.Warn("web.clientRemoteIP.header is set without web.clientRemoteIP.trustedProxies; "+
+			"the header is ignored because any client could spoof it",
+			"header", serverConfig.RealIPHeader)
 	}
 
 	serv, err := server.NewServer(context.Background(), serverConfig)
@@ -556,6 +569,9 @@ func runServe(options serveOptions) error {
 			CipherSuites:             allowedTLSCiphers,
 			PreferServerCipherSuites: true,
 		}
+		if err := applyWebTLSPreferences(baseTLSConfig, c.Web); err != nil {
+			return fmt.Errorf("invalid config: %v", err)
+		}
 
 		tlsConfig, err := newTLSReloader(logger, c.Web.TLSCert, c.Web.TLSKey, "", baseTLSConfig)
 		if err != nil {
@@ -585,13 +601,25 @@ func runServe(options serveOptions) error {
 	if c.GRPC.Addr != "" {
 		logger.Info("listening on", "server", "grpc", "address", c.GRPC.Addr)
 
+		if c.GRPC.TLSClientCA == "" {
+			// The gRPC API grants full administrative access (client secret reads,
+			// password/connector/identity CRUD). Its only built-in caller
+			// authentication is mutual TLS via grpc.tlsClientCA; without it, anyone
+			// who can reach the port controls the identity provider. This is a valid
+			// setup only when a trusted front-facing service authenticates callers.
+			logger.Warn("grpc: API server has no client certificate authentication (grpc.tlsClientCA is unset); "+
+				"it exposes full administrative access. Ensure the port is only reachable by an authenticated, trusted service, "+
+				"or set grpc.tlsClientCA to require mutual TLS.",
+				"tls", c.GRPC.TLSCert != "")
+		}
+
 		grpcListener, err := net.Listen("tcp", c.GRPC.Addr)
 		if err != nil {
 			return fmt.Errorf("listening (grpc) on %s: %w", c.GRPC.Addr, err)
 		}
 
 		grpcSrv := grpc.NewServer(grpcOptions...)
-		api.RegisterDexServer(grpcSrv, server.NewAPI(serverConfig.Storage, logger, version, serv))
+		api.RegisterDexServer(grpcSrv, apiserver.NewAPI(serverConfig.Storage, logger, version, serv.Connectors(), serv.Discovery(), serv.Backchannel()))
 
 		grpcMetrics.InitializeMetrics(grpcSrv)
 		if c.GRPC.Reflection {
@@ -615,6 +643,66 @@ func runServe(options serveOptions) error {
 		logger.Info("shutdown now", "err", err)
 	}
 	return nil
+}
+
+// applyWebTLSPreferences sets the cipher suites and curve preferences configured in web on cfg.
+// Settings that are not configured leave cfg unchanged.
+func applyWebTLSPreferences(cfg *tls.Config, web Web) error {
+	if len(web.TLSCiphers) > 0 {
+		ciphers, err := parseCipherSuites(web.TLSCiphers)
+		if err != nil {
+			return fmt.Errorf("invalid TLS cipher suites: %w", err)
+		}
+		cfg.CipherSuites = ciphers
+	}
+	if len(web.TLSCurvePreferences) > 0 {
+		curves, err := parseCurvePreferences(web.TLSCurvePreferences)
+		if err != nil {
+			return fmt.Errorf("invalid TLS curve preferences: %w", err)
+		}
+		cfg.CurvePreferences = curves
+	}
+	return nil
+}
+
+// parseCipherSuites parses a list of cipher suite names and returns their corresponding IDs.
+// Only TLS 1.0–1.2 cipher suites are accepted, since TLS 1.3 cipher suites are not configurable.
+func parseCipherSuites(names []string) ([]uint16, error) {
+	cipherMap := make(map[string]*tls.CipherSuite)
+	for _, cs := range tls.CipherSuites() {
+		cipherMap[cs.Name] = cs
+	}
+	for _, cs := range tls.InsecureCipherSuites() {
+		cipherMap[cs.Name] = cs
+	}
+	ids := make([]uint16, 0, len(names))
+	for _, name := range names {
+		cs, ok := cipherMap[name]
+		if !ok {
+			return nil, fmt.Errorf("unsupported cipher suite %q", name)
+		}
+		if !slices.ContainsFunc(cs.SupportedVersions, func(v uint16) bool { return v <= tls.VersionTLS12 }) {
+			return nil, fmt.Errorf("cipher suite %q is TLS 1.3 only: TLS 1.3 cipher suites are not configurable", name)
+		}
+		ids = append(ids, cs.ID)
+	}
+	return ids, nil
+}
+
+// parseCurvePreferences parses a list of curve names into a list of CurveID values.
+func parseCurvePreferences(names []string) ([]tls.CurveID, error) {
+	if len(names) == 0 {
+		return nil, nil
+	}
+	curves := make([]tls.CurveID, 0, len(names))
+	for _, name := range names {
+		if id, ok := allowedCurveNames[name]; ok {
+			curves = append(curves, id)
+		} else {
+			return nil, fmt.Errorf("unknown curve: %q (supported: %v)", name, slices.Sorted(maps.Keys(allowedCurveNames)))
+		}
+	}
+	return curves, nil
 }
 
 func applyConfigOverrides(options serveOptions, config *Config) {
@@ -776,8 +864,8 @@ func recordBuildInfo() {
 	buildInfo.WithLabelValues(version, runtime.Version(), fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)).Set(1)
 }
 
-func parseSessionConfig(s *Sessions) (*server.SessionConfig, error) {
-	sc := &server.SessionConfig{
+func parseSessionConfig(s *Sessions) (*session.Config, error) {
+	sc := &session.Config{
 		CookieName:                 "dex_session",
 		AbsoluteLifetime:           24 * time.Hour,
 		ValidIfNotUsedFor:          1 * time.Hour,
@@ -832,12 +920,12 @@ func parseSessionConfig(s *Sessions) (*server.SessionConfig, error) {
 	return sc, nil
 }
 
-func buildMFAProviders(authenticators []MFAAuthenticator, issuerURL string, logger *slog.Logger) map[string]server.MFAProvider {
+func buildMFAProviders(authenticators []MFAAuthenticator, issuerURL string, logger *slog.Logger) map[string]mfa.Provider {
 	if len(authenticators) == 0 {
 		return nil
 	}
 
-	providers := make(map[string]server.MFAProvider, len(authenticators))
+	providers := make(map[string]mfa.Provider, len(authenticators))
 	for _, auth := range authenticators {
 		switch auth.Type {
 		case "TOTP":
@@ -846,7 +934,7 @@ func buildMFAProviders(authenticators []MFAAuthenticator, issuerURL string, logg
 				logger.Error("failed to parse TOTP config", "id", auth.ID, "err", err)
 				continue
 			}
-			providers[auth.ID] = server.NewTOTPProvider(cfg.Issuer, auth.ConnectorTypes)
+			providers[auth.ID] = mfa.NewTOTPProvider(cfg.Issuer, auth.ConnectorTypes)
 			logger.Info("MFA authenticator configured", "id", auth.ID, "type", auth.Type)
 		case "WebAuthn":
 			var cfg WebAuthnConfig
@@ -854,7 +942,7 @@ func buildMFAProviders(authenticators []MFAAuthenticator, issuerURL string, logg
 				logger.Error("failed to parse WebAuthn config", "id", auth.ID, "err", err)
 				continue
 			}
-			provider, err := server.NewWebAuthnProvider(cfg.RPDisplayName, cfg.RPID, cfg.RPOrigins,
+			provider, err := mfa.NewWebAuthnProvider(cfg.RPDisplayName, cfg.RPID, cfg.RPOrigins,
 				cfg.AttestationPreference, cfg.Timeout, issuerURL, auth.ConnectorTypes)
 			if err != nil {
 				logger.Error("failed to create WebAuthn provider", "id", auth.ID, "err", err)

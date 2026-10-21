@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -750,6 +751,60 @@ func TestTokenIdentity(t *testing.T) {
 	}
 }
 
+// TestTokenIdentityRootCAsWithOverride is a regression test for the override
+// branch of getProvider dropping the rootCAs-aware HTTP client.
+//
+// The connector is configured with both a custom RootCAs trust bundle (the
+// self-signed CA of a TLS test server) and ProviderDiscoveryOverrides, which
+// routes provider construction through getProvider's override branch. An
+// RFC 8693 id_token exchange then verifies the token signature, which requires
+// fetching the JWKS from the TLS server. That fetch uses the provider's
+// build-time HTTP client, so it only succeeds if the override branch retained
+// the rootCAs client.
+//
+// Before the fix the override branch built the provider with
+// context.Background(), discarding the rootCAs client; JWKS verification then
+// fell back to the system trust store and failed with
+// "x509: certificate signed by unknown authority".
+func TestTokenIdentityRootCAsWithOverride(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	testServer, caPEM, err := setupTLSServer(map[string]any{
+		"sub":  "subvalue",
+		"name": "namevalue",
+	}, true)
+	require.NoError(t, err)
+	defer testServer.Close()
+
+	conn, err := newConnector(Config{
+		Issuer:  testServer.URL,
+		Scopes:  []string{"openid", "groups"},
+		RootCAs: []string{caPEM},
+		// Setting an override forces provider construction through the override
+		// branch of getProvider. The JWKS URL matches discovery, so behavior
+		// is otherwise identical to the no-override case.
+		ProviderDiscoveryOverrides: ProviderDiscoveryOverrides{
+			JWKSURL: testServer.URL + "/keys",
+		},
+	})
+	require.NoError(t, err)
+
+	res, err := testServer.Client().Get(testServer.URL + "/token")
+	require.NoError(t, err)
+	defer res.Body.Close()
+
+	var tokenResponse map[string]any
+	require.NoError(t, json.NewDecoder(res.Body).Decode(&tokenResponse))
+
+	origToken := tokenResponse["id_token"].(string)
+	identity, err := conn.TokenIdentity(ctx, "urn:ietf:params:oauth:token-type:id_token", origToken)
+	require.NoError(t, err)
+
+	expectEquals(t, identity.UserID, "subvalue")
+	expectEquals(t, identity.Username, "namevalue")
+}
+
 func TestPromptType(t *testing.T) {
 	pointer := func(s string) *string {
 		return &s
@@ -833,9 +888,55 @@ func TestProviderOverride(t *testing.T) {
 			t.Fatalf("unexpected token URL: %s, expected: %s\n", conn.provider.Endpoint().TokenURL, expToken)
 		}
 	})
+
+	t.Run("Override userinfo and device auth URLs", func(t *testing.T) {
+		// A second server whose userinfo endpoint returns a distinct subject,
+		// so we can prove the overridden endpoint (not the discovery default)
+		// is the one actually used.
+		overrideServer, err := setupServer(map[string]any{"sub": "override-sub"}, true)
+		if err != nil {
+			t.Fatal("failed to setup override server", err)
+		}
+		defer overrideServer.Close()
+
+		conn, err := newConnector(Config{
+			Issuer: testServer.URL,
+			Scopes: []string{"openid", "groups"},
+			ProviderDiscoveryOverrides: ProviderDiscoveryOverrides{
+				DeviceAuthURL: "/test-device",
+				UserInfoURL:   fmt.Sprintf("%s/userinfo", overrideServer.URL),
+			},
+		})
+		if err != nil {
+			t.Fatal("failed to create new connector", err)
+		}
+
+		expDevice := "/test-device"
+		if conn.provider.Endpoint().DeviceAuthURL != expDevice {
+			t.Fatalf("unexpected device auth URL: %s, expected: %s\n", conn.provider.Endpoint().DeviceAuthURL, expDevice)
+		}
+
+		userInfo, err := conn.provider.UserInfo(context.Background(), oauth2.StaticTokenSource(&oauth2.Token{AccessToken: "sometoken"}))
+		if err != nil {
+			t.Fatal("failed to call UserInfo", err)
+		}
+		if userInfo.Subject != "override-sub" {
+			t.Fatalf("UserInfo did not use the overridden endpoint: got subject %q, expected %q", userInfo.Subject, "override-sub")
+		}
+	})
 }
 
-func setupServer(tok map[string]interface{}, idTokenDesired bool) (*httptest.Server, error) {
+// issuerURL derives the issuer base URL from the request, honoring TLS so the
+// same handler set can back both plain-HTTP and HTTPS test servers.
+func issuerURL(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	return fmt.Sprintf("%s://%s", scheme, r.Host)
+}
+
+func oidcTestMux(tok map[string]interface{}, idTokenDesired bool) (*http.ServeMux, error) {
 	key, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate rsa key: %v", err)
@@ -852,7 +953,7 @@ func setupServer(tok map[string]interface{}, idTokenDesired bool) (*httptest.Ser
 	mux.HandleFunc("/keys", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(&map[string]interface{}{
 			"keys": []map[string]interface{}{{
-				"alg": jwk.Algorithm,
+				"alg": "RS256",
 				"kty": jwk.Algorithm,
 				"kid": jwk.KeyID,
 				"n":   n(&key.PublicKey),
@@ -862,7 +963,7 @@ func setupServer(tok map[string]interface{}, idTokenDesired bool) (*httptest.Ser
 	})
 
 	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
-		url := fmt.Sprintf("http://%s", r.Host)
+		url := issuerURL(r)
 		tok["iss"] = url
 		tok["exp"] = time.Now().Add(time.Hour).Unix()
 		tok["aud"] = "clientID"
@@ -892,7 +993,7 @@ func setupServer(tok map[string]interface{}, idTokenDesired bool) (*httptest.Ser
 	})
 
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
-		url := fmt.Sprintf("http://%s", r.Host)
+		url := issuerURL(r)
 
 		json.NewEncoder(w).Encode(&map[string]string{
 			"issuer":                 url,
@@ -903,7 +1004,30 @@ func setupServer(tok map[string]interface{}, idTokenDesired bool) (*httptest.Ser
 		})
 	})
 
+	return mux, nil
+}
+
+func setupServer(tok map[string]interface{}, idTokenDesired bool) (*httptest.Server, error) {
+	mux, err := oidcTestMux(tok, idTokenDesired)
+	if err != nil {
+		return nil, err
+	}
 	return httptest.NewServer(mux), nil
+}
+
+// setupTLSServer starts an HTTPS OIDC test server and returns the server along
+// with its self-signed CA in PEM form, suitable for the connector's RootCAs.
+func setupTLSServer(tok map[string]interface{}, idTokenDesired bool) (*httptest.Server, string, error) {
+	mux, err := oidcTestMux(tok, idTokenDesired)
+	if err != nil {
+		return nil, "", err
+	}
+	srv := httptest.NewTLSServer(mux)
+	caPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: srv.Certificate().Raw,
+	})
+	return srv, string(caPEM), nil
 }
 
 func newToken(key *jose.JSONWebKey, claims map[string]interface{}) (string, error) {
@@ -1019,7 +1143,7 @@ func TestLogoutURL(t *testing.T) {
 				},
 			}
 
-			got, err := conn.LogoutURL(context.Background(), nil, tc.postLogoutRedirectURI)
+			got, err := conn.LogoutURL(context.Background(), tc.postLogoutRedirectURI)
 			require.NoError(t, err)
 
 			if tc.wantEmpty {

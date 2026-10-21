@@ -11,95 +11,116 @@ import (
 	"math/big"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
-	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
-
-	"github.com/dexidp/dex/examples/example-app/session"
 )
 
-// handleTokenRefresh redeems a refresh token for a new token set.
-func (s *Server) handleTokenRefresh(w http.ResponseWriter, r *http.Request) {
-	refresh := r.FormValue("refresh_token")
-	if refresh == "" {
-		http.Error(w, fmt.Sprintf("no refresh_token in request: %q", r.Form), http.StatusBadRequest)
-		return
+// renderToken shows the result of a grant that produced a token through the
+// oauth2 library.
+func (s *Server) renderToken(w http.ResponseWriter, r *http.Request, grant string, token *oauth2.Token) {
+	rawID, _ := token.Extra("id_token").(string)
+	s.sessions.RememberTokens(s.session(w, r), grant, token, rawID)
+
+	data := TokenPageData{
+		LogoURI:      dexLogoDataURI,
+		AdminEnabled: s.admin != nil,
+		Grant:        grant,
+		AccessToken:  token.AccessToken,
+		RefreshToken: token.RefreshToken,
+		RedirectURL:  s.redirectURI,
+		PublicKeyPEM: s.fetchPublicKeyPEM(),
 	}
 
-	ctx := oidc.ClientContext(r.Context(), s.client)
-
-	t := &oauth2.Token{
-		RefreshToken: refresh,
-		Expiry:       time.Now().Add(-time.Hour),
+	if rawIDToken, ok := token.Extra("id_token").(string); ok {
+		data.IDToken = rawIDToken
+		data.IDTokenJWTLink = jwtIOLink(rawIDToken)
+		data.Claims, _ = decodeJWTClaims(rawIDToken)
 	}
-	token, err := s.oauth2Config(nil).TokenSource(ctx, t).Token()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to get token: %v", err), http.StatusInternalServerError)
-		return
+	if data.AccessToken != "" {
+		data.AccessTokenJWTLink = jwtIOLink(data.AccessToken)
+		if data.Claims == "" {
+			// A grant without an ID token — client credentials, token exchange
+			// — still says who the token is for, in the access token itself.
+			data.Claims, _ = decodeJWTClaims(data.AccessToken)
+		}
+	}
+	if !token.Expiry.IsZero() {
+		data.ExpiresIn = time.Until(token.Expiry).Round(time.Second).String()
 	}
 
-	s.renderTokenResult(w, r, token)
+	s.renderer.RenderTokenPage(w, data)
 }
 
-// renderTokenResult verifies an ID token, extracts claims, and renders the token page.
-func (s *Server) renderTokenResult(w http.ResponseWriter, r *http.Request, token *oauth2.Token) {
-	rawIDToken, ok := token.Extra("id_token").(string)
-	if !ok {
-		http.Error(w, "no id_token in token response", http.StatusInternalServerError)
+// renderRawToken shows the result of a grant whose response the app reads
+// directly, because it does not have the shape the oauth2 library expects.
+func (s *Server) renderRawToken(w http.ResponseWriter, r *http.Request, grant string, body []byte) {
+	var resp struct {
+		AccessToken     string `json:"access_token"`
+		IDToken         string `json:"id_token"`
+		RefreshToken    string `json:"refresh_token"`
+		IssuedTokenType string `json:"issued_token_type"`
+		ExpiresIn       int    `json:"expires_in"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		http.Error(w, fmt.Sprintf("token response is not JSON: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	idToken, err := s.verifier.Verify(r.Context(), rawIDToken)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to verify ID token: %v", err), http.StatusInternalServerError)
-		return
+	data := TokenPageData{
+		LogoURI:         dexLogoDataURI,
+		AdminEnabled:    s.admin != nil,
+		Grant:           grant,
+		AccessToken:     resp.AccessToken,
+		IDToken:         resp.IDToken,
+		RefreshToken:    resp.RefreshToken,
+		IssuedTokenType: resp.IssuedTokenType,
+		RedirectURL:     s.redirectURI,
+		PublicKeyPEM:    s.fetchPublicKeyPEM(),
+		RawResponse:     indentJSON(body),
+	}
+	if resp.ExpiresIn > 0 {
+		data.ExpiresIn = (time.Duration(resp.ExpiresIn) * time.Second).String()
 	}
 
-	accessToken, ok := token.Extra("access_token").(string)
-	if !ok {
-		accessToken = token.AccessToken
-		if accessToken == "" {
-			http.Error(w, "no access_token in token response", http.StatusInternalServerError)
-			return
+	remembered := (&oauth2.Token{AccessToken: resp.AccessToken, RefreshToken: resp.RefreshToken}).
+		WithExtra(map[string]any{"id_token": resp.IDToken})
+	s.sessions.RememberTokens(s.session(w, r), grant, remembered, resp.IDToken)
+	if data.IDToken != "" {
+		data.IDTokenJWTLink = jwtIOLink(data.IDToken)
+		data.Claims, _ = decodeJWTClaims(data.IDToken)
+	}
+	if data.AccessToken != "" {
+		data.AccessTokenJWTLink = jwtIOLink(data.AccessToken)
+		if data.Claims == "" {
+			data.Claims, _ = decodeJWTClaims(data.AccessToken)
 		}
 	}
 
-	// Persist claims for session-aware index page and logout.
-	var uc session.UserClaims
-	_ = idToken.Claims(&uc)
-	s.auth.Set(&uc, rawIDToken)
-
-	claims, err := encodeIDTokenClaims(idToken)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	s.renderer.RenderTokenPage(w, TokenPageData{
-		IDToken:            rawIDToken,
-		IDTokenJWTLink:     jwtIOLink(rawIDToken),
-		AccessToken:        accessToken,
-		AccessTokenJWTLink: jwtIOLink(accessToken),
-		RefreshToken:       token.RefreshToken,
-		RedirectURL:        s.redirectURI,
-		Claims:             claims,
-		PublicKeyPEM:       s.fetchPublicKeyPEM(),
-	})
+	s.renderer.RenderTokenPage(w, data)
 }
 
-// encodeIDTokenClaims extracts and pretty-prints the claims from an ID token.
-func encodeIDTokenClaims(idToken *oidc.IDToken) (string, error) {
-	var claims json.RawMessage
-	if err := idToken.Claims(&claims); err != nil {
-		return "", fmt.Errorf("error decoding ID token claims: %v", err)
+// decodeJWTClaims pretty-prints a JWT payload without verifying it: this is for
+// looking at a token, and the verify tool is what says whether to believe it.
+func decodeJWTClaims(token string) (string, bool) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return "", false
 	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", false
+	}
+	return indentJSON(payload), true
+}
 
+func indentJSON(raw []byte) string {
 	buf := new(bytes.Buffer)
-	if err := json.Indent(buf, claims, "", "  "); err != nil {
-		return "", fmt.Errorf("error indenting ID token claims: %v", err)
+	if err := json.Indent(buf, raw, "", "  "); err != nil {
+		return string(raw)
 	}
-	return buf.String(), nil
+	return buf.String()
 }
 
 // jwtIOLink creates a jwt.io debugger URL for the given token.
@@ -160,4 +181,16 @@ func (s *Server) fetchPublicKeyPEM() string {
 		Type:  "PUBLIC KEY",
 		Bytes: pubKeyBytes,
 	}))
+}
+
+// handleTokens re-renders the last tokens this browser was given. Without it a
+// tool result is a dead end: the page holding the tokens you were working with
+// is gone, and nothing in the app can bring it back.
+func (s *Server) handleTokens(w http.ResponseWriter, r *http.Request) {
+	sess := s.session(w, r)
+	if sess.LastTokens == nil {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+	s.renderToken(w, r, sess.LastGrant, sess.LastTokens)
 }

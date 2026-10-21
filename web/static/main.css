@@ -19,6 +19,10 @@ body {
   border-radius: 8px;
   border: 0;
   cursor: pointer;
+  /* Buttons do not inherit the page's typeface on their own, so without this
+   * every button label on every screen came out in the browser's default —
+   * Arial next to the system font the rest of the page is set in. */
+  font-family: inherit;
   font-size: 15px;
   padding: 0;
   transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
@@ -38,15 +42,43 @@ body {
   opacity: 0.5;
 }
 
+/* A connector button is an icon and a label. The label used to sit next to a
+ * floated icon on a single 40px line, which held together only while the name
+ * was short: a longer one stretched its button past the others, and once it
+ * wrapped, the second line cleared the float while the icon stayed a 40px
+ * square at the top of a taller button.
+ *
+ * The button is a row instead, at a width that does not depend on the name, so
+ * a label that does not fit wraps inside it and the icon spans the full height
+ * however many lines that turns out to be. */
+.dex-btn-provider {
+  align-items: stretch;
+  /* inline-flex, not flex: the button sits inside the connector's link, and an
+   * atomic inline-level box is where the link's underline stops. A block-level
+   * flex container would take that underline across the label, and no rule on
+   * the label can turn off a decoration its ancestor is drawing. */
+  display: inline-flex;
+  max-width: 100%;
+  /* It is a link: it navigates to the connector, and it is the only thing on
+   * the row that should take focus. */
+  text-decoration: none;
+}
+
+/* The icon keeps its own size instead of stretching down the side of a button
+ * a long name has made two or three lines tall. */
 .dex-btn-icon {
+  align-self: center;
+  /* Not every connector type has a rule below — oauth, authproxy and openshift
+   * are shipped without one. They used to render as a transparent hole with the
+   * label pushed off to the side of it; a plain tile is at least a tile. */
+  background-color: #84B6EF;
   background-position: center;
   background-repeat: no-repeat;
-  background-size: 20px;
-  border-radius: 8px 0 0 8px;
-  float: left;
-  height: 40px;
-  margin-right: 4px;
-  width: 40px;
+  background-size: 18px;
+  border-radius: 6px;
+  flex: 0 0 36px;
+  height: 36px;
+  margin: 0 4px 0 3px;
 }
 
 .dex-btn-icon--google {
@@ -122,10 +154,18 @@ body {
   background-image: url(../static/img/mock-icon.svg);
 }
 
+/* Also the label of the approval buttons, which have no icon: the min-height
+ * keeps those the size they were when a 40px line box set it. */
 .dex-btn-text {
+  align-items: center;
+  display: flex;
+  flex: 1;
   font-weight: 600;
-  line-height: 40px;
-  padding: 6px 14px;
+  justify-content: center;
+  line-height: 1.35;
+  min-height: 40px;
+  overflow-wrap: anywhere;
+  padding: 6px 12px;
   text-align: center;
 }
 
@@ -146,85 +186,6 @@ body {
   text-align: left;
 }
 
-.dex-info-table {
-  margin: 12px auto;
-  text-align: left;
-  max-width: 300px;
-}
-
-.dex-info-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px solid #eee;
-  font-size: 13px;
-}
-
-.dex-info-row:last-child {
-  border-bottom: none;
-}
-
-.dex-info-label {
-  color: #888;
-  font-weight: 500;
-}
-
-.dex-info-value {
-  color: #333;
-  text-align: right;
-  word-break: break-word;
-  min-width: 0;
-  max-width: 200px;
-}
-
-.dex-info-details {
-  color: #333;
-  font-size: 13px;
-  min-width: 0;
-  max-width: 200px;
-  text-align: right;
-}
-
-.dex-info-details summary {
-  cursor: pointer;
-  list-style: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: #4A90D9;
-}
-
-.dex-info-details summary:hover {
-  text-decoration: underline;
-}
-
-.dex-info-details summary::-webkit-details-marker {
-  display: none;
-}
-
-.dex-info-details summary::after {
-  content: " \25B8";
-  color: #aaa;
-}
-
-.dex-info-details[open] summary::after {
-  content: " \25BE";
-}
-
-.dex-info-details[open] > :not(summary) {
-  text-align: left;
-}
-
-.dex-info-details[open] summary {
-  margin-bottom: 4px;
-}
-
-.dex-info-details .dex-info-details__list {
-  margin: 0;
-  padding-left: 16px;
-  line-height: 1.8;
-}
-
 .dex-error-box {
   background-color: #e5383b;
   border-radius: 6px;
@@ -234,4 +195,200 @@ body {
   margin: 20px auto;
   max-width: 320px;
   padding: 8px 12px;
+}
+
+/* Home page.
+ *
+ * Colours come from custom properties so a theme can restyle the page by
+ * setting a handful of values. The fallbacks are the light-theme values, so a
+ * custom theme that defines none of them still renders exactly as before. */
+.dex-home {
+  --dex-home-fg: var(--dex-fg, #1a1a1a);
+  --dex-home-muted: var(--dex-fg-muted, #6b7280);
+  --dex-home-border: var(--dex-border, #e8eaed);
+  --dex-home-accent: var(--dex-accent, #2f6fb0);
+
+  color: var(--dex-home-fg);
+  text-align: left;
+}
+
+.dex-identity__name {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.dex-identity__email {
+  color: var(--dex-home-muted);
+  font-size: 13px;
+  line-height: 1.5;
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+}
+
+/* Whether the connector vouched for the address belongs next to the address,
+ * not in a row of its own further down. */
+.dex-identity__state {
+  white-space: nowrap;
+}
+
+/* An address nobody verified is the case worth noticing, so it is the one that
+ * gets full contrast. */
+.dex-identity__state--warn {
+  color: var(--dex-home-fg);
+}
+
+.dex-count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+/* Groups are a row like the others, so their values start where every other
+ * value on the page starts. A directory can hand back dozens of them, so the
+ * list is capped and scrolls instead of pushing the rest of the page out of
+ * view. The count in the label says how many there are; tabindex on the
+ * template keeps the overflow reachable by keyboard. */
+.dex-groups {
+  font-size: 13px;
+  line-height: 1.6;
+  list-style: none;
+  margin: 0;
+  max-height: 120px;
+  overflow-y: auto;
+  padding: 0 2px 0 0;
+  scrollbar-color: var(--dex-home-border) transparent;
+  scrollbar-width: thin;
+}
+
+.dex-groups li {
+  overflow-wrap: anywhere;
+}
+
+.dex-groups::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dex-groups::-webkit-scrollbar-thumb {
+  background-color: var(--dex-home-border);
+  border-radius: 3px;
+}
+
+/* Overlay scrollbars stay invisible until touched, so a clipped list would read
+ * as complete. The template adds this class while there is more below, and the
+ * fade says so. It covers only the row the cap cuts through — a longer gradient
+ * would dim the readable rows above it too. */
+.dex-groups--clipped {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent);
+}
+
+.dex-groups:focus-visible {
+  outline: 2px solid var(--dex-home-accent);
+  outline-offset: 3px;
+}
+
+/* Facts are label/value pairs on a fixed label column. Pushing values to the
+ * right edge instead would leave a hand's width of empty panel between a label
+ * and the value it belongs to, and would be the third alignment on a card that
+ * only needs one. They stack on narrow viewports, where the column costs more
+ * room than it buys. */
+.dex-facts {
+  border-top: 1px solid var(--dex-home-border);
+  margin: 20px 0 0;
+  padding: 0;
+}
+
+.dex-fact {
+  border-bottom: 1px solid var(--dex-home-border);
+  display: grid;
+  font-size: 13px;
+  gap: 4px 16px;
+  grid-template-columns: 116px minmax(0, 1fr);
+  padding: 9px 0;
+}
+
+.dex-fact dt {
+  color: var(--dex-home-muted);
+}
+
+.dex-fact dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The User-Agent is the longest and least urgent value on the page. */
+.dex-fact dd.dex-fact__long {
+  color: var(--dex-home-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.dex-home__actions {
+  margin-top: 24px;
+  text-align: center;
+}
+
+/* Logging out is a link here and a form button on /logout, so the anchor needs
+ * the few properties a <button> brings on its own. Everything else comes from
+ * theme-btn--primary, the same class the rest of the pages use. */
+.dex-home__actions .dex-btn {
+  display: inline-block;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 22px;
+  text-decoration: none;
+}
+
+.dex-home__empty {
+  padding: 8px 0 4px;
+  text-align: center;
+}
+
+.dex-home__empty-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.dex-home__empty-text {
+  color: var(--dex-home-muted);
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 6px auto 0;
+  max-width: 34ch;
+}
+
+.dex-home__footer {
+  border-top: 1px solid var(--dex-home-border);
+  margin-top: 24px;
+  padding-top: 16px;
+}
+
+/* Underlined and in the accent colour from the start: as grey unadorned text it
+ * did not read as something you could click, which is the only thing this line
+ * is there for. */
+.dex-home__link {
+  color: var(--dex-home-accent);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.dex-home__link:hover {
+  text-decoration-thickness: 2px;
+}
+
+/* Matches the focus ring the buttons and the group list use, rather than
+ * leaving this one link to the browser default. */
+.dex-home__link:focus-visible {
+  outline: 2px solid var(--dex-home-accent);
+  outline-offset: 3px;
+  text-decoration-thickness: 2px;
+}
+
+@media (max-width: 420px) {
+  .dex-fact {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

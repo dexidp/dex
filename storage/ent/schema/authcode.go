@@ -84,6 +84,10 @@ func (AuthCode) Fields() []ent.Field {
 		field.Time("auth_time").
 			SchemaType(timeSchema).
 			Optional(),
+		field.Text("session_id").
+			SchemaType(textSchema).
+			Default("").
+			Optional(),
 	}
 }
 

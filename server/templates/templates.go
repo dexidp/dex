@@ -1,0 +1,497 @@
+package templates
+
+import (
+	"cmp"
+	"fmt"
+	"html/template"
+	"io"
+	"io/fs"
+	"log/slog"
+	"net/http"
+	"net/url"
+	"path"
+	"slices"
+	"sort"
+	"strings"
+
+	"github.com/Masterminds/sprig/v3"
+)
+
+const (
+	tmplApproval       = "approval.html"
+	tmplLogin          = "login.html"
+	tmplPassword       = "password.html"
+	tmplOOB            = "oob.html"
+	tmplError          = "error.html"
+	tmplDevice         = "device.html"
+	tmplDeviceSuccess  = "device_success.html"
+	tmplTOTPVerify     = "totp_verify.html"
+	tmplWebAuthnVerify = "webauthn_verify.html"
+	tmplHome           = "home.html"
+	tmplLogout         = "logout.html"
+)
+
+var requiredTmpls = []string{
+	tmplApproval,
+	tmplLogin,
+	tmplPassword,
+	tmplOOB,
+	tmplError,
+	tmplDevice,
+	tmplDeviceSuccess,
+	tmplTOTPVerify,
+	tmplWebAuthnVerify,
+	tmplHome,
+	tmplLogout,
+}
+
+type Templates struct {
+	loginTmpl          *template.Template
+	approvalTmpl       *template.Template
+	passwordTmpl       *template.Template
+	oobTmpl            *template.Template
+	errorTmpl          *template.Template
+	deviceTmpl         *template.Template
+	deviceSuccessTmpl  *template.Template
+	totpVerifyTmpl     *template.Template
+	webauthnVerifyTmpl *template.Template
+	homeTmpl           *template.Template
+	logoutTmpl         *template.Template
+}
+
+type Config struct {
+	WebFS     fs.FS
+	LogoURL   string
+	Issuer    string
+	Theme     string
+	IssuerURL string
+	Extra     map[string]string
+}
+
+func getFuncMap(c Config) (template.FuncMap, error) {
+	funcs := sprig.FuncMap()
+
+	issuerURL, err := url.Parse(c.IssuerURL)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing issuerURL: %v", err)
+	}
+
+	additionalFuncs := map[string]interface{}{
+		"extra":  func(k string) string { return c.Extra[k] },
+		"issuer": func() string { return c.Issuer },
+		"logo":   func() string { return c.LogoURL },
+		"url": func(reqPath, assetPath string) string {
+			return relativeURL(issuerURL.Path, reqPath, assetPath)
+		},
+	}
+
+	for k, v := range additionalFuncs {
+		funcs[k] = v
+	}
+
+	return funcs, nil
+}
+
+// loadWebConfig returns static assets, theme assets, and templates used by the frontend by
+// reading the dir specified in the webConfig. If directory is not specified it will
+// use the file system specified by webFS.
+//
+// The directory layout is expected to be:
+//
+//	( web directory )
+//	|- static
+//	|- themes
+//	|  |- (theme name)
+//	|- templates
+func LoadWebConfig(c Config) (http.Handler, http.Handler, http.HandlerFunc, *Templates, error) {
+	// fallback to the default theme if the legacy theme name is provided
+	if c.Theme == "coreos" || c.Theme == "tectonic" {
+		c.Theme = ""
+	}
+	if c.Theme == "" {
+		c.Theme = "light"
+	}
+	if c.Issuer == "" {
+		c.Issuer = "dex"
+	}
+	if c.LogoURL == "" {
+		c.LogoURL = "theme/logo.png"
+	}
+
+	staticFiles, err := fs.Sub(c.WebFS, "static")
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("read static dir: %v", err)
+	}
+	themeFiles, err := fs.Sub(c.WebFS, path.Join("themes", c.Theme))
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("read themes dir: %v", err)
+	}
+	robotsContent, err := fs.ReadFile(c.WebFS, "robots.txt")
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("read robots.txt dir: %v", err)
+	}
+
+	static := http.FileServer(http.FS(staticFiles))
+	theme := http.FileServer(http.FS(themeFiles))
+	robots := func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, string(robotsContent)) }
+
+	templates, err := loadTemplates(c, "templates")
+
+	return static, theme, robots, templates, err
+}
+
+// loadTemplates parses the expected templates from the provided directory.
+func loadTemplates(c Config, templatesDir string) (*Templates, error) {
+	files, err := fs.ReadDir(c.WebFS, templatesDir)
+	if err != nil {
+		return nil, fmt.Errorf("read dir: %v", err)
+	}
+
+	filenames := []string{}
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+		filenames = append(filenames, path.Join(templatesDir, file.Name()))
+	}
+	if len(filenames) == 0 {
+		return nil, fmt.Errorf("no files in template dir %q", templatesDir)
+	}
+
+	funcs, err := getFuncMap(c)
+	if err != nil {
+		return nil, err
+	}
+
+	tmpls, err := template.New("").Funcs(funcs).ParseFS(c.WebFS, filenames...)
+	if err != nil {
+		return nil, fmt.Errorf("parse files: %v", err)
+	}
+	missingTmpls := []string{}
+	for _, tmplName := range requiredTmpls {
+		if tmpls.Lookup(tmplName) == nil {
+			missingTmpls = append(missingTmpls, tmplName)
+		}
+	}
+	if len(missingTmpls) > 0 {
+		return nil, fmt.Errorf("missing template(s): %s", missingTmpls)
+	}
+	return &Templates{
+		loginTmpl:          tmpls.Lookup(tmplLogin),
+		approvalTmpl:       tmpls.Lookup(tmplApproval),
+		passwordTmpl:       tmpls.Lookup(tmplPassword),
+		oobTmpl:            tmpls.Lookup(tmplOOB),
+		errorTmpl:          tmpls.Lookup(tmplError),
+		deviceTmpl:         tmpls.Lookup(tmplDevice),
+		deviceSuccessTmpl:  tmpls.Lookup(tmplDeviceSuccess),
+		totpVerifyTmpl:     tmpls.Lookup(tmplTOTPVerify),
+		webauthnVerifyTmpl: tmpls.Lookup(tmplWebAuthnVerify),
+		homeTmpl:           tmpls.Lookup(tmplHome),
+		logoutTmpl:         tmpls.Lookup(tmplLogout),
+	}, nil
+}
+
+// relativeURL returns the URL of the asset relative to the URL of the request path.
+// The serverPath is consulted to trim any prefix due in case it is not listening
+// to the root path.
+//
+// Algorithm:
+// 1. Remove common prefix of serverPath and reqPath
+// 2. Remove common prefix of assetPath and reqPath
+// 3. For each part of reqPath remaining(minus one), go up one level (..)
+// 4. For each part of assetPath remaining, append it to result
+//
+// eg
+// server listens at localhost/dex so serverPath is dex
+// reqPath is /dex/auth
+// assetPath is static/main.css
+// relativeURL("/dex", "/dex/auth", "static/main.css") = "../static/main.css"
+func relativeURL(serverPath, reqPath, assetPath string) string {
+	if u, err := url.ParseRequestURI(assetPath); err == nil && u.Scheme != "" {
+		// assetPath points to the external URL, no changes needed
+		return assetPath
+	}
+
+	splitPath := func(p string) []string {
+		res := []string{}
+		parts := strings.Split(path.Clean(p), "/")
+		for _, part := range parts {
+			if part != "" {
+				res = append(res, part)
+			}
+		}
+		return res
+	}
+
+	stripCommonParts := func(s1, s2 []string) ([]string, []string) {
+		min := len(s1)
+		if len(s2) < min {
+			min = len(s2)
+		}
+
+		splitIndex := min
+		for i := 0; i < min; i++ {
+			if s1[i] != s2[i] {
+				splitIndex = i
+				break
+			}
+		}
+		return s1[splitIndex:], s2[splitIndex:]
+	}
+
+	server, req, asset := splitPath(serverPath), splitPath(reqPath), splitPath(assetPath)
+
+	// Remove common prefix of request path with server path
+	_, req = stripCommonParts(server, req)
+
+	// When the request is at the server root (e.g., reqPath == "/dex"),
+	// the browser treats the last path segment as a file, not a directory.
+	// Prepend the server path so relative URLs resolve correctly.
+	if len(req) == 0 && len(server) > 0 {
+		asset = append(server, asset...)
+	}
+
+	// Remove common prefix of request path with asset path
+	asset, req = stripCommonParts(asset, req)
+
+	// For each part of the request remaining (minus one) -> go up one level (..)
+	// For each part of the asset remaining               -> append it
+	var relativeURL string
+	for i := 0; i < len(req)-1; i++ {
+		relativeURL = path.Join("..", relativeURL)
+	}
+	relativeURL = path.Join(relativeURL, path.Join(asset...))
+
+	return relativeURL
+}
+
+var scopeDescriptions = map[string]string{
+	"offline_access": "Have offline access",
+	"profile":        "View basic profile information",
+	"email":          "View your email address",
+	// 'groups' is not a standard OIDC scope, and Dex only returns groups only if the upstream provider does too.
+	// This warning is added for convenience to show that the user may expose some sensitive data to the application.
+	"groups": "View your groups",
+}
+
+type ConnectorInfo struct {
+	ID   string
+	Name string
+	URL  template.URL
+	Type string
+}
+
+// sortConnectors orders the login screen the way a reader scans it, which is
+// not the way bytes compare: "okta" sorting after "Zendesk" is an artifact of
+// capital letters coming first in ASCII, and connector names are whatever the
+// operator typed. Names that differ only in case keep a stable order.
+func sortConnectors(connectors []ConnectorInfo) {
+	slices.SortStableFunc(connectors, func(a, b ConnectorInfo) int {
+		return cmp.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
+	})
+}
+
+func (t *Templates) Device(r *http.Request, w http.ResponseWriter, postURL string, userCode string, lastWasInvalid bool) error {
+	if lastWasInvalid {
+		w.WriteHeader(http.StatusBadRequest)
+	}
+	data := struct {
+		PostURL  string
+		UserCode string
+		Invalid  bool
+		ReqPath  string
+	}{postURL, userCode, lastWasInvalid, r.URL.Path}
+	return renderTemplate(w, t.deviceTmpl, data)
+}
+
+func (t *Templates) DeviceSuccess(r *http.Request, w http.ResponseWriter, clientName string) error {
+	data := struct {
+		ClientName string
+		ReqPath    string
+	}{clientName, r.URL.Path}
+	return renderTemplate(w, t.deviceSuccessTmpl, data)
+}
+
+func (t *Templates) Login(r *http.Request, w http.ResponseWriter, connectors []ConnectorInfo) error {
+	sortConnectors(connectors)
+	data := struct {
+		Connectors []ConnectorInfo
+		ReqPath    string
+	}{connectors, r.URL.Path}
+	return renderTemplate(w, t.loginTmpl, data)
+}
+
+func (t *Templates) Password(r *http.Request, w http.ResponseWriter, postURL, lastUsername, usernamePrompt string, lastWasInvalid bool, backLink string, rememberMe *bool) error {
+	if lastWasInvalid {
+		w.WriteHeader(http.StatusUnauthorized)
+	}
+	data := struct {
+		PostURL           string
+		BackLink          string
+		Username          string
+		UsernamePrompt    string
+		Invalid           bool
+		ReqPath           string
+		ShowRememberMe    bool
+		RememberMeChecked bool
+	}{
+		PostURL:        postURL,
+		BackLink:       backLink,
+		Username:       lastUsername,
+		UsernamePrompt: usernamePrompt,
+		Invalid:        lastWasInvalid,
+		ReqPath:        r.URL.Path,
+		ShowRememberMe: rememberMe != nil,
+	}
+	if rememberMe != nil {
+		data.RememberMeChecked = *rememberMe
+	}
+	return renderTemplate(w, t.passwordTmpl, data)
+}
+
+func (t *Templates) Approval(r *http.Request, w http.ResponseWriter, authReqID, username, clientName string, scopes []string) error {
+	accesses := []string{}
+	for _, scope := range scopes {
+		access, ok := scopeDescriptions[scope]
+		if ok {
+			accesses = append(accesses, access)
+		}
+	}
+	sort.Strings(accesses)
+	data := struct {
+		User      string
+		Client    string
+		AuthReqID string
+		Scopes    []string
+		ReqPath   string
+	}{username, clientName, authReqID, accesses, r.URL.Path}
+	return renderTemplate(w, t.approvalTmpl, data)
+}
+
+func (t *Templates) TOTPVerify(r *http.Request, w http.ResponseWriter, postURL, issuer, connector, qrCode string, lastWasInvalid bool) error {
+	if lastWasInvalid {
+		w.WriteHeader(http.StatusUnauthorized)
+	}
+	data := struct {
+		PostURL   string
+		Invalid   bool
+		Issuer    string
+		Connector string
+		QRCode    string
+		ReqPath   string
+	}{postURL, lastWasInvalid, issuer, connector, qrCode, r.URL.Path}
+	return renderTemplate(w, t.totpVerifyTmpl, data)
+}
+
+type HomeData struct {
+	LoggedIn      bool
+	Username      string
+	Email         string
+	EmailVerified bool
+	Groups        []string
+	ConnectorName string
+	// Each timestamp reaches the page twice: ISO for the <time> element's
+	// datetime attribute, which the page's script reads and restates in the
+	// visitor's timezone, and Text as the UTC rendering shown until (or unless)
+	// that script runs. Empty means the row is omitted.
+	//
+	// SignedIn is when this session began, not the identity's last login: the
+	// page describes one session, and the identity's last login moves when the
+	// same user signs in from somewhere else entirely.
+	SignedInISO        string
+	SignedInText       string
+	SessionExpiresISO  string
+	SessionExpiresText string
+	// SessionExpiryIsIdle says SessionExpiresEpoch is the idle timeout rather
+	// than the absolute one, so the page can say the deadline slides.
+	SessionExpiryIsIdle bool
+	IPAddress           string
+	UserAgent           string
+	LogoutURL           string
+	DiscoveryURL        string
+	ReqPath             string
+}
+
+// HasHome reports whether the home template was loaded.
+func (t *Templates) HasHome() bool {
+	return t.homeTmpl != nil
+}
+
+func (t *Templates) Home(r *http.Request, w http.ResponseWriter, data HomeData) error {
+	data.ReqPath = r.URL.Path
+	return renderTemplate(w, t.homeTmpl, data)
+}
+
+func (t *Templates) Logout(r *http.Request, w http.ResponseWriter, backURL string, loggedOut bool, showConfirmation bool) error {
+	data := struct {
+		BackURL          string
+		LoggedOut        bool
+		ShowConfirmation bool
+		ReqPath          string
+	}{backURL, loggedOut, showConfirmation, r.URL.Path}
+	return renderTemplate(w, t.logoutTmpl, data)
+}
+
+func (t *Templates) WebAuthnVerify(r *http.Request, w http.ResponseWriter, mode, authenticatorID string) error {
+	data := struct {
+		// Mode must be server-controlled ("register" or "login") and never derived
+		// from user input to prevent XSS in the template's script context.
+		Mode            string
+		AuthenticatorID string
+		ReqPath         string
+	}{mode, authenticatorID, r.URL.Path}
+	return renderTemplate(w, t.webauthnVerifyTmpl, data)
+}
+
+func (t *Templates) OOB(r *http.Request, w http.ResponseWriter, code string) error {
+	data := struct {
+		Code    string
+		ReqPath string
+	}{code, r.URL.Path}
+	return renderTemplate(w, t.oobTmpl, data)
+}
+
+// RenderError renders the user-facing error page and reports a template failure
+// to the logger. Every domain handler's renderError delegates here, so the
+// error page and the way a failed render is reported stay in one place.
+func RenderError(t *Templates, logger *slog.Logger, r *http.Request, w http.ResponseWriter, status int, description string) {
+	if err := t.Err(r, w, status, description); err != nil {
+		logger.ErrorContext(r.Context(), "server template error", "err", err)
+	}
+}
+
+func (t *Templates) Err(r *http.Request, w http.ResponseWriter, errCode int, errMsg string) error {
+	w.WriteHeader(errCode)
+	data := struct {
+		ErrType string
+		ErrMsg  string
+		ReqPath string
+	}{http.StatusText(errCode), errMsg, r.URL.Path}
+	if err := t.errorTmpl.Execute(w, data); err != nil {
+		return fmt.Errorf("rendering template %s failed: %s", t.errorTmpl.Name(), err)
+	}
+	return nil
+}
+
+// small io.Writer utility to determine if executing the template wrote to the underlying response writer.
+type writeRecorder struct {
+	wrote bool
+	w     io.Writer
+}
+
+func (w *writeRecorder) Write(p []byte) (n int, err error) {
+	w.wrote = true
+	return w.w.Write(p)
+}
+
+func renderTemplate(w http.ResponseWriter, tmpl *template.Template, data interface{}) error {
+	wr := &writeRecorder{w: w}
+	if err := tmpl.Execute(wr, data); err != nil {
+		if !wr.wrote {
+			// TODO(ericchiang): replace with better internal server error.
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
+		return fmt.Errorf("rendering template %s failed: %s", tmpl.Name(), err)
+	}
+	return nil
+}

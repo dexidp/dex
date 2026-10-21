@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"reflect"
+	"sync/atomic"
 	"testing"
 
 	"github.com/dexidp/dex/connector"
@@ -181,6 +183,157 @@ func TestUserNotInRequiredGroupFromGraphAPI(t *testing.T) {
 	var groupsErr *connector.UserNotInRequiredGroupsError
 	if !errors.As(err, &groupsErr) {
 		t.Errorf("expected *connector.UserNotInRequiredGroupsError, got %T: %v", err, err)
+	}
+}
+
+// newGetByIdsBatchServer starts a test server simulating the Graph API's
+// /directoryObjects/getByIds endpoint, which rejects requests with more than
+// 1000 IDs — the same error Graph returns in production.
+func newGetByIdsBatchServer(batchCalls *atomic.Int32) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1.0/directoryObjects/getByIds" {
+			http.NotFound(w, r)
+			return
+		}
+		batchCalls.Add(1)
+
+		var body struct {
+			IDs   []string `json:"ids"`
+			Types []string `json:"types"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		if len(body.IDs) > 1000 {
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(w, `{"error":{"code":"Request_BadRequest","message":"Number of included identifiers cannot exceed '1000'."}}`)
+			return
+		}
+
+		out := make([]group, len(body.IDs))
+		for i, id := range body.IDs {
+			out[i] = group{Name: "name-for-" + id}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"value": out})
+	}))
+}
+
+// TestGetGroupNamesBatchLimit verifies that, when BatchGroupLookups is
+// enabled, getGroupNames splits large ID lists into batches of ≤1000,
+// matching the Graph API limit.
+func TestGetGroupNamesBatchLimit(t *testing.T) {
+	const totalGroups = 1500
+
+	ids := make([]string, totalGroups)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("group-id-%d", i)
+	}
+
+	var batchCalls atomic.Int32
+	s := newGetByIdsBatchServer(&batchCalls)
+	defer s.Close()
+
+	c := microsoftConnector{graphURL: s.URL, logger: slog.Default(), batchGroupLookups: true}
+	names, err := c.getGroupNames(t.Context(), s.Client(), ids)
+	if err != nil {
+		t.Fatalf("getGroupNames returned error: %v", err)
+	}
+	expected := make([]string, totalGroups)
+	for i, id := range ids {
+		expected[i] = "name-for-" + id
+	}
+	if !reflect.DeepEqual(names, expected) {
+		t.Errorf("got %d names %v, want %d names matching input IDs", len(names), names, totalGroups)
+	}
+	// ceil(1500 / 1000) = 2 batches
+	if batchCalls.Load() != 2 {
+		t.Errorf("expected 2 batch calls, got %d", batchCalls.Load())
+	}
+}
+
+// TestGetGroupNamesSingleRequestByDefault verifies that, without
+// BatchGroupLookups enabled, getGroupNames sends all IDs in a single request
+// — preserving pre-existing behavior — and that a user in more than 1000
+// groups gets the same Graph API error as before this feature existed.
+func TestGetGroupNamesSingleRequestByDefault(t *testing.T) {
+	const totalGroups = 1500
+
+	ids := make([]string, totalGroups)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("group-id-%d", i)
+	}
+
+	var batchCalls atomic.Int32
+	s := newGetByIdsBatchServer(&batchCalls)
+	defer s.Close()
+
+	c := microsoftConnector{graphURL: s.URL, logger: slog.Default()}
+	_, err := c.getGroupNames(t.Context(), s.Client(), ids)
+	if err == nil {
+		t.Fatal("expected error for >1000 groups when BatchGroupLookups is disabled, got nil")
+	}
+	if batchCalls.Load() != 1 {
+		t.Errorf("expected exactly 1 request, got %d", batchCalls.Load())
+	}
+}
+
+func TestClientAssertionTokenExchange(t *testing.T) {
+	assertion := "dummy-jwt-assertion"
+	file, err := os.CreateTemp("", "assertion.jwt")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(file.Name())
+	file.WriteString(assertion + "\n")
+	file.Close()
+
+	tokenCalled := false
+	var receivedAssertion, receivedClientID, receivedSecret, receivedAuthorization string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" && r.URL.Path == "/testtenant/oauth2/v2.0/token" {
+			receivedAuthorization = r.Header.Get("Authorization")
+			bodyBytes, _ := io.ReadAll(r.Body)
+			r.Body.Close()
+			form, _ := url.ParseQuery(string(bodyBytes))
+			receivedAssertion = form.Get("client_assertion")
+			receivedClientID = form.Get("client_id")
+			receivedSecret = form.Get("client_secret")
+			tokenCalled = true
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"access_token": "token", "expires_in": 3600}`))
+		}
+	}))
+	defer ts.Close()
+
+	conn := microsoftConnector{
+		apiURL:          ts.URL,
+		graphURL:        ts.URL,
+		redirectURI:     "https://test.com",
+		clientID:        clientID,
+		clientSecret:    "should-not-be-used",
+		tenant:          "testtenant",
+		clientAssertion: file.Name(),
+	}
+
+	req, _ := http.NewRequest("GET", ts.URL, nil)
+	conn.HandleCallback(connector.Scopes{}, nil, req)
+
+	if !tokenCalled {
+		t.Errorf("Token endpoint was not called")
+	}
+	if receivedAssertion != assertion {
+		t.Errorf("Expected client_assertion to be %q, got %q", assertion, receivedAssertion)
+	}
+	if receivedClientID != clientID {
+		t.Errorf("Expected client_id to be %q, got %q", clientID, receivedClientID)
+	}
+	if receivedSecret != "" {
+		t.Errorf("Expected client_secret to be empty, got %q", receivedSecret)
+	}
+	if receivedAuthorization != "" {
+		t.Errorf("Expected Authorization header to be empty, got %q", receivedAuthorization)
 	}
 }
 

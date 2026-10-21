@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server"
+	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent"
@@ -118,6 +120,13 @@ func (c Config) Validate() error {
 		}
 	}
 
+	if _, err := parseCipherSuites(c.Web.TLSCiphers); err != nil {
+		checkErrors = append(checkErrors, fmt.Sprintf("invalid TLS cipher suites: %v", err))
+	}
+	if _, err := parseCurvePreferences(c.Web.TLSCurvePreferences); err != nil {
+		checkErrors = append(checkErrors, fmt.Sprintf("invalid TLS curve preferences: %v", err))
+	}
+
 	if len(checkErrors) != 0 {
 		return fmt.Errorf("invalid Config:\n\t-\t%s", strings.Join(checkErrors, "\n\t-\t"))
 	}
@@ -128,6 +137,12 @@ func (c Config) Validate() error {
 
 	if err := c.validateMFA(); err != nil {
 		return err
+	}
+
+	for _, client := range c.StaticClients {
+		if err := storage.ValidateRefreshTokenLifetime(client.RefreshTokenLifetime); err != nil {
+			return fmt.Errorf("staticClients: client %q: %w", client.ID, err)
+		}
 	}
 
 	return nil
@@ -257,17 +272,37 @@ type PKCE struct {
 
 // Web is the config format for the HTTP server.
 type Web struct {
-	HTTP           string         `json:"http"`
-	HTTPS          string         `json:"https"`
-	Headers        Headers        `json:"headers"`
-	TLSCert        string         `json:"tlsCert"`
-	TLSKey         string         `json:"tlsKey"`
-	TLSMinVersion  string         `json:"tlsMinVersion"`
-	TLSMaxVersion  string         `json:"tlsMaxVersion"`
-	AllowedOrigins []string       `json:"allowedOrigins"`
-	AllowedHeaders []string       `json:"allowedHeaders"`
-	ClientRemoteIP ClientRemoteIP `json:"clientRemoteIP"`
+	HTTP                string         `json:"http"`
+	HTTPS               string         `json:"https"`
+	Headers             Headers        `json:"headers"`
+	TLSCert             string         `json:"tlsCert"`
+	TLSKey              string         `json:"tlsKey"`
+	TLSMinVersion       string         `json:"tlsMinVersion"`
+	TLSMaxVersion       string         `json:"tlsMaxVersion"`
+	TLSCiphers          []string       `json:"tlsCiphers"`
+	TLSCurvePreferences []string       `json:"tlsCurvePreferences"`
+	AllowedOrigins      []string       `json:"allowedOrigins"`
+	AllowedHeaders      []string       `json:"allowedHeaders"`
+	ClientRemoteIP      ClientRemoteIP `json:"clientRemoteIP"`
 }
+
+var allowedCurveNames = func() map[string]tls.CurveID {
+	curves := []tls.CurveID{
+		tls.X25519MLKEM768,
+		tls.SecP256r1MLKEM768,
+		tls.SecP384r1MLKEM1024,
+		tls.X25519,
+		tls.CurveP256,
+		tls.CurveP384,
+		tls.CurveP521,
+	}
+
+	allowed := make(map[string]tls.CurveID, len(curves))
+	for _, curve := range curves {
+		allowed[curve.String()] = curve
+	}
+	return allowed
+}()
 
 type ClientRemoteIP struct {
 	Header         string   `json:"header"`
@@ -557,8 +592,8 @@ type Connector struct {
 	Name string `json:"name"`
 	ID   string `json:"id"`
 
-	Config     server.ConnectorConfig `json:"config"`
-	GrantTypes []string               `json:"grantTypes"`
+	Config     connectors.ConnectorConfig `json:"config"`
+	GrantTypes []string                   `json:"grantTypes"`
 }
 
 // UnmarshalJSON allows Connector to implement the unmarshaler interface to
