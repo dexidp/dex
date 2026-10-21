@@ -45,8 +45,7 @@ func (AuthCode) Fields() []ent.Field {
 		field.JSON("scopes", []string{}).
 			Optional(),
 		field.Text("nonce").
-			SchemaType(textSchema).
-			NotEmpty(),
+			SchemaType(textSchema),
 		field.Text("redirect_uri").
 			SchemaType(textSchema).
 			NotEmpty(),
@@ -55,11 +54,9 @@ func (AuthCode) Fields() []ent.Field {
 			SchemaType(textSchema).
 			NotEmpty(),
 		field.Text("claims_username").
-			SchemaType(textSchema).
-			NotEmpty(),
+			SchemaType(textSchema),
 		field.Text("claims_email").
-			SchemaType(textSchema).
-			NotEmpty(),
+			SchemaType(textSchema),
 		field.Bool("claims_email_verified"),
 		field.JSON("claims_groups", []string{}).
 			Optional(),

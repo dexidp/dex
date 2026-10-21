@@ -234,11 +234,6 @@ func (_c *AuthCodeCreate) check() error {
 	if _, ok := _c.mutation.Nonce(); !ok {
 		return &ValidationError{Name: "nonce", err: errors.New(`db: missing required field "AuthCode.nonce"`)}
 	}
-	if v, ok := _c.mutation.Nonce(); ok {
-		if err := authcode.NonceValidator(v); err != nil {
-			return &ValidationError{Name: "nonce", err: fmt.Errorf(`db: validator failed for field "AuthCode.nonce": %w`, err)}
-		}
-	}
 	if _, ok := _c.mutation.RedirectURI(); !ok {
 		return &ValidationError{Name: "redirect_uri", err: errors.New(`db: missing required field "AuthCode.redirect_uri"`)}
 	}
@@ -258,18 +253,8 @@ func (_c *AuthCodeCreate) check() error {
 	if _, ok := _c.mutation.ClaimsUsername(); !ok {
 		return &ValidationError{Name: "claims_username", err: errors.New(`db: missing required field "AuthCode.claims_username"`)}
 	}
-	if v, ok := _c.mutation.ClaimsUsername(); ok {
-		if err := authcode.ClaimsUsernameValidator(v); err != nil {
-			return &ValidationError{Name: "claims_username", err: fmt.Errorf(`db: validator failed for field "AuthCode.claims_username": %w`, err)}
-		}
-	}
 	if _, ok := _c.mutation.ClaimsEmail(); !ok {
 		return &ValidationError{Name: "claims_email", err: errors.New(`db: missing required field "AuthCode.claims_email"`)}
-	}
-	if v, ok := _c.mutation.ClaimsEmail(); ok {
-		if err := authcode.ClaimsEmailValidator(v); err != nil {
-			return &ValidationError{Name: "claims_email", err: fmt.Errorf(`db: validator failed for field "AuthCode.claims_email": %w`, err)}
-		}
 	}
 	if _, ok := _c.mutation.ClaimsEmailVerified(); !ok {
 		return &ValidationError{Name: "claims_email_verified", err: errors.New(`db: missing required field "AuthCode.claims_email_verified"`)}
