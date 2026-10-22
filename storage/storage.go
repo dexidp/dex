@@ -268,6 +268,9 @@ type Claims struct {
 	Email             string
 	EmailVerified     bool
 
+	// Picture is the URL of the user's avatar, issued as the OIDC "picture" claim.
+	Picture string
+
 	Groups []string
 }
 

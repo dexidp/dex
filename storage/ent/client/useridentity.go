@@ -39,6 +39,7 @@ func (d *Database) CreateUserIdentity(ctx context.Context, identity storage.User
 		SetClaimsUserID(identity.Claims.UserID).
 		SetClaimsUsername(identity.Claims.Username).
 		SetClaimsPreferredUsername(identity.Claims.PreferredUsername).
+		SetClaimsPicture(identity.Claims.Picture).
 		SetClaimsEmail(identity.Claims.Email).
 		SetClaimsEmailVerified(identity.Claims.EmailVerified).
 		SetClaimsGroups(identity.Claims.Groups).
@@ -125,6 +126,7 @@ func (d *Database) UpdateUserIdentity(ctx context.Context, userID string, connec
 		SetClaimsUserID(newUserIdentity.Claims.UserID).
 		SetClaimsUsername(newUserIdentity.Claims.Username).
 		SetClaimsPreferredUsername(newUserIdentity.Claims.PreferredUsername).
+		SetClaimsPicture(newUserIdentity.Claims.Picture).
 		SetClaimsEmail(newUserIdentity.Claims.Email).
 		SetClaimsEmailVerified(newUserIdentity.Claims.EmailVerified).
 		SetClaimsGroups(newUserIdentity.Claims.Groups).

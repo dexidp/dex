@@ -177,6 +177,20 @@ func (_u *AuthCodeUpdate) SetNillableClaimsPreferredUsername(v *string) *AuthCod
 	return _u
 }
 
+// SetClaimsPicture sets the "claims_picture" field.
+func (_u *AuthCodeUpdate) SetClaimsPicture(v string) *AuthCodeUpdate {
+	_u.mutation.SetClaimsPicture(v)
+	return _u
+}
+
+// SetNillableClaimsPicture sets the "claims_picture" field if the given value is not nil.
+func (_u *AuthCodeUpdate) SetNillableClaimsPicture(v *string) *AuthCodeUpdate {
+	if v != nil {
+		_u.SetClaimsPicture(*v)
+	}
+	return _u
+}
+
 // SetConnectorID sets the "connector_id" field.
 func (_u *AuthCodeUpdate) SetConnectorID(v string) *AuthCodeUpdate {
 	_u.mutation.SetConnectorID(v)
@@ -415,6 +429,9 @@ func (_u *AuthCodeUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.ClaimsPreferredUsername(); ok {
 		_spec.SetField(authcode.FieldClaimsPreferredUsername, field.TypeString, value)
 	}
+	if value, ok := _u.mutation.ClaimsPicture(); ok {
+		_spec.SetField(authcode.FieldClaimsPicture, field.TypeString, value)
+	}
 	if value, ok := _u.mutation.ConnectorID(); ok {
 		_spec.SetField(authcode.FieldConnectorID, field.TypeString, value)
 	}
@@ -609,6 +626,20 @@ func (_u *AuthCodeUpdateOne) SetClaimsPreferredUsername(v string) *AuthCodeUpdat
 func (_u *AuthCodeUpdateOne) SetNillableClaimsPreferredUsername(v *string) *AuthCodeUpdateOne {
 	if v != nil {
 		_u.SetClaimsPreferredUsername(*v)
+	}
+	return _u
+}
+
+// SetClaimsPicture sets the "claims_picture" field.
+func (_u *AuthCodeUpdateOne) SetClaimsPicture(v string) *AuthCodeUpdateOne {
+	_u.mutation.SetClaimsPicture(v)
+	return _u
+}
+
+// SetNillableClaimsPicture sets the "claims_picture" field if the given value is not nil.
+func (_u *AuthCodeUpdateOne) SetNillableClaimsPicture(v *string) *AuthCodeUpdateOne {
+	if v != nil {
+		_u.SetClaimsPicture(*v)
 	}
 	return _u
 }
@@ -880,6 +911,9 @@ func (_u *AuthCodeUpdateOne) sqlSave(ctx context.Context) (_node *AuthCode, err 
 	}
 	if value, ok := _u.mutation.ClaimsPreferredUsername(); ok {
 		_spec.SetField(authcode.FieldClaimsPreferredUsername, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ClaimsPicture(); ok {
+		_spec.SetField(authcode.FieldClaimsPicture, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.ConnectorID(); ok {
 		_spec.SetField(authcode.FieldConnectorID, field.TypeString, value)

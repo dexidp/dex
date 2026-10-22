@@ -86,6 +86,7 @@ func (h *Handler) finishSessionLogin(ctx context.Context, r *http.Request, w htt
 		PreferredUsername: ui.Claims.PreferredUsername,
 		Email:             ui.Claims.Email,
 		EmailVerified:     ui.Claims.EmailVerified,
+		Picture:           ui.Claims.Picture,
 		Groups:            ui.Claims.Groups,
 	}
 

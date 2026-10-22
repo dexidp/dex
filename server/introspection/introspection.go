@@ -105,6 +105,7 @@ type IntrospectionExtra struct {
 
 	Name              string `json:"name,omitempty"`
 	PreferredUsername string `json:"preferred_username,omitempty"`
+	Picture           string `json:"picture,omitempty"`
 
 	FederatedIDClaims *tokens.FederatedIDClaims `json:"federated_claims,omitempty"`
 }
@@ -279,6 +280,7 @@ func (h *Handler) introspectRefreshToken(ctx context.Context, token string) (*In
 			Groups:            refresh.Claims.Groups,
 			Name:              refresh.Claims.Username,
 			PreferredUsername: refresh.Claims.PreferredUsername,
+			Picture:           refresh.Claims.Picture,
 		},
 		TokenType: "Bearer",
 		TokenUse:  "refresh_token",

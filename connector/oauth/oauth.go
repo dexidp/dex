@@ -31,6 +31,7 @@ type oauthConnector struct {
 	preferredUsernameKey string
 	emailKey             string
 	emailVerifiedKey     string
+	pictureKey           string
 	groupsKey            string
 	httpClient           *http.Client
 	logger               *slog.Logger
@@ -57,6 +58,7 @@ type Config struct {
 		GroupsKey            string `json:"groupsKey"`            // defaults to "groups"
 		EmailKey             string `json:"emailKey"`             // defaults to "email"
 		EmailVerifiedKey     string `json:"emailVerifiedKey"`     // defaults to "email_verified"
+		PictureKey           string `json:"pictureKey"`           // defaults to "picture"
 	} `json:"claimMapping"`
 }
 
@@ -93,6 +95,11 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 		emailVerifiedKey = "email_verified"
 	}
 
+	pictureKey := c.ClaimMapping.PictureKey
+	if pictureKey == "" {
+		pictureKey = "picture"
+	}
+
 	oauthConn := &oauthConnector{
 		clientID:             c.ClientID,
 		clientSecret:         c.ClientSecret,
@@ -108,6 +115,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 		groupsKey:            groupsKey,
 		emailKey:             emailKey,
 		emailVerifiedKey:     emailVerifiedKey,
+		pictureKey:           pictureKey,
 	}
 
 	oauthConn.httpClient, err = httpclient.NewHTTPClient(c.RootCAs, c.InsecureSkipVerify)
@@ -189,6 +197,7 @@ func (c *oauthConnector) HandleCallback(s connector.Scopes, _ []byte, r *http.Re
 	identity.PreferredUsername, _ = userInfoResult[c.preferredUsernameKey].(string)
 	identity.Email, _ = userInfoResult[c.emailKey].(string)
 	identity.EmailVerified, _ = userInfoResult[c.emailVerifiedKey].(bool)
+	identity.Picture, _ = userInfoResult[c.pictureKey].(string)
 
 	if s.Groups {
 		groups := map[string]struct{}{}

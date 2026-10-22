@@ -33,6 +33,9 @@ func (UserIdentity) Fields() []ent.Field {
 		field.Text("claims_preferred_username").
 			SchemaType(textSchema).
 			Default(""),
+		field.Text("claims_picture").
+			SchemaType(textSchema).
+			Default(""),
 		field.Text("claims_email").
 			SchemaType(textSchema).
 			Default(""),

@@ -31,6 +31,8 @@ const (
 	FieldClaimsGroups = "claims_groups"
 	// FieldClaimsPreferredUsername holds the string denoting the claims_preferred_username field in the database.
 	FieldClaimsPreferredUsername = "claims_preferred_username"
+	// FieldClaimsPicture holds the string denoting the claims_picture field in the database.
+	FieldClaimsPicture = "claims_picture"
 	// FieldConnectorID holds the string denoting the connector_id field in the database.
 	FieldConnectorID = "connector_id"
 	// FieldConnectorData holds the string denoting the connector_data field in the database.
@@ -59,6 +61,7 @@ var Columns = []string{
 	FieldClaimsEmailVerified,
 	FieldClaimsGroups,
 	FieldClaimsPreferredUsername,
+	FieldClaimsPicture,
 	FieldConnectorID,
 	FieldConnectorData,
 	FieldToken,
@@ -90,6 +93,8 @@ var (
 	ClaimsEmailValidator func(string) error
 	// DefaultClaimsPreferredUsername holds the default value on creation for the "claims_preferred_username" field.
 	DefaultClaimsPreferredUsername string
+	// DefaultClaimsPicture holds the default value on creation for the "claims_picture" field.
+	DefaultClaimsPicture string
 	// ConnectorIDValidator is a validator for the "connector_id" field. It is called by the builders before save.
 	ConnectorIDValidator func(string) error
 	// DefaultToken holds the default value on creation for the "token" field.
@@ -145,6 +150,11 @@ func ByClaimsEmailVerified(opts ...sql.OrderTermOption) OrderOption {
 // ByClaimsPreferredUsername orders the results by the claims_preferred_username field.
 func ByClaimsPreferredUsername(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldClaimsPreferredUsername, opts...).ToFunc()
+}
+
+// ByClaimsPicture orders the results by the claims_picture field.
+func ByClaimsPicture(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldClaimsPicture, opts...).ToFunc()
 }
 
 // ByConnectorID orders the results by the connector_id field.
