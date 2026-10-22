@@ -818,6 +818,7 @@ func newTLSReloader(logger *slog.Logger, certFile, keyFile, caFile string, baseC
 			loaded, err := loadTLSConfig(certFile, keyFile, caFile, baseConfig)
 			if err != nil {
 				logger.Error("reload TLS config", "err", err)
+				continue
 			}
 			ptr.Store(loaded)
 		}
