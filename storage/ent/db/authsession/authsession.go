@@ -19,6 +19,8 @@ const (
 	FieldSecret = "secret"
 	// FieldClientStates holds the string denoting the client_states field in the database.
 	FieldClientStates = "client_states"
+	// FieldConnectorData holds the string denoting the connector_data field in the database.
+	FieldConnectorData = "connector_data"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldLastActivity holds the string denoting the last_activity field in the database.
@@ -44,6 +46,7 @@ var Columns = []string{
 	FieldConnectorID,
 	FieldSecret,
 	FieldClientStates,
+	FieldConnectorData,
 	FieldCreatedAt,
 	FieldLastActivity,
 	FieldIPAddress,

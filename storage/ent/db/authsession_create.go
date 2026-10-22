@@ -44,6 +44,12 @@ func (_c *AuthSessionCreate) SetClientStates(v []byte) *AuthSessionCreate {
 	return _c
 }
 
+// SetConnectorData sets the "connector_data" field.
+func (_c *AuthSessionCreate) SetConnectorData(v []byte) *AuthSessionCreate {
+	_c.mutation.SetConnectorData(v)
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *AuthSessionCreate) SetCreatedAt(v time.Time) *AuthSessionCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -255,6 +261,10 @@ func (_c *AuthSessionCreate) createSpec() (*AuthSession, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.ClientStates(); ok {
 		_spec.SetField(authsession.FieldClientStates, field.TypeBytes, value)
 		_node.ClientStates = value
+	}
+	if value, ok := _c.mutation.ConnectorData(); ok {
+		_spec.SetField(authsession.FieldConnectorData, field.TypeBytes, value)
+		_node.ConnectorData = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(authsession.FieldCreatedAt, field.TypeTime, value)

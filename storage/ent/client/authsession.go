@@ -29,6 +29,7 @@ func (d *Database) CreateAuthSession(ctx context.Context, session storage.AuthSe
 		SetConnectorID(session.ConnectorID).
 		SetSecret(session.Secret).
 		SetClientStates(encodedStates).
+		SetConnectorData(session.ConnectorData).
 		SetCreatedAt(session.CreatedAt).
 		SetLastActivity(session.LastActivity).
 		SetIPAddress(session.IPAddress).
@@ -108,6 +109,7 @@ func (d *Database) UpdateAuthSession(ctx context.Context, id string, updater fun
 
 	_, err = tx.AuthSession.UpdateOneID(id).
 		SetClientStates(encodedStates).
+		SetConnectorData(newSession.ConnectorData).
 		SetLastActivity(newSession.LastActivity).
 		SetIPAddress(newSession.IPAddress).
 		SetUserAgent(newSession.UserAgent).

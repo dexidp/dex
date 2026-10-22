@@ -996,16 +996,16 @@ func (c *conn) CreateAuthSession(ctx context.Context, s storage.AuthSession) err
 	_, err := c.Exec(`
 		insert into auth_session (
 			id, secret, user_id, connector_id,
-			client_states,
+			client_states, connector_data,
 			created_at, last_activity,
 			ip_address, user_agent,
 			absolute_expiry, idle_expiry,
 			logout_state
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);
 	`,
 		s.ID, s.Secret, s.UserID, s.ConnectorID,
-		encoder(s.ClientStates),
+		encoder(s.ClientStates), s.ConnectorData,
 		s.CreatedAt, s.LastActivity,
 		s.IPAddress, s.UserAgent,
 		s.AbsoluteExpiry, s.IdleExpiry,
@@ -1035,14 +1035,16 @@ func (c *conn) UpdateAuthSession(ctx context.Context, id string, updater func(s 
 			update auth_session
 			set
 				client_states = $1,
-				last_activity = $2,
-				ip_address = $3,
-				user_agent = $4,
-				idle_expiry = $5,
-				logout_state = $6
-			where id = $7;
+				connector_data = $2,
+				last_activity = $3,
+				ip_address = $4,
+				user_agent = $5,
+				idle_expiry = $6,
+				logout_state = $7
+			where id = $8;
 		`,
 			encoder(newSession.ClientStates),
+			newSession.ConnectorData,
 			newSession.LastActivity,
 			newSession.IPAddress, newSession.UserAgent,
 			newSession.IdleExpiry,
@@ -1062,7 +1064,7 @@ func (c *conn) GetAuthSession(ctx context.Context, id string) (storage.AuthSessi
 
 const authSessionColumns = `
 	id, secret, user_id, connector_id,
-	client_states,
+	client_states, connector_data,
 	created_at, last_activity,
 	ip_address, user_agent,
 	absolute_expiry, idle_expiry,
@@ -1081,7 +1083,7 @@ func scanAuthSession(s scanner) (session storage.AuthSession, err error) {
 	var logoutState []byte
 	err = s.Scan(
 		&session.ID, &session.Secret, &session.UserID, &session.ConnectorID,
-		decoder(&session.ClientStates),
+		decoder(&session.ClientStates), &session.ConnectorData,
 		&session.CreatedAt, &session.LastActivity,
 		&session.IPAddress, &session.UserAgent,
 		&session.AbsoluteExpiry, &session.IdleExpiry,
