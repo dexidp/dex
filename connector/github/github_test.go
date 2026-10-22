@@ -644,6 +644,112 @@ func TestGetSendsAPIVersionHeader(t *testing.T) {
 	expectEquals(t, gotHeader, githubAPIVersion)
 }
 
+func TestGroupsForOrgs_NotInRequiredOrg(t *testing.T) {
+	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/orgs/required-org/members/test-user":
+			http.NotFound(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer s.Close()
+
+	c := githubConnector{
+		apiURL: s.URL,
+		orgs: []Org{
+			{Name: "required-org"},
+		},
+		logger: slog.Default(),
+	}
+
+	groups, err := c.groupsForOrgs(context.Background(), newClient(), "test-user")
+	if groups != nil {
+		t.Fatalf("expected nil groups, got %v", groups)
+	}
+	expectNotNil(t, err, "expected error when user not in org")
+
+	var groupsErr *connector.UserNotInRequiredGroupsError
+	if !errors.As(err, &groupsErr) {
+		t.Fatalf("expected UserNotInRequiredGroupsError, got %T: %v", err, err)
+	}
+	expectEquals(t, groupsErr.UserID, "test-user")
+	expectEquals(t, groupsErr.Groups, []string{"required-org"})
+}
+
+func TestGroupsForOrgs_NotInRequiredTeams(t *testing.T) {
+	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/orgs/required-org/members/test-user":
+			w.WriteHeader(http.StatusNoContent)
+		case "/user/teams":
+			json.NewEncoder(w).Encode([]team{
+				{Name: "other-team", Slug: "other-team", Org: org{Login: "required-org"}},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer s.Close()
+
+	c := githubConnector{
+		apiURL: s.URL,
+		orgs: []Org{
+			{
+				Name:  "required-org",
+				Teams: []string{"devs", "admins"},
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	groups, err := c.groupsForOrgs(context.Background(), newClient(), "test-user")
+	if groups != nil {
+		t.Fatalf("expected nil groups, got %v", groups)
+	}
+	expectNotNil(t, err, "expected error when user not in required teams")
+
+	var groupsErr *connector.UserNotInRequiredGroupsError
+	if !errors.As(err, &groupsErr) {
+		t.Fatalf("expected UserNotInRequiredGroupsError, got %T: %v", err, err)
+	}
+	expectEquals(t, groupsErr.UserID, "test-user")
+	expectEquals(t, groupsErr.Groups, []string{"required-org:devs", "required-org:admins"})
+}
+
+func TestGroupsForOrgs_InRequiredTeam(t *testing.T) {
+	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/orgs/required-org/members/test-user":
+			w.WriteHeader(http.StatusNoContent)
+		case "/user/teams":
+			json.NewEncoder(w).Encode([]team{
+				{Name: "devs", Slug: "devs", Org: org{Login: "required-org"}},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer s.Close()
+
+	c := githubConnector{
+		apiURL: s.URL,
+		orgs: []Org{
+			{
+				Name:  "required-org",
+				Teams: []string{"devs"},
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	groups, err := c.groupsForOrgs(context.Background(), newClient(), "test-user")
+	expectNil(t, err)
+	expectEquals(t, groups, []string{"required-org:devs"})
+}
+
 func newTestServer(responses map[string]testResponse) *httptest.Server {
 	var s *httptest.Server
 	s = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
