@@ -459,7 +459,21 @@ func (c *githubConnector) groupsForOrgs(ctx context.Context, client *http.Client
 	if inOrgNoTeams || len(groups) > 0 {
 		return groups, nil
 	}
-	return groups, fmt.Errorf("github: user %q not in required orgs or teams", userName)
+
+	var requiredGroups []string
+	for _, org := range c.orgs {
+		if len(org.Teams) == 0 {
+			requiredGroups = append(requiredGroups, org.Name)
+		} else {
+			for _, teamName := range org.Teams {
+				requiredGroups = append(requiredGroups, formatTeamName(org.Name, teamName))
+			}
+		}
+	}
+	return nil, &connector.UserNotInRequiredGroupsError{
+		UserID: userName,
+		Groups: requiredGroups,
+	}
 }
 
 func (c *githubConnector) userGroups(ctx context.Context, client *http.Client) ([]string, error) {
