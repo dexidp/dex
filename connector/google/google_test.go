@@ -33,6 +33,8 @@ var (
 		"groups_0@dexidp.com": {},
 	}
 	callCounter = make(map[string]int)
+	// domain query parameter of the last groups.list call per userKey
+	domainParams = make(map[string]string)
 )
 
 func testSetup() *httptest.Server {
@@ -41,6 +43,7 @@ func testSetup() *httptest.Server {
 	mux.HandleFunc("/admin/directory/v1/groups/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
 		userKey := r.URL.Query().Get("userKey")
+		domainParams[userKey] = r.URL.Query().Get("domain")
 		if groups, ok := testGroups[userKey]; ok {
 			json.NewEncoder(w).Encode(admin.Groups{Groups: groups})
 			callCounter[userKey]++
@@ -292,6 +295,94 @@ func TestDomainToAdminEmailConfig(t *testing.T) {
 				assert.Nil(err)
 			}
 			t.Logf("[%s] Amount of API calls per userKey: %+v\n", t.Name(), callCounter)
+		})
+	}
+}
+
+func TestGetGroupsDomainParam(t *testing.T) {
+	ts := testSetup()
+	defer ts.Close()
+
+	serviceAccountFilePath, err := tempServiceAccountKey()
+	assert.Nil(t, err)
+
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", serviceAccountFilePath)
+
+	type testCase struct {
+		domainToAdminEmail map[string]string
+		userKey            string
+		expectedDomains    map[string]string
+	}
+
+	for name, testCase := range map[string]testCase{
+		"impersonation_omits_domain": {
+			domainToAdminEmail: map[string]string{"*": "admin@dexidp.com"},
+			userKey:            "user_1@dexidp.com",
+			expectedDomains: map[string]string{
+				"user_1@dexidp.com":   "",
+				"groups_1@dexidp.com": "",
+				"groups_2@dexidp.com": "",
+				"groups_0@dexidp.com": "",
+			},
+		},
+		"no_impersonation_sets_domain": {
+			domainToAdminEmail: map[string]string{"*": ""},
+			userKey:            "user_1@dexidp.com",
+			expectedDomains: map[string]string{
+				"user_1@dexidp.com":   "dexidp.com",
+				"groups_1@dexidp.com": "dexidp.com",
+				"groups_2@dexidp.com": "dexidp.com",
+				"groups_0@dexidp.com": "dexidp.com",
+			},
+		},
+		"no_impersonation_invalid_email_omits_domain": {
+			domainToAdminEmail: map[string]string{"*": ""},
+			userKey:            "user_1_foo.bar",
+			expectedDomains: map[string]string{
+				"user_1_foo.bar": "",
+			},
+		},
+		"exact_domain_without_impersonation_overrides_wildcard": {
+			domainToAdminEmail: map[string]string{"dexidp.com": "", "*": "admin@dexidp.com"},
+			userKey:            "user_2@dexidp.com",
+			expectedDomains: map[string]string{
+				"user_2@dexidp.com":   "dexidp.com",
+				"groups_1@dexidp.com": "dexidp.com",
+				"groups_0@dexidp.com": "dexidp.com",
+			},
+		},
+		"exact_domain_with_impersonation_overrides_wildcard": {
+			domainToAdminEmail: map[string]string{"dexidp.com": "admin@dexidp.com", "*": ""},
+			userKey:            "user_2@dexidp.com",
+			expectedDomains: map[string]string{
+				"user_2@dexidp.com":   "",
+				"groups_1@dexidp.com": "",
+				"groups_0@dexidp.com": "",
+			},
+		},
+	} {
+		testCase := testCase
+		domainParams = map[string]string{}
+		t.Run(name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			conn, err := newConnector(&Config{
+				ClientID:           "testClient",
+				ClientSecret:       "testSecret",
+				RedirectURI:        ts.URL + "/callback",
+				Scopes:             []string{"openid", "groups"},
+				DomainToAdminEmail: testCase.domainToAdminEmail,
+			})
+			assert.Nil(err)
+
+			for domain := range testCase.domainToAdminEmail {
+				conn.adminSrv[domain], err = admin.NewService(context.Background(), option.WithoutAuthentication(), option.WithEndpoint(ts.URL))
+				assert.Nil(err)
+			}
+
+			// The mock returns no body for unknown keys, so only the request matters here.
+			_, _ = conn.getGroups(testCase.userKey, true, make(map[string]struct{}))
+			assert.Equal(testCase.expectedDomains, domainParams)
 		})
 	}
 }
