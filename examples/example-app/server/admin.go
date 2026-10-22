@@ -74,7 +74,7 @@ func (a *adminClient) close() {
 // than asking you to type one.
 var connectorTypes = []string{
 	"atlassian-crowd", "authproxy", "bitbucket-cloud", "gitea", "github",
-	"gitlab", "google", "keystone", "ldap", "linkedin", "microsoft",
+	"gitlab", "google", "jwt", "keystone", "ldap", "linkedin", "microsoft",
 	"mockCallback", "mockPassword", "oauth", "oidc", "openshift", "saml",
 }
 
