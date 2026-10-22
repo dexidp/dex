@@ -23,6 +23,22 @@ const (
 	FieldName = "name"
 	// FieldLogoURL holds the string denoting the logo_url field in the database.
 	FieldLogoURL = "logo_url"
+	// FieldDynamicallyRegistered holds the string denoting the dynamically_registered field in the database.
+	FieldDynamicallyRegistered = "dynamically_registered"
+	// FieldGrantTypes holds the string denoting the grant_types field in the database.
+	FieldGrantTypes = "grant_types"
+	// FieldResponseTypes holds the string denoting the response_types field in the database.
+	FieldResponseTypes = "response_types"
+	// FieldAllowedScopes holds the string denoting the allowed_scopes field in the database.
+	FieldAllowedScopes = "allowed_scopes"
+	// FieldTokenEndpointAuthMethod holds the string denoting the token_endpoint_auth_method field in the database.
+	FieldTokenEndpointAuthMethod = "token_endpoint_auth_method"
+	// FieldRegistrationTime holds the string denoting the registration_time field in the database.
+	FieldRegistrationTime = "registration_time"
+	// FieldRegistrationTokenID holds the string denoting the registration_token_id field in the database.
+	FieldRegistrationTokenID = "registration_token_id"
+	// FieldRegistrationExpiresAt holds the string denoting the registration_expires_at field in the database.
+	FieldRegistrationExpiresAt = "registration_expires_at"
 	// FieldAllowedConnectors holds the string denoting the allowed_connectors field in the database.
 	FieldAllowedConnectors = "allowed_connectors"
 	// FieldMfaChain holds the string denoting the mfa_chain field in the database.
@@ -50,6 +66,14 @@ var Columns = []string{
 	FieldPublic,
 	FieldName,
 	FieldLogoURL,
+	FieldDynamicallyRegistered,
+	FieldGrantTypes,
+	FieldResponseTypes,
+	FieldAllowedScopes,
+	FieldTokenEndpointAuthMethod,
+	FieldRegistrationTime,
+	FieldRegistrationTokenID,
+	FieldRegistrationExpiresAt,
 	FieldAllowedConnectors,
 	FieldMfaChain,
 	FieldPostLogoutRedirectUris,
@@ -70,12 +94,16 @@ func ValidColumn(column string) bool {
 }
 
 var (
-	// SecretValidator is a validator for the "secret" field. It is called by the builders before save.
-	SecretValidator func(string) error
-	// NameValidator is a validator for the "name" field. It is called by the builders before save.
-	NameValidator func(string) error
-	// LogoURLValidator is a validator for the "logo_url" field. It is called by the builders before save.
-	LogoURLValidator func(string) error
+	// DefaultDynamicallyRegistered holds the default value on creation for the "dynamically_registered" field.
+	DefaultDynamicallyRegistered bool
+	// DefaultTokenEndpointAuthMethod holds the default value on creation for the "token_endpoint_auth_method" field.
+	DefaultTokenEndpointAuthMethod string
+	// DefaultRegistrationTime holds the default value on creation for the "registration_time" field.
+	DefaultRegistrationTime int64
+	// DefaultRegistrationTokenID holds the default value on creation for the "registration_token_id" field.
+	DefaultRegistrationTokenID string
+	// DefaultRegistrationExpiresAt holds the default value on creation for the "registration_expires_at" field.
+	DefaultRegistrationExpiresAt int64
 	// DefaultBackchannelLogoutURI holds the default value on creation for the "backchannel_logout_uri" field.
 	DefaultBackchannelLogoutURI string
 	// DefaultRefreshTokenLifetime holds the default value on creation for the "refresh_token_lifetime" field.
@@ -110,6 +138,31 @@ func ByName(opts ...sql.OrderTermOption) OrderOption {
 // ByLogoURL orders the results by the logo_url field.
 func ByLogoURL(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldLogoURL, opts...).ToFunc()
+}
+
+// ByDynamicallyRegistered orders the results by the dynamically_registered field.
+func ByDynamicallyRegistered(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDynamicallyRegistered, opts...).ToFunc()
+}
+
+// ByTokenEndpointAuthMethod orders the results by the token_endpoint_auth_method field.
+func ByTokenEndpointAuthMethod(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTokenEndpointAuthMethod, opts...).ToFunc()
+}
+
+// ByRegistrationTime orders the results by the registration_time field.
+func ByRegistrationTime(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRegistrationTime, opts...).ToFunc()
+}
+
+// ByRegistrationTokenID orders the results by the registration_token_id field.
+func ByRegistrationTokenID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRegistrationTokenID, opts...).ToFunc()
+}
+
+// ByRegistrationExpiresAt orders the results by the registration_expires_at field.
+func ByRegistrationExpiresAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRegistrationExpiresAt, opts...).ToFunc()
 }
 
 // ByBackchannelLogoutURI orders the results by the backchannel_logout_uri field.

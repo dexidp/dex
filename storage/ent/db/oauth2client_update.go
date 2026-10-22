@@ -121,6 +121,156 @@ func (_u *OAuth2ClientUpdate) SetNillableLogoURL(v *string) *OAuth2ClientUpdate 
 	return _u
 }
 
+// SetDynamicallyRegistered sets the "dynamically_registered" field.
+func (_u *OAuth2ClientUpdate) SetDynamicallyRegistered(v bool) *OAuth2ClientUpdate {
+	_u.mutation.SetDynamicallyRegistered(v)
+	return _u
+}
+
+// SetNillableDynamicallyRegistered sets the "dynamically_registered" field if the given value is not nil.
+func (_u *OAuth2ClientUpdate) SetNillableDynamicallyRegistered(v *bool) *OAuth2ClientUpdate {
+	if v != nil {
+		_u.SetDynamicallyRegistered(*v)
+	}
+	return _u
+}
+
+// SetGrantTypes sets the "grant_types" field.
+func (_u *OAuth2ClientUpdate) SetGrantTypes(v []string) *OAuth2ClientUpdate {
+	_u.mutation.SetGrantTypes(v)
+	return _u
+}
+
+// AppendGrantTypes appends value to the "grant_types" field.
+func (_u *OAuth2ClientUpdate) AppendGrantTypes(v []string) *OAuth2ClientUpdate {
+	_u.mutation.AppendGrantTypes(v)
+	return _u
+}
+
+// ClearGrantTypes clears the value of the "grant_types" field.
+func (_u *OAuth2ClientUpdate) ClearGrantTypes() *OAuth2ClientUpdate {
+	_u.mutation.ClearGrantTypes()
+	return _u
+}
+
+// SetResponseTypes sets the "response_types" field.
+func (_u *OAuth2ClientUpdate) SetResponseTypes(v []string) *OAuth2ClientUpdate {
+	_u.mutation.SetResponseTypes(v)
+	return _u
+}
+
+// AppendResponseTypes appends value to the "response_types" field.
+func (_u *OAuth2ClientUpdate) AppendResponseTypes(v []string) *OAuth2ClientUpdate {
+	_u.mutation.AppendResponseTypes(v)
+	return _u
+}
+
+// ClearResponseTypes clears the value of the "response_types" field.
+func (_u *OAuth2ClientUpdate) ClearResponseTypes() *OAuth2ClientUpdate {
+	_u.mutation.ClearResponseTypes()
+	return _u
+}
+
+// SetAllowedScopes sets the "allowed_scopes" field.
+func (_u *OAuth2ClientUpdate) SetAllowedScopes(v []string) *OAuth2ClientUpdate {
+	_u.mutation.SetAllowedScopes(v)
+	return _u
+}
+
+// AppendAllowedScopes appends value to the "allowed_scopes" field.
+func (_u *OAuth2ClientUpdate) AppendAllowedScopes(v []string) *OAuth2ClientUpdate {
+	_u.mutation.AppendAllowedScopes(v)
+	return _u
+}
+
+// ClearAllowedScopes clears the value of the "allowed_scopes" field.
+func (_u *OAuth2ClientUpdate) ClearAllowedScopes() *OAuth2ClientUpdate {
+	_u.mutation.ClearAllowedScopes()
+	return _u
+}
+
+// SetTokenEndpointAuthMethod sets the "token_endpoint_auth_method" field.
+func (_u *OAuth2ClientUpdate) SetTokenEndpointAuthMethod(v string) *OAuth2ClientUpdate {
+	_u.mutation.SetTokenEndpointAuthMethod(v)
+	return _u
+}
+
+// SetNillableTokenEndpointAuthMethod sets the "token_endpoint_auth_method" field if the given value is not nil.
+func (_u *OAuth2ClientUpdate) SetNillableTokenEndpointAuthMethod(v *string) *OAuth2ClientUpdate {
+	if v != nil {
+		_u.SetTokenEndpointAuthMethod(*v)
+	}
+	return _u
+}
+
+// ClearTokenEndpointAuthMethod clears the value of the "token_endpoint_auth_method" field.
+func (_u *OAuth2ClientUpdate) ClearTokenEndpointAuthMethod() *OAuth2ClientUpdate {
+	_u.mutation.ClearTokenEndpointAuthMethod()
+	return _u
+}
+
+// SetRegistrationTime sets the "registration_time" field.
+func (_u *OAuth2ClientUpdate) SetRegistrationTime(v int64) *OAuth2ClientUpdate {
+	_u.mutation.ResetRegistrationTime()
+	_u.mutation.SetRegistrationTime(v)
+	return _u
+}
+
+// SetNillableRegistrationTime sets the "registration_time" field if the given value is not nil.
+func (_u *OAuth2ClientUpdate) SetNillableRegistrationTime(v *int64) *OAuth2ClientUpdate {
+	if v != nil {
+		_u.SetRegistrationTime(*v)
+	}
+	return _u
+}
+
+// AddRegistrationTime adds value to the "registration_time" field.
+func (_u *OAuth2ClientUpdate) AddRegistrationTime(v int64) *OAuth2ClientUpdate {
+	_u.mutation.AddRegistrationTime(v)
+	return _u
+}
+
+// SetRegistrationTokenID sets the "registration_token_id" field.
+func (_u *OAuth2ClientUpdate) SetRegistrationTokenID(v string) *OAuth2ClientUpdate {
+	_u.mutation.SetRegistrationTokenID(v)
+	return _u
+}
+
+// SetNillableRegistrationTokenID sets the "registration_token_id" field if the given value is not nil.
+func (_u *OAuth2ClientUpdate) SetNillableRegistrationTokenID(v *string) *OAuth2ClientUpdate {
+	if v != nil {
+		_u.SetRegistrationTokenID(*v)
+	}
+	return _u
+}
+
+// ClearRegistrationTokenID clears the value of the "registration_token_id" field.
+func (_u *OAuth2ClientUpdate) ClearRegistrationTokenID() *OAuth2ClientUpdate {
+	_u.mutation.ClearRegistrationTokenID()
+	return _u
+}
+
+// SetRegistrationExpiresAt sets the "registration_expires_at" field.
+func (_u *OAuth2ClientUpdate) SetRegistrationExpiresAt(v int64) *OAuth2ClientUpdate {
+	_u.mutation.ResetRegistrationExpiresAt()
+	_u.mutation.SetRegistrationExpiresAt(v)
+	return _u
+}
+
+// SetNillableRegistrationExpiresAt sets the "registration_expires_at" field if the given value is not nil.
+func (_u *OAuth2ClientUpdate) SetNillableRegistrationExpiresAt(v *int64) *OAuth2ClientUpdate {
+	if v != nil {
+		_u.SetRegistrationExpiresAt(*v)
+	}
+	return _u
+}
+
+// AddRegistrationExpiresAt adds value to the "registration_expires_at" field.
+func (_u *OAuth2ClientUpdate) AddRegistrationExpiresAt(v int64) *OAuth2ClientUpdate {
+	_u.mutation.AddRegistrationExpiresAt(v)
+	return _u
+}
+
 // SetAllowedConnectors sets the "allowed_connectors" field.
 func (_u *OAuth2ClientUpdate) SetAllowedConnectors(v []string) *OAuth2ClientUpdate {
 	_u.mutation.SetAllowedConnectors(v)
@@ -277,30 +427,7 @@ func (_u *OAuth2ClientUpdate) ExecX(ctx context.Context) {
 	}
 }
 
-// check runs all checks and user-defined validators on the builder.
-func (_u *OAuth2ClientUpdate) check() error {
-	if v, ok := _u.mutation.Secret(); ok {
-		if err := oauth2client.SecretValidator(v); err != nil {
-			return &ValidationError{Name: "secret", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.secret": %w`, err)}
-		}
-	}
-	if v, ok := _u.mutation.Name(); ok {
-		if err := oauth2client.NameValidator(v); err != nil {
-			return &ValidationError{Name: "name", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.name": %w`, err)}
-		}
-	}
-	if v, ok := _u.mutation.LogoURL(); ok {
-		if err := oauth2client.LogoURLValidator(v); err != nil {
-			return &ValidationError{Name: "logo_url", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.logo_url": %w`, err)}
-		}
-	}
-	return nil
-}
-
 func (_u *OAuth2ClientUpdate) sqlSave(ctx context.Context) (_node int, err error) {
-	if err := _u.check(); err != nil {
-		return _node, err
-	}
 	_spec := sqlgraph.NewUpdateSpec(oauth2client.Table, oauth2client.Columns, sqlgraph.NewFieldSpec(oauth2client.FieldID, field.TypeString))
 	if ps := _u.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
@@ -342,6 +469,66 @@ func (_u *OAuth2ClientUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if value, ok := _u.mutation.LogoURL(); ok {
 		_spec.SetField(oauth2client.FieldLogoURL, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.DynamicallyRegistered(); ok {
+		_spec.SetField(oauth2client.FieldDynamicallyRegistered, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.GrantTypes(); ok {
+		_spec.SetField(oauth2client.FieldGrantTypes, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedGrantTypes(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, oauth2client.FieldGrantTypes, value)
+		})
+	}
+	if _u.mutation.GrantTypesCleared() {
+		_spec.ClearField(oauth2client.FieldGrantTypes, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.ResponseTypes(); ok {
+		_spec.SetField(oauth2client.FieldResponseTypes, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedResponseTypes(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, oauth2client.FieldResponseTypes, value)
+		})
+	}
+	if _u.mutation.ResponseTypesCleared() {
+		_spec.ClearField(oauth2client.FieldResponseTypes, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.AllowedScopes(); ok {
+		_spec.SetField(oauth2client.FieldAllowedScopes, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedAllowedScopes(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, oauth2client.FieldAllowedScopes, value)
+		})
+	}
+	if _u.mutation.AllowedScopesCleared() {
+		_spec.ClearField(oauth2client.FieldAllowedScopes, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.TokenEndpointAuthMethod(); ok {
+		_spec.SetField(oauth2client.FieldTokenEndpointAuthMethod, field.TypeString, value)
+	}
+	if _u.mutation.TokenEndpointAuthMethodCleared() {
+		_spec.ClearField(oauth2client.FieldTokenEndpointAuthMethod, field.TypeString)
+	}
+	if value, ok := _u.mutation.RegistrationTime(); ok {
+		_spec.SetField(oauth2client.FieldRegistrationTime, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedRegistrationTime(); ok {
+		_spec.AddField(oauth2client.FieldRegistrationTime, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.RegistrationTokenID(); ok {
+		_spec.SetField(oauth2client.FieldRegistrationTokenID, field.TypeString, value)
+	}
+	if _u.mutation.RegistrationTokenIDCleared() {
+		_spec.ClearField(oauth2client.FieldRegistrationTokenID, field.TypeString)
+	}
+	if value, ok := _u.mutation.RegistrationExpiresAt(); ok {
+		_spec.SetField(oauth2client.FieldRegistrationExpiresAt, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedRegistrationExpiresAt(); ok {
+		_spec.AddField(oauth2client.FieldRegistrationExpiresAt, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.AllowedConnectors(); ok {
 		_spec.SetField(oauth2client.FieldAllowedConnectors, field.TypeJSON, value)
@@ -517,6 +704,156 @@ func (_u *OAuth2ClientUpdateOne) SetNillableLogoURL(v *string) *OAuth2ClientUpda
 	return _u
 }
 
+// SetDynamicallyRegistered sets the "dynamically_registered" field.
+func (_u *OAuth2ClientUpdateOne) SetDynamicallyRegistered(v bool) *OAuth2ClientUpdateOne {
+	_u.mutation.SetDynamicallyRegistered(v)
+	return _u
+}
+
+// SetNillableDynamicallyRegistered sets the "dynamically_registered" field if the given value is not nil.
+func (_u *OAuth2ClientUpdateOne) SetNillableDynamicallyRegistered(v *bool) *OAuth2ClientUpdateOne {
+	if v != nil {
+		_u.SetDynamicallyRegistered(*v)
+	}
+	return _u
+}
+
+// SetGrantTypes sets the "grant_types" field.
+func (_u *OAuth2ClientUpdateOne) SetGrantTypes(v []string) *OAuth2ClientUpdateOne {
+	_u.mutation.SetGrantTypes(v)
+	return _u
+}
+
+// AppendGrantTypes appends value to the "grant_types" field.
+func (_u *OAuth2ClientUpdateOne) AppendGrantTypes(v []string) *OAuth2ClientUpdateOne {
+	_u.mutation.AppendGrantTypes(v)
+	return _u
+}
+
+// ClearGrantTypes clears the value of the "grant_types" field.
+func (_u *OAuth2ClientUpdateOne) ClearGrantTypes() *OAuth2ClientUpdateOne {
+	_u.mutation.ClearGrantTypes()
+	return _u
+}
+
+// SetResponseTypes sets the "response_types" field.
+func (_u *OAuth2ClientUpdateOne) SetResponseTypes(v []string) *OAuth2ClientUpdateOne {
+	_u.mutation.SetResponseTypes(v)
+	return _u
+}
+
+// AppendResponseTypes appends value to the "response_types" field.
+func (_u *OAuth2ClientUpdateOne) AppendResponseTypes(v []string) *OAuth2ClientUpdateOne {
+	_u.mutation.AppendResponseTypes(v)
+	return _u
+}
+
+// ClearResponseTypes clears the value of the "response_types" field.
+func (_u *OAuth2ClientUpdateOne) ClearResponseTypes() *OAuth2ClientUpdateOne {
+	_u.mutation.ClearResponseTypes()
+	return _u
+}
+
+// SetAllowedScopes sets the "allowed_scopes" field.
+func (_u *OAuth2ClientUpdateOne) SetAllowedScopes(v []string) *OAuth2ClientUpdateOne {
+	_u.mutation.SetAllowedScopes(v)
+	return _u
+}
+
+// AppendAllowedScopes appends value to the "allowed_scopes" field.
+func (_u *OAuth2ClientUpdateOne) AppendAllowedScopes(v []string) *OAuth2ClientUpdateOne {
+	_u.mutation.AppendAllowedScopes(v)
+	return _u
+}
+
+// ClearAllowedScopes clears the value of the "allowed_scopes" field.
+func (_u *OAuth2ClientUpdateOne) ClearAllowedScopes() *OAuth2ClientUpdateOne {
+	_u.mutation.ClearAllowedScopes()
+	return _u
+}
+
+// SetTokenEndpointAuthMethod sets the "token_endpoint_auth_method" field.
+func (_u *OAuth2ClientUpdateOne) SetTokenEndpointAuthMethod(v string) *OAuth2ClientUpdateOne {
+	_u.mutation.SetTokenEndpointAuthMethod(v)
+	return _u
+}
+
+// SetNillableTokenEndpointAuthMethod sets the "token_endpoint_auth_method" field if the given value is not nil.
+func (_u *OAuth2ClientUpdateOne) SetNillableTokenEndpointAuthMethod(v *string) *OAuth2ClientUpdateOne {
+	if v != nil {
+		_u.SetTokenEndpointAuthMethod(*v)
+	}
+	return _u
+}
+
+// ClearTokenEndpointAuthMethod clears the value of the "token_endpoint_auth_method" field.
+func (_u *OAuth2ClientUpdateOne) ClearTokenEndpointAuthMethod() *OAuth2ClientUpdateOne {
+	_u.mutation.ClearTokenEndpointAuthMethod()
+	return _u
+}
+
+// SetRegistrationTime sets the "registration_time" field.
+func (_u *OAuth2ClientUpdateOne) SetRegistrationTime(v int64) *OAuth2ClientUpdateOne {
+	_u.mutation.ResetRegistrationTime()
+	_u.mutation.SetRegistrationTime(v)
+	return _u
+}
+
+// SetNillableRegistrationTime sets the "registration_time" field if the given value is not nil.
+func (_u *OAuth2ClientUpdateOne) SetNillableRegistrationTime(v *int64) *OAuth2ClientUpdateOne {
+	if v != nil {
+		_u.SetRegistrationTime(*v)
+	}
+	return _u
+}
+
+// AddRegistrationTime adds value to the "registration_time" field.
+func (_u *OAuth2ClientUpdateOne) AddRegistrationTime(v int64) *OAuth2ClientUpdateOne {
+	_u.mutation.AddRegistrationTime(v)
+	return _u
+}
+
+// SetRegistrationTokenID sets the "registration_token_id" field.
+func (_u *OAuth2ClientUpdateOne) SetRegistrationTokenID(v string) *OAuth2ClientUpdateOne {
+	_u.mutation.SetRegistrationTokenID(v)
+	return _u
+}
+
+// SetNillableRegistrationTokenID sets the "registration_token_id" field if the given value is not nil.
+func (_u *OAuth2ClientUpdateOne) SetNillableRegistrationTokenID(v *string) *OAuth2ClientUpdateOne {
+	if v != nil {
+		_u.SetRegistrationTokenID(*v)
+	}
+	return _u
+}
+
+// ClearRegistrationTokenID clears the value of the "registration_token_id" field.
+func (_u *OAuth2ClientUpdateOne) ClearRegistrationTokenID() *OAuth2ClientUpdateOne {
+	_u.mutation.ClearRegistrationTokenID()
+	return _u
+}
+
+// SetRegistrationExpiresAt sets the "registration_expires_at" field.
+func (_u *OAuth2ClientUpdateOne) SetRegistrationExpiresAt(v int64) *OAuth2ClientUpdateOne {
+	_u.mutation.ResetRegistrationExpiresAt()
+	_u.mutation.SetRegistrationExpiresAt(v)
+	return _u
+}
+
+// SetNillableRegistrationExpiresAt sets the "registration_expires_at" field if the given value is not nil.
+func (_u *OAuth2ClientUpdateOne) SetNillableRegistrationExpiresAt(v *int64) *OAuth2ClientUpdateOne {
+	if v != nil {
+		_u.SetRegistrationExpiresAt(*v)
+	}
+	return _u
+}
+
+// AddRegistrationExpiresAt adds value to the "registration_expires_at" field.
+func (_u *OAuth2ClientUpdateOne) AddRegistrationExpiresAt(v int64) *OAuth2ClientUpdateOne {
+	_u.mutation.AddRegistrationExpiresAt(v)
+	return _u
+}
+
 // SetAllowedConnectors sets the "allowed_connectors" field.
 func (_u *OAuth2ClientUpdateOne) SetAllowedConnectors(v []string) *OAuth2ClientUpdateOne {
 	_u.mutation.SetAllowedConnectors(v)
@@ -686,30 +1023,7 @@ func (_u *OAuth2ClientUpdateOne) ExecX(ctx context.Context) {
 	}
 }
 
-// check runs all checks and user-defined validators on the builder.
-func (_u *OAuth2ClientUpdateOne) check() error {
-	if v, ok := _u.mutation.Secret(); ok {
-		if err := oauth2client.SecretValidator(v); err != nil {
-			return &ValidationError{Name: "secret", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.secret": %w`, err)}
-		}
-	}
-	if v, ok := _u.mutation.Name(); ok {
-		if err := oauth2client.NameValidator(v); err != nil {
-			return &ValidationError{Name: "name", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.name": %w`, err)}
-		}
-	}
-	if v, ok := _u.mutation.LogoURL(); ok {
-		if err := oauth2client.LogoURLValidator(v); err != nil {
-			return &ValidationError{Name: "logo_url", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.logo_url": %w`, err)}
-		}
-	}
-	return nil
-}
-
 func (_u *OAuth2ClientUpdateOne) sqlSave(ctx context.Context) (_node *OAuth2Client, err error) {
-	if err := _u.check(); err != nil {
-		return _node, err
-	}
 	_spec := sqlgraph.NewUpdateSpec(oauth2client.Table, oauth2client.Columns, sqlgraph.NewFieldSpec(oauth2client.FieldID, field.TypeString))
 	id, ok := _u.mutation.ID()
 	if !ok {
@@ -768,6 +1082,66 @@ func (_u *OAuth2ClientUpdateOne) sqlSave(ctx context.Context) (_node *OAuth2Clie
 	}
 	if value, ok := _u.mutation.LogoURL(); ok {
 		_spec.SetField(oauth2client.FieldLogoURL, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.DynamicallyRegistered(); ok {
+		_spec.SetField(oauth2client.FieldDynamicallyRegistered, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.GrantTypes(); ok {
+		_spec.SetField(oauth2client.FieldGrantTypes, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedGrantTypes(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, oauth2client.FieldGrantTypes, value)
+		})
+	}
+	if _u.mutation.GrantTypesCleared() {
+		_spec.ClearField(oauth2client.FieldGrantTypes, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.ResponseTypes(); ok {
+		_spec.SetField(oauth2client.FieldResponseTypes, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedResponseTypes(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, oauth2client.FieldResponseTypes, value)
+		})
+	}
+	if _u.mutation.ResponseTypesCleared() {
+		_spec.ClearField(oauth2client.FieldResponseTypes, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.AllowedScopes(); ok {
+		_spec.SetField(oauth2client.FieldAllowedScopes, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedAllowedScopes(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, oauth2client.FieldAllowedScopes, value)
+		})
+	}
+	if _u.mutation.AllowedScopesCleared() {
+		_spec.ClearField(oauth2client.FieldAllowedScopes, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.TokenEndpointAuthMethod(); ok {
+		_spec.SetField(oauth2client.FieldTokenEndpointAuthMethod, field.TypeString, value)
+	}
+	if _u.mutation.TokenEndpointAuthMethodCleared() {
+		_spec.ClearField(oauth2client.FieldTokenEndpointAuthMethod, field.TypeString)
+	}
+	if value, ok := _u.mutation.RegistrationTime(); ok {
+		_spec.SetField(oauth2client.FieldRegistrationTime, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedRegistrationTime(); ok {
+		_spec.AddField(oauth2client.FieldRegistrationTime, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.RegistrationTokenID(); ok {
+		_spec.SetField(oauth2client.FieldRegistrationTokenID, field.TypeString, value)
+	}
+	if _u.mutation.RegistrationTokenIDCleared() {
+		_spec.ClearField(oauth2client.FieldRegistrationTokenID, field.TypeString)
+	}
+	if value, ok := _u.mutation.RegistrationExpiresAt(); ok {
+		_spec.SetField(oauth2client.FieldRegistrationExpiresAt, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedRegistrationExpiresAt(); ok {
+		_spec.AddField(oauth2client.FieldRegistrationExpiresAt, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.AllowedConnectors(); ok {
 		_spec.SetField(oauth2client.FieldAllowedConnectors, field.TypeJSON, value)

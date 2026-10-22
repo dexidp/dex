@@ -82,6 +82,31 @@ func LogoURL(v string) predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.FieldEQ(FieldLogoURL, v))
 }
 
+// DynamicallyRegistered applies equality check predicate on the "dynamically_registered" field. It's identical to DynamicallyRegisteredEQ.
+func DynamicallyRegistered(v bool) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldEQ(FieldDynamicallyRegistered, v))
+}
+
+// TokenEndpointAuthMethod applies equality check predicate on the "token_endpoint_auth_method" field. It's identical to TokenEndpointAuthMethodEQ.
+func TokenEndpointAuthMethod(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldEQ(FieldTokenEndpointAuthMethod, v))
+}
+
+// RegistrationTime applies equality check predicate on the "registration_time" field. It's identical to RegistrationTimeEQ.
+func RegistrationTime(v int64) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldEQ(FieldRegistrationTime, v))
+}
+
+// RegistrationTokenID applies equality check predicate on the "registration_token_id" field. It's identical to RegistrationTokenIDEQ.
+func RegistrationTokenID(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldEQ(FieldRegistrationTokenID, v))
+}
+
+// RegistrationExpiresAt applies equality check predicate on the "registration_expires_at" field. It's identical to RegistrationExpiresAtEQ.
+func RegistrationExpiresAt(v int64) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldEQ(FieldRegistrationExpiresAt, v))
+}
+
 // BackchannelLogoutURI applies equality check predicate on the "backchannel_logout_uri" field. It's identical to BackchannelLogoutURIEQ.
 func BackchannelLogoutURI(v string) predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.FieldEQ(FieldBackchannelLogoutURI, v))
@@ -315,6 +340,276 @@ func LogoURLEqualFold(v string) predicate.OAuth2Client {
 // LogoURLContainsFold applies the ContainsFold predicate on the "logo_url" field.
 func LogoURLContainsFold(v string) predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.FieldContainsFold(FieldLogoURL, v))
+}
+
+// DynamicallyRegisteredEQ applies the EQ predicate on the "dynamically_registered" field.
+func DynamicallyRegisteredEQ(v bool) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldEQ(FieldDynamicallyRegistered, v))
+}
+
+// DynamicallyRegisteredNEQ applies the NEQ predicate on the "dynamically_registered" field.
+func DynamicallyRegisteredNEQ(v bool) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNEQ(FieldDynamicallyRegistered, v))
+}
+
+// GrantTypesIsNil applies the IsNil predicate on the "grant_types" field.
+func GrantTypesIsNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldIsNull(FieldGrantTypes))
+}
+
+// GrantTypesNotNil applies the NotNil predicate on the "grant_types" field.
+func GrantTypesNotNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNotNull(FieldGrantTypes))
+}
+
+// ResponseTypesIsNil applies the IsNil predicate on the "response_types" field.
+func ResponseTypesIsNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldIsNull(FieldResponseTypes))
+}
+
+// ResponseTypesNotNil applies the NotNil predicate on the "response_types" field.
+func ResponseTypesNotNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNotNull(FieldResponseTypes))
+}
+
+// AllowedScopesIsNil applies the IsNil predicate on the "allowed_scopes" field.
+func AllowedScopesIsNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldIsNull(FieldAllowedScopes))
+}
+
+// AllowedScopesNotNil applies the NotNil predicate on the "allowed_scopes" field.
+func AllowedScopesNotNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNotNull(FieldAllowedScopes))
+}
+
+// TokenEndpointAuthMethodEQ applies the EQ predicate on the "token_endpoint_auth_method" field.
+func TokenEndpointAuthMethodEQ(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldEQ(FieldTokenEndpointAuthMethod, v))
+}
+
+// TokenEndpointAuthMethodNEQ applies the NEQ predicate on the "token_endpoint_auth_method" field.
+func TokenEndpointAuthMethodNEQ(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNEQ(FieldTokenEndpointAuthMethod, v))
+}
+
+// TokenEndpointAuthMethodIn applies the In predicate on the "token_endpoint_auth_method" field.
+func TokenEndpointAuthMethodIn(vs ...string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldIn(FieldTokenEndpointAuthMethod, vs...))
+}
+
+// TokenEndpointAuthMethodNotIn applies the NotIn predicate on the "token_endpoint_auth_method" field.
+func TokenEndpointAuthMethodNotIn(vs ...string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNotIn(FieldTokenEndpointAuthMethod, vs...))
+}
+
+// TokenEndpointAuthMethodGT applies the GT predicate on the "token_endpoint_auth_method" field.
+func TokenEndpointAuthMethodGT(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldGT(FieldTokenEndpointAuthMethod, v))
+}
+
+// TokenEndpointAuthMethodGTE applies the GTE predicate on the "token_endpoint_auth_method" field.
+func TokenEndpointAuthMethodGTE(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldGTE(FieldTokenEndpointAuthMethod, v))
+}
+
+// TokenEndpointAuthMethodLT applies the LT predicate on the "token_endpoint_auth_method" field.
+func TokenEndpointAuthMethodLT(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldLT(FieldTokenEndpointAuthMethod, v))
+}
+
+// TokenEndpointAuthMethodLTE applies the LTE predicate on the "token_endpoint_auth_method" field.
+func TokenEndpointAuthMethodLTE(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldLTE(FieldTokenEndpointAuthMethod, v))
+}
+
+// TokenEndpointAuthMethodContains applies the Contains predicate on the "token_endpoint_auth_method" field.
+func TokenEndpointAuthMethodContains(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldContains(FieldTokenEndpointAuthMethod, v))
+}
+
+// TokenEndpointAuthMethodHasPrefix applies the HasPrefix predicate on the "token_endpoint_auth_method" field.
+func TokenEndpointAuthMethodHasPrefix(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldHasPrefix(FieldTokenEndpointAuthMethod, v))
+}
+
+// TokenEndpointAuthMethodHasSuffix applies the HasSuffix predicate on the "token_endpoint_auth_method" field.
+func TokenEndpointAuthMethodHasSuffix(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldHasSuffix(FieldTokenEndpointAuthMethod, v))
+}
+
+// TokenEndpointAuthMethodIsNil applies the IsNil predicate on the "token_endpoint_auth_method" field.
+func TokenEndpointAuthMethodIsNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldIsNull(FieldTokenEndpointAuthMethod))
+}
+
+// TokenEndpointAuthMethodNotNil applies the NotNil predicate on the "token_endpoint_auth_method" field.
+func TokenEndpointAuthMethodNotNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNotNull(FieldTokenEndpointAuthMethod))
+}
+
+// TokenEndpointAuthMethodEqualFold applies the EqualFold predicate on the "token_endpoint_auth_method" field.
+func TokenEndpointAuthMethodEqualFold(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldEqualFold(FieldTokenEndpointAuthMethod, v))
+}
+
+// TokenEndpointAuthMethodContainsFold applies the ContainsFold predicate on the "token_endpoint_auth_method" field.
+func TokenEndpointAuthMethodContainsFold(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldContainsFold(FieldTokenEndpointAuthMethod, v))
+}
+
+// RegistrationTimeEQ applies the EQ predicate on the "registration_time" field.
+func RegistrationTimeEQ(v int64) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldEQ(FieldRegistrationTime, v))
+}
+
+// RegistrationTimeNEQ applies the NEQ predicate on the "registration_time" field.
+func RegistrationTimeNEQ(v int64) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNEQ(FieldRegistrationTime, v))
+}
+
+// RegistrationTimeIn applies the In predicate on the "registration_time" field.
+func RegistrationTimeIn(vs ...int64) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldIn(FieldRegistrationTime, vs...))
+}
+
+// RegistrationTimeNotIn applies the NotIn predicate on the "registration_time" field.
+func RegistrationTimeNotIn(vs ...int64) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNotIn(FieldRegistrationTime, vs...))
+}
+
+// RegistrationTimeGT applies the GT predicate on the "registration_time" field.
+func RegistrationTimeGT(v int64) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldGT(FieldRegistrationTime, v))
+}
+
+// RegistrationTimeGTE applies the GTE predicate on the "registration_time" field.
+func RegistrationTimeGTE(v int64) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldGTE(FieldRegistrationTime, v))
+}
+
+// RegistrationTimeLT applies the LT predicate on the "registration_time" field.
+func RegistrationTimeLT(v int64) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldLT(FieldRegistrationTime, v))
+}
+
+// RegistrationTimeLTE applies the LTE predicate on the "registration_time" field.
+func RegistrationTimeLTE(v int64) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldLTE(FieldRegistrationTime, v))
+}
+
+// RegistrationTokenIDEQ applies the EQ predicate on the "registration_token_id" field.
+func RegistrationTokenIDEQ(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldEQ(FieldRegistrationTokenID, v))
+}
+
+// RegistrationTokenIDNEQ applies the NEQ predicate on the "registration_token_id" field.
+func RegistrationTokenIDNEQ(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNEQ(FieldRegistrationTokenID, v))
+}
+
+// RegistrationTokenIDIn applies the In predicate on the "registration_token_id" field.
+func RegistrationTokenIDIn(vs ...string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldIn(FieldRegistrationTokenID, vs...))
+}
+
+// RegistrationTokenIDNotIn applies the NotIn predicate on the "registration_token_id" field.
+func RegistrationTokenIDNotIn(vs ...string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNotIn(FieldRegistrationTokenID, vs...))
+}
+
+// RegistrationTokenIDGT applies the GT predicate on the "registration_token_id" field.
+func RegistrationTokenIDGT(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldGT(FieldRegistrationTokenID, v))
+}
+
+// RegistrationTokenIDGTE applies the GTE predicate on the "registration_token_id" field.
+func RegistrationTokenIDGTE(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldGTE(FieldRegistrationTokenID, v))
+}
+
+// RegistrationTokenIDLT applies the LT predicate on the "registration_token_id" field.
+func RegistrationTokenIDLT(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldLT(FieldRegistrationTokenID, v))
+}
+
+// RegistrationTokenIDLTE applies the LTE predicate on the "registration_token_id" field.
+func RegistrationTokenIDLTE(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldLTE(FieldRegistrationTokenID, v))
+}
+
+// RegistrationTokenIDContains applies the Contains predicate on the "registration_token_id" field.
+func RegistrationTokenIDContains(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldContains(FieldRegistrationTokenID, v))
+}
+
+// RegistrationTokenIDHasPrefix applies the HasPrefix predicate on the "registration_token_id" field.
+func RegistrationTokenIDHasPrefix(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldHasPrefix(FieldRegistrationTokenID, v))
+}
+
+// RegistrationTokenIDHasSuffix applies the HasSuffix predicate on the "registration_token_id" field.
+func RegistrationTokenIDHasSuffix(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldHasSuffix(FieldRegistrationTokenID, v))
+}
+
+// RegistrationTokenIDIsNil applies the IsNil predicate on the "registration_token_id" field.
+func RegistrationTokenIDIsNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldIsNull(FieldRegistrationTokenID))
+}
+
+// RegistrationTokenIDNotNil applies the NotNil predicate on the "registration_token_id" field.
+func RegistrationTokenIDNotNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNotNull(FieldRegistrationTokenID))
+}
+
+// RegistrationTokenIDEqualFold applies the EqualFold predicate on the "registration_token_id" field.
+func RegistrationTokenIDEqualFold(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldEqualFold(FieldRegistrationTokenID, v))
+}
+
+// RegistrationTokenIDContainsFold applies the ContainsFold predicate on the "registration_token_id" field.
+func RegistrationTokenIDContainsFold(v string) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldContainsFold(FieldRegistrationTokenID, v))
+}
+
+// RegistrationExpiresAtEQ applies the EQ predicate on the "registration_expires_at" field.
+func RegistrationExpiresAtEQ(v int64) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldEQ(FieldRegistrationExpiresAt, v))
+}
+
+// RegistrationExpiresAtNEQ applies the NEQ predicate on the "registration_expires_at" field.
+func RegistrationExpiresAtNEQ(v int64) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNEQ(FieldRegistrationExpiresAt, v))
+}
+
+// RegistrationExpiresAtIn applies the In predicate on the "registration_expires_at" field.
+func RegistrationExpiresAtIn(vs ...int64) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldIn(FieldRegistrationExpiresAt, vs...))
+}
+
+// RegistrationExpiresAtNotIn applies the NotIn predicate on the "registration_expires_at" field.
+func RegistrationExpiresAtNotIn(vs ...int64) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNotIn(FieldRegistrationExpiresAt, vs...))
+}
+
+// RegistrationExpiresAtGT applies the GT predicate on the "registration_expires_at" field.
+func RegistrationExpiresAtGT(v int64) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldGT(FieldRegistrationExpiresAt, v))
+}
+
+// RegistrationExpiresAtGTE applies the GTE predicate on the "registration_expires_at" field.
+func RegistrationExpiresAtGTE(v int64) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldGTE(FieldRegistrationExpiresAt, v))
+}
+
+// RegistrationExpiresAtLT applies the LT predicate on the "registration_expires_at" field.
+func RegistrationExpiresAtLT(v int64) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldLT(FieldRegistrationExpiresAt, v))
+}
+
+// RegistrationExpiresAtLTE applies the LTE predicate on the "registration_expires_at" field.
+func RegistrationExpiresAtLTE(v int64) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldLTE(FieldRegistrationExpiresAt, v))
 }
 
 // AllowedConnectorsIsNil applies the IsNil predicate on the "allowed_connectors" field.

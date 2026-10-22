@@ -138,6 +138,12 @@ web:
 #     enforce: false
 #     # Supported code challenge methods. Defaults to ["S256", "plain"].
 #     codeChallengeMethodsSupported: ["S256", "plain"]
+#
+#   # RFC 7591 dynamic client registration. Keep the initial access token secret;
+#   # unauthenticated registration is not supported.
+#   dynamicClientRegistration:
+#     enabled: true
+#     initialAccessTokenEnv: DEX_REGISTRATION_INITIAL_ACCESS_TOKEN
 
 # Static clients registered in Dex by default.
 #
