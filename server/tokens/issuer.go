@@ -22,6 +22,8 @@ type Issuer struct {
 	signer           signer.Signer
 	issuerURL        url.URL
 	idTokensValidFor time.Duration
+	subjectFormat    SubjectFormat
+	subjectOrder     SubjectOrder
 	now              func() time.Time
 	logger           *slog.Logger
 
@@ -30,12 +32,17 @@ type Issuer struct {
 }
 
 // NewIssuer wires an issuer from the shared dependencies.
-func NewIssuer(storage storage.Storage, sig signer.Signer, issuerURL url.URL, idTokensValidFor time.Duration, now func() time.Time, logger *slog.Logger) *Issuer {
+func NewIssuer(storage storage.Storage, sig signer.Signer, issuerURL url.URL, idTokensValidFor time.Duration, subjectFormat SubjectFormat, now func() time.Time, logger *slog.Logger) *Issuer {
+	if subjectFormat == "" {
+		subjectFormat = SubjectFormatBase64
+	}
 	return &Issuer{
 		storage:          storage,
 		signer:           sig,
 		issuerURL:        issuerURL,
 		idTokensValidFor: idTokensValidFor,
+		subjectFormat:    subjectFormat,
+		subjectOrder:     SubjectOrderUserConnector,
 		now:              now,
 		logger:           logger,
 		Refresh:          NewRefreshStore(storage, now, logger),
@@ -83,6 +90,18 @@ func (i *Issuer) IssueResponse(ctx context.Context, auth Authorization, code str
 	return ts.Response(i.now()), nil
 }
 
+func (i *Issuer) Subject(userID, connectorID string) (string, error) {
+	return GenSubjectWithFormatAndOrder(userID, connectorID, i.subjectFormat, i.subjectOrder)
+}
+
+func (i *Issuer) SetSubjectOrder(order SubjectOrder) {
+	if order == "" {
+		i.subjectOrder = SubjectOrderUserConnector
+		return
+	}
+	i.subjectOrder = order
+}
+
 // SignAccessToken mints an opaque-looking JWT access token. Dex's access token is
 // an ID token bound to a random value, so each access token is unique.
 func (i *Issuer) SignAccessToken(ctx context.Context, auth Authorization) (string, time.Time, error) {
@@ -95,7 +114,7 @@ func (i *Issuer) SignIDToken(ctx context.Context, auth Authorization, accessToke
 	issuedAt := i.now()
 	expiry := issuedAt.Add(i.idTokensValidFor)
 
-	subjectString, err := GenSubject(auth.Claims.UserID, auth.ConnectorID)
+	subjectString, err := GenSubjectWithFormatAndOrder(auth.Claims.UserID, auth.ConnectorID, i.subjectFormat, i.subjectOrder)
 	if err != nil {
 		i.logger.ErrorContext(ctx, "failed to marshal offline session ID", "err", err)
 		return "", expiry, fmt.Errorf("failed to marshal offline session ID: %v", err)
