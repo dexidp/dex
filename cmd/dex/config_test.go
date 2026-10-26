@@ -12,6 +12,7 @@ import (
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/connector/jwt"
 	"github.com/dexidp/dex/connector/mock"
 	"github.com/dexidp/dex/connector/oidc"
 	"github.com/dexidp/dex/server"
@@ -157,6 +158,20 @@ connectors:
     clientID: foo
     clientSecret: bar
     redirectURI: http://127.0.0.1:5556/dex/callback/google
+- type: jwt
+  id: jwt
+  name: Upstream JWT
+  config:
+    issuer: https://idp.example.com
+    jwksURL: https://idp.example.com/keys
+    audiences:
+    - argocd
+    header: X-Access-Token
+    roleMapping:
+    - claim: department
+      value: platform
+      groups:
+      - argocd-admins
 
 enablePasswordDB: true
 staticPasswords:
@@ -258,6 +273,24 @@ additionalFeatures: [
 					ClientID:     "foo",
 					ClientSecret: "bar",
 					RedirectURI:  "http://127.0.0.1:5556/dex/callback/google",
+				},
+			},
+			{
+				Type: "jwt",
+				ID:   "jwt",
+				Name: "Upstream JWT",
+				Config: &jwt.Config{
+					Issuer:    "https://idp.example.com",
+					JWKSURL:   "https://idp.example.com/keys",
+					Audiences: []string{"argocd"},
+					Header:    "X-Access-Token",
+					RoleMapping: []jwt.RoleMapping{
+						{
+							Claim:  "department",
+							Value:  "platform",
+							Groups: []string{"argocd-admins"},
+						},
+					},
 				},
 			},
 		},
