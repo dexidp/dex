@@ -123,6 +123,8 @@ type Config struct {
 		NewGroupFromClaims []NewGroupFromClaims `json:"newGroupFromClaims"`
 		FilterGroupClaims  FilterGroupClaims    `json:"filterGroupClaims"`
 		ModifyGroupNames   ModifyGroupNames     `json:"modifyGroupNames"`
+		// IdentityPrefix keeps identities unique when several connectors (e.g. ServiceAccount tokens from different clusters) emit the same values.
+		IdentityPrefix string `json:"identityPrefix"`
 	} `json:"claimModifications"`
 }
 
@@ -409,6 +411,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		groupsFilter:              groupsFilter,
 		groupsPrefix:              c.ClaimMutations.ModifyGroupNames.Prefix,
 		groupsSuffix:              c.ClaimMutations.ModifyGroupNames.Suffix,
+		identityPrefix:            c.ClaimMutations.IdentityPrefix,
 		pkceChallenge:             c.PKCEChallenge,
 		endSessionURL:             endSessionURL,
 	}, nil
@@ -445,6 +448,7 @@ type oidcConnector struct {
 	groupsFilter              *regexp.Regexp
 	groupsPrefix              string
 	groupsSuffix              string
+	identityPrefix            string
 	pkceChallenge             string
 	endSessionURL             string
 }
@@ -773,6 +777,15 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 			return identity, fmt.Errorf("oidc: not found %v claim", c.userIDKey)
 		}
 		identity.UserID = userID
+	}
+
+	if c.identityPrefix != "" {
+		if identity.PreferredUsername != "" {
+			identity.PreferredUsername = c.identityPrefix + identity.PreferredUsername
+		}
+		if identity.Email != "" {
+			identity.Email = c.identityPrefix + identity.Email
+		}
 	}
 
 	return identity, nil

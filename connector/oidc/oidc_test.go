@@ -680,14 +680,23 @@ func TestTokenIdentity(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		subjectType string
-		userInfo    bool
-		expectError bool
+		name           string
+		subjectType    string
+		userInfo       bool
+		expectError    bool
+		identityPrefix string
 	}{
 		{
 			name:        "id_token",
 			subjectType: tokenTypeID,
+		}, {
+			name:           "id_token with empty identityPrefix",
+			subjectType:    tokenTypeID,
+			identityPrefix: "",
+		}, {
+			name:           "id_token with identityPrefix",
+			subjectType:    tokenTypeID,
+			identityPrefix: "ags:",
 		}, {
 			name:        "access_token",
 			subjectType: tokenTypeAccess,
@@ -709,17 +718,21 @@ func TestTokenIdentity(t *testing.T) {
 			defer cancel()
 
 			testServer, err := setupServer(map[string]any{
-				"sub":  "subvalue",
-				"name": "namevalue",
+				"sub":                "subvalue",
+				"name":               "namevalue",
+				"preferred_username": "usernamevalue",
+				"email":              "emailvalue",
 			}, true)
 			if err != nil {
 				t.Fatal("failed to setup test server", err)
 			}
-			conn, err := newConnector(Config{
+			config := Config{
 				Issuer:      testServer.URL,
 				Scopes:      []string{"openid", "groups"},
 				GetUserInfo: tc.userInfo,
-			})
+			}
+			config.ClaimMutations.IdentityPrefix = tc.identityPrefix
+			conn, err := newConnector(config)
 			if err != nil {
 				t.Fatal("failed to create new connector", err)
 			}
@@ -747,6 +760,8 @@ func TestTokenIdentity(t *testing.T) {
 			// assert identity
 			expectEquals(t, identity.UserID, "subvalue")
 			expectEquals(t, identity.Username, "namevalue")
+			expectEquals(t, identity.PreferredUsername, tc.identityPrefix+"usernamevalue")
+			expectEquals(t, identity.Email, tc.identityPrefix+"emailvalue")
 		})
 	}
 }
