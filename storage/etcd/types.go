@@ -341,6 +341,7 @@ type AuthSession struct {
 	AbsoluteExpiry time.Time                           `json:"absolute_expiry"`
 	IdleExpiry     time.Time                           `json:"idle_expiry"`
 	LogoutState    *storage.LogoutState                `json:"logout_state,omitempty"`
+	SessionData    []byte                              `json:"session_data,omitempty"`
 }
 
 func fromStorageAuthSession(s storage.AuthSession) AuthSession {
@@ -357,6 +358,7 @@ func fromStorageAuthSession(s storage.AuthSession) AuthSession {
 		AbsoluteExpiry: s.AbsoluteExpiry,
 		IdleExpiry:     s.IdleExpiry,
 		LogoutState:    s.LogoutState,
+		SessionData:    s.SessionData,
 	}
 }
 
@@ -374,6 +376,7 @@ func toStorageAuthSession(s AuthSession) storage.AuthSession {
 		AbsoluteExpiry: s.AbsoluteExpiry,
 		IdleExpiry:     s.IdleExpiry,
 		LogoutState:    s.LogoutState,
+		SessionData:    s.SessionData,
 	}
 	if result.ClientStates == nil {
 		result.ClientStates = make(map[string]*storage.ClientAuthState)

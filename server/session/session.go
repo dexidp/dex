@@ -210,7 +210,7 @@ func (m *Manager) ValidAuthSession(ctx context.Context, w http.ResponseWriter, r
 // signing out on one device leave the other alone. A cookie naming someone else's
 // session — another user, or another connector — is about to be overwritten, so the
 // session it named is deleted rather than left unreachable until it times out.
-func (m *Manager) CreateOrUpdateAuthSession(ctx context.Context, r *http.Request, w http.ResponseWriter, authReq storage.AuthRequest, rememberMe bool) error {
+func (m *Manager) CreateOrUpdateAuthSession(ctx context.Context, r *http.Request, w http.ResponseWriter, authReq storage.AuthRequest, sessionData []byte, rememberMe bool) error {
 	if m.Config == nil {
 		return nil
 	}
@@ -238,6 +238,7 @@ func (m *Manager) CreateOrUpdateAuthSession(ctx context.Context, r *http.Request
 					old.ClientStates = make(map[string]*storage.ClientAuthState)
 				}
 				old.ClientStates[authReq.ClientID] = clientState
+				old.SessionData = sessionData
 				return old, nil
 			}); err != nil {
 				return fmt.Errorf("update auth session: %w", err)
@@ -266,6 +267,7 @@ func (m *Manager) CreateOrUpdateAuthSession(ctx context.Context, r *http.Request
 		UserAgent:      r.UserAgent(),
 		AbsoluteExpiry: now.Add(m.Config.AbsoluteLifetime),
 		IdleExpiry:     now.Add(m.Config.ValidIfNotUsedFor),
+		SessionData:    sessionData,
 	}
 
 	if err := m.Storage.CreateAuthSession(ctx, newSession); err != nil {

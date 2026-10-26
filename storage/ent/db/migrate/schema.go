@@ -84,6 +84,7 @@ var (
 		{Name: "absolute_expiry", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)", "postgres": "timestamptz", "sqlite3": "timestamp"}},
 		{Name: "idle_expiry", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)", "postgres": "timestamptz", "sqlite3": "timestamp"}},
 		{Name: "logout_state", Type: field.TypeBytes, Nullable: true},
+		{Name: "session_data", Type: field.TypeBytes, Nullable: true},
 	}
 	// AuthSessionsTable holds the schema information for the "auth_sessions" table.
 	AuthSessionsTable = &schema.Table{

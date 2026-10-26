@@ -102,6 +102,12 @@ func (_c *AuthSessionCreate) SetLogoutState(v []byte) *AuthSessionCreate {
 	return _c
 }
 
+// SetSessionData sets the "session_data" field.
+func (_c *AuthSessionCreate) SetSessionData(v []byte) *AuthSessionCreate {
+	_c.mutation.SetSessionData(v)
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *AuthSessionCreate) SetID(v string) *AuthSessionCreate {
 	_c.mutation.SetID(v)
@@ -283,6 +289,10 @@ func (_c *AuthSessionCreate) createSpec() (*AuthSession, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.LogoutState(); ok {
 		_spec.SetField(authsession.FieldLogoutState, field.TypeBytes, value)
 		_node.LogoutState = value
+	}
+	if value, ok := _c.mutation.SessionData(); ok {
+		_spec.SetField(authsession.FieldSessionData, field.TypeBytes, value)
+		_node.SessionData = value
 	}
 	return _node, _spec
 }

@@ -1000,16 +1000,16 @@ func (c *conn) CreateAuthSession(ctx context.Context, s storage.AuthSession) err
 			created_at, last_activity,
 			ip_address, user_agent,
 			absolute_expiry, idle_expiry,
-			logout_state
+			logout_state, session_data
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);
 	`,
 		s.ID, s.Secret, s.UserID, s.ConnectorID,
 		encoder(s.ClientStates),
 		s.CreatedAt, s.LastActivity,
 		s.IPAddress, s.UserAgent,
 		s.AbsoluteExpiry, s.IdleExpiry,
-		encoder(s.LogoutState),
+		encoder(s.LogoutState), s.SessionData,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -1039,14 +1039,16 @@ func (c *conn) UpdateAuthSession(ctx context.Context, id string, updater func(s 
 				ip_address = $3,
 				user_agent = $4,
 				idle_expiry = $5,
-				logout_state = $6
-			where id = $7;
+				logout_state = $6,
+				session_data = $7
+			where id = $8;
 		`,
 			encoder(newSession.ClientStates),
 			newSession.LastActivity,
 			newSession.IPAddress, newSession.UserAgent,
 			newSession.IdleExpiry,
 			encoder(newSession.LogoutState),
+			newSession.SessionData,
 			id,
 		)
 		if err != nil {
@@ -1066,7 +1068,7 @@ const authSessionColumns = `
 	created_at, last_activity,
 	ip_address, user_agent,
 	absolute_expiry, idle_expiry,
-	logout_state
+	logout_state, session_data
 `
 
 func getAuthSession(ctx context.Context, q querier, id string) (storage.AuthSession, error) {
@@ -1085,7 +1087,7 @@ func scanAuthSession(s scanner) (session storage.AuthSession, err error) {
 		&session.CreatedAt, &session.LastActivity,
 		&session.IPAddress, &session.UserAgent,
 		&session.AbsoluteExpiry, &session.IdleExpiry,
-		&logoutState,
+		&logoutState, &session.SessionData,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {

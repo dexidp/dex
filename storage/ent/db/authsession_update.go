@@ -172,6 +172,18 @@ func (_u *AuthSessionUpdate) ClearLogoutState() *AuthSessionUpdate {
 	return _u
 }
 
+// SetSessionData sets the "session_data" field.
+func (_u *AuthSessionUpdate) SetSessionData(v []byte) *AuthSessionUpdate {
+	_u.mutation.SetSessionData(v)
+	return _u
+}
+
+// ClearSessionData clears the value of the "session_data" field.
+func (_u *AuthSessionUpdate) ClearSessionData() *AuthSessionUpdate {
+	_u.mutation.ClearSessionData()
+	return _u
+}
+
 // Mutation returns the AuthSessionMutation object of the builder.
 func (_u *AuthSessionUpdate) Mutation() *AuthSessionMutation {
 	return _u.mutation
@@ -271,6 +283,12 @@ func (_u *AuthSessionUpdate) sqlSave(ctx context.Context) (_node int, err error)
 	}
 	if _u.mutation.LogoutStateCleared() {
 		_spec.ClearField(authsession.FieldLogoutState, field.TypeBytes)
+	}
+	if value, ok := _u.mutation.SessionData(); ok {
+		_spec.SetField(authsession.FieldSessionData, field.TypeBytes, value)
+	}
+	if _u.mutation.SessionDataCleared() {
+		_spec.ClearField(authsession.FieldSessionData, field.TypeBytes)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -436,6 +454,18 @@ func (_u *AuthSessionUpdateOne) ClearLogoutState() *AuthSessionUpdateOne {
 	return _u
 }
 
+// SetSessionData sets the "session_data" field.
+func (_u *AuthSessionUpdateOne) SetSessionData(v []byte) *AuthSessionUpdateOne {
+	_u.mutation.SetSessionData(v)
+	return _u
+}
+
+// ClearSessionData clears the value of the "session_data" field.
+func (_u *AuthSessionUpdateOne) ClearSessionData() *AuthSessionUpdateOne {
+	_u.mutation.ClearSessionData()
+	return _u
+}
+
 // Mutation returns the AuthSessionMutation object of the builder.
 func (_u *AuthSessionUpdateOne) Mutation() *AuthSessionMutation {
 	return _u.mutation
@@ -565,6 +595,12 @@ func (_u *AuthSessionUpdateOne) sqlSave(ctx context.Context) (_node *AuthSession
 	}
 	if _u.mutation.LogoutStateCleared() {
 		_spec.ClearField(authsession.FieldLogoutState, field.TypeBytes)
+	}
+	if value, ok := _u.mutation.SessionData(); ok {
+		_spec.SetField(authsession.FieldSessionData, field.TypeBytes, value)
+	}
+	if _u.mutation.SessionDataCleared() {
+		_spec.ClearField(authsession.FieldSessionData, field.TypeBytes)
 	}
 	_node = &AuthSession{config: _u.config}
 	_spec.Assign = _node.assignValues

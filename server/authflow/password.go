@@ -121,7 +121,7 @@ func (h *Handler) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		}
 
 		rememberMe := r.FormValue("remember_me") == "on"
-		if err := h.Sessions.CreateOrUpdateAuthSession(ctx, r, w, authReq, rememberMe); err != nil {
+		if err := h.Sessions.CreateOrUpdateAuthSession(ctx, r, w, authReq, identity.SessionData, rememberMe); err != nil {
 			h.Logger.ErrorContext(ctx, "failed to create/update auth session", "err", err)
 		}
 

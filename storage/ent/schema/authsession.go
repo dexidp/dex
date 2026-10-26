@@ -43,6 +43,8 @@ func (AuthSession) Fields() []ent.Field {
 			SchemaType(timeSchema),
 		field.Bytes("logout_state").
 			Optional(),
+		field.Bytes("session_data").
+			Optional(),
 	}
 }
 

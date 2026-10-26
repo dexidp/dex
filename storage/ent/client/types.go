@@ -247,6 +247,7 @@ func toStorageAuthSession(s *db.AuthSession) storage.AuthSession {
 		UserAgent:      s.UserAgent,
 		AbsoluteExpiry: s.AbsoluteExpiry,
 		IdleExpiry:     s.IdleExpiry,
+		SessionData:    s.SessionData,
 	}
 
 	if s.ClientStates != nil {
