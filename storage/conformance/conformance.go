@@ -22,7 +22,7 @@ const keyRoundTripPayload = "storage-keys-round-trip"
 var neverExpire = time.Now().UTC().Add(time.Hour * 24 * 365 * 100)
 
 // defaultAuthTime is a non-zero time used as AuthTime default in tests.
-// MySQL rejects Go's zero time (0001-01-01), so all test fixtures must use a real value.
+// testUnsetAuthTime covers the zero value separately.
 var defaultAuthTime = time.Now().UTC()
 
 type subTest struct {
@@ -59,6 +59,7 @@ func RunTests(t *testing.T, newStorage func(t *testing.T) storage.Storage) {
 		{"DeviceTokenCRUD", testDeviceTokenCRUD},
 		{"UserIdentityCRUD", testUserIdentityCRUD},
 		{"AuthSessionCRUD", testAuthSessionCRUD},
+		{"UnsetAuthTime", testUnsetAuthTime},
 	})
 }
 
@@ -1504,4 +1505,73 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 	// Get deleted should return ErrNotFound.
 	_, err = s.GetAuthSession(ctx, session.ID)
 	mustBeErrNotFound(t, "auth session", err)
+}
+
+// testUnsetAuthTime checks that auth requests and auth codes can be stored
+// before the user has authenticated, with a zero AuthTime, and that the value
+// reads back as zero. The server creates every auth request this way.
+func testUnsetAuthTime(t *testing.T, s storage.Storage) {
+	ctx := t.Context()
+
+	req := storage.AuthRequest{
+		ID:            storage.NewID(),
+		ClientID:      "client1",
+		ResponseTypes: []string{"code"},
+		Scopes:        []string{"openid"},
+		RedirectURI:   "https://localhost:80/callback",
+		Nonce:         "foo",
+		Expiry:        neverExpire,
+		HMACKey:       []byte("hmac_key"),
+	}
+	if err := s.CreateAuthRequest(ctx, req); err != nil {
+		t.Fatalf("failed creating auth request with unset auth time: %v", err)
+	}
+	gotReq, err := s.GetAuthRequest(ctx, req.ID)
+	if err != nil {
+		t.Fatalf("failed getting auth request: %v", err)
+	}
+	if !gotReq.AuthTime.IsZero() {
+		t.Errorf("auth request: expected zero auth time, got %v", gotReq.AuthTime)
+	}
+
+	// The server updates the request (for example with the chosen connector)
+	// before the user authenticates.
+	if err := s.UpdateAuthRequest(ctx, req.ID, func(old storage.AuthRequest) (storage.AuthRequest, error) {
+		old.ConnectorID = "ldap"
+		return old, nil
+	}); err != nil {
+		t.Fatalf("failed updating auth request with unset auth time: %v", err)
+	}
+	gotReq, err = s.GetAuthRequest(ctx, req.ID)
+	if err != nil {
+		t.Fatalf("failed getting auth request: %v", err)
+	}
+	if !gotReq.AuthTime.IsZero() {
+		t.Errorf("updated auth request: expected zero auth time, got %v", gotReq.AuthTime)
+	}
+
+	code := storage.AuthCode{
+		ID:          storage.NewID(),
+		ClientID:    "client1",
+		RedirectURI: "https://localhost:80/callback",
+		Nonce:       "foo",
+		Scopes:      []string{"openid"},
+		Expiry:      neverExpire,
+		ConnectorID: "ldap",
+		Claims: storage.Claims{
+			UserID:   "1",
+			Username: "jane",
+			Email:    "jane.doe@example.com",
+		},
+	}
+	if err := s.CreateAuthCode(ctx, code); err != nil {
+		t.Fatalf("failed creating auth code with unset auth time: %v", err)
+	}
+	gotCode, err := s.GetAuthCode(ctx, code.ID)
+	if err != nil {
+		t.Fatalf("failed getting auth code: %v", err)
+	}
+	if !gotCode.AuthTime.IsZero() {
+		t.Errorf("auth code: expected zero auth time, got %v", gotCode.AuthTime)
+	}
 }
