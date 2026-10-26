@@ -1206,3 +1206,88 @@ func TestEndSessionURLOverride(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "https://custom.example.com/logout", conn.endSessionURL)
 }
+
+func TestUserInfoRequestMethod(t *testing.T) {
+	tests := []struct {
+		name         string
+		method       string
+		serverMethod string // the only method the test userinfo endpoint accepts
+		wantErr      bool
+		wantOpenErr  bool
+	}{
+		{name: "default is GET", method: "", serverMethod: http.MethodGet},
+		{name: "explicit GET", method: "GET", serverMethod: http.MethodGet},
+		{name: "POST", method: "POST", serverMethod: http.MethodPost},
+		{name: "lower case post", method: "post", serverMethod: http.MethodPost},
+		{name: "POST against GET-only endpoint", method: "POST", serverMethod: http.MethodGet, wantErr: true},
+		{name: "GET against POST-only endpoint", method: "GET", serverMethod: http.MethodPost, wantErr: true},
+		{name: "invalid method", method: "PUT", wantOpenErr: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mux, err := oidcTestMux(map[string]interface{}{
+				"sub":  "subvalue",
+				"name": "namevalue",
+			}, true)
+			if err != nil {
+				t.Fatal("failed to setup test mux", err)
+			}
+			// Only let the userinfo endpoint answer to a single HTTP method and
+			// require the access token as a bearer token.
+			testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/userinfo" {
+					if r.Method != tc.serverMethod {
+						http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+						return
+					}
+					if !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
+						http.Error(w, "missing bearer token", http.StatusUnauthorized)
+						return
+					}
+				}
+				mux.ServeHTTP(w, r)
+			}))
+			defer testServer.Close()
+
+			conn, err := newConnector(Config{
+				Issuer:                testServer.URL,
+				Scopes:                []string{"openid"},
+				GetUserInfo:           true,
+				UserInfoRequestMethod: tc.method,
+			})
+			if tc.wantOpenErr {
+				if err == nil {
+					t.Fatal("expected an error opening the connector")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal("failed to create new connector", err)
+			}
+
+			res, err := http.Get(testServer.URL + "/token")
+			if err != nil {
+				t.Fatal("failed to get initial token", err)
+			}
+			defer res.Body.Close()
+			var tokenResponse map[string]any
+			if err := json.NewDecoder(res.Body).Decode(&tokenResponse); err != nil {
+				t.Fatal("failed to decode initial token", err)
+			}
+
+			identity, err := conn.TokenIdentity(context.Background(),
+				"urn:ietf:params:oauth:token-type:access_token", tokenResponse["access_token"].(string))
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected an error loading userinfo")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal("failed to get token identity", err)
+			}
+			expectEquals(t, identity.UserID, "subvalue")
+			expectEquals(t, identity.Username, "namevalue")
+		})
+	}
+}

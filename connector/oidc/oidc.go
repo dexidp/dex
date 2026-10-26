@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"mime"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -90,6 +92,11 @@ type Config struct {
 	// the token. This is especially useful where upstreams return "thin"
 	// id tokens
 	GetUserInfo bool `json:"getUserInfo"`
+
+	// UserInfoRequestMethod is the HTTP method used when calling the userinfo
+	// endpoint. OpenID Connect Core section 5.3.1 allows both GET and POST.
+	// Accepted values are "GET" (default) and "POST".
+	UserInfoRequestMethod string `json:"userInfoRequestMethod"`
 
 	UserIDKey string `json:"userIDKey"`
 
@@ -375,6 +382,16 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		}
 	}
 
+	userInfoMethod := strings.ToUpper(c.UserInfoRequestMethod)
+	switch userInfoMethod {
+	case "":
+		userInfoMethod = http.MethodGet
+	case http.MethodGet, http.MethodPost:
+	default:
+		cancel()
+		return nil, fmt.Errorf("oidc: invalid userInfoRequestMethod %q, must be GET or POST", c.UserInfoRequestMethod)
+	}
+
 	clientID := c.ClientID
 	return &oidcConnector{
 		provider:    provider,
@@ -398,6 +415,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		allowedGroups:             c.AllowedGroups,
 		acrValues:                 c.AcrValues,
 		getUserInfo:               c.GetUserInfo,
+		userInfoRequestMethod:     userInfoMethod,
 		promptType:                promptType,
 		userIDKey:                 c.UserIDKey,
 		userNameKey:               c.UserNameKey,
@@ -434,6 +452,7 @@ type oidcConnector struct {
 	allowedGroups             []string
 	acrValues                 []string
 	getUserInfo               bool
+	userInfoRequestMethod     string
 	promptType                string
 	userIDKey                 string
 	userNameKey               string
@@ -447,6 +466,54 @@ type oidcConnector struct {
 	groupsSuffix              string
 	pkceChallenge             string
 	endSessionURL             string
+}
+
+// fetchUserInfo loads the claims from the userinfo endpoint into claims, using
+// the configured HTTP method.
+func (c *oidcConnector) fetchUserInfo(ctx context.Context, accessToken string, claims *map[string]interface{}) error {
+	if c.userInfoRequestMethod != http.MethodPost {
+		userInfo, err := c.provider.UserInfo(ctx, oauth2.StaticTokenSource(&oauth2.Token{
+			AccessToken: accessToken,
+			TokenType:   "Bearer", // The UserInfo endpoint requires a bearer token as per RFC6750
+		}))
+		if err != nil {
+			return fmt.Errorf("oidc: error loading userinfo: %v", err)
+		}
+		if err := userInfo.Claims(claims); err != nil {
+			return fmt.Errorf("oidc: failed to decode userinfo claims: %v", err)
+		}
+		return nil
+	}
+
+	endpoint := c.provider.UserInfoEndpoint()
+	if endpoint == "" {
+		return errors.New("oidc: error loading userinfo: provider does not have a userinfo endpoint")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, nil)
+	if err != nil {
+		return fmt.Errorf("oidc: error loading userinfo: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("oidc: error loading userinfo: %v", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return fmt.Errorf("oidc: error loading userinfo: %v", err)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return fmt.Errorf("oidc: error loading userinfo: %s: %s", resp.Status, body)
+	}
+	if ct, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type")); ct != "application/json" {
+		return fmt.Errorf("oidc: error loading userinfo: unsupported content type %q", ct)
+	}
+	if err := json.Unmarshal(body, claims); err != nil {
+		return fmt.Errorf("oidc: failed to decode userinfo claims: %v", err)
+	}
+	return nil
 }
 
 func (c *oidcConnector) Close() error {
@@ -609,15 +676,8 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	// We immediately want to run getUserInfo if configured before we validate the claims.
 	// For token exchanges with access tokens, this is how we verify the token.
 	if c.getUserInfo {
-		userInfo, err := c.provider.UserInfo(ctx, oauth2.StaticTokenSource(&oauth2.Token{
-			AccessToken: token.AccessToken,
-			TokenType:   "Bearer", // The UserInfo endpoint requires a bearer token as per RFC6750
-		}))
-		if err != nil {
-			return identity, fmt.Errorf("oidc: error loading userinfo: %v", err)
-		}
-		if err := userInfo.Claims(&claims); err != nil {
-			return identity, fmt.Errorf("oidc: failed to decode userinfo claims: %v", err)
+		if err := c.fetchUserInfo(ctx, token.AccessToken, &claims); err != nil {
+			return identity, err
 		}
 	}
 
