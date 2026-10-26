@@ -38,7 +38,9 @@ type AuthSession struct {
 	// IdleExpiry holds the value of the "idle_expiry" field.
 	IdleExpiry time.Time `json:"idle_expiry,omitempty"`
 	// LogoutState holds the value of the "logout_state" field.
-	LogoutState  []byte `json:"logout_state,omitempty"`
+	LogoutState []byte `json:"logout_state,omitempty"`
+	// SessionData holds the value of the "session_data" field.
+	SessionData  []byte `json:"session_data,omitempty"`
 	selectValues sql.SelectValues
 }
 
@@ -47,7 +49,7 @@ func (*AuthSession) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case authsession.FieldClientStates, authsession.FieldLogoutState:
+		case authsession.FieldClientStates, authsession.FieldLogoutState, authsession.FieldSessionData:
 			values[i] = new([]byte)
 		case authsession.FieldID, authsession.FieldUserID, authsession.FieldConnectorID, authsession.FieldSecret, authsession.FieldIPAddress, authsession.FieldUserAgent:
 			values[i] = new(sql.NullString)
@@ -140,6 +142,12 @@ func (_m *AuthSession) assignValues(columns []string, values []any) error {
 			} else if value != nil {
 				_m.LogoutState = *value
 			}
+		case authsession.FieldSessionData:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field session_data", values[i])
+			} else if value != nil {
+				_m.SessionData = *value
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -208,6 +216,9 @@ func (_m *AuthSession) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("logout_state=")
 	builder.WriteString(fmt.Sprintf("%v", _m.LogoutState))
+	builder.WriteString(", ")
+	builder.WriteString("session_data=")
+	builder.WriteString(fmt.Sprintf("%v", _m.SessionData))
 	builder.WriteByte(')')
 	return builder.String()
 }

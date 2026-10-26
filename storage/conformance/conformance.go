@@ -1426,6 +1426,7 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 			ClientID:              "client1",
 			ConnectorID:           "conn1",
 		},
+		SessionData: []byte(`{"IDToken":"id-token"}`),
 	}
 
 	// Create.
@@ -1465,6 +1466,7 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 		}
 		old.LastActivity = newNow
 		old.IdleExpiry = newNow.Add(time.Hour)
+		old.SessionData = []byte(`{"IDToken":"new-id-token"}`)
 		return old, nil
 	}); err != nil {
 		t.Fatalf("update auth session: %v", err)
@@ -1485,6 +1487,9 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 	// never outlives its first one.
 	if !got.IdleExpiry.UTC().Round(time.Millisecond).Equal(newNow.Add(time.Hour)) {
 		t.Errorf("expected idle expiry %v, got %v", newNow.Add(time.Hour), got.IdleExpiry)
+	}
+	if string(got.SessionData) != `{"IDToken":"new-id-token"}` {
+		t.Errorf("expected updated session data, got %q", got.SessionData)
 	}
 
 	// List and verify.

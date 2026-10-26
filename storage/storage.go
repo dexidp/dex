@@ -545,6 +545,10 @@ type AuthSession struct {
 	// upstream provider. The callback handler reads it back to complete the flow.
 	// Nil when no logout is in progress.
 	LogoutState *LogoutState
+
+	// SessionData is what the connector keeps for this session, such as the upstream
+	// ID token it hands back when the user logs out.
+	SessionData []byte
 }
 
 // OfflineSessions objects are sessions pertaining to users with refresh tokens.

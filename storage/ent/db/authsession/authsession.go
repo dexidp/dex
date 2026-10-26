@@ -33,6 +33,8 @@ const (
 	FieldIdleExpiry = "idle_expiry"
 	// FieldLogoutState holds the string denoting the logout_state field in the database.
 	FieldLogoutState = "logout_state"
+	// FieldSessionData holds the string denoting the session_data field in the database.
+	FieldSessionData = "session_data"
 	// Table holds the table name of the authsession in the database.
 	Table = "auth_sessions"
 )
@@ -51,6 +53,7 @@ var Columns = []string{
 	FieldAbsoluteExpiry,
 	FieldIdleExpiry,
 	FieldLogoutState,
+	FieldSessionData,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).

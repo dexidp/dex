@@ -119,6 +119,11 @@ func LogoutState(v []byte) predicate.AuthSession {
 	return predicate.AuthSession(sql.FieldEQ(FieldLogoutState, v))
 }
 
+// SessionData applies equality check predicate on the "session_data" field. It's identical to SessionDataEQ.
+func SessionData(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldEQ(FieldSessionData, v))
+}
+
 // UserIDEQ applies the EQ predicate on the "user_id" field.
 func UserIDEQ(v string) predicate.AuthSession {
 	return predicate.AuthSession(sql.FieldEQ(FieldUserID, v))
@@ -692,6 +697,56 @@ func LogoutStateIsNil() predicate.AuthSession {
 // LogoutStateNotNil applies the NotNil predicate on the "logout_state" field.
 func LogoutStateNotNil() predicate.AuthSession {
 	return predicate.AuthSession(sql.FieldNotNull(FieldLogoutState))
+}
+
+// SessionDataEQ applies the EQ predicate on the "session_data" field.
+func SessionDataEQ(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldEQ(FieldSessionData, v))
+}
+
+// SessionDataNEQ applies the NEQ predicate on the "session_data" field.
+func SessionDataNEQ(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldNEQ(FieldSessionData, v))
+}
+
+// SessionDataIn applies the In predicate on the "session_data" field.
+func SessionDataIn(vs ...[]byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldIn(FieldSessionData, vs...))
+}
+
+// SessionDataNotIn applies the NotIn predicate on the "session_data" field.
+func SessionDataNotIn(vs ...[]byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldNotIn(FieldSessionData, vs...))
+}
+
+// SessionDataGT applies the GT predicate on the "session_data" field.
+func SessionDataGT(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldGT(FieldSessionData, v))
+}
+
+// SessionDataGTE applies the GTE predicate on the "session_data" field.
+func SessionDataGTE(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldGTE(FieldSessionData, v))
+}
+
+// SessionDataLT applies the LT predicate on the "session_data" field.
+func SessionDataLT(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldLT(FieldSessionData, v))
+}
+
+// SessionDataLTE applies the LTE predicate on the "session_data" field.
+func SessionDataLTE(v []byte) predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldLTE(FieldSessionData, v))
+}
+
+// SessionDataIsNil applies the IsNil predicate on the "session_data" field.
+func SessionDataIsNil() predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldIsNull(FieldSessionData))
+}
+
+// SessionDataNotNil applies the NotNil predicate on the "session_data" field.
+func SessionDataNotNil() predicate.AuthSession {
+	return predicate.AuthSession(sql.FieldNotNull(FieldSessionData))
 }
 
 // And groups predicates with the AND operator between them.
