@@ -210,7 +210,12 @@ func (h *Handler) parseAuthorizationRequest(r *http.Request) (*storage.AuthReque
 		return nil, "", newDisplayedErr(http.StatusInternalServerError, "Database error.")
 	}
 
-	if !validateRedirectURI(client, redirectURI) {
+	validRedirect := validateRedirectURI(client, redirectURI)
+	// The device flow sends its callback under the issuer path; public clients may allow it as the bare path.
+	if !validRedirect && client.Public && redirectURI == h.IssuerURL.AbsPath(oauth2.DeviceCallbackURI) {
+		validRedirect = validateRedirectURI(client, oauth2.DeviceCallbackURI)
+	}
+	if !validRedirect {
 		h.Logger.ErrorContext(ctx, "unregistered redirect_uri", "redirect_uri", redirectURI, "client_id", clientID)
 		return nil, "", newDisplayedErr(http.StatusBadRequest, "Unregistered redirect_uri.")
 	}
