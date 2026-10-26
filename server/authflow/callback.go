@@ -106,7 +106,7 @@ func (h *Handler) handleConnectorCallback(w http.ResponseWriter, r *http.Request
 	// Connector callbacks don't render the remember_me checkbox, so we use the server default.
 	// The password login handler reads r.FormValue("remember_me") from the submitted form instead.
 	rememberMe := h.Sessions.RememberMeDefault()
-	if err := h.Sessions.CreateOrUpdateAuthSession(ctx, r, w, authReq, rememberMe != nil && *rememberMe); err != nil {
+	if err := h.Sessions.CreateOrUpdateAuthSession(ctx, r, w, authReq, identity.SessionData, rememberMe != nil && *rememberMe); err != nil {
 		h.Logger.ErrorContext(ctx, "failed to create/update auth session", "err", err)
 	}
 

@@ -347,7 +347,7 @@ func TestCreateOrUpdateAuthSession(t *testing.T) {
 			ConnectorID: "mock",
 		}
 
-		err := s.Sessions.CreateOrUpdateAuthSession(ctx, r, w, authReq, false)
+		err := s.Sessions.CreateOrUpdateAuthSession(ctx, r, w, authReq, nil, false)
 		require.NoError(t, err)
 
 		// Cookie should be set.
@@ -405,7 +405,7 @@ func TestCreateOrUpdateAuthSession(t *testing.T) {
 			ConnectorID: "mock",
 		}
 
-		err := s.Sessions.CreateOrUpdateAuthSession(ctx, r, w, authReq, false)
+		err := s.Sessions.CreateOrUpdateAuthSession(ctx, r, w, authReq, nil, false)
 		require.NoError(t, err)
 
 		// Cookie should name the same session.
@@ -439,7 +439,7 @@ func TestCreateOrUpdateAuthSession(t *testing.T) {
 		signIn := func(t *testing.T, r *http.Request) (id, secret string) {
 			t.Helper()
 			w := httptest.NewRecorder()
-			require.NoError(t, s.Sessions.CreateOrUpdateAuthSession(ctx, r, w, authReq, false))
+			require.NoError(t, s.Sessions.CreateOrUpdateAuthSession(ctx, r, w, authReq, nil, false))
 
 			cookies := w.Result().Cookies()
 			require.Len(t, cookies, 1)
@@ -479,7 +479,7 @@ func TestCreateOrUpdateAuthSession(t *testing.T) {
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 
-		err := s.Sessions.CreateOrUpdateAuthSession(ctx, r, w, storage.AuthRequest{}, false)
+		err := s.Sessions.CreateOrUpdateAuthSession(ctx, r, w, storage.AuthRequest{}, nil, false)
 		assert.NoError(t, err)
 		assert.Empty(t, w.Result().Cookies())
 	})
@@ -1821,7 +1821,7 @@ func TestIdleExpiryExtension(t *testing.T) {
 			Claims: storage.Claims{UserID: "user-1"},
 		}
 
-		err := s.Sessions.CreateOrUpdateAuthSession(ctx, r, w, authReq, false)
+		err := s.Sessions.CreateOrUpdateAuthSession(ctx, r, w, authReq, nil, false)
 		require.NoError(t, err)
 
 		session, err := s.Storage.GetAuthSession(ctx, "test-nonce")

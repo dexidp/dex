@@ -245,6 +245,11 @@ type connectorData struct {
 	RefreshToken []byte
 }
 
+// sessionData stores what a logout from the upstream provider needs.
+type sessionData struct {
+	IDToken string
+}
+
 // Detect auth header provider issues for known providers. This lets users
 // avoid having to explicitly set "basicAuthUnsupported" in their config.
 //
@@ -574,7 +579,8 @@ func (c *oidcConnector) TokenIdentity(ctx context.Context, subjectTokenType, sub
 func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.Identity, token *oauth2.Token, caller caller) (connector.Identity, error) {
 	var claims map[string]interface{}
 
-	if rawIDToken, ok := token.Extra("id_token").(string); ok {
+	rawIDToken, hasIDToken := token.Extra("id_token").(string)
+	if hasIDToken {
 		idToken, err := c.verifier.Verify(ctx, rawIDToken)
 		if err != nil {
 			return identity, fmt.Errorf("oidc: failed to verify ID Token: %v", err)
@@ -767,6 +773,13 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		ConnectorData:     connData,
 	}
 
+	if hasIDToken {
+		identity.SessionData, err = json.Marshal(sessionData{IDToken: rawIDToken})
+		if err != nil {
+			return identity, fmt.Errorf("oidc: failed to encode session data: %v", err)
+		}
+	}
+
 	if c.userIDKey != "" {
 		userID, found := claims[c.userIDKey].(string)
 		if !found {
@@ -780,8 +793,9 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 
 // LogoutURL returns the upstream OIDC provider's end_session_endpoint URL.
 // Per the OIDC RP-Initiated Logout spec, the post_logout_redirect_uri parameter
-// tells the upstream where to redirect after logout.
-func (c *oidcConnector) LogoutURL(_ context.Context, postLogoutRedirectURI string) (string, error) {
+// tells the upstream where to redirect after logout, and id_token_hint tells it
+// which session to end.
+func (c *oidcConnector) LogoutURL(ctx context.Context, rawSessionData []byte, postLogoutRedirectURI string) (string, error) {
 	if c.endSessionURL == "" {
 		return "", nil
 	}
@@ -796,6 +810,16 @@ func (c *oidcConnector) LogoutURL(_ context.Context, postLogoutRedirectURI strin
 		q.Set("post_logout_redirect_uri", postLogoutRedirectURI)
 		q.Set("client_id", c.oauth2Config.ClientID)
 	}
+
+	if len(rawSessionData) > 0 {
+		var data sessionData
+		if err := json.Unmarshal(rawSessionData, &data); err != nil {
+			c.logger.WarnContext(ctx, "failed to decode session data, logging out without id_token_hint", "err", err)
+		} else if data.IDToken != "" {
+			q.Set("id_token_hint", data.IDToken)
+		}
+	}
+
 	u.RawQuery = q.Encode()
 
 	return u.String(), nil

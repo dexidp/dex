@@ -1106,6 +1106,7 @@ func TestLogoutURL(t *testing.T) {
 	tests := []struct {
 		name                  string
 		endSessionURL         string
+		sessionData           []byte
 		postLogoutRedirectURI string
 		wantURL               string
 		wantEmpty             bool
@@ -1132,6 +1133,19 @@ func TestLogoutURL(t *testing.T) {
 			postLogoutRedirectURI: "https://dex.example.com/callback",
 			wantURL:               "https://provider.example.com/logout?client_id=clientID&existing=param&post_logout_redirect_uri=https%3A%2F%2Fdex.example.com%2Fcallback",
 		},
+		{
+			name:                  "with id token in session data",
+			endSessionURL:         "https://provider.example.com/logout",
+			sessionData:           []byte(`{"IDToken":"id-token"}`),
+			postLogoutRedirectURI: "https://dex.example.com/logout/callback",
+			wantURL:               "https://provider.example.com/logout?client_id=clientID&id_token_hint=id-token&post_logout_redirect_uri=https%3A%2F%2Fdex.example.com%2Flogout%2Fcallback",
+		},
+		{
+			name:          "with invalid session data",
+			endSessionURL: "https://provider.example.com/logout",
+			sessionData:   []byte("not-json"),
+			wantURL:       "https://provider.example.com/logout",
+		},
 	}
 
 	for _, tc := range tests {
@@ -1141,9 +1155,10 @@ func TestLogoutURL(t *testing.T) {
 				oauth2Config: &oauth2.Config{
 					ClientID: "clientID",
 				},
+				logger: slog.New(slog.DiscardHandler),
 			}
 
-			got, err := conn.LogoutURL(context.Background(), tc.postLogoutRedirectURI)
+			got, err := conn.LogoutURL(context.Background(), tc.sessionData, tc.postLogoutRedirectURI)
 			require.NoError(t, err)
 
 			if tc.wantEmpty {

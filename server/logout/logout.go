@@ -408,7 +408,7 @@ func (h *Handler) tryUpstreamLogout(ctx context.Context, authSession *storage.Au
 	}
 
 	callbackURI := h.IssuerURL.AbsURL("/logout/callback")
-	upstreamURL, err := logoutConn.LogoutURL(ctx, callbackURI)
+	upstreamURL, err := logoutConn.LogoutURL(ctx, authSession.SessionData, callbackURI)
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "logout: upstream connector error", "err", err)
 		return "", false

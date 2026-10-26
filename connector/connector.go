@@ -49,6 +49,10 @@ type Identity struct {
 	//
 	// This data is never shared with end users, OAuth clients, or through the API.
 	ConnectorData []byte
+
+	// SessionData is kept on the user's browser session, such as the upstream ID
+	// token for logout. It must never hold refresh tokens.
+	SessionData []byte
 }
 
 // PasswordConnector is an interface implemented by connectors which take a
@@ -126,7 +130,7 @@ type LogoutCallbackConnector interface {
 	// LogoutURL returns the upstream provider's logout URL.
 	// postLogoutRedirectURI is the URL the upstream provider should redirect back to after logout.
 	// Returns the upstream logout URL or empty string if upstream logout is not available.
-	LogoutURL(ctx context.Context, postLogoutRedirectURI string) (string, error)
+	LogoutURL(ctx context.Context, sessionData []byte, postLogoutRedirectURI string) (string, error)
 
 	// HandleLogoutCallback validates the upstream provider's logout response
 	// received in the callback request. For example, SAML connectors should
