@@ -99,6 +99,20 @@ func (_u *UserIdentityUpdate) SetNillableClaimsPreferredUsername(v *string) *Use
 	return _u
 }
 
+// SetClaimsPicture sets the "claims_picture" field.
+func (_u *UserIdentityUpdate) SetClaimsPicture(v string) *UserIdentityUpdate {
+	_u.mutation.SetClaimsPicture(v)
+	return _u
+}
+
+// SetNillableClaimsPicture sets the "claims_picture" field if the given value is not nil.
+func (_u *UserIdentityUpdate) SetNillableClaimsPicture(v *string) *UserIdentityUpdate {
+	if v != nil {
+		_u.SetClaimsPicture(*v)
+	}
+	return _u
+}
+
 // SetClaimsEmail sets the "claims_email" field.
 func (_u *UserIdentityUpdate) SetClaimsEmail(v string) *UserIdentityUpdate {
 	_u.mutation.SetClaimsEmail(v)
@@ -291,6 +305,9 @@ func (_u *UserIdentityUpdate) sqlSave(ctx context.Context) (_node int, err error
 	if value, ok := _u.mutation.ClaimsPreferredUsername(); ok {
 		_spec.SetField(useridentity.FieldClaimsPreferredUsername, field.TypeString, value)
 	}
+	if value, ok := _u.mutation.ClaimsPicture(); ok {
+		_spec.SetField(useridentity.FieldClaimsPicture, field.TypeString, value)
+	}
 	if value, ok := _u.mutation.ClaimsEmail(); ok {
 		_spec.SetField(useridentity.FieldClaimsEmail, field.TypeString, value)
 	}
@@ -418,6 +435,20 @@ func (_u *UserIdentityUpdateOne) SetClaimsPreferredUsername(v string) *UserIdent
 func (_u *UserIdentityUpdateOne) SetNillableClaimsPreferredUsername(v *string) *UserIdentityUpdateOne {
 	if v != nil {
 		_u.SetClaimsPreferredUsername(*v)
+	}
+	return _u
+}
+
+// SetClaimsPicture sets the "claims_picture" field.
+func (_u *UserIdentityUpdateOne) SetClaimsPicture(v string) *UserIdentityUpdateOne {
+	_u.mutation.SetClaimsPicture(v)
+	return _u
+}
+
+// SetNillableClaimsPicture sets the "claims_picture" field if the given value is not nil.
+func (_u *UserIdentityUpdateOne) SetNillableClaimsPicture(v *string) *UserIdentityUpdateOne {
+	if v != nil {
+		_u.SetClaimsPicture(*v)
 	}
 	return _u
 }
@@ -643,6 +674,9 @@ func (_u *UserIdentityUpdateOne) sqlSave(ctx context.Context) (_node *UserIdenti
 	}
 	if value, ok := _u.mutation.ClaimsPreferredUsername(); ok {
 		_spec.SetField(useridentity.FieldClaimsPreferredUsername, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ClaimsPicture(); ok {
+		_spec.SetField(useridentity.FieldClaimsPicture, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.ClaimsEmail(); ok {
 		_spec.SetField(useridentity.FieldClaimsEmail, field.TypeString, value)

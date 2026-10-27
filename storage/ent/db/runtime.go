@@ -54,20 +54,24 @@ func init() {
 	authcodeDescClaimsPreferredUsername := authcodeFields[10].Descriptor()
 	// authcode.DefaultClaimsPreferredUsername holds the default value on creation for the claims_preferred_username field.
 	authcode.DefaultClaimsPreferredUsername = authcodeDescClaimsPreferredUsername.Default.(string)
+	// authcodeDescClaimsPicture is the schema descriptor for claims_picture field.
+	authcodeDescClaimsPicture := authcodeFields[11].Descriptor()
+	// authcode.DefaultClaimsPicture holds the default value on creation for the claims_picture field.
+	authcode.DefaultClaimsPicture = authcodeDescClaimsPicture.Default.(string)
 	// authcodeDescConnectorID is the schema descriptor for connector_id field.
-	authcodeDescConnectorID := authcodeFields[11].Descriptor()
+	authcodeDescConnectorID := authcodeFields[12].Descriptor()
 	// authcode.ConnectorIDValidator is a validator for the "connector_id" field. It is called by the builders before save.
 	authcode.ConnectorIDValidator = authcodeDescConnectorID.Validators[0].(func(string) error)
 	// authcodeDescCodeChallenge is the schema descriptor for code_challenge field.
-	authcodeDescCodeChallenge := authcodeFields[14].Descriptor()
+	authcodeDescCodeChallenge := authcodeFields[15].Descriptor()
 	// authcode.DefaultCodeChallenge holds the default value on creation for the code_challenge field.
 	authcode.DefaultCodeChallenge = authcodeDescCodeChallenge.Default.(string)
 	// authcodeDescCodeChallengeMethod is the schema descriptor for code_challenge_method field.
-	authcodeDescCodeChallengeMethod := authcodeFields[15].Descriptor()
+	authcodeDescCodeChallengeMethod := authcodeFields[16].Descriptor()
 	// authcode.DefaultCodeChallengeMethod holds the default value on creation for the code_challenge_method field.
 	authcode.DefaultCodeChallengeMethod = authcodeDescCodeChallengeMethod.Default.(string)
 	// authcodeDescSessionID is the schema descriptor for session_id field.
-	authcodeDescSessionID := authcodeFields[17].Descriptor()
+	authcodeDescSessionID := authcodeFields[18].Descriptor()
 	// authcode.DefaultSessionID holds the default value on creation for the session_id field.
 	authcode.DefaultSessionID = authcodeDescSessionID.Default.(string)
 	// authcodeDescID is the schema descriptor for id field.
@@ -80,24 +84,28 @@ func init() {
 	authrequestDescClaimsPreferredUsername := authrequestFields[14].Descriptor()
 	// authrequest.DefaultClaimsPreferredUsername holds the default value on creation for the claims_preferred_username field.
 	authrequest.DefaultClaimsPreferredUsername = authrequestDescClaimsPreferredUsername.Default.(string)
+	// authrequestDescClaimsPicture is the schema descriptor for claims_picture field.
+	authrequestDescClaimsPicture := authrequestFields[15].Descriptor()
+	// authrequest.DefaultClaimsPicture holds the default value on creation for the claims_picture field.
+	authrequest.DefaultClaimsPicture = authrequestDescClaimsPicture.Default.(string)
 	// authrequestDescCodeChallenge is the schema descriptor for code_challenge field.
-	authrequestDescCodeChallenge := authrequestFields[18].Descriptor()
+	authrequestDescCodeChallenge := authrequestFields[19].Descriptor()
 	// authrequest.DefaultCodeChallenge holds the default value on creation for the code_challenge field.
 	authrequest.DefaultCodeChallenge = authrequestDescCodeChallenge.Default.(string)
 	// authrequestDescCodeChallengeMethod is the schema descriptor for code_challenge_method field.
-	authrequestDescCodeChallengeMethod := authrequestFields[19].Descriptor()
+	authrequestDescCodeChallengeMethod := authrequestFields[20].Descriptor()
 	// authrequest.DefaultCodeChallengeMethod holds the default value on creation for the code_challenge_method field.
 	authrequest.DefaultCodeChallengeMethod = authrequestDescCodeChallengeMethod.Default.(string)
 	// authrequestDescMfaValidated is the schema descriptor for mfa_validated field.
-	authrequestDescMfaValidated := authrequestFields[21].Descriptor()
+	authrequestDescMfaValidated := authrequestFields[22].Descriptor()
 	// authrequest.DefaultMfaValidated holds the default value on creation for the mfa_validated field.
 	authrequest.DefaultMfaValidated = authrequestDescMfaValidated.Default.(bool)
 	// authrequestDescPrompt is the schema descriptor for prompt field.
-	authrequestDescPrompt := authrequestFields[23].Descriptor()
+	authrequestDescPrompt := authrequestFields[24].Descriptor()
 	// authrequest.DefaultPrompt holds the default value on creation for the prompt field.
 	authrequest.DefaultPrompt = authrequestDescPrompt.Default.(string)
 	// authrequestDescMaxAge is the schema descriptor for max_age field.
-	authrequestDescMaxAge := authrequestFields[24].Descriptor()
+	authrequestDescMaxAge := authrequestFields[25].Descriptor()
 	// authrequest.DefaultMaxAge holds the default value on creation for the max_age field.
 	authrequest.DefaultMaxAge = authrequestDescMaxAge.Default.(int)
 	// authrequestDescID is the schema descriptor for id field.
@@ -302,24 +310,28 @@ func init() {
 	refreshtokenDescClaimsPreferredUsername := refreshtokenFields[9].Descriptor()
 	// refreshtoken.DefaultClaimsPreferredUsername holds the default value on creation for the claims_preferred_username field.
 	refreshtoken.DefaultClaimsPreferredUsername = refreshtokenDescClaimsPreferredUsername.Default.(string)
+	// refreshtokenDescClaimsPicture is the schema descriptor for claims_picture field.
+	refreshtokenDescClaimsPicture := refreshtokenFields[10].Descriptor()
+	// refreshtoken.DefaultClaimsPicture holds the default value on creation for the claims_picture field.
+	refreshtoken.DefaultClaimsPicture = refreshtokenDescClaimsPicture.Default.(string)
 	// refreshtokenDescConnectorID is the schema descriptor for connector_id field.
-	refreshtokenDescConnectorID := refreshtokenFields[10].Descriptor()
+	refreshtokenDescConnectorID := refreshtokenFields[11].Descriptor()
 	// refreshtoken.ConnectorIDValidator is a validator for the "connector_id" field. It is called by the builders before save.
 	refreshtoken.ConnectorIDValidator = refreshtokenDescConnectorID.Validators[0].(func(string) error)
 	// refreshtokenDescToken is the schema descriptor for token field.
-	refreshtokenDescToken := refreshtokenFields[12].Descriptor()
+	refreshtokenDescToken := refreshtokenFields[13].Descriptor()
 	// refreshtoken.DefaultToken holds the default value on creation for the token field.
 	refreshtoken.DefaultToken = refreshtokenDescToken.Default.(string)
 	// refreshtokenDescObsoleteToken is the schema descriptor for obsolete_token field.
-	refreshtokenDescObsoleteToken := refreshtokenFields[13].Descriptor()
+	refreshtokenDescObsoleteToken := refreshtokenFields[14].Descriptor()
 	// refreshtoken.DefaultObsoleteToken holds the default value on creation for the obsolete_token field.
 	refreshtoken.DefaultObsoleteToken = refreshtokenDescObsoleteToken.Default.(string)
 	// refreshtokenDescCreatedAt is the schema descriptor for created_at field.
-	refreshtokenDescCreatedAt := refreshtokenFields[14].Descriptor()
+	refreshtokenDescCreatedAt := refreshtokenFields[15].Descriptor()
 	// refreshtoken.DefaultCreatedAt holds the default value on creation for the created_at field.
 	refreshtoken.DefaultCreatedAt = refreshtokenDescCreatedAt.Default.(func() time.Time)
 	// refreshtokenDescLastUsed is the schema descriptor for last_used field.
-	refreshtokenDescLastUsed := refreshtokenFields[15].Descriptor()
+	refreshtokenDescLastUsed := refreshtokenFields[16].Descriptor()
 	// refreshtoken.DefaultLastUsed holds the default value on creation for the last_used field.
 	refreshtoken.DefaultLastUsed = refreshtokenDescLastUsed.Default.(func() time.Time)
 	// refreshtokenDescID is the schema descriptor for id field.
@@ -348,12 +360,16 @@ func init() {
 	useridentityDescClaimsPreferredUsername := useridentityFields[5].Descriptor()
 	// useridentity.DefaultClaimsPreferredUsername holds the default value on creation for the claims_preferred_username field.
 	useridentity.DefaultClaimsPreferredUsername = useridentityDescClaimsPreferredUsername.Default.(string)
+	// useridentityDescClaimsPicture is the schema descriptor for claims_picture field.
+	useridentityDescClaimsPicture := useridentityFields[6].Descriptor()
+	// useridentity.DefaultClaimsPicture holds the default value on creation for the claims_picture field.
+	useridentity.DefaultClaimsPicture = useridentityDescClaimsPicture.Default.(string)
 	// useridentityDescClaimsEmail is the schema descriptor for claims_email field.
-	useridentityDescClaimsEmail := useridentityFields[6].Descriptor()
+	useridentityDescClaimsEmail := useridentityFields[7].Descriptor()
 	// useridentity.DefaultClaimsEmail holds the default value on creation for the claims_email field.
 	useridentity.DefaultClaimsEmail = useridentityDescClaimsEmail.Default.(string)
 	// useridentityDescClaimsEmailVerified is the schema descriptor for claims_email_verified field.
-	useridentityDescClaimsEmailVerified := useridentityFields[7].Descriptor()
+	useridentityDescClaimsEmailVerified := useridentityFields[8].Descriptor()
 	// useridentity.DefaultClaimsEmailVerified holds the default value on creation for the claims_email_verified field.
 	useridentity.DefaultClaimsEmailVerified = useridentityDescClaimsEmailVerified.Default.(bool)
 	// useridentityDescID is the schema descriptor for id field.

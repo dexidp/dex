@@ -3,8 +3,11 @@ package tokens
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/base64"
+	"encoding/json"
 	"log/slog"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -73,4 +76,34 @@ func TestIssuerIssue(t *testing.T) {
 	require.NotEmpty(t, ts2.AccessToken)
 	require.NotEmpty(t, ts2.IDToken)
 	require.Empty(t, ts2.RefreshToken)
+}
+
+func TestIssuerSignIDTokenPicture(t *testing.T) {
+	ctx := t.Context()
+	iss, _ := newTestIssuer(t)
+
+	decode := func(t *testing.T, token string) (claims struct {
+		Picture string `json:"picture"`
+	}) {
+		t.Helper()
+		parts := strings.Split(token, ".")
+		require.Len(t, parts, 3)
+		payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+		require.NoError(t, err)
+		require.NoError(t, json.Unmarshal(payload, &claims))
+		return claims
+	}
+
+	auth := testAuthorization()
+	auth.Claims.Picture = "https://example.com/alice.png"
+
+	// The picture claim belongs to the profile scope.
+	token, _, err := iss.SignIDToken(ctx, auth, "", "")
+	require.NoError(t, err)
+	require.Empty(t, decode(t, token).Picture)
+
+	auth.Scopes = append(auth.Scopes, ScopeProfile)
+	token, _, err = iss.SignIDToken(ctx, auth, "", "")
+	require.NoError(t, err)
+	require.Equal(t, "https://example.com/alice.png", decode(t, token).Picture)
 }

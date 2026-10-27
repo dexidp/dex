@@ -25,6 +25,7 @@ create table refresh_token
     created_at                timestamp default '0001-01-01 00:00:00 UTC' not null,
     last_used                 timestamp default '0001-01-01 00:00:00 UTC' not null,
     claims_preferred_username text      default '' not null,
+    claims_picture            text      default '' not null,
     obsolete_token            text      default ''
 );
 */
@@ -63,6 +64,9 @@ func (RefreshToken) Fields() []ent.Field {
 		field.JSON("claims_groups", []string{}).
 			Optional(),
 		field.Text("claims_preferred_username").
+			SchemaType(textSchema).
+			Default(""),
+		field.Text("claims_picture").
 			SchemaType(textSchema).
 			Default(""),
 

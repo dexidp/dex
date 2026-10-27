@@ -88,6 +88,20 @@ func (_c *AuthCodeCreate) SetNillableClaimsPreferredUsername(v *string) *AuthCod
 	return _c
 }
 
+// SetClaimsPicture sets the "claims_picture" field.
+func (_c *AuthCodeCreate) SetClaimsPicture(v string) *AuthCodeCreate {
+	_c.mutation.SetClaimsPicture(v)
+	return _c
+}
+
+// SetNillableClaimsPicture sets the "claims_picture" field if the given value is not nil.
+func (_c *AuthCodeCreate) SetNillableClaimsPicture(v *string) *AuthCodeCreate {
+	if v != nil {
+		_c.SetClaimsPicture(*v)
+	}
+	return _c
+}
+
 // SetConnectorID sets the "connector_id" field.
 func (_c *AuthCodeCreate) SetConnectorID(v string) *AuthCodeCreate {
 	_c.mutation.SetConnectorID(v)
@@ -207,6 +221,10 @@ func (_c *AuthCodeCreate) defaults() {
 		v := authcode.DefaultClaimsPreferredUsername
 		_c.mutation.SetClaimsPreferredUsername(v)
 	}
+	if _, ok := _c.mutation.ClaimsPicture(); !ok {
+		v := authcode.DefaultClaimsPicture
+		_c.mutation.SetClaimsPicture(v)
+	}
 	if _, ok := _c.mutation.CodeChallenge(); !ok {
 		v := authcode.DefaultCodeChallenge
 		_c.mutation.SetCodeChallenge(v)
@@ -276,6 +294,9 @@ func (_c *AuthCodeCreate) check() error {
 	}
 	if _, ok := _c.mutation.ClaimsPreferredUsername(); !ok {
 		return &ValidationError{Name: "claims_preferred_username", err: errors.New(`db: missing required field "AuthCode.claims_preferred_username"`)}
+	}
+	if _, ok := _c.mutation.ClaimsPicture(); !ok {
+		return &ValidationError{Name: "claims_picture", err: errors.New(`db: missing required field "AuthCode.claims_picture"`)}
 	}
 	if _, ok := _c.mutation.ConnectorID(); !ok {
 		return &ValidationError{Name: "connector_id", err: errors.New(`db: missing required field "AuthCode.connector_id"`)}
@@ -373,6 +394,10 @@ func (_c *AuthCodeCreate) createSpec() (*AuthCode, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.ClaimsPreferredUsername(); ok {
 		_spec.SetField(authcode.FieldClaimsPreferredUsername, field.TypeString, value)
 		_node.ClaimsPreferredUsername = value
+	}
+	if value, ok := _c.mutation.ClaimsPicture(); ok {
+		_spec.SetField(authcode.FieldClaimsPicture, field.TypeString, value)
+		_node.ClaimsPicture = value
 	}
 	if value, ok := _c.mutation.ConnectorID(); ok {
 		_spec.SetField(authcode.FieldConnectorID, field.TypeString, value)

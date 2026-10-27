@@ -242,6 +242,7 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 		Email         string `json:"email"`
 		EmailVerified bool   `json:"email_verified"`
 		HostedDomain  string `json:"hd"`
+		Picture       string `json:"picture"`
 	}
 	if err := idToken.Claims(&claims); err != nil {
 		return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
@@ -254,6 +255,9 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 	// as a way to keep the claims and do not call the userinfo endpoint.
 	if claims.Username == "" {
 		claims.Username = identity.Username
+	}
+	if claims.Picture == "" {
+		claims.Picture = identity.Picture
 	}
 
 	if len(c.hostedDomains) > 0 {
@@ -291,6 +295,7 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 		Username:      claims.Username,
 		Email:         claims.Email,
 		EmailVerified: claims.EmailVerified,
+		Picture:       claims.Picture,
 		ConnectorData: []byte(token.RefreshToken),
 		Groups:        groups,
 	}

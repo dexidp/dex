@@ -258,6 +258,7 @@ func (c *githubConnector) HandleCallback(s connector.Scopes, connData []byte, r 
 		PreferredUsername: user.Login,
 		Email:             user.Email,
 		EmailVerified:     true,
+		Picture:           user.AvatarURL,
 	}
 	if c.useLoginAsID {
 		identity.UserID = user.Login
@@ -387,6 +388,7 @@ func (c *githubConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 	identity.Username = username
 	identity.PreferredUsername = user.Login
 	identity.Email = user.Email
+	identity.Picture = user.AvatarURL
 
 	// Only set identity.Groups if 'orgs', 'org', or 'groups' scope are specified.
 	if c.groupsRequired(s.Groups) {
@@ -602,10 +604,11 @@ func getPagination(apiURL string, resp *http.Response) string {
 // user holds GitHub user information (relevant to dex) as defined by
 // https://developer.github.com/v3/users/#response-with-public-profile-information
 type user struct {
-	Name  string `json:"name"`
-	Login string `json:"login"`
-	ID    int    `json:"id"`
-	Email string `json:"email"`
+	Name      string `json:"name"`
+	Login     string `json:"login"`
+	ID        int    `json:"id"`
+	Email     string `json:"email"`
+	AvatarURL string `json:"avatar_url"`
 }
 
 // user queries the GitHub API for profile information using the provided client.

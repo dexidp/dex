@@ -739,10 +739,11 @@ func TestTokenIdentity(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			responses := map[string]interface{}{
 				"/api/v4/user": gitlabUser{
-					Email:    "some@email.com",
-					ID:       12345678,
-					Name:     "Joe Bloggs",
-					Username: "joebloggs",
+					Email:     "some@email.com",
+					ID:        12345678,
+					Name:      "Joe Bloggs",
+					Username:  "joebloggs",
+					AvatarURL: "https://avatars.example.com/joe.png",
 				},
 				"/oauth/userinfo": tc.userInfo,
 			}
@@ -767,6 +768,7 @@ func TestTokenIdentity(t *testing.T) {
 			expectEquals(t, identity.Username, "Joe Bloggs")
 			expectEquals(t, identity.PreferredUsername, "joebloggs")
 			expectEquals(t, identity.Email, "some@email.com")
+			expectEquals(t, identity.Picture, "https://avatars.example.com/joe.png")
 			expectEquals(t, identity.EmailVerified, true)
 			expectEquals(t, identity.Groups, tc.expectGroups)
 		})

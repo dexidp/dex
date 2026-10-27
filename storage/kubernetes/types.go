@@ -357,6 +357,7 @@ type Claims struct {
 	PreferredUsername string   `json:"preferredUsername"`
 	Email             string   `json:"email"`
 	EmailVerified     bool     `json:"emailVerified"`
+	Picture           string   `json:"picture,omitempty"`
 	Groups            []string `json:"groups,omitempty"`
 }
 
@@ -367,6 +368,7 @@ func fromStorageClaims(i storage.Claims) Claims {
 		PreferredUsername: i.PreferredUsername,
 		Email:             i.Email,
 		EmailVerified:     i.EmailVerified,
+		Picture:           i.Picture,
 		Groups:            i.Groups,
 	}
 }
@@ -378,6 +380,7 @@ func toStorageClaims(i Claims) storage.Claims {
 		PreferredUsername: i.PreferredUsername,
 		Email:             i.Email,
 		EmailVerified:     i.EmailVerified,
+		Picture:           i.Picture,
 		Groups:            i.Groups,
 	}
 }

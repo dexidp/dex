@@ -22,6 +22,7 @@ type IdentityVal struct {
 	PreferredUsername string   `cel:"preferred_username"`
 	Email             string   `cel:"email"`
 	EmailVerified     bool     `cel:"email_verified"`
+	Picture           string   `cel:"picture"`
 	Groups            []string `cel:"groups"`
 }
 
@@ -47,6 +48,7 @@ const requestTypeName = "cel.RequestVal"
 //	identity.preferred_username — string
 //	identity.email              — string
 //	identity.email_verified     — bool
+//	identity.picture            — string
 //	identity.groups             — list(string)
 func IdentityVariables() []VariableDeclaration {
 	return []VariableDeclaration{
@@ -85,6 +87,7 @@ func IdentityFromConnector(id connector.Identity) IdentityVal {
 		PreferredUsername: id.PreferredUsername,
 		Email:             id.Email,
 		EmailVerified:     id.EmailVerified,
+		Picture:           id.Picture,
 		Groups:            id.Groups,
 	}
 }

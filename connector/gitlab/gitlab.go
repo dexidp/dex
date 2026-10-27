@@ -74,6 +74,8 @@ type gitlabUser struct {
 	State    string
 	Email    string
 	IsAdmin  bool
+	// AvatarURL is returned as "avatar_url" by /api/v4/user.
+	AvatarURL string `json:"avatar_url"`
 }
 
 // Open returns a strategy for logging in through GitLab.
@@ -222,6 +224,7 @@ func (c *gitlabConnector) identity(ctx context.Context, s connector.Scopes, toke
 		PreferredUsername: user.Username,
 		Email:             user.Email,
 		EmailVerified:     true,
+		Picture:           user.AvatarURL,
 	}
 	if c.useLoginAsID {
 		identity.UserID = user.Username
