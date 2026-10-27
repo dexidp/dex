@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	jose "github.com/go-jose/go-jose/v4"
@@ -32,9 +32,10 @@ type Handler struct {
 	PKCEMethods     []string
 	SessionsEnabled bool
 
-	docOnce sync.Once
-	docData []byte
-	docErr  error
+	// doc caches the marshaled discovery document. It is only filled once the
+	// signing algorithm has been resolved, so a failed lookup is retried by the
+	// next request instead of being served for the life of the process.
+	doc atomic.Pointer[[]byte]
 }
 
 // renderError renders a user-facing HTML error page.
@@ -114,24 +115,50 @@ func (h *Handler) Keys(w http.ResponseWriter, r *http.Request) {
 	w.Write(data)
 }
 
-// serveDocument serves the discovery document, marshaling it once on first use.
+// serveDocument serves the discovery document.
 func (h *Handler) serveDocument(w http.ResponseWriter, r *http.Request) {
-	h.docOnce.Do(func() {
-		h.docData, h.docErr = json.MarshalIndent(h.Construct(r.Context()), "", "  ")
-	})
-	if h.docErr != nil {
-		h.Logger.ErrorContext(r.Context(), "failed to marshal discovery data", "err", h.docErr)
+	data, err := h.document(r.Context())
+	if err != nil {
+		h.Logger.ErrorContext(r.Context(), "failed to marshal discovery data", "err", err)
 		h.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Length", strconv.Itoa(len(h.docData)))
-	w.Write(h.docData)
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	w.Write(data)
+}
+
+// document returns the marshaled discovery document, from the cache when it
+// has been built successfully before.
+func (h *Handler) document(ctx context.Context) ([]byte, error) {
+	if data := h.doc.Load(); data != nil {
+		return *data, nil
+	}
+
+	doc, algErr := h.construct(ctx)
+	data, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	// A document built after a failed signing algorithm lookup carries the RS256
+	// fallback, which is wrong for an ES256 signer. Serve it for this request but
+	// do not cache it.
+	if algErr == nil {
+		h.doc.Store(&data)
+	}
+	return data, nil
 }
 
 // Construct builds the discovery document from the current configuration.
 func (h *Handler) Construct(ctx context.Context) Document {
+	d, _ := h.construct(ctx)
+	return d
+}
+
+// construct builds the discovery document. The returned error reports a failed
+// signing algorithm lookup, in which case the document advertises RS256.
+func (h *Handler) construct(ctx context.Context) (Document, error) {
 	d := Document{
 		Issuer:            h.IssuerURL.String(),
 		Auth:              h.IssuerURL.AbsURL("/auth"),
@@ -176,5 +203,5 @@ func (h *Handler) Construct(ctx context.Context) Document {
 		d.Claims = append(d.Claims, "sid")
 	}
 
-	return d
+	return d, err
 }
