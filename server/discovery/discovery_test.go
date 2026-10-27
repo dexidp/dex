@@ -4,7 +4,11 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/json"
+	"errors"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 
@@ -56,4 +60,43 @@ func TestConstruct(t *testing.T) {
 func TestConstructNoSessions(t *testing.T) {
 	doc := testHandler(t, false).Construct(context.Background())
 	require.Empty(t, doc.EndSession)
+}
+
+// flakySigner fails its first Algorithm lookup, as a signer backed by storage or
+// Vault does on a transient error, and reports ES256 afterwards.
+type flakySigner struct {
+	signer.Signer
+	calls int
+}
+
+func (s *flakySigner) Algorithm(context.Context) (jose.SignatureAlgorithm, error) {
+	s.calls++
+	if s.calls == 1 {
+		return "", errors.New("storage unavailable")
+	}
+	return jose.ES256, nil
+}
+
+func TestServeDocumentRetriesFailedSigningAlgorithm(t *testing.T) {
+	h := testHandler(t, false)
+	sig := &flakySigner{Signer: h.Signer}
+	h.Signer = sig
+
+	idTokenAlgs := func() []string {
+		t.Helper()
+		rr := httptest.NewRecorder()
+		h.serveDocument(rr, httptest.NewRequest(http.MethodGet, "/.well-known/openid-configuration", nil))
+		require.Equal(t, http.StatusOK, rr.Code)
+
+		var doc Document
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &doc))
+		return doc.IDTokenAlgs
+	}
+
+	// The failed lookup falls back to RS256 for this response only.
+	require.Equal(t, []string{string(jose.RS256)}, idTokenAlgs())
+	// The next request resolves the real algorithm, and that document is cached.
+	require.Equal(t, []string{string(jose.ES256)}, idTokenAlgs())
+	require.Equal(t, []string{string(jose.ES256)}, idTokenAlgs())
+	require.Equal(t, 2, sig.calls)
 }
