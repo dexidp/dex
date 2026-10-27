@@ -257,3 +257,32 @@ func TestHandleIntrospect(t *testing.T) {
 		})
 	}
 }
+
+func TestHandleIntrospectRefreshTokenWithoutAbsoluteLifetime(t *testing.T) {
+	// The test server's default refresh policy has no absolute lifetime, so the
+	// refresh token never expires on a fixed date.
+	httpServer, s := newTestServer(t, nil)
+	defer httpServer.Close()
+
+	mockTestStorage(t, s.storage)
+
+	refreshToken, err := internal.Marshal(&internal.RefreshToken{RefreshId: "test", Token: "bar"})
+	require.NoError(t, err)
+
+	data := url.Values{}
+	data.Set("token", refreshToken)
+
+	req := httptest.NewRequest(http.MethodPost, s.issuerURL.JoinPath("token", "introspect").String(), bytes.NewBufferString(data.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	rr := httptest.NewRecorder()
+	s.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	require.Equal(t, true, resp["active"])
+	require.Equal(t, "refresh_token", resp["token_use"])
+	require.Contains(t, resp, "iat")
+	require.NotContains(t, resp, "exp", "a refresh token without an absolute lifetime must not report an expiry")
+}
