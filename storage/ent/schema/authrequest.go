@@ -90,6 +90,9 @@ func (AuthRequest) Fields() []ent.Field {
 		field.Bytes("hmac_key"),
 		field.Bool("mfa_validated").
 			Default(false),
+		field.Bytes("webauthn_session_data").
+			Nillable().
+			Optional(),
 		field.Text("prompt").SchemaType(textSchema).Default(""),
 		field.Int("max_age").Default(-1),
 		field.Time("auth_time").SchemaType(timeSchema).Optional(),

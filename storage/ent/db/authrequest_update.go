@@ -325,6 +325,18 @@ func (_u *AuthRequestUpdate) SetNillableMfaValidated(v *bool) *AuthRequestUpdate
 	return _u
 }
 
+// SetWebauthnSessionData sets the "webauthn_session_data" field.
+func (_u *AuthRequestUpdate) SetWebauthnSessionData(v []byte) *AuthRequestUpdate {
+	_u.mutation.SetWebauthnSessionData(v)
+	return _u
+}
+
+// ClearWebauthnSessionData clears the value of the "webauthn_session_data" field.
+func (_u *AuthRequestUpdate) ClearWebauthnSessionData() *AuthRequestUpdate {
+	_u.mutation.ClearWebauthnSessionData()
+	return _u
+}
+
 // SetPrompt sets the "prompt" field.
 func (_u *AuthRequestUpdate) SetPrompt(v string) *AuthRequestUpdate {
 	_u.mutation.SetPrompt(v)
@@ -510,6 +522,12 @@ func (_u *AuthRequestUpdate) sqlSave(ctx context.Context) (_node int, err error)
 	}
 	if value, ok := _u.mutation.MfaValidated(); ok {
 		_spec.SetField(authrequest.FieldMfaValidated, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.WebauthnSessionData(); ok {
+		_spec.SetField(authrequest.FieldWebauthnSessionData, field.TypeBytes, value)
+	}
+	if _u.mutation.WebauthnSessionDataCleared() {
+		_spec.ClearField(authrequest.FieldWebauthnSessionData, field.TypeBytes)
 	}
 	if value, ok := _u.mutation.Prompt(); ok {
 		_spec.SetField(authrequest.FieldPrompt, field.TypeString, value)
@@ -842,6 +860,18 @@ func (_u *AuthRequestUpdateOne) SetNillableMfaValidated(v *bool) *AuthRequestUpd
 	return _u
 }
 
+// SetWebauthnSessionData sets the "webauthn_session_data" field.
+func (_u *AuthRequestUpdateOne) SetWebauthnSessionData(v []byte) *AuthRequestUpdateOne {
+	_u.mutation.SetWebauthnSessionData(v)
+	return _u
+}
+
+// ClearWebauthnSessionData clears the value of the "webauthn_session_data" field.
+func (_u *AuthRequestUpdateOne) ClearWebauthnSessionData() *AuthRequestUpdateOne {
+	_u.mutation.ClearWebauthnSessionData()
+	return _u
+}
+
 // SetPrompt sets the "prompt" field.
 func (_u *AuthRequestUpdateOne) SetPrompt(v string) *AuthRequestUpdateOne {
 	_u.mutation.SetPrompt(v)
@@ -1057,6 +1087,12 @@ func (_u *AuthRequestUpdateOne) sqlSave(ctx context.Context) (_node *AuthRequest
 	}
 	if value, ok := _u.mutation.MfaValidated(); ok {
 		_spec.SetField(authrequest.FieldMfaValidated, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.WebauthnSessionData(); ok {
+		_spec.SetField(authrequest.FieldWebauthnSessionData, field.TypeBytes, value)
+	}
+	if _u.mutation.WebauthnSessionDataCleared() {
+		_spec.ClearField(authrequest.FieldWebauthnSessionData, field.TypeBytes)
 	}
 	if value, ok := _u.mutation.Prompt(); ok {
 		_spec.SetField(authrequest.FieldPrompt, field.TypeString, value)

@@ -44,6 +44,9 @@ func (UserIdentity) Fields() []ent.Field {
 		field.Bytes("mfa_secrets").
 			Nillable().
 			Optional(),
+		field.Bytes("webauthn_credentials").
+			Nillable().
+			Optional(),
 		field.Time("created_at").
 			SchemaType(timeSchema),
 		field.Time("last_login").

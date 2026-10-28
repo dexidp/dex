@@ -11,6 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
+	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/db/oauth2client"
 	"github.com/dexidp/dex/storage/ent/db/predicate"
 )
@@ -156,6 +157,94 @@ func (_u *OAuth2ClientUpdate) ClearMfaChain() *OAuth2ClientUpdate {
 	return _u
 }
 
+// SetPostLogoutRedirectUris sets the "post_logout_redirect_uris" field.
+func (_u *OAuth2ClientUpdate) SetPostLogoutRedirectUris(v []string) *OAuth2ClientUpdate {
+	_u.mutation.SetPostLogoutRedirectUris(v)
+	return _u
+}
+
+// AppendPostLogoutRedirectUris appends value to the "post_logout_redirect_uris" field.
+func (_u *OAuth2ClientUpdate) AppendPostLogoutRedirectUris(v []string) *OAuth2ClientUpdate {
+	_u.mutation.AppendPostLogoutRedirectUris(v)
+	return _u
+}
+
+// ClearPostLogoutRedirectUris clears the value of the "post_logout_redirect_uris" field.
+func (_u *OAuth2ClientUpdate) ClearPostLogoutRedirectUris() *OAuth2ClientUpdate {
+	_u.mutation.ClearPostLogoutRedirectUris()
+	return _u
+}
+
+// SetSSOSharedWith sets the "sso_shared_with" field.
+func (_u *OAuth2ClientUpdate) SetSSOSharedWith(v []string) *OAuth2ClientUpdate {
+	_u.mutation.SetSSOSharedWith(v)
+	return _u
+}
+
+// AppendSSOSharedWith appends value to the "sso_shared_with" field.
+func (_u *OAuth2ClientUpdate) AppendSSOSharedWith(v []string) *OAuth2ClientUpdate {
+	_u.mutation.AppendSSOSharedWith(v)
+	return _u
+}
+
+// ClearSSOSharedWith clears the value of the "sso_shared_with" field.
+func (_u *OAuth2ClientUpdate) ClearSSOSharedWith() *OAuth2ClientUpdate {
+	_u.mutation.ClearSSOSharedWith()
+	return _u
+}
+
+// SetBackchannelLogoutURI sets the "backchannel_logout_uri" field.
+func (_u *OAuth2ClientUpdate) SetBackchannelLogoutURI(v string) *OAuth2ClientUpdate {
+	_u.mutation.SetBackchannelLogoutURI(v)
+	return _u
+}
+
+// SetNillableBackchannelLogoutURI sets the "backchannel_logout_uri" field if the given value is not nil.
+func (_u *OAuth2ClientUpdate) SetNillableBackchannelLogoutURI(v *string) *OAuth2ClientUpdate {
+	if v != nil {
+		_u.SetBackchannelLogoutURI(*v)
+	}
+	return _u
+}
+
+// ClearBackchannelLogoutURI clears the value of the "backchannel_logout_uri" field.
+func (_u *OAuth2ClientUpdate) ClearBackchannelLogoutURI() *OAuth2ClientUpdate {
+	_u.mutation.ClearBackchannelLogoutURI()
+	return _u
+}
+
+// SetRefreshTokenLifetime sets the "refresh_token_lifetime" field.
+func (_u *OAuth2ClientUpdate) SetRefreshTokenLifetime(v string) *OAuth2ClientUpdate {
+	_u.mutation.SetRefreshTokenLifetime(v)
+	return _u
+}
+
+// SetNillableRefreshTokenLifetime sets the "refresh_token_lifetime" field if the given value is not nil.
+func (_u *OAuth2ClientUpdate) SetNillableRefreshTokenLifetime(v *string) *OAuth2ClientUpdate {
+	if v != nil {
+		_u.SetRefreshTokenLifetime(*v)
+	}
+	return _u
+}
+
+// ClearRefreshTokenLifetime clears the value of the "refresh_token_lifetime" field.
+func (_u *OAuth2ClientUpdate) ClearRefreshTokenLifetime() *OAuth2ClientUpdate {
+	_u.mutation.ClearRefreshTokenLifetime()
+	return _u
+}
+
+// SetClientCredentialsClaims sets the "client_credentials_claims" field.
+func (_u *OAuth2ClientUpdate) SetClientCredentialsClaims(v *storage.ClientCredentialsClaims) *OAuth2ClientUpdate {
+	_u.mutation.SetClientCredentialsClaims(v)
+	return _u
+}
+
+// ClearClientCredentialsClaims clears the value of the "client_credentials_claims" field.
+func (_u *OAuth2ClientUpdate) ClearClientCredentialsClaims() *OAuth2ClientUpdate {
+	_u.mutation.ClearClientCredentialsClaims()
+	return _u
+}
+
 // Mutation returns the OAuth2ClientMutation object of the builder.
 func (_u *OAuth2ClientUpdate) Mutation() *OAuth2ClientMutation {
 	return _u.mutation
@@ -275,6 +364,46 @@ func (_u *OAuth2ClientUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if _u.mutation.MfaChainCleared() {
 		_spec.ClearField(oauth2client.FieldMfaChain, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.PostLogoutRedirectUris(); ok {
+		_spec.SetField(oauth2client.FieldPostLogoutRedirectUris, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedPostLogoutRedirectUris(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, oauth2client.FieldPostLogoutRedirectUris, value)
+		})
+	}
+	if _u.mutation.PostLogoutRedirectUrisCleared() {
+		_spec.ClearField(oauth2client.FieldPostLogoutRedirectUris, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.SSOSharedWith(); ok {
+		_spec.SetField(oauth2client.FieldSSOSharedWith, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedSSOSharedWith(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, oauth2client.FieldSSOSharedWith, value)
+		})
+	}
+	if _u.mutation.SSOSharedWithCleared() {
+		_spec.ClearField(oauth2client.FieldSSOSharedWith, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.BackchannelLogoutURI(); ok {
+		_spec.SetField(oauth2client.FieldBackchannelLogoutURI, field.TypeString, value)
+	}
+	if _u.mutation.BackchannelLogoutURICleared() {
+		_spec.ClearField(oauth2client.FieldBackchannelLogoutURI, field.TypeString)
+	}
+	if value, ok := _u.mutation.RefreshTokenLifetime(); ok {
+		_spec.SetField(oauth2client.FieldRefreshTokenLifetime, field.TypeString, value)
+	}
+	if _u.mutation.RefreshTokenLifetimeCleared() {
+		_spec.ClearField(oauth2client.FieldRefreshTokenLifetime, field.TypeString)
+	}
+	if value, ok := _u.mutation.ClientCredentialsClaims(); ok {
+		_spec.SetField(oauth2client.FieldClientCredentialsClaims, field.TypeJSON, value)
+	}
+	if _u.mutation.ClientCredentialsClaimsCleared() {
+		_spec.ClearField(oauth2client.FieldClientCredentialsClaims, field.TypeJSON)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -421,6 +550,94 @@ func (_u *OAuth2ClientUpdateOne) AppendMfaChain(v []string) *OAuth2ClientUpdateO
 // ClearMfaChain clears the value of the "mfa_chain" field.
 func (_u *OAuth2ClientUpdateOne) ClearMfaChain() *OAuth2ClientUpdateOne {
 	_u.mutation.ClearMfaChain()
+	return _u
+}
+
+// SetPostLogoutRedirectUris sets the "post_logout_redirect_uris" field.
+func (_u *OAuth2ClientUpdateOne) SetPostLogoutRedirectUris(v []string) *OAuth2ClientUpdateOne {
+	_u.mutation.SetPostLogoutRedirectUris(v)
+	return _u
+}
+
+// AppendPostLogoutRedirectUris appends value to the "post_logout_redirect_uris" field.
+func (_u *OAuth2ClientUpdateOne) AppendPostLogoutRedirectUris(v []string) *OAuth2ClientUpdateOne {
+	_u.mutation.AppendPostLogoutRedirectUris(v)
+	return _u
+}
+
+// ClearPostLogoutRedirectUris clears the value of the "post_logout_redirect_uris" field.
+func (_u *OAuth2ClientUpdateOne) ClearPostLogoutRedirectUris() *OAuth2ClientUpdateOne {
+	_u.mutation.ClearPostLogoutRedirectUris()
+	return _u
+}
+
+// SetSSOSharedWith sets the "sso_shared_with" field.
+func (_u *OAuth2ClientUpdateOne) SetSSOSharedWith(v []string) *OAuth2ClientUpdateOne {
+	_u.mutation.SetSSOSharedWith(v)
+	return _u
+}
+
+// AppendSSOSharedWith appends value to the "sso_shared_with" field.
+func (_u *OAuth2ClientUpdateOne) AppendSSOSharedWith(v []string) *OAuth2ClientUpdateOne {
+	_u.mutation.AppendSSOSharedWith(v)
+	return _u
+}
+
+// ClearSSOSharedWith clears the value of the "sso_shared_with" field.
+func (_u *OAuth2ClientUpdateOne) ClearSSOSharedWith() *OAuth2ClientUpdateOne {
+	_u.mutation.ClearSSOSharedWith()
+	return _u
+}
+
+// SetBackchannelLogoutURI sets the "backchannel_logout_uri" field.
+func (_u *OAuth2ClientUpdateOne) SetBackchannelLogoutURI(v string) *OAuth2ClientUpdateOne {
+	_u.mutation.SetBackchannelLogoutURI(v)
+	return _u
+}
+
+// SetNillableBackchannelLogoutURI sets the "backchannel_logout_uri" field if the given value is not nil.
+func (_u *OAuth2ClientUpdateOne) SetNillableBackchannelLogoutURI(v *string) *OAuth2ClientUpdateOne {
+	if v != nil {
+		_u.SetBackchannelLogoutURI(*v)
+	}
+	return _u
+}
+
+// ClearBackchannelLogoutURI clears the value of the "backchannel_logout_uri" field.
+func (_u *OAuth2ClientUpdateOne) ClearBackchannelLogoutURI() *OAuth2ClientUpdateOne {
+	_u.mutation.ClearBackchannelLogoutURI()
+	return _u
+}
+
+// SetRefreshTokenLifetime sets the "refresh_token_lifetime" field.
+func (_u *OAuth2ClientUpdateOne) SetRefreshTokenLifetime(v string) *OAuth2ClientUpdateOne {
+	_u.mutation.SetRefreshTokenLifetime(v)
+	return _u
+}
+
+// SetNillableRefreshTokenLifetime sets the "refresh_token_lifetime" field if the given value is not nil.
+func (_u *OAuth2ClientUpdateOne) SetNillableRefreshTokenLifetime(v *string) *OAuth2ClientUpdateOne {
+	if v != nil {
+		_u.SetRefreshTokenLifetime(*v)
+	}
+	return _u
+}
+
+// ClearRefreshTokenLifetime clears the value of the "refresh_token_lifetime" field.
+func (_u *OAuth2ClientUpdateOne) ClearRefreshTokenLifetime() *OAuth2ClientUpdateOne {
+	_u.mutation.ClearRefreshTokenLifetime()
+	return _u
+}
+
+// SetClientCredentialsClaims sets the "client_credentials_claims" field.
+func (_u *OAuth2ClientUpdateOne) SetClientCredentialsClaims(v *storage.ClientCredentialsClaims) *OAuth2ClientUpdateOne {
+	_u.mutation.SetClientCredentialsClaims(v)
+	return _u
+}
+
+// ClearClientCredentialsClaims clears the value of the "client_credentials_claims" field.
+func (_u *OAuth2ClientUpdateOne) ClearClientCredentialsClaims() *OAuth2ClientUpdateOne {
+	_u.mutation.ClearClientCredentialsClaims()
 	return _u
 }
 
@@ -573,6 +790,46 @@ func (_u *OAuth2ClientUpdateOne) sqlSave(ctx context.Context) (_node *OAuth2Clie
 	}
 	if _u.mutation.MfaChainCleared() {
 		_spec.ClearField(oauth2client.FieldMfaChain, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.PostLogoutRedirectUris(); ok {
+		_spec.SetField(oauth2client.FieldPostLogoutRedirectUris, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedPostLogoutRedirectUris(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, oauth2client.FieldPostLogoutRedirectUris, value)
+		})
+	}
+	if _u.mutation.PostLogoutRedirectUrisCleared() {
+		_spec.ClearField(oauth2client.FieldPostLogoutRedirectUris, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.SSOSharedWith(); ok {
+		_spec.SetField(oauth2client.FieldSSOSharedWith, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedSSOSharedWith(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, oauth2client.FieldSSOSharedWith, value)
+		})
+	}
+	if _u.mutation.SSOSharedWithCleared() {
+		_spec.ClearField(oauth2client.FieldSSOSharedWith, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.BackchannelLogoutURI(); ok {
+		_spec.SetField(oauth2client.FieldBackchannelLogoutURI, field.TypeString, value)
+	}
+	if _u.mutation.BackchannelLogoutURICleared() {
+		_spec.ClearField(oauth2client.FieldBackchannelLogoutURI, field.TypeString)
+	}
+	if value, ok := _u.mutation.RefreshTokenLifetime(); ok {
+		_spec.SetField(oauth2client.FieldRefreshTokenLifetime, field.TypeString, value)
+	}
+	if _u.mutation.RefreshTokenLifetimeCleared() {
+		_spec.ClearField(oauth2client.FieldRefreshTokenLifetime, field.TypeString)
+	}
+	if value, ok := _u.mutation.ClientCredentialsClaims(); ok {
+		_spec.SetField(oauth2client.FieldClientCredentialsClaims, field.TypeJSON, value)
+	}
+	if _u.mutation.ClientCredentialsClaimsCleared() {
+		_spec.ClearField(oauth2client.FieldClientCredentialsClaims, field.TypeJSON)
 	}
 	_node = &OAuth2Client{config: _u.config}
 	_spec.Assign = _node.assignValues

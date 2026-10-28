@@ -12,7 +12,9 @@ import (
 	"net/url"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/dexidp/dex/connector"
 )
@@ -198,6 +200,148 @@ func TestLoginUsedAsIDWhenConfigured(t *testing.T) {
 	expectNil(t, err)
 	expectEquals(t, identity.UserID, "some-login")
 	expectEquals(t, identity.Username, "Joe Bloggs")
+}
+
+func TestHandleCallbackStoresRefreshToken(t *testing.T) {
+	s := newTestServer(map[string]testResponse{
+		"/user": {data: user{Login: "some-login", ID: 12345678, Name: "Joe Bloggs", Email: "some@email.com"}},
+		"/login/oauth/access_token": {data: map[string]interface{}{
+			"access_token":  "access-token",
+			"refresh_token": "refresh-token",
+			"expires_in":    28800,
+		}},
+	})
+	defer s.Close()
+
+	hostURL, err := url.Parse(s.URL)
+	expectNil(t, err)
+
+	req, err := http.NewRequest("GET", hostURL.String(), nil)
+	expectNil(t, err)
+
+	c := githubConnector{apiURL: s.URL, hostName: hostURL.Host, httpClient: newClient()}
+	identity, err := c.HandleCallback(connector.Scopes{OfflineAccess: true}, nil, req)
+	expectNil(t, err)
+
+	var data connectorData
+	if err := json.Unmarshal(identity.ConnectorData, &data); err != nil {
+		t.Fatalf("failed to unmarshal connector data: %v", err)
+	}
+	expectEquals(t, data.AccessToken, "access-token")
+	expectEquals(t, data.RefreshToken, "refresh-token")
+	if data.Expiry.IsZero() || !data.Expiry.After(time.Now()) {
+		t.Fatalf("expected future token expiry, got %v", data.Expiry)
+	}
+}
+
+func TestRefreshUsesRefreshToken(t *testing.T) {
+	var tokenRefreshCalled atomic.Bool
+	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/login/oauth/access_token":
+			tokenRefreshCalled.Store(true)
+			if err := r.ParseForm(); err != nil {
+				t.Fatalf("failed to parse token refresh form: %v", err)
+			}
+			if got := r.Form.Get("grant_type"); got != "refresh_token" {
+				t.Fatalf("expected refresh_token grant type, got %q", got)
+			}
+			if got := r.Form.Get("refresh_token"); got != "old-refresh-token" {
+				t.Fatalf("expected old refresh token, got %q", got)
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"access_token":  "new-access-token",
+				"refresh_token": "new-refresh-token",
+				"expires_in":    28800,
+			})
+		case "/user":
+			if got := r.Header.Get("Authorization"); got != "Bearer new-access-token" {
+				t.Fatalf("expected refreshed access token, got %q", got)
+			}
+			json.NewEncoder(w).Encode(user{Login: "new-login", ID: 12345678, Name: "New User", Email: "new@email.com"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer s.Close()
+
+	hostURL, err := url.Parse(s.URL)
+	expectNil(t, err)
+
+	connData, err := json.Marshal(connectorData{
+		AccessToken:  "old-access-token",
+		RefreshToken: "old-refresh-token",
+		Expiry:       time.Now().Add(-time.Hour),
+	})
+	expectNil(t, err)
+
+	c := githubConnector{
+		apiURL:       s.URL,
+		hostName:     hostURL.Host,
+		httpClient:   newClient(),
+		clientID:     "client-id",
+		clientSecret: "client-secret",
+	}
+	identity, err := c.Refresh(context.Background(), connector.Scopes{OfflineAccess: true}, connector.Identity{ConnectorData: connData})
+	expectNil(t, err)
+
+	if !tokenRefreshCalled.Load() {
+		t.Fatal("expected refresh token request")
+	}
+	expectEquals(t, identity.Username, "New User")
+	expectEquals(t, identity.PreferredUsername, "new-login")
+	expectEquals(t, identity.Email, "new@email.com")
+
+	var data connectorData
+	if err := json.Unmarshal(identity.ConnectorData, &data); err != nil {
+		t.Fatalf("failed to unmarshal connector data: %v", err)
+	}
+	expectEquals(t, data.AccessToken, "new-access-token")
+	expectEquals(t, data.RefreshToken, "new-refresh-token")
+	if data.Expiry.IsZero() || !data.Expiry.After(time.Now()) {
+		t.Fatalf("expected future token expiry, got %v", data.Expiry)
+	}
+}
+
+func TestRefreshWithAccessTokenOnlyConnectorData(t *testing.T) {
+	var tokenEndpointCalled atomic.Bool
+	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/login/oauth/access_token":
+			tokenEndpointCalled.Store(true)
+			http.Error(w, "unexpected token refresh", http.StatusInternalServerError)
+		case "/user":
+			if got := r.Header.Get("Authorization"); got != "Bearer old-access-token" {
+				t.Fatalf("expected old access token, got %q", got)
+			}
+			json.NewEncoder(w).Encode(user{Login: "some-login", ID: 12345678, Name: "Some User", Email: "some@email.com"})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer s.Close()
+
+	hostURL, err := url.Parse(s.URL)
+	expectNil(t, err)
+
+	connData, err := json.Marshal(connectorData{AccessToken: "old-access-token"})
+	expectNil(t, err)
+
+	c := githubConnector{apiURL: s.URL, hostName: hostURL.Host, httpClient: newClient()}
+	identity, err := c.Refresh(context.Background(), connector.Scopes{}, connector.Identity{ConnectorData: connData})
+	expectNil(t, err)
+
+	if tokenEndpointCalled.Load() {
+		t.Fatal("did not expect token refresh request")
+	}
+	expectEquals(t, identity.Username, "Some User")
+	expectEquals(t, identity.PreferredUsername, "some-login")
+	expectEquals(t, identity.Email, "some@email.com")
+	expectEquals(t, identity.ConnectorData, connData)
 }
 
 func TestPreferredEmailDomainConfigured(t *testing.T) {

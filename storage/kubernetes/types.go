@@ -289,6 +289,14 @@ type Client struct {
 	AllowedConnectors []string `json:"allowedConnectors,omitempty"`
 
 	MFAChain []string `json:"mfaChain,omitempty"`
+
+	PostLogoutRedirectURIs []string `json:"postLogoutRedirectURIs,omitempty"`
+
+	SSOSharedWith []string `json:"ssoSharedWith"`
+
+	BackchannelLogoutURI string `json:"backchannelLogoutURI,omitempty"`
+
+	RefreshTokenLifetime string `json:"refreshTokenLifetime,omitempty"`
 }
 
 // ClientList is a list of Clients.
@@ -308,29 +316,37 @@ func (cli *client) fromStorageClient(c storage.Client) Client {
 			Name:      cli.idToName(c.ID),
 			Namespace: cli.namespace,
 		},
-		ID:                c.ID,
-		Secret:            c.Secret,
-		RedirectURIs:      c.RedirectURIs,
-		TrustedPeers:      c.TrustedPeers,
-		Public:            c.Public,
-		Name:              c.Name,
-		LogoURL:           c.LogoURL,
-		AllowedConnectors: c.AllowedConnectors,
-		MFAChain:          c.MFAChain,
+		ID:                     c.ID,
+		Secret:                 c.Secret,
+		RedirectURIs:           c.RedirectURIs,
+		TrustedPeers:           c.TrustedPeers,
+		Public:                 c.Public,
+		Name:                   c.Name,
+		LogoURL:                c.LogoURL,
+		AllowedConnectors:      c.AllowedConnectors,
+		MFAChain:               c.MFAChain,
+		PostLogoutRedirectURIs: c.PostLogoutRedirectURIs,
+		SSOSharedWith:          c.SSOSharedWith,
+		BackchannelLogoutURI:   c.BackchannelLogoutURI,
+		RefreshTokenLifetime:   c.RefreshTokenLifetime,
 	}
 }
 
 func toStorageClient(c Client) storage.Client {
 	return storage.Client{
-		ID:                c.ID,
-		Secret:            c.Secret,
-		RedirectURIs:      c.RedirectURIs,
-		TrustedPeers:      c.TrustedPeers,
-		Public:            c.Public,
-		Name:              c.Name,
-		LogoURL:           c.LogoURL,
-		AllowedConnectors: c.AllowedConnectors,
-		MFAChain:          c.MFAChain,
+		ID:                     c.ID,
+		Secret:                 c.Secret,
+		RedirectURIs:           c.RedirectURIs,
+		TrustedPeers:           c.TrustedPeers,
+		Public:                 c.Public,
+		Name:                   c.Name,
+		LogoURL:                c.LogoURL,
+		AllowedConnectors:      c.AllowedConnectors,
+		MFAChain:               c.MFAChain,
+		PostLogoutRedirectURIs: c.PostLogoutRedirectURIs,
+		SSOSharedWith:          c.SSOSharedWith,
+		BackchannelLogoutURI:   c.BackchannelLogoutURI,
+		RefreshTokenLifetime:   c.RefreshTokenLifetime,
 	}
 }
 
@@ -403,6 +419,8 @@ type AuthRequest struct {
 
 	MFAValidated bool `json:"mfa_validated"`
 
+	WebAuthnSessionData []byte `json:"webauthn_session_data,omitempty"`
+
 	Prompt   string    `json:"prompt,omitempty"`
 	MaxAge   int       `json:"maxAge"`
 	AuthTime time.Time `json:"authTime,omitempty"`
@@ -434,11 +452,12 @@ func toStorageAuthRequest(req AuthRequest) storage.AuthRequest {
 			CodeChallenge:       req.CodeChallenge,
 			CodeChallengeMethod: req.CodeChallengeMethod,
 		},
-		HMACKey:      req.HMACKey,
-		MFAValidated: req.MFAValidated,
-		Prompt:       req.Prompt,
-		MaxAge:       req.MaxAge,
-		AuthTime:     req.AuthTime,
+		HMACKey:             req.HMACKey,
+		MFAValidated:        req.MFAValidated,
+		WebAuthnSessionData: req.WebAuthnSessionData,
+		Prompt:              req.Prompt,
+		MaxAge:              req.MaxAge,
+		AuthTime:            req.AuthTime,
 	}
 	return a
 }
@@ -469,6 +488,7 @@ func (cli *client) fromStorageAuthRequest(a storage.AuthRequest) AuthRequest {
 		CodeChallengeMethod: a.PKCE.CodeChallengeMethod,
 		HMACKey:             a.HMACKey,
 		MFAValidated:        a.MFAValidated,
+		WebAuthnSessionData: a.WebAuthnSessionData,
 		Prompt:              a.Prompt,
 		MaxAge:              a.MaxAge,
 		AuthTime:            a.AuthTime,
@@ -562,6 +582,8 @@ type AuthCode struct {
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
 
 	AuthTime time.Time `json:"authTime,omitempty"`
+
+	SessionID string `json:"sessionID,omitempty"`
 }
 
 // AuthCodeList is a list of AuthCodes.
@@ -592,6 +614,7 @@ func (cli *client) fromStorageAuthCode(a storage.AuthCode) AuthCode {
 		CodeChallenge:       a.PKCE.CodeChallenge,
 		CodeChallengeMethod: a.PKCE.CodeChallengeMethod,
 		AuthTime:            a.AuthTime,
+		SessionID:           a.SessionID,
 	}
 }
 
@@ -610,7 +633,8 @@ func toStorageAuthCode(a AuthCode) storage.AuthCode {
 			CodeChallenge:       a.CodeChallenge,
 			CodeChallengeMethod: a.CodeChallengeMethod,
 		},
-		AuthTime: a.AuthTime,
+		AuthTime:  a.AuthTime,
+		SessionID: a.SessionID,
 	}
 }
 
@@ -935,14 +959,15 @@ type UserIdentity struct {
 	k8sapi.TypeMeta   `json:",inline"`
 	k8sapi.ObjectMeta `json:"metadata,omitempty"`
 
-	UserID       string                        `json:"userID,omitempty"`
-	ConnectorID  string                        `json:"connectorID,omitempty"`
-	Claims       Claims                        `json:"claims,omitempty"`
-	Consents     map[string][]string           `json:"consents,omitempty"`
-	MFASecrets   map[string]*storage.MFASecret `json:"mfaSecrets,omitempty"`
-	CreatedAt    time.Time                     `json:"createdAt,omitempty"`
-	LastLogin    time.Time                     `json:"lastLogin,omitempty"`
-	BlockedUntil time.Time                     `json:"blockedUntil,omitempty"`
+	UserID              string                                  `json:"userID,omitempty"`
+	ConnectorID         string                                  `json:"connectorID,omitempty"`
+	Claims              Claims                                  `json:"claims,omitempty"`
+	Consents            map[string][]string                     `json:"consents,omitempty"`
+	MFASecrets          map[string]*storage.MFASecret           `json:"mfaSecrets,omitempty"`
+	WebAuthnCredentials map[string][]storage.WebAuthnCredential `json:"webauthnCredentials,omitempty"`
+	CreatedAt           time.Time                               `json:"createdAt,omitempty"`
+	LastLogin           time.Time                               `json:"lastLogin,omitempty"`
+	BlockedUntil        time.Time                               `json:"blockedUntil,omitempty"`
 }
 
 // UserIdentityList is a list of UserIdentities.
@@ -962,27 +987,29 @@ func (cli *client) fromStorageUserIdentity(u storage.UserIdentity) UserIdentity 
 			Name:      cli.offlineTokenName(u.UserID, u.ConnectorID),
 			Namespace: cli.namespace,
 		},
-		UserID:       u.UserID,
-		ConnectorID:  u.ConnectorID,
-		Claims:       fromStorageClaims(u.Claims),
-		Consents:     u.Consents,
-		MFASecrets:   u.MFASecrets,
-		CreatedAt:    u.CreatedAt,
-		LastLogin:    u.LastLogin,
-		BlockedUntil: u.BlockedUntil,
+		UserID:              u.UserID,
+		ConnectorID:         u.ConnectorID,
+		Claims:              fromStorageClaims(u.Claims),
+		Consents:            u.Consents,
+		MFASecrets:          u.MFASecrets,
+		WebAuthnCredentials: u.WebAuthnCredentials,
+		CreatedAt:           u.CreatedAt,
+		LastLogin:           u.LastLogin,
+		BlockedUntil:        u.BlockedUntil,
 	}
 }
 
 func toStorageUserIdentity(u UserIdentity) storage.UserIdentity {
 	s := storage.UserIdentity{
-		UserID:       u.UserID,
-		ConnectorID:  u.ConnectorID,
-		Claims:       toStorageClaims(u.Claims),
-		Consents:     u.Consents,
-		MFASecrets:   u.MFASecrets,
-		CreatedAt:    u.CreatedAt,
-		LastLogin:    u.LastLogin,
-		BlockedUntil: u.BlockedUntil,
+		UserID:              u.UserID,
+		ConnectorID:         u.ConnectorID,
+		Claims:              toStorageClaims(u.Claims),
+		Consents:            u.Consents,
+		MFASecrets:          u.MFASecrets,
+		WebAuthnCredentials: u.WebAuthnCredentials,
+		CreatedAt:           u.CreatedAt,
+		LastLogin:           u.LastLogin,
+		BlockedUntil:        u.BlockedUntil,
 	}
 	if s.Consents == nil {
 		// Server code assumes this will be non-nil.
@@ -999,6 +1026,7 @@ type AuthSession struct {
 	UserID         string                              `json:"userID,omitempty"`
 	ConnectorID    string                              `json:"connectorID,omitempty"`
 	Nonce          string                              `json:"nonce,omitempty"`
+	Secret         string                              `json:"secret,omitempty"`
 	ClientStates   map[string]*storage.ClientAuthState `json:"clientStates,omitempty"`
 	CreatedAt      time.Time                           `json:"createdAt,omitempty"`
 	LastActivity   time.Time                           `json:"lastActivity,omitempty"`
@@ -1006,6 +1034,7 @@ type AuthSession struct {
 	UserAgent      string                              `json:"userAgent,omitempty"`
 	AbsoluteExpiry time.Time                           `json:"absoluteExpiry,omitempty"`
 	IdleExpiry     time.Time                           `json:"idleExpiry,omitempty"`
+	LogoutState    *storage.LogoutState                `json:"logoutState,omitempty"`
 }
 
 // AuthSessionList is a list of AuthSessions.
@@ -1022,12 +1051,12 @@ func (cli *client) fromStorageAuthSession(s storage.AuthSession) AuthSession {
 			APIVersion: cli.apiVersion,
 		},
 		ObjectMeta: k8sapi.ObjectMeta{
-			Name:      offlineTokenName(s.UserID, s.ConnectorID, cli.hash),
+			Name:      s.ID,
 			Namespace: cli.namespace,
 		},
+		Secret:         s.Secret,
 		UserID:         s.UserID,
 		ConnectorID:    s.ConnectorID,
-		Nonce:          s.Nonce,
 		ClientStates:   s.ClientStates,
 		CreatedAt:      s.CreatedAt,
 		LastActivity:   s.LastActivity,
@@ -1035,14 +1064,16 @@ func (cli *client) fromStorageAuthSession(s storage.AuthSession) AuthSession {
 		UserAgent:      s.UserAgent,
 		AbsoluteExpiry: s.AbsoluteExpiry,
 		IdleExpiry:     s.IdleExpiry,
+		LogoutState:    s.LogoutState,
 	}
 }
 
 func toStorageAuthSession(s AuthSession) storage.AuthSession {
 	result := storage.AuthSession{
+		ID:             s.ObjectMeta.Name,
+		Secret:         s.Secret,
 		UserID:         s.UserID,
 		ConnectorID:    s.ConnectorID,
-		Nonce:          s.Nonce,
 		ClientStates:   s.ClientStates,
 		CreatedAt:      s.CreatedAt,
 		LastActivity:   s.LastActivity,
@@ -1050,6 +1081,7 @@ func toStorageAuthSession(s AuthSession) storage.AuthSession {
 		UserAgent:      s.UserAgent,
 		AbsoluteExpiry: s.AbsoluteExpiry,
 		IdleExpiry:     s.IdleExpiry,
+		LogoutState:    s.LogoutState,
 	}
 	if result.ClientStates == nil {
 		result.ClientStates = make(map[string]*storage.ClientAuthState)

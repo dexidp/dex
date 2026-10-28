@@ -27,6 +27,7 @@ func (d *Database) CreateAuthCode(ctx context.Context, code storage.AuthCode) er
 		SetConnectorID(code.ConnectorID).
 		SetConnectorData(code.ConnectorData).
 		SetAuthTime(code.AuthTime).
+		SetSessionID(code.SessionID).
 		Save(ctx)
 	if err != nil {
 		return convertDBError("create auth code: %w", err)

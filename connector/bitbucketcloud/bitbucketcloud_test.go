@@ -1,40 +1,40 @@
 package bitbucketcloud
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/dexidp/dex/connector"
 )
 
 func TestUserGroups(t *testing.T) {
-	teamsResponse := userWorkspacesResponse{
+	workspacesResponse := workspacesResponse{
 		pagedResponse: pagedResponse{
 			Size:    3,
 			Page:    1,
 			PageLen: 10,
 		},
-		Values: []workspace{
-			{Workspace: workspaceSlug{Slug: "team-1"}},
-			{Workspace: workspaceSlug{Slug: "team-2"}},
-			{Workspace: workspaceSlug{Slug: "team-3"}},
+		Values: []workspaceAccess{
+			{Workspace: workspaceRef{Slug: "team-1"}},
+			{Workspace: workspaceRef{Slug: "team-2"}},
+			{Workspace: workspaceRef{Slug: "team-3"}},
 		},
 	}
 
 	s := newTestServer(map[string]interface{}{
-		"/user/permissions/workspaces": teamsResponse,
-		"/groups/team-1":               []group{{Slug: "administrators"}, {Slug: "members"}},
-		"/groups/team-2":               []group{{Slug: "everyone"}},
-		"/groups/team-3":               []group{},
+		"/user/workspaces": workspacesResponse,
 	})
 
-	connector := bitbucketConnector{apiURL: s.URL, legacyAPIURL: s.URL}
+	connector := bitbucketConnector{apiURL: s.URL}
 	groups, err := connector.userWorkspaces(context.Background(), newClient())
 
 	expectNil(t, err)
@@ -44,25 +44,12 @@ func TestUserGroups(t *testing.T) {
 		"team-3",
 	})
 
-	connector.includeTeamGroups = true
-	groups, err = connector.userWorkspaces(context.Background(), newClient())
-
-	expectNil(t, err)
-	expectEquals(t, groups, []string{
-		"team-1",
-		"team-2",
-		"team-3",
-		"team-1/administrators",
-		"team-1/members",
-		"team-2/everyone",
-	})
-
 	s.Close()
 }
 
 func TestUserWithoutTeams(t *testing.T) {
 	s := newTestServer(map[string]interface{}{
-		"/user/permissions/workspaces": userWorkspacesResponse{},
+		"/user/workspaces": workspacesResponse{},
 	})
 
 	connector := bitbucketConnector{apiURL: s.URL}
@@ -72,6 +59,58 @@ func TestUserWithoutTeams(t *testing.T) {
 	expectEquals(t, len(groups), 0)
 
 	s.Close()
+}
+
+func TestUserGroupsWithPermissions(t *testing.T) {
+	workspacesResp := workspacesResponse{
+		pagedResponse: pagedResponse{
+			Size:    2,
+			Page:    1,
+			PageLen: 10,
+		},
+		Values: []workspaceAccess{
+			{Workspace: workspaceRef{Slug: "team-1"}},
+			{Workspace: workspaceRef{Slug: "team-2"}},
+		},
+	}
+
+	s := newTestServer(map[string]interface{}{
+		"/user/workspaces":                   workspacesResp,
+		"/user/workspaces/team-1/permission": workspacePermission{Permission: "owner"},
+		"/user/workspaces/team-2/permission": workspacePermission{Permission: "member"},
+	})
+	defer s.Close()
+
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	c := bitbucketConnector{apiURL: s.URL, getWorkspacePermissions: true, logger: logger}
+	groups, err := c.userWorkspaces(context.Background(), newClient())
+
+	expectNil(t, err)
+	expectEquals(t, groups, []string{
+		"team-1",
+		"team-2",
+		"team-1:owner",
+		"team-2:member",
+	})
+}
+
+func TestDeprecatedIncludeTeamGroups(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+
+	cfg := Config{
+		ClientID:          "id",
+		ClientSecret:      "secret",
+		RedirectURI:       "http://localhost",
+		IncludeTeamGroups: true,
+	}
+
+	_, err := cfg.Open("test", logger)
+	expectNil(t, err)
+
+	if !strings.Contains(buf.String(), "includeTeamGroups is deprecated") {
+		t.Fatal("expected deprecation warning for includeTeamGroups")
+	}
 }
 
 func TestUsernameIncludedInFederatedIdentity(t *testing.T) {

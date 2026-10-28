@@ -38,6 +38,8 @@ type UserIdentity struct {
 	Consents []byte `json:"consents,omitempty"`
 	// MfaSecrets holds the value of the "mfa_secrets" field.
 	MfaSecrets *[]byte `json:"mfa_secrets,omitempty"`
+	// WebauthnCredentials holds the value of the "webauthn_credentials" field.
+	WebauthnCredentials *[]byte `json:"webauthn_credentials,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// LastLogin holds the value of the "last_login" field.
@@ -52,7 +54,7 @@ func (*UserIdentity) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case useridentity.FieldClaimsGroups, useridentity.FieldConsents, useridentity.FieldMfaSecrets:
+		case useridentity.FieldClaimsGroups, useridentity.FieldConsents, useridentity.FieldMfaSecrets, useridentity.FieldWebauthnCredentials:
 			values[i] = new([]byte)
 		case useridentity.FieldClaimsEmailVerified:
 			values[i] = new(sql.NullBool)
@@ -143,6 +145,12 @@ func (_m *UserIdentity) assignValues(columns []string, values []any) error {
 			} else if value != nil {
 				_m.MfaSecrets = value
 			}
+		case useridentity.FieldWebauthnCredentials:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field webauthn_credentials", values[i])
+			} else if value != nil {
+				_m.WebauthnCredentials = value
+			}
 		case useridentity.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -226,6 +234,11 @@ func (_m *UserIdentity) String() string {
 	builder.WriteString(", ")
 	if v := _m.MfaSecrets; v != nil {
 		builder.WriteString("mfa_secrets=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.WebauthnCredentials; v != nil {
+		builder.WriteString("webauthn_credentials=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")

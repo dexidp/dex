@@ -1,0 +1,25 @@
+{{define "content"}}
+<div class="card">
+    <div class="card-title">Device code flow</div>
+    <p class="hint">
+        Enter the code at the verification URL. This page polls the token endpoint
+        every {{.PollInterval}}s until the provider says the code has been approved.
+    </p>
+    <div class="kv">
+        <div class="k">Verification URL</div>
+        <div class="v mono"><code id="verification-url">{{.VerificationURI}}</code></div>
+        <div class="k">User code</div>
+        <div class="v mono user-code"><code id="user-code">{{.UserCode}}</code></div>
+    </div>
+    <div class="row">
+        <button type="button" id="open-auth-btn" class="button button-primary">Open the verification page</button>
+        <a href="/" class="button button-secondary">Cancel</a>
+    </div>
+    <p id="status-text" class="hint">Waiting for authorization…</p>
+    <p id="error-message" class="verdict verdict-bad" style="display: none;"></p>
+
+    <input type="hidden" id="device-code" value="{{.DeviceCode}}">
+    <input type="hidden" id="poll-interval" value="{{.PollInterval}}">
+</div>
+<script src="/static/device.js"></script>
+{{end}}

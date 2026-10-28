@@ -120,6 +120,12 @@ func (_c *UserIdentityCreate) SetMfaSecrets(v []byte) *UserIdentityCreate {
 	return _c
 }
 
+// SetWebauthnCredentials sets the "webauthn_credentials" field.
+func (_c *UserIdentityCreate) SetWebauthnCredentials(v []byte) *UserIdentityCreate {
+	_c.mutation.SetWebauthnCredentials(v)
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *UserIdentityCreate) SetCreatedAt(v time.Time) *UserIdentityCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -325,6 +331,10 @@ func (_c *UserIdentityCreate) createSpec() (*UserIdentity, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.MfaSecrets(); ok {
 		_spec.SetField(useridentity.FieldMfaSecrets, field.TypeBytes, value)
 		_node.MfaSecrets = &value
+	}
+	if value, ok := _c.mutation.WebauthnCredentials(); ok {
+		_spec.SetField(useridentity.FieldWebauthnCredentials, field.TypeBytes, value)
+		_node.WebauthnCredentials = &value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(useridentity.FieldCreatedAt, field.TypeTime, value)

@@ -33,6 +33,7 @@ func (d *Database) CreateAuthRequest(ctx context.Context, authRequest storage.Au
 		SetConnectorData(authRequest.ConnectorData).
 		SetHmacKey(authRequest.HMACKey).
 		SetMfaValidated(authRequest.MFAValidated).
+		SetWebauthnSessionData(authRequest.WebAuthnSessionData).
 		SetPrompt(authRequest.Prompt).
 		SetMaxAge(authRequest.MaxAge).
 		SetAuthTime(authRequest.AuthTime).
@@ -101,6 +102,7 @@ func (d *Database) UpdateAuthRequest(ctx context.Context, id string, updater fun
 		SetConnectorData(newAuthRequest.ConnectorData).
 		SetHmacKey(newAuthRequest.HMACKey).
 		SetMfaValidated(newAuthRequest.MFAValidated).
+		SetWebauthnSessionData(newAuthRequest.WebAuthnSessionData).
 		SetPrompt(newAuthRequest.Prompt).
 		SetMaxAge(newAuthRequest.MaxAge).
 		SetAuthTime(newAuthRequest.AuthTime).

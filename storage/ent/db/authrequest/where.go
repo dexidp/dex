@@ -154,6 +154,11 @@ func MfaValidated(v bool) predicate.AuthRequest {
 	return predicate.AuthRequest(sql.FieldEQ(FieldMfaValidated, v))
 }
 
+// WebauthnSessionData applies equality check predicate on the "webauthn_session_data" field. It's identical to WebauthnSessionDataEQ.
+func WebauthnSessionData(v []byte) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldEQ(FieldWebauthnSessionData, v))
+}
+
 // Prompt applies equality check predicate on the "prompt" field. It's identical to PromptEQ.
 func Prompt(v string) predicate.AuthRequest {
 	return predicate.AuthRequest(sql.FieldEQ(FieldPrompt, v))
@@ -1082,6 +1087,56 @@ func MfaValidatedEQ(v bool) predicate.AuthRequest {
 // MfaValidatedNEQ applies the NEQ predicate on the "mfa_validated" field.
 func MfaValidatedNEQ(v bool) predicate.AuthRequest {
 	return predicate.AuthRequest(sql.FieldNEQ(FieldMfaValidated, v))
+}
+
+// WebauthnSessionDataEQ applies the EQ predicate on the "webauthn_session_data" field.
+func WebauthnSessionDataEQ(v []byte) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldEQ(FieldWebauthnSessionData, v))
+}
+
+// WebauthnSessionDataNEQ applies the NEQ predicate on the "webauthn_session_data" field.
+func WebauthnSessionDataNEQ(v []byte) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldNEQ(FieldWebauthnSessionData, v))
+}
+
+// WebauthnSessionDataIn applies the In predicate on the "webauthn_session_data" field.
+func WebauthnSessionDataIn(vs ...[]byte) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldIn(FieldWebauthnSessionData, vs...))
+}
+
+// WebauthnSessionDataNotIn applies the NotIn predicate on the "webauthn_session_data" field.
+func WebauthnSessionDataNotIn(vs ...[]byte) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldNotIn(FieldWebauthnSessionData, vs...))
+}
+
+// WebauthnSessionDataGT applies the GT predicate on the "webauthn_session_data" field.
+func WebauthnSessionDataGT(v []byte) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldGT(FieldWebauthnSessionData, v))
+}
+
+// WebauthnSessionDataGTE applies the GTE predicate on the "webauthn_session_data" field.
+func WebauthnSessionDataGTE(v []byte) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldGTE(FieldWebauthnSessionData, v))
+}
+
+// WebauthnSessionDataLT applies the LT predicate on the "webauthn_session_data" field.
+func WebauthnSessionDataLT(v []byte) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldLT(FieldWebauthnSessionData, v))
+}
+
+// WebauthnSessionDataLTE applies the LTE predicate on the "webauthn_session_data" field.
+func WebauthnSessionDataLTE(v []byte) predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldLTE(FieldWebauthnSessionData, v))
+}
+
+// WebauthnSessionDataIsNil applies the IsNil predicate on the "webauthn_session_data" field.
+func WebauthnSessionDataIsNil() predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldIsNull(FieldWebauthnSessionData))
+}
+
+// WebauthnSessionDataNotNil applies the NotNil predicate on the "webauthn_session_data" field.
+func WebauthnSessionDataNotNil() predicate.AuthRequest {
+	return predicate.AuthRequest(sql.FieldNotNull(FieldWebauthnSessionData))
 }
 
 // PromptEQ applies the EQ predicate on the "prompt" field.

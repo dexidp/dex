@@ -44,11 +44,15 @@
   padding: 32px;
 }
 
+/* A width rather than a minimum: the button has to be the same size whatever
+ * the connector is called, and it has to give way on a screen too narrow to
+ * hold it rather than push out of the panel. */
 .theme-btn-provider {
   background-color: #22252c;
   border: 1px solid #33363e;
   color: #b8bcc4;
-  min-width: 260px;
+  max-width: 100%;
+  width: 260px;
 }
 
 .theme-btn-provider:hover {
@@ -134,4 +138,14 @@
 
 .dex-container {
   color: #b8bcc4;
+}
+
+/* Palette the shared stylesheet reads for the home page. Without these the
+ * page would fall back to the light values and render dark text on the dark
+ * panel. */
+.theme-body {
+  --dex-fg: #dcdfe5;
+  --dex-fg-muted: #8b909b;
+  --dex-border: #2a2d35;
+  --dex-accent: #5a9bb5;
 }

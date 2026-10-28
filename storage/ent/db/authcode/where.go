@@ -134,6 +134,11 @@ func AuthTime(v time.Time) predicate.AuthCode {
 	return predicate.AuthCode(sql.FieldEQ(FieldAuthTime, v))
 }
 
+// SessionID applies equality check predicate on the "session_id" field. It's identical to SessionIDEQ.
+func SessionID(v string) predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldEQ(FieldSessionID, v))
+}
+
 // ClientIDEQ applies the EQ predicate on the "client_id" field.
 func ClientIDEQ(v string) predicate.AuthCode {
 	return predicate.AuthCode(sql.FieldEQ(FieldClientID, v))
@@ -952,6 +957,81 @@ func AuthTimeIsNil() predicate.AuthCode {
 // AuthTimeNotNil applies the NotNil predicate on the "auth_time" field.
 func AuthTimeNotNil() predicate.AuthCode {
 	return predicate.AuthCode(sql.FieldNotNull(FieldAuthTime))
+}
+
+// SessionIDEQ applies the EQ predicate on the "session_id" field.
+func SessionIDEQ(v string) predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldEQ(FieldSessionID, v))
+}
+
+// SessionIDNEQ applies the NEQ predicate on the "session_id" field.
+func SessionIDNEQ(v string) predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldNEQ(FieldSessionID, v))
+}
+
+// SessionIDIn applies the In predicate on the "session_id" field.
+func SessionIDIn(vs ...string) predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldIn(FieldSessionID, vs...))
+}
+
+// SessionIDNotIn applies the NotIn predicate on the "session_id" field.
+func SessionIDNotIn(vs ...string) predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldNotIn(FieldSessionID, vs...))
+}
+
+// SessionIDGT applies the GT predicate on the "session_id" field.
+func SessionIDGT(v string) predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldGT(FieldSessionID, v))
+}
+
+// SessionIDGTE applies the GTE predicate on the "session_id" field.
+func SessionIDGTE(v string) predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldGTE(FieldSessionID, v))
+}
+
+// SessionIDLT applies the LT predicate on the "session_id" field.
+func SessionIDLT(v string) predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldLT(FieldSessionID, v))
+}
+
+// SessionIDLTE applies the LTE predicate on the "session_id" field.
+func SessionIDLTE(v string) predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldLTE(FieldSessionID, v))
+}
+
+// SessionIDContains applies the Contains predicate on the "session_id" field.
+func SessionIDContains(v string) predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldContains(FieldSessionID, v))
+}
+
+// SessionIDHasPrefix applies the HasPrefix predicate on the "session_id" field.
+func SessionIDHasPrefix(v string) predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldHasPrefix(FieldSessionID, v))
+}
+
+// SessionIDHasSuffix applies the HasSuffix predicate on the "session_id" field.
+func SessionIDHasSuffix(v string) predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldHasSuffix(FieldSessionID, v))
+}
+
+// SessionIDIsNil applies the IsNil predicate on the "session_id" field.
+func SessionIDIsNil() predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldIsNull(FieldSessionID))
+}
+
+// SessionIDNotNil applies the NotNil predicate on the "session_id" field.
+func SessionIDNotNil() predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldNotNull(FieldSessionID))
+}
+
+// SessionIDEqualFold applies the EqualFold predicate on the "session_id" field.
+func SessionIDEqualFold(v string) predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldEqualFold(FieldSessionID, v))
+}
+
+// SessionIDContainsFold applies the ContainsFold predicate on the "session_id" field.
+func SessionIDContainsFold(v string) predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldContainsFold(FieldSessionID, v))
 }
 
 // And groups predicates with the AND operator between them.

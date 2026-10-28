@@ -22,9 +22,14 @@ telemetry:
 
 expiry:
   deviceRequests: {{ getenv "DEX_EXPIRY_DEVICE_REQUESTS" "5m" }}
-  signingKeys: {{ getenv "DEX_EXPIRY_SIGNING_KEYS" "6h" }}
   idTokens: {{ getenv "DEX_EXPIRY_ID_TOKENS" "24h" }}
   authRequests: {{ getenv "DEX_EXPIRY_AUTH_REQUESTS" "24h" }}
+
+signer:
+  type: local
+  config:
+    keysRotationPeriod: {{ getenv "DEX_EXPIRY_SIGNING_KEYS" "6h" }}
+    algorithm: {{ getenv "DEX_SIGNER_LOCAL_ALGORITHM" "RS256" }}
 
 logger:
   level: {{ getenv "DEX_LOG_LEVEL" "info" }}

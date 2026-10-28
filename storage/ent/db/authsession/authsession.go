@@ -15,8 +15,8 @@ const (
 	FieldUserID = "user_id"
 	// FieldConnectorID holds the string denoting the connector_id field in the database.
 	FieldConnectorID = "connector_id"
-	// FieldNonce holds the string denoting the nonce field in the database.
-	FieldNonce = "nonce"
+	// FieldSecret holds the string denoting the secret field in the database.
+	FieldSecret = "secret"
 	// FieldClientStates holds the string denoting the client_states field in the database.
 	FieldClientStates = "client_states"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
@@ -31,6 +31,8 @@ const (
 	FieldAbsoluteExpiry = "absolute_expiry"
 	// FieldIdleExpiry holds the string denoting the idle_expiry field in the database.
 	FieldIdleExpiry = "idle_expiry"
+	// FieldLogoutState holds the string denoting the logout_state field in the database.
+	FieldLogoutState = "logout_state"
 	// Table holds the table name of the authsession in the database.
 	Table = "auth_sessions"
 )
@@ -40,7 +42,7 @@ var Columns = []string{
 	FieldID,
 	FieldUserID,
 	FieldConnectorID,
-	FieldNonce,
+	FieldSecret,
 	FieldClientStates,
 	FieldCreatedAt,
 	FieldLastActivity,
@@ -48,6 +50,7 @@ var Columns = []string{
 	FieldUserAgent,
 	FieldAbsoluteExpiry,
 	FieldIdleExpiry,
+	FieldLogoutState,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -65,8 +68,8 @@ var (
 	UserIDValidator func(string) error
 	// ConnectorIDValidator is a validator for the "connector_id" field. It is called by the builders before save.
 	ConnectorIDValidator func(string) error
-	// NonceValidator is a validator for the "nonce" field. It is called by the builders before save.
-	NonceValidator func(string) error
+	// SecretValidator is a validator for the "secret" field. It is called by the builders before save.
+	SecretValidator func(string) error
 	// DefaultIPAddress holds the default value on creation for the "ip_address" field.
 	DefaultIPAddress string
 	// DefaultUserAgent holds the default value on creation for the "user_agent" field.
@@ -93,9 +96,9 @@ func ByConnectorID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldConnectorID, opts...).ToFunc()
 }
 
-// ByNonce orders the results by the nonce field.
-func ByNonce(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldNonce, opts...).ToFunc()
+// BySecret orders the results by the secret field.
+func BySecret(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSecret, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

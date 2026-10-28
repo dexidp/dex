@@ -9,6 +9,7 @@ import (
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/db/oauth2client"
 )
 
@@ -67,6 +68,52 @@ func (_c *OAuth2ClientCreate) SetMfaChain(v []string) *OAuth2ClientCreate {
 	return _c
 }
 
+// SetPostLogoutRedirectUris sets the "post_logout_redirect_uris" field.
+func (_c *OAuth2ClientCreate) SetPostLogoutRedirectUris(v []string) *OAuth2ClientCreate {
+	_c.mutation.SetPostLogoutRedirectUris(v)
+	return _c
+}
+
+// SetSSOSharedWith sets the "sso_shared_with" field.
+func (_c *OAuth2ClientCreate) SetSSOSharedWith(v []string) *OAuth2ClientCreate {
+	_c.mutation.SetSSOSharedWith(v)
+	return _c
+}
+
+// SetBackchannelLogoutURI sets the "backchannel_logout_uri" field.
+func (_c *OAuth2ClientCreate) SetBackchannelLogoutURI(v string) *OAuth2ClientCreate {
+	_c.mutation.SetBackchannelLogoutURI(v)
+	return _c
+}
+
+// SetNillableBackchannelLogoutURI sets the "backchannel_logout_uri" field if the given value is not nil.
+func (_c *OAuth2ClientCreate) SetNillableBackchannelLogoutURI(v *string) *OAuth2ClientCreate {
+	if v != nil {
+		_c.SetBackchannelLogoutURI(*v)
+	}
+	return _c
+}
+
+// SetRefreshTokenLifetime sets the "refresh_token_lifetime" field.
+func (_c *OAuth2ClientCreate) SetRefreshTokenLifetime(v string) *OAuth2ClientCreate {
+	_c.mutation.SetRefreshTokenLifetime(v)
+	return _c
+}
+
+// SetNillableRefreshTokenLifetime sets the "refresh_token_lifetime" field if the given value is not nil.
+func (_c *OAuth2ClientCreate) SetNillableRefreshTokenLifetime(v *string) *OAuth2ClientCreate {
+	if v != nil {
+		_c.SetRefreshTokenLifetime(*v)
+	}
+	return _c
+}
+
+// SetClientCredentialsClaims sets the "client_credentials_claims" field.
+func (_c *OAuth2ClientCreate) SetClientCredentialsClaims(v *storage.ClientCredentialsClaims) *OAuth2ClientCreate {
+	_c.mutation.SetClientCredentialsClaims(v)
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *OAuth2ClientCreate) SetID(v string) *OAuth2ClientCreate {
 	_c.mutation.SetID(v)
@@ -80,6 +127,7 @@ func (_c *OAuth2ClientCreate) Mutation() *OAuth2ClientMutation {
 
 // Save creates the OAuth2Client in the database.
 func (_c *OAuth2ClientCreate) Save(ctx context.Context) (*OAuth2Client, error) {
+	_c.defaults()
 	return withHooks(ctx, _c.sqlSave, _c.mutation, _c.hooks)
 }
 
@@ -102,6 +150,18 @@ func (_c *OAuth2ClientCreate) Exec(ctx context.Context) error {
 func (_c *OAuth2ClientCreate) ExecX(ctx context.Context) {
 	if err := _c.Exec(ctx); err != nil {
 		panic(err)
+	}
+}
+
+// defaults sets the default values of the builder before save.
+func (_c *OAuth2ClientCreate) defaults() {
+	if _, ok := _c.mutation.BackchannelLogoutURI(); !ok {
+		v := oauth2client.DefaultBackchannelLogoutURI
+		_c.mutation.SetBackchannelLogoutURI(v)
+	}
+	if _, ok := _c.mutation.RefreshTokenLifetime(); !ok {
+		v := oauth2client.DefaultRefreshTokenLifetime
+		_c.mutation.SetRefreshTokenLifetime(v)
 	}
 }
 
@@ -206,6 +266,26 @@ func (_c *OAuth2ClientCreate) createSpec() (*OAuth2Client, *sqlgraph.CreateSpec)
 		_spec.SetField(oauth2client.FieldMfaChain, field.TypeJSON, value)
 		_node.MfaChain = value
 	}
+	if value, ok := _c.mutation.PostLogoutRedirectUris(); ok {
+		_spec.SetField(oauth2client.FieldPostLogoutRedirectUris, field.TypeJSON, value)
+		_node.PostLogoutRedirectUris = value
+	}
+	if value, ok := _c.mutation.SSOSharedWith(); ok {
+		_spec.SetField(oauth2client.FieldSSOSharedWith, field.TypeJSON, value)
+		_node.SSOSharedWith = value
+	}
+	if value, ok := _c.mutation.BackchannelLogoutURI(); ok {
+		_spec.SetField(oauth2client.FieldBackchannelLogoutURI, field.TypeString, value)
+		_node.BackchannelLogoutURI = value
+	}
+	if value, ok := _c.mutation.RefreshTokenLifetime(); ok {
+		_spec.SetField(oauth2client.FieldRefreshTokenLifetime, field.TypeString, value)
+		_node.RefreshTokenLifetime = value
+	}
+	if value, ok := _c.mutation.ClientCredentialsClaims(); ok {
+		_spec.SetField(oauth2client.FieldClientCredentialsClaims, field.TypeJSON, value)
+		_node.ClientCredentialsClaims = value
+	}
 	return _node, _spec
 }
 
@@ -227,6 +307,7 @@ func (_c *OAuth2ClientCreateBulk) Save(ctx context.Context) ([]*OAuth2Client, er
 	for i := range _c.builders {
 		func(i int, root context.Context) {
 			builder := _c.builders[i]
+			builder.defaults()
 			var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
 				mutation, ok := m.(*OAuth2ClientMutation)
 				if !ok {

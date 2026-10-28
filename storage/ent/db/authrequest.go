@@ -60,6 +60,8 @@ type AuthRequest struct {
 	HmacKey []byte `json:"hmac_key,omitempty"`
 	// MfaValidated holds the value of the "mfa_validated" field.
 	MfaValidated bool `json:"mfa_validated,omitempty"`
+	// WebauthnSessionData holds the value of the "webauthn_session_data" field.
+	WebauthnSessionData *[]byte `json:"webauthn_session_data,omitempty"`
 	// Prompt holds the value of the "prompt" field.
 	Prompt string `json:"prompt,omitempty"`
 	// MaxAge holds the value of the "max_age" field.
@@ -74,7 +76,7 @@ func (*AuthRequest) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case authrequest.FieldScopes, authrequest.FieldResponseTypes, authrequest.FieldClaimsGroups, authrequest.FieldConnectorData, authrequest.FieldHmacKey:
+		case authrequest.FieldScopes, authrequest.FieldResponseTypes, authrequest.FieldClaimsGroups, authrequest.FieldConnectorData, authrequest.FieldHmacKey, authrequest.FieldWebauthnSessionData:
 			values[i] = new([]byte)
 		case authrequest.FieldForceApprovalPrompt, authrequest.FieldLoggedIn, authrequest.FieldClaimsEmailVerified, authrequest.FieldMfaValidated:
 			values[i] = new(sql.NullBool)
@@ -237,6 +239,12 @@ func (_m *AuthRequest) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.MfaValidated = value.Bool
 			}
+		case authrequest.FieldWebauthnSessionData:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field webauthn_session_data", values[i])
+			} else if value != nil {
+				_m.WebauthnSessionData = value
+			}
 		case authrequest.FieldPrompt:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field prompt", values[i])
@@ -355,6 +363,11 @@ func (_m *AuthRequest) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("mfa_validated=")
 	builder.WriteString(fmt.Sprintf("%v", _m.MfaValidated))
+	builder.WriteString(", ")
+	if v := _m.WebauthnSessionData; v != nil {
+		builder.WriteString("webauthn_session_data=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("prompt=")
 	builder.WriteString(_m.Prompt)

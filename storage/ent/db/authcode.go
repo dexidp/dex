@@ -49,7 +49,9 @@ type AuthCode struct {
 	// CodeChallengeMethod holds the value of the "code_challenge_method" field.
 	CodeChallengeMethod string `json:"code_challenge_method,omitempty"`
 	// AuthTime holds the value of the "auth_time" field.
-	AuthTime     time.Time `json:"auth_time,omitempty"`
+	AuthTime time.Time `json:"auth_time,omitempty"`
+	// SessionID holds the value of the "session_id" field.
+	SessionID    string `json:"session_id,omitempty"`
 	selectValues sql.SelectValues
 }
 
@@ -62,7 +64,7 @@ func (*AuthCode) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case authcode.FieldClaimsEmailVerified:
 			values[i] = new(sql.NullBool)
-		case authcode.FieldID, authcode.FieldClientID, authcode.FieldNonce, authcode.FieldRedirectURI, authcode.FieldClaimsUserID, authcode.FieldClaimsUsername, authcode.FieldClaimsEmail, authcode.FieldClaimsPreferredUsername, authcode.FieldConnectorID, authcode.FieldCodeChallenge, authcode.FieldCodeChallengeMethod:
+		case authcode.FieldID, authcode.FieldClientID, authcode.FieldNonce, authcode.FieldRedirectURI, authcode.FieldClaimsUserID, authcode.FieldClaimsUsername, authcode.FieldClaimsEmail, authcode.FieldClaimsPreferredUsername, authcode.FieldConnectorID, authcode.FieldCodeChallenge, authcode.FieldCodeChallengeMethod, authcode.FieldSessionID:
 			values[i] = new(sql.NullString)
 		case authcode.FieldExpiry, authcode.FieldAuthTime:
 			values[i] = new(sql.NullTime)
@@ -187,6 +189,12 @@ func (_m *AuthCode) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.AuthTime = value.Time
 			}
+		case authcode.FieldSessionID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field session_id", values[i])
+			} else if value.Valid {
+				_m.SessionID = value.String
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -272,6 +280,9 @@ func (_m *AuthCode) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("auth_time=")
 	builder.WriteString(_m.AuthTime.Format(time.ANSIC))
+	builder.WriteString(", ")
+	builder.WriteString("session_id=")
+	builder.WriteString(_m.SessionID)
 	builder.WriteByte(')')
 	return builder.String()
 }

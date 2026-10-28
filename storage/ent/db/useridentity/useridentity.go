@@ -31,6 +31,8 @@ const (
 	FieldConsents = "consents"
 	// FieldMfaSecrets holds the string denoting the mfa_secrets field in the database.
 	FieldMfaSecrets = "mfa_secrets"
+	// FieldWebauthnCredentials holds the string denoting the webauthn_credentials field in the database.
+	FieldWebauthnCredentials = "webauthn_credentials"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// FieldLastLogin holds the string denoting the last_login field in the database.
@@ -54,6 +56,7 @@ var Columns = []string{
 	FieldClaimsGroups,
 	FieldConsents,
 	FieldMfaSecrets,
+	FieldWebauthnCredentials,
 	FieldCreatedAt,
 	FieldLastLogin,
 	FieldBlockedUntil,

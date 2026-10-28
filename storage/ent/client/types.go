@@ -47,9 +47,15 @@ func toStorageAuthRequest(a *db.AuthRequest) storage.AuthRequest {
 		},
 		HMACKey:      a.HmacKey,
 		MFAValidated: a.MfaValidated,
-		Prompt:       a.Prompt,
-		MaxAge:       a.MaxAge,
-		AuthTime:     a.AuthTime,
+		WebAuthnSessionData: func() []byte {
+			if a.WebauthnSessionData != nil {
+				return *a.WebauthnSessionData
+			}
+			return nil
+		}(),
+		Prompt:   a.Prompt,
+		MaxAge:   a.MaxAge,
+		AuthTime: a.AuthTime,
 	}
 }
 
@@ -75,21 +81,27 @@ func toStorageAuthCode(a *db.AuthCode) storage.AuthCode {
 			CodeChallenge:       a.CodeChallenge,
 			CodeChallengeMethod: a.CodeChallengeMethod,
 		},
-		AuthTime: a.AuthTime,
+		AuthTime:  a.AuthTime,
+		SessionID: a.SessionID,
 	}
 }
 
 func toStorageClient(c *db.OAuth2Client) storage.Client {
 	return storage.Client{
-		ID:                c.ID,
-		Secret:            c.Secret,
-		RedirectURIs:      c.RedirectUris,
-		TrustedPeers:      c.TrustedPeers,
-		Public:            c.Public,
-		Name:              c.Name,
-		LogoURL:           c.LogoURL,
-		AllowedConnectors: c.AllowedConnectors,
-		MFAChain:          c.MfaChain,
+		ID:                      c.ID,
+		Secret:                  c.Secret,
+		RedirectURIs:            c.RedirectUris,
+		TrustedPeers:            c.TrustedPeers,
+		Public:                  c.Public,
+		Name:                    c.Name,
+		LogoURL:                 c.LogoURL,
+		AllowedConnectors:       c.AllowedConnectors,
+		MFAChain:                c.MfaChain,
+		PostLogoutRedirectURIs:  c.PostLogoutRedirectUris,
+		SSOSharedWith:           c.SSOSharedWith,
+		BackchannelLogoutURI:    c.BackchannelLogoutURI,
+		RefreshTokenLifetime:    c.RefreshTokenLifetime,
+		ClientCredentialsClaims: c.ClientCredentialsClaims,
 	}
 }
 
@@ -211,14 +223,24 @@ func toStorageUserIdentity(u *db.UserIdentity) storage.UserIdentity {
 	} else {
 		s.MFASecrets = make(map[string]*storage.MFASecret)
 	}
+
+	if wc := u.WebauthnCredentials; wc != nil {
+		if err := json.Unmarshal(*wc, &s.WebAuthnCredentials); err != nil {
+			panic(err)
+		}
+	}
+	if s.WebAuthnCredentials == nil {
+		s.WebAuthnCredentials = make(map[string][]storage.WebAuthnCredential)
+	}
 	return s
 }
 
 func toStorageAuthSession(s *db.AuthSession) storage.AuthSession {
 	result := storage.AuthSession{
+		ID:             s.ID,
+		Secret:         s.Secret,
 		UserID:         s.UserID,
 		ConnectorID:    s.ConnectorID,
-		Nonce:          s.Nonce,
 		CreatedAt:      s.CreatedAt,
 		LastActivity:   s.LastActivity,
 		IPAddress:      s.IPAddress,
@@ -236,6 +258,13 @@ func toStorageAuthSession(s *db.AuthSession) storage.AuthSession {
 		}
 	} else {
 		result.ClientStates = make(map[string]*storage.ClientAuthState)
+	}
+
+	if len(s.LogoutState) > 0 && string(s.LogoutState) != "null" {
+		result.LogoutState = new(storage.LogoutState)
+		if err := json.Unmarshal(s.LogoutState, result.LogoutState); err != nil {
+			panic(err)
+		}
 	}
 	return result
 }

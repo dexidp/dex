@@ -1,0 +1,39 @@
+########################################################################
+dn: ou=accounts,dc=example,dc=org
+objectClass: organizationalUnit
+ou: accounts
+
+dn: ou=users,ou=accounts,dc=example,dc=org
+objectClass: organizationalUnit
+ou: users
+
+dn: ou=groups,ou=accounts,dc=example,dc=org
+objectClass: organizationalUnit
+ou: groups
+
+dn: uid=test,ou=users,ou=accounts,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+uid: test
+cn: test
+sn: User
+userpassword: foo
+mail: test@example.com
+
+dn: cn=dex-admins,ou=groups,ou=accounts,dc=example,dc=org
+cn: dex-admins
+objectClass: groupofuniquenames
+uniqueMember: uid=test,ou=users,ou=accounts,dc=example,dc=org
+description: Dex admins
+
+dn: cn=dex-users,ou=groups,ou=accounts,dc=example,dc=org
+cn: dex-users
+objectClass: groupofuniquenames
+uniqueMember: uid=test,ou=users,ou=accounts,dc=example,dc=org
+description: Dex users
+
+dn: cn=non-dex,ou=groups,ou=accounts,dc=example,dc=org
+cn: non-dex
+objectClass: groupofuniquenames
+uniqueMember: uid=test,ou=users,ou=accounts,dc=example,dc=org
+description: Non-dex users

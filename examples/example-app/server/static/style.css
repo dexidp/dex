@@ -1,0 +1,664 @@
+:root {
+    --fg: #1a1a1a;
+    --muted: #6b7280;
+    --border: #e1e4e8;
+    --accent: #2f6fb0;
+    --bad: #b3261e;
+    --surface: #fff;
+    --page: #f4f5f7;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    background-color: var(--page);
+    color: var(--fg);
+    font-family: -apple-system, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    margin: 0;
+    padding: 32px 16px 64px;
+}
+
+.container {
+    margin: 0 auto;
+    max-width: 640px;
+}
+
+.logo-link {
+    display: block;
+    text-align: center;
+}
+
+.logo {
+    height: auto;
+    width: 140px;
+}
+
+.nav {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin: 16px 0 24px;
+}
+
+.nav a {
+    color: var(--muted);
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.nav a:hover {
+    color: var(--accent);
+    text-decoration: underline;
+}
+
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 16px;
+    padding: 20px;
+}
+
+.card-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.hint {
+    color: var(--muted);
+    font-size: 13px;
+    margin: 6px 0;
+}
+
+.verdict {
+    background: #f4f5f7;
+    border-left: 3px solid var(--accent);
+    font-size: 13px;
+    margin: 12px 0;
+    padding: 8px 12px;
+}
+
+.verdict-bad {
+    border-left-color: var(--bad);
+    color: var(--bad);
+}
+
+/* Label/value pairs. */
+.kv {
+    display: grid;
+    font-size: 13px;
+    gap: 6px 16px;
+    grid-template-columns: 140px minmax(0, 1fr);
+}
+
+.kv .k {
+    color: var(--muted);
+}
+
+.kv .v {
+    overflow-wrap: anywhere;
+}
+
+.mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px;
+}
+
+.small {
+    font-size: 12px;
+}
+
+.user-code code {
+    font-size: 20px;
+    letter-spacing: 0.08em;
+}
+
+pre.token,
+pre.json {
+    background: #f7f8fa;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    margin: 8px 0;
+    max-height: 320px;
+    overflow: auto;
+    overflow-wrap: anywhere;
+    padding: 10px;
+    white-space: pre-wrap;
+}
+
+.row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.stack {
+    margin-top: 12px;
+}
+
+.button {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--fg);
+    cursor: pointer;
+    display: inline-block;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 8px 14px;
+    text-decoration: none;
+}
+
+.button:hover {
+    border-color: #b0b5bd;
+}
+
+.button-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.button-primary:hover {
+    filter: brightness(0.94);
+}
+
+.button-secondary {
+    color: var(--muted);
+}
+
+.button-small {
+    font-size: 13px;
+    padding: 6px 10px;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.field > label {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+textarea,
+select,
+input[type="text"],
+input[type="email"],
+input[type="password"] {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font: inherit;
+    font-size: 14px;
+    padding: 8px 10px;
+    width: 100%;
+}
+
+textarea {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    resize: vertical;
+}
+
+.checkbox {
+    align-items: center;
+    display: flex;
+    font-size: 14px;
+    font-weight: 400;
+    gap: 8px;
+}
+
+.checkbox input {
+    width: auto;
+}
+
+.advanced {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-top: 12px;
+    padding: 12px;
+}
+
+.advanced summary {
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.advanced .field {
+    margin-top: 12px;
+}
+
+.scopes-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+}
+
+.scope-item {
+    align-items: center;
+    display: flex;
+    font-size: 13px;
+    gap: 6px;
+}
+
+.scope-item input {
+    width: auto;
+}
+
+.inline-input {
+    display: flex;
+    gap: 8px;
+}
+
+.chip {
+    align-items: center;
+    background: #f4f5f7;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    display: inline-flex;
+    font-size: 13px;
+    gap: 6px;
+    margin: 4px 4px 0 0;
+    padding: 3px 8px;
+}
+
+.chip button {
+    background: none;
+    border: 0;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+}
+
+.table {
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-bottom: 12px;
+    width: 100%;
+}
+
+.table th {
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+    font-weight: 600;
+    padding: 6px 8px 6px 0;
+    text-align: left;
+}
+
+.table td {
+    border-bottom: 1px solid var(--border);
+    padding: 8px 8px 8px 0;
+    vertical-align: top;
+}
+
+/* The last row's rule and the following section's rule would otherwise sit one
+   pixel apart and read as a double line. */
+.table tr:last-child td {
+    border-bottom: 0;
+}
+
+.row-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.row-actions form {
+    margin: 0;
+}
+
+.mfa-device {
+    white-space: nowrap;
+}
+
+.tag {
+    background: #f4f5f7;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 11px;
+    padding: 1px 5px;
+}
+
+@media (max-width: 480px) {
+    .kv {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* Flow lists. The front page offers flows, not their parameters: six grants'
+   worth of inputs on one screen is a wall with no way to tell which fields
+   belong together, and most of them are irrelevant to what you came to do. */
+.flows {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.flow {
+    align-items: center;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 16px;
+    justify-content: space-between;
+    padding: 12px 0;
+}
+
+.flow:first-child {
+    border-top: 0;
+    padding-top: 4px;
+}
+
+.flow-text {
+    min-width: 0;
+}
+
+.flow-name {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.flow-desc {
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.flow form {
+    margin: 0;
+}
+
+/* Forms. One label column, so every field on a page lines up whatever its
+   control is. */
+.form {
+    margin-top: 16px;
+}
+
+.form-row {
+    display: grid;
+    gap: 4px 16px;
+    grid-template-columns: 150px minmax(0, 1fr);
+    margin-bottom: 14px;
+}
+
+.form-row > label {
+    font-size: 13px;
+    font-weight: 600;
+    padding-top: 8px;
+}
+
+/* Tokens and lists get the full width; identifiers do not need it. */
+.form-row--wide {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.form-row--wide > label {
+    padding-top: 0;
+}
+
+.form-control {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-width: 420px;
+}
+
+.form-row--wide .form-control {
+    max-width: none;
+}
+
+.form-control .hint {
+    margin: 0;
+}
+
+.form-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.req {
+    color: var(--muted);
+    font-weight: 400;
+}
+
+.subhead {
+    border-top: 1px solid var(--border);
+    font-size: 14px;
+    font-weight: 600;
+    margin-top: 16px;
+    padding-top: 16px;
+}
+
+.note {
+    background: #fff8e6;
+    border-left: 3px solid #d9a441;
+    font-size: 13px;
+    margin: 12px 0;
+    padding: 8px 12px;
+}
+
+@media (max-width: 560px) {
+    .form-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .form-row > label {
+        padding-top: 0;
+    }
+
+    .flow {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 8px;
+    }
+}
+
+/* Syntax colours. Enough contrast to separate the parts, not so much that the
+   block becomes a Christmas tree. */
+.json-key {
+    color: #2f6fb0;
+}
+
+.json-string {
+    color: #227a4b;
+}
+
+.json-number {
+    color: #a2540d;
+}
+
+.json-boolean,
+.json-null {
+    color: #8250df;
+}
+
+.jwt-header {
+    color: #b3261e;
+}
+
+.jwt-payload {
+    color: #2f6fb0;
+}
+
+.jwt-signature {
+    color: #227a4b;
+}
+
+pre.code {
+    background: #f7f8fa;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    margin: 4px 0;
+    padding: 10px;
+    white-space: pre-wrap;
+}
+
+/* Section tabs on the API page. */
+.tabs {
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 16px;
+}
+
+.tab {
+    border-bottom: 2px solid transparent;
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 600;
+    padding: 6px 10px;
+    text-decoration: none;
+}
+
+.tab:hover {
+    color: var(--fg);
+}
+
+.tab--current {
+    border-bottom-color: var(--accent);
+    color: var(--fg);
+}
+
+/* Row actions sit in a column of their own so the buttons line up down the
+   table instead of wherever the text before them happens to end. */
+.table .actions-col {
+    text-align: right;
+    white-space: nowrap;
+    width: 1%;
+}
+
+.table .row-actions {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+.table .button-small {
+    line-height: 1.2;
+}
+
+/* The flow list starts far enough below the heading to read as a list under it
+   rather than a first row of it. */
+.card-title + .flows,
+.card-title + .hint + .flows {
+    margin-top: 16px;
+}
+
+.card .table {
+    display: block;
+    overflow-x: auto;
+}
+
+/* An object's header: what it is on the left, the way back on the right. */
+.detail-head {
+    align-items: flex-start;
+    display: flex;
+    gap: 16px;
+    justify-content: space-between;
+}
+
+.detail-head .card-title {
+    margin-bottom: 2px;
+    overflow-wrap: anywhere;
+}
+
+.detail-head .hint {
+    margin: 0;
+}
+
+.table a {
+    color: var(--fg);
+}
+
+.table a:hover {
+    color: var(--accent);
+}
+
+/* A label column sized for "Redirect URIs" cannot hold
+   "device_authorization_endpoint" — the metadata page names its own fields, so
+   it gets a column wide enough for them and labels that wrap rather than run
+   into their values. */
+.kv .k {
+    overflow-wrap: anywhere;
+}
+
+.kv--metadata {
+    grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+}
+
+@media (max-width: 620px) {
+    .kv--metadata {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* Grant types are URNs; side by side they wrap to one per line, so they get a
+   grid with cells wide enough to hold one. */
+.scopes-list--grid {
+    display: grid;
+    gap: 6px 16px;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.chips:empty {
+    display: none;
+}
+
+.chip-remove {
+    background: none;
+    border: 0;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+}
+
+/* One authenticator per block, so its keys and its actions read as belonging
+   to it rather than to the section. */
+.mfa-device {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    padding: 12px;
+}
+
+.mfa-device .subhead {
+    border-top: 0;
+    margin-top: 0;
+    padding-top: 0;
+}
+
+.mfa-reset {
+    border-top: 1px solid var(--border);
+    margin-top: 16px;
+    padding-top: 16px;
+}
+
+/* Metadata names are long and fixed; values are lists. A column for the name
+   and pills for the values beats a two-column grid that has to fit both. */
+.meta-name {
+    color: var(--muted);
+    white-space: nowrap;
+    width: 1%;
+}
+

@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v4"
+
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
 )
@@ -67,10 +69,14 @@ func TestKeyRotator(t *testing.T) {
 	maxVerificationKeys := 5
 
 	l := slog.New(slog.DiscardHandler)
+	strategy, err := rotationStrategyForAlgorithm(rotationFrequency, validFor, jose.RS256)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	r := &keyRotator{
 		Storage:  memory.New(l),
-		strategy: defaultRotationStrategy(rotationFrequency, validFor),
+		strategy: strategy,
 		now:      func() time.Time { return now },
 		logger:   l,
 	}

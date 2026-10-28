@@ -4,10 +4,13 @@ import (
 	"encoding/json"
 	"log/slog"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/ghodss/yaml"
+	"github.com/go-jose/go-jose/v4"
 	"github.com/kylelemons/godebug/pretty"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/connector/mock"
 	"github.com/dexidp/dex/connector/oidc"
@@ -64,6 +67,42 @@ func TestInvalidConfiguration(t *testing.T) {
 	if got != wanted {
 		t.Fatalf("Expected error message to be %q, got %q", wanted, got)
 	}
+}
+
+// TestInvalidRefreshTokenLifetime: a misspelled lifetime must not read as the
+// default, leaving tokens the client wanted bound outliving the session.
+func TestInvalidRefreshTokenLifetime(t *testing.T) {
+	configuration := Config{
+		Issuer:  "http://127.0.0.1:5556/dex",
+		Storage: Storage{Type: "sqlite3", Config: &sql.SQLite3{File: "examples/dex.db"}},
+		Web:     Web{HTTP: "127.0.0.1:5556"},
+		StaticClients: []storage.Client{
+			{ID: "proxy", RefreshTokenLifetime: "sessions"},
+		},
+	}
+
+	err := configuration.Validate()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `client "proxy"`)
+}
+
+// TestInvalidTLSPreferences: bad cipher suite and curve names must be reported
+// alongside the other config errors instead of hiding them.
+func TestInvalidTLSPreferences(t *testing.T) {
+	configuration := Config{
+		Storage: Storage{Type: "sqlite3", Config: &sql.SQLite3{File: "examples/dex.db"}},
+		Web: Web{
+			HTTP:                "127.0.0.1:5556",
+			TLSCiphers:          []string{"TLS_FAKE_CIPHER"},
+			TLSCurvePreferences: []string{"UnknownCurve"},
+		},
+	}
+
+	err := configuration.Validate()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no issuer specified in config file")
+	require.Contains(t, err.Error(), `invalid TLS cipher suites: unsupported cipher suite "TLS_FAKE_CIPHER"`)
+	require.Contains(t, err.Error(), `invalid TLS curve preferences: unknown curve: "UnknownCurve"`)
 }
 
 func TestUnmarshalConfig(t *testing.T) {
@@ -481,10 +520,11 @@ logger:
 
 func TestSignerConfigUnmarshal(t *testing.T) {
 	tests := []struct {
-		name    string
-		config  string
-		wantErr bool
-		check   func(*Config) error
+		name        string
+		config      string
+		wantErr     bool
+		errContains string
+		check       func(*Config) error
 	}{
 		{
 			name: "local signer with rotation period",
@@ -507,8 +547,84 @@ enablePasswordDB: true
 				}
 				if localConfig, ok := c.Signer.Config.(*signer.LocalConfig); !ok {
 					t.Error("expected LocalConfig")
-				} else if localConfig.KeysRotationPeriod != "6h" {
-					t.Errorf("expected keys rotation period '6h', got %q", localConfig.KeysRotationPeriod)
+				} else {
+					if localConfig.KeysRotationPeriod != "6h" {
+						t.Errorf("expected keys rotation period '6h', got %q", localConfig.KeysRotationPeriod)
+					}
+					if localConfig.Algorithm != jose.RS256 {
+						t.Errorf("expected default algorithm 'RS256', got %q", localConfig.Algorithm)
+					}
+				}
+				return nil
+			},
+		},
+		{
+			name: "local signer with ES256 algorithm",
+			config: `
+issuer: http://127.0.0.1:5556/dex
+storage:
+  type: memory
+web:
+  http: 0.0.0.0:5556
+signer:
+  type: local
+  config:
+    keysRotationPeriod: 6h
+    algorithm: ES256
+enablePasswordDB: true
+`,
+			wantErr: false,
+			check: func(c *Config) error {
+				localConfig, ok := c.Signer.Config.(*signer.LocalConfig)
+				if !ok {
+					t.Error("expected LocalConfig")
+					return nil
+				}
+				if localConfig.Algorithm != jose.ES256 {
+					t.Errorf("expected algorithm 'ES256', got %q", localConfig.Algorithm)
+				}
+				return nil
+			},
+		},
+		{
+			name: "local signer with invalid algorithm",
+			config: `
+issuer: http://127.0.0.1:5556/dex
+storage:
+  type: memory
+web:
+  http: 0.0.0.0:5556
+signer:
+  type: local
+  config:
+    keysRotationPeriod: 6h
+    algorithm: ES512
+enablePasswordDB: true
+`,
+			wantErr:     true,
+			errContains: `parse signer config: unsupported local signer algorithm "ES512"`,
+		},
+		{
+			name: "local signer without config",
+			config: `
+issuer: http://127.0.0.1:5556/dex
+storage:
+  type: memory
+web:
+  http: 0.0.0.0:5556
+signer:
+  type: local
+enablePasswordDB: true
+`,
+			wantErr: false,
+			check: func(c *Config) error {
+				localConfig, ok := c.Signer.Config.(*signer.LocalConfig)
+				if !ok {
+					t.Error("expected LocalConfig")
+					return nil
+				}
+				if localConfig.Algorithm != jose.RS256 {
+					t.Errorf("expected default algorithm 'RS256', got %q", localConfig.Algorithm)
 				}
 				return nil
 			},
@@ -581,6 +697,10 @@ enablePasswordDB: true
 			err = json.Unmarshal(data, &c)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Unmarshal() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if tt.errContains != "" && (err == nil || !strings.Contains(err.Error(), tt.errContains)) {
+				t.Errorf("Unmarshal() error = %v, want substring %q", err, tt.errContains)
 				return
 			}
 

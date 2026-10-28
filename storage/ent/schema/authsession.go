@@ -23,7 +23,7 @@ func (AuthSession) Fields() []ent.Field {
 		field.Text("connector_id").
 			SchemaType(textSchema).
 			NotEmpty(),
-		field.Text("nonce").
+		field.Text("secret").
 			SchemaType(textSchema).
 			NotEmpty(),
 		field.Bytes("client_states"),
@@ -41,6 +41,8 @@ func (AuthSession) Fields() []ent.Field {
 			SchemaType(timeSchema),
 		field.Time("idle_expiry").
 			SchemaType(timeSchema),
+		field.Bytes("logout_state").
+			Optional(),
 	}
 }
 

@@ -26,6 +26,11 @@ func (d *Database) CreateUserIdentity(ctx context.Context, identity storage.User
 		return fmt.Errorf("encode mfa secrets user identity: %w", err)
 	}
 
+	encodedWebAuthnCreds, err := json.Marshal(identity.WebAuthnCredentials)
+	if err != nil {
+		return fmt.Errorf("encode webauthn credentials user identity: %w", err)
+	}
+
 	id := compositeKeyID(identity.UserID, identity.ConnectorID, d.hasher)
 	_, err = d.client.UserIdentity.Create().
 		SetID(id).
@@ -39,6 +44,7 @@ func (d *Database) CreateUserIdentity(ctx context.Context, identity storage.User
 		SetClaimsGroups(identity.Claims.Groups).
 		SetConsents(encodedConsents).
 		SetMfaSecrets(encodedMFASecrets).
+		SetWebauthnCredentials(encodedWebAuthnCreds).
 		SetCreatedAt(identity.CreatedAt).
 		SetLastLogin(identity.LastLogin).
 		SetBlockedUntil(identity.BlockedUntil).
@@ -108,6 +114,11 @@ func (d *Database) UpdateUserIdentity(ctx context.Context, userID string, connec
 		return rollback(tx, "encode mfa secrets user identity: %w", err)
 	}
 
+	encodedWebAuthnCreds, err := json.Marshal(newUserIdentity.WebAuthnCredentials)
+	if err != nil {
+		return rollback(tx, "encode webauthn credentials user identity: %w", err)
+	}
+
 	_, err = tx.UserIdentity.UpdateOneID(id).
 		SetUserID(newUserIdentity.UserID).
 		SetConnectorID(newUserIdentity.ConnectorID).
@@ -119,6 +130,7 @@ func (d *Database) UpdateUserIdentity(ctx context.Context, userID string, connec
 		SetClaimsGroups(newUserIdentity.Claims.Groups).
 		SetConsents(encodedConsents).
 		SetMfaSecrets(encodedMFASecrets).
+		SetWebauthnCredentials(encodedWebAuthnCreds).
 		SetCreatedAt(newUserIdentity.CreatedAt).
 		SetLastLogin(newUserIdentity.LastLogin).
 		SetBlockedUntil(newUserIdentity.BlockedUntil).

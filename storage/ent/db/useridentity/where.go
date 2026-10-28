@@ -109,6 +109,11 @@ func MfaSecrets(v []byte) predicate.UserIdentity {
 	return predicate.UserIdentity(sql.FieldEQ(FieldMfaSecrets, v))
 }
 
+// WebauthnCredentials applies equality check predicate on the "webauthn_credentials" field. It's identical to WebauthnCredentialsEQ.
+func WebauthnCredentials(v []byte) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldEQ(FieldWebauthnCredentials, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.UserIdentity {
 	return predicate.UserIdentity(sql.FieldEQ(FieldCreatedAt, v))
@@ -622,6 +627,56 @@ func MfaSecretsIsNil() predicate.UserIdentity {
 // MfaSecretsNotNil applies the NotNil predicate on the "mfa_secrets" field.
 func MfaSecretsNotNil() predicate.UserIdentity {
 	return predicate.UserIdentity(sql.FieldNotNull(FieldMfaSecrets))
+}
+
+// WebauthnCredentialsEQ applies the EQ predicate on the "webauthn_credentials" field.
+func WebauthnCredentialsEQ(v []byte) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldEQ(FieldWebauthnCredentials, v))
+}
+
+// WebauthnCredentialsNEQ applies the NEQ predicate on the "webauthn_credentials" field.
+func WebauthnCredentialsNEQ(v []byte) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldNEQ(FieldWebauthnCredentials, v))
+}
+
+// WebauthnCredentialsIn applies the In predicate on the "webauthn_credentials" field.
+func WebauthnCredentialsIn(vs ...[]byte) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldIn(FieldWebauthnCredentials, vs...))
+}
+
+// WebauthnCredentialsNotIn applies the NotIn predicate on the "webauthn_credentials" field.
+func WebauthnCredentialsNotIn(vs ...[]byte) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldNotIn(FieldWebauthnCredentials, vs...))
+}
+
+// WebauthnCredentialsGT applies the GT predicate on the "webauthn_credentials" field.
+func WebauthnCredentialsGT(v []byte) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldGT(FieldWebauthnCredentials, v))
+}
+
+// WebauthnCredentialsGTE applies the GTE predicate on the "webauthn_credentials" field.
+func WebauthnCredentialsGTE(v []byte) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldGTE(FieldWebauthnCredentials, v))
+}
+
+// WebauthnCredentialsLT applies the LT predicate on the "webauthn_credentials" field.
+func WebauthnCredentialsLT(v []byte) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldLT(FieldWebauthnCredentials, v))
+}
+
+// WebauthnCredentialsLTE applies the LTE predicate on the "webauthn_credentials" field.
+func WebauthnCredentialsLTE(v []byte) predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldLTE(FieldWebauthnCredentials, v))
+}
+
+// WebauthnCredentialsIsNil applies the IsNil predicate on the "webauthn_credentials" field.
+func WebauthnCredentialsIsNil() predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldIsNull(FieldWebauthnCredentials))
+}
+
+// WebauthnCredentialsNotNil applies the NotNil predicate on the "webauthn_credentials" field.
+func WebauthnCredentialsNotNil() predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldNotNull(FieldWebauthnCredentials))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
