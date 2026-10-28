@@ -142,15 +142,19 @@ func ClaimsFromIdentity(identity connector.Identity) storage.Claims {
 // storage transaction with connector work. The claim transaction decides from
 // the live row whether the token reuses (it is inside its reuse window) or
 // rotates, and a rotating claim advances the token's last-used time immediately,
-// so a concurrent request then takes the reuse path instead of resolving the
-// connector a second time. freshIdentity is invoked between the two
-// transactions: outside any transaction — it may read storage or contact an
-// upstream provider — and at most once, only when the stored claims are being
-// refreshed. A resolution that fails, or a finalize that fails after it, undoes
-// the claim, so a failed rotation opens no reuse window and the next refresh
-// retries it: the all-or-nothing denial of the previous single-transaction
-// rotation. The finalize transaction replaces the token, obsoleting the
-// previous one, and writes the refreshed claims.
+// so with a reuse window configured a concurrent request then takes the reuse
+// path instead of resolving the connector a second time. freshIdentity is
+// invoked between the two transactions: outside any transaction — it may read
+// storage or contact an upstream provider — and at most once per rotation, only
+// when the stored claims are being refreshed. Without a reuse window, requests
+// racing between a rotation's claim and its finalize each resolve the connector
+// once; the loser then fails finalize, its undoClaim is a no-op (the row no
+// longer carries its token), and the winner's rotation stands. A resolution
+// that fails, or a finalize that fails after it, undoes the claim, so a failed
+// rotation opens no reuse window and the next refresh retries it: the
+// all-or-nothing denial of the previous single-transaction rotation. The
+// finalize transaction replaces the token, obsoleting the previous one, and
+// writes the refreshed claims.
 //
 // The updaters both transactions run issue no storage reads and perform no I/O
 // beyond writing the row they return. Backends that serialize on a single
