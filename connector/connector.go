@@ -135,3 +135,14 @@ type LogoutCallbackConnector interface {
 	// return nil.
 	HandleLogoutCallback(ctx context.Context, r *http.Request) error
 }
+
+// LifecycleConnector is an optional interface for connectors that run
+// background work (for example polling). The server starts and stops these
+// connectors with the server's lifetime.
+type LifecycleConnector interface {
+	// Start begins any background work. A returned error means the connector
+	// should be considered failed to open.
+	Start(ctx context.Context) error
+	// Close stops any background work started by Start.
+	Close()
+}

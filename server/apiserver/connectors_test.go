@@ -20,7 +20,7 @@ func TestConnectorCacheInvalidation(t *testing.T) {
 
 	// Only the connector type this test creates needs to resolve; the config map
 	// is injected, so the API's tests need none of dex's real connectors.
-	conns := connectors.NewCache(s, connectors.Resolver(s, logger, map[string]func() connectors.ConnectorConfig{
+	conns := connectors.NewCache(t.Context(), s, connectors.Resolver(s, logger, map[string]func() connectors.ConnectorConfig{
 		"mockPassword": func() connectors.ConnectorConfig { return new(mock.PasswordConfig) },
 	}))
 

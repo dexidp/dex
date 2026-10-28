@@ -48,7 +48,7 @@ func newTestSessionServer(t *testing.T) *sessionTestServer {
 		Logger:    slog.Default(),
 		IssuerURL: oauth2.IssuerURL{URL: *issuerURL},
 	}
-	h.Connectors = connectors.NewCache(h.Storage, testResolveConnector)
+	h.Connectors = connectors.NewCache(t.Context(), h.Storage, testResolveConnector)
 	h.Sessions = &session.Manager{Storage: h.Storage, Config: sessionCfg, Now: h.Now, Logger: slog.Default(), IssuerURL: oauth2.IssuerURL{URL: *issuerURL}}
 	return &sessionTestServer{Handler: h}
 }
