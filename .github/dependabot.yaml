@@ -50,6 +50,23 @@ updates:
         patterns:
           - "*"
 
+  - package-ecosystem: "docker-compose"
+    directories:
+      - "/"
+      - "/examples/ldap"
+    labels:
+      - "area/dependencies"
+    schedule:
+      interval: "daily"
+    groups:
+      docker-compose:
+        patterns:
+          - "*"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
+
   - package-ecosystem: github-actions
     directory: /
     labels:
