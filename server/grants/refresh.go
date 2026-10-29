@@ -180,18 +180,20 @@ func (g *refresh) sessionID(ctx context.Context, refreshToken *storage.RefreshTo
 		return "", nil
 	}
 
-	ref, ok := offlineSessions.Refresh[refreshToken.ClientID]
-	if !ok || ref.SessionID == "" {
+	// Shared with introspection so the two cannot disagree about which session a
+	// token names (see tokens.RefreshReferenceSessionID).
+	sid := tokens.RefreshReferenceSessionID(offlineSessions, refreshToken.ClientID)
+	if sid == "" {
 		// Issued outside a browser flow — the password grant, or before sessions were
 		// turned on. There is no session to be bound to, so there is none to end.
 		return "", nil
 	}
 
 	if !bound {
-		return ref.SessionID, nil
+		return sid, nil
 	}
 
-	if !g.sessions.Alive(ctx, ref.SessionID) {
+	if !g.sessions.Alive(ctx, sid) {
 		// Through the store, not storage.DeleteRefresh: the token and the offline
 		// session's reference to it have to go together, or the admin API lists a
 		// token that no longer exists and fails trying to revoke it.
@@ -202,7 +204,7 @@ func (g *refresh) sessionID(ctx context.Context, refreshToken *storage.RefreshTo
 			"client_id", refreshToken.ClientID, "user_id", refreshToken.Claims.UserID)
 		return "", sessionEndedError()
 	}
-	return ref.SessionID, nil
+	return sid, nil
 }
 
 // sessionEndedError reports a refused refresh as invalid_grant, the one code RFC
