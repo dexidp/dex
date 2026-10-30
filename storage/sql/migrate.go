@@ -507,4 +507,20 @@ var migrations = []migration{
 			`alter table auth_code add column session_id text not null default '';`,
 		},
 	},
+	{
+		stmts: []string{
+			`
+			alter table auth_request
+				add column claims_amr bytea;`,
+			`
+			alter table auth_code
+				add column claims_amr bytea;`,
+			`
+			alter table refresh_token
+				add column claims_amr bytea;`,
+			`
+			alter table user_identity
+				add column claims_amr bytea;`,
+		},
+	},
 }

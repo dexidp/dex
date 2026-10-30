@@ -44,6 +44,8 @@ type Identity struct {
 
 	Groups []string
 
+	Amr []string
+
 	// ConnectorData holds data used by the connector for subsequent requests after initial
 	// authentication, such as access tokens for upstream provides.
 	//

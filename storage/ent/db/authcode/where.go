@@ -1034,6 +1034,16 @@ func SessionIDContainsFold(v string) predicate.AuthCode {
 	return predicate.AuthCode(sql.FieldContainsFold(FieldSessionID, v))
 }
 
+// ClaimsAmrIsNil applies the IsNil predicate on the "claims_amr" field.
+func ClaimsAmrIsNil() predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldIsNull(FieldClaimsAmr))
+}
+
+// ClaimsAmrNotNil applies the NotNil predicate on the "claims_amr" field.
+func ClaimsAmrNotNil() predicate.AuthCode {
+	return predicate.AuthCode(sql.FieldNotNull(FieldClaimsAmr))
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.AuthCode) predicate.AuthCode {
 	return predicate.AuthCode(sql.AndPredicates(predicates...))

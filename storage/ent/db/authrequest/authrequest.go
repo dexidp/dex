@@ -61,6 +61,8 @@ const (
 	FieldMaxAge = "max_age"
 	// FieldAuthTime holds the string denoting the auth_time field in the database.
 	FieldAuthTime = "auth_time"
+	// FieldClaimsAmr holds the string denoting the claims_amr field in the database.
+	FieldClaimsAmr = "claims_amr"
 	// Table holds the table name of the authrequest in the database.
 	Table = "auth_requests"
 )
@@ -93,6 +95,7 @@ var Columns = []string{
 	FieldPrompt,
 	FieldMaxAge,
 	FieldAuthTime,
+	FieldClaimsAmr,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).

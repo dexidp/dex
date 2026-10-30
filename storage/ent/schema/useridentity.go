@@ -53,6 +53,8 @@ func (UserIdentity) Fields() []ent.Field {
 			SchemaType(timeSchema),
 		field.Time("blocked_until").
 			SchemaType(timeSchema),
+		field.JSON("claims_amr", []string{}).
+			Optional(),
 	}
 }
 

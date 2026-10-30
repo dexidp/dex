@@ -42,6 +42,7 @@ func (d *Database) CreateUserIdentity(ctx context.Context, identity storage.User
 		SetClaimsEmail(identity.Claims.Email).
 		SetClaimsEmailVerified(identity.Claims.EmailVerified).
 		SetClaimsGroups(identity.Claims.Groups).
+		SetClaimsAmr(identity.Claims.Amr).
 		SetConsents(encodedConsents).
 		SetMfaSecrets(encodedMFASecrets).
 		SetWebauthnCredentials(encodedWebAuthnCreds).
@@ -128,6 +129,7 @@ func (d *Database) UpdateUserIdentity(ctx context.Context, userID string, connec
 		SetClaimsEmail(newUserIdentity.Claims.Email).
 		SetClaimsEmailVerified(newUserIdentity.Claims.EmailVerified).
 		SetClaimsGroups(newUserIdentity.Claims.Groups).
+		SetClaimsAmr(newUserIdentity.Claims.Amr).
 		SetConsents(encodedConsents).
 		SetMfaSecrets(encodedMFASecrets).
 		SetWebauthnCredentials(encodedWebAuthnCreds).
