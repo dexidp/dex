@@ -14,6 +14,14 @@ func (d *Database) CreateClient(ctx context.Context, client storage.Client) erro
 		SetSecret(client.Secret).
 		SetPublic(client.Public).
 		SetLogoURL(client.LogoURL).
+		SetDynamicallyRegistered(client.DynamicallyRegistered).
+		SetGrantTypes(client.GrantTypes).
+		SetResponseTypes(client.ResponseTypes).
+		SetAllowedScopes(client.AllowedScopes).
+		SetTokenEndpointAuthMethod(client.TokenEndpointAuthMethod).
+		SetRegistrationTime(client.RegistrationTime).
+		SetRegistrationTokenID(client.RegistrationTokenID).
+		SetRegistrationExpiresAt(client.RegistrationExpiresAt).
 		SetRedirectUris(client.RedirectURIs).
 		SetTrustedPeers(client.TrustedPeers).
 		SetAllowedConnectors(client.AllowedConnectors).
@@ -86,6 +94,14 @@ func (d *Database) UpdateClient(ctx context.Context, id string, updater func(old
 		SetSecret(newClient.Secret).
 		SetPublic(newClient.Public).
 		SetLogoURL(newClient.LogoURL).
+		SetDynamicallyRegistered(newClient.DynamicallyRegistered).
+		SetGrantTypes(newClient.GrantTypes).
+		SetResponseTypes(newClient.ResponseTypes).
+		SetAllowedScopes(newClient.AllowedScopes).
+		SetTokenEndpointAuthMethod(newClient.TokenEndpointAuthMethod).
+		SetRegistrationTime(newClient.RegistrationTime).
+		SetRegistrationTokenID(newClient.RegistrationTokenID).
+		SetRegistrationExpiresAt(newClient.RegistrationExpiresAt).
 		SetRedirectUris(newClient.RedirectURIs).
 		SetTrustedPeers(newClient.TrustedPeers).
 		SetAllowedConnectors(newClient.AllowedConnectors).

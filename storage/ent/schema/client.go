@@ -34,19 +34,24 @@ func (OAuth2Client) Fields() []ent.Field {
 			NotEmpty().
 			Unique(),
 		field.Text("secret").
-			SchemaType(textSchema).
-			NotEmpty(),
+			SchemaType(textSchema),
 		field.JSON("redirect_uris", []string{}).
 			Optional(),
 		field.JSON("trusted_peers", []string{}).
 			Optional(),
 		field.Bool("public"),
 		field.Text("name").
-			SchemaType(textSchema).
-			NotEmpty(),
+			SchemaType(textSchema),
 		field.Text("logo_url").
-			SchemaType(textSchema).
-			NotEmpty(),
+			SchemaType(textSchema),
+		field.Bool("dynamically_registered").Default(false),
+		field.JSON("grant_types", []string{}).Optional(),
+		field.JSON("response_types", []string{}).Optional(),
+		field.JSON("allowed_scopes", []string{}).Optional(),
+		field.Text("token_endpoint_auth_method").SchemaType(textSchema).Default("").Optional(),
+		field.Int64("registration_time").Default(0),
+		field.Text("registration_token_id").SchemaType(textSchema).Default("").Optional(),
+		field.Int64("registration_expires_at").Default(0),
 		field.JSON("allowed_connectors", []string{}).
 			Optional(),
 		field.JSON("mfa_chain", []string{}).

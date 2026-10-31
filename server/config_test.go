@@ -103,6 +103,13 @@ func TestNormalizeConfigRejects(t *testing.T) {
 			},
 			errMsg: `unsupported PKCE challenge method "S512"`,
 		},
+		{
+			name: "dynamic registration without an initial access token",
+			mutate: func(c *Config) {
+				c.DynamicClientRegistration = &DynamicClientRegistrationConfig{}
+			},
+			errMsg: "dynamic client registration requires an initial access token",
+		},
 	}
 
 	for _, tc := range tests {

@@ -52,6 +52,89 @@ func TestParseAuthorizationRequest(t *testing.T) {
 			},
 		},
 		{
+			name: "dynamic client rejects unregistered scope",
+			clients: []storage.Client{{
+				ID: "dynamic", RedirectURIs: []string{"https://example.com/callback"},
+				DynamicallyRegistered: true, ResponseTypes: []string{"code"}, AllowedScopes: []string{"openid", "profile"},
+			}},
+			supportedResponseTypes: []string{"code"},
+			queryParams: map[string]string{
+				"client_id": "dynamic", "redirect_uri": "https://example.com/callback",
+				"response_type": "code", "scope": "openid email",
+			},
+			expectedError: &redirectedAuthErr{Type: oauth2.InvalidScope},
+		},
+		{
+			name: "dynamic client rejects unregistered response type",
+			clients: []storage.Client{{
+				ID: "dynamic", RedirectURIs: []string{"https://example.com/callback"},
+				DynamicallyRegistered: true, ResponseTypes: []string{"code"}, AllowedScopes: []string{"openid"},
+			}},
+			supportedResponseTypes: []string{"code", "id_token"},
+			queryParams: map[string]string{
+				"client_id": "dynamic", "redirect_uri": "https://example.com/callback",
+				"response_type": "id_token", "scope": "openid", "nonce": "nonce",
+			},
+			expectedError: &redirectedAuthErr{Type: oauth2.UnauthorizedClient},
+		},
+		{
+			name: "dynamic client rejects unregistered authorization code grant",
+			clients: []storage.Client{{
+				ID: "dynamic", RedirectURIs: []string{"https://example.com/callback"},
+				DynamicallyRegistered: true, GrantTypes: []string{oauth2.GrantTypeImplicit},
+				ResponseTypes: []string{"code"}, AllowedScopes: []string{"openid"},
+			}},
+			supportedResponseTypes: []string{"code"},
+			queryParams: map[string]string{
+				"client_id": "dynamic", "redirect_uri": "https://example.com/callback",
+				"response_type": "code", "scope": "openid",
+			},
+			expectedError: &redirectedAuthErr{Type: oauth2.UnauthorizedClient},
+		},
+		{
+			name: "dynamic public authorization code client requires PKCE",
+			clients: []storage.Client{{
+				ID: "dynamic", RedirectURIs: []string{"com.example.app:/callback"}, Public: true,
+				DynamicallyRegistered: true, GrantTypes: []string{oauth2.GrantTypeAuthorizationCode},
+				ResponseTypes: []string{"code"}, AllowedScopes: []string{"openid"},
+			}},
+			supportedResponseTypes: []string{"code"},
+			queryParams: map[string]string{
+				"client_id": "dynamic", "redirect_uri": "com.example.app:/callback",
+				"response_type": "code", "scope": "openid",
+			},
+			expectedError: &redirectedAuthErr{Type: oauth2.InvalidRequest},
+		},
+		{
+			name: "dynamic public authorization code client rejects plain PKCE",
+			clients: []storage.Client{{
+				ID: "dynamic", RedirectURIs: []string{"com.example.app:/callback"}, Public: true,
+				DynamicallyRegistered: true, GrantTypes: []string{oauth2.GrantTypeAuthorizationCode},
+				ResponseTypes: []string{"code"}, AllowedScopes: []string{"openid"},
+			}},
+			supportedResponseTypes: []string{"code"},
+			queryParams: map[string]string{
+				"client_id": "dynamic", "redirect_uri": "com.example.app:/callback",
+				"response_type": "code", "scope": "openid", "code_challenge": "challenge",
+				"code_challenge_method": oauth2.PKCEMethodPlain,
+			},
+			expectedError: &redirectedAuthErr{Type: oauth2.InvalidRequest},
+		},
+		{
+			name: "dynamic public authorization code client accepts S256 PKCE",
+			clients: []storage.Client{{
+				ID: "dynamic", RedirectURIs: []string{"com.example.app:/callback"}, Public: true,
+				DynamicallyRegistered: true, GrantTypes: []string{oauth2.GrantTypeAuthorizationCode},
+				ResponseTypes: []string{"code"}, AllowedScopes: []string{"openid"},
+			}},
+			supportedResponseTypes: []string{"code"},
+			queryParams: map[string]string{
+				"client_id": "dynamic", "redirect_uri": "com.example.app:/callback",
+				"response_type": "code", "scope": "openid", "code_challenge": "challenge",
+				"code_challenge_method": oauth2.PKCEMethodS256,
+			},
+		},
+		{
 			name: "POST request",
 			clients: []storage.Client{
 				{
@@ -295,6 +378,22 @@ func TestParseAuthorizationRequest(t *testing.T) {
 			expectedError: &redirectedAuthErr{Type: oauth2.InvalidRequest},
 		},
 		{
+			name: "dynamic client with no response type",
+			clients: []storage.Client{{
+				ID: "dynamic", RedirectURIs: []string{"https://example.com/callback"},
+				DynamicallyRegistered: true, ResponseTypes: []string{"code"},
+				AllowedScopes: []string{"openid"},
+			}},
+			supportedResponseTypes: []string{"code"},
+			queryParams: map[string]string{
+				"client_id": "dynamic", "redirect_uri": "https://example.com/callback",
+				"scope": "openid",
+			},
+			expectedError: &redirectedAuthErr{
+				Type: oauth2.InvalidRequest, Description: "No response_type provided",
+			},
+		},
+		{
 			name: "PKCE enforced, no code_challenge provided",
 			clients: []storage.Client{
 				{
@@ -420,6 +519,9 @@ func TestParseAuthorizationRequest(t *testing.T) {
 					}
 					if e.Type != expectedErr.Type {
 						t.Errorf("%s: expected error type %v, got %v", tc.name, expectedErr.Type, e.Type)
+					}
+					if expectedErr.Description != "" && e.Description != expectedErr.Description {
+						t.Errorf("%s: expected error description %q, got %q", tc.name, expectedErr.Description, e.Description)
 					}
 					if e.RedirectURI != tc.queryParams["redirect_uri"] {
 						t.Errorf("%s: expected error to be returned in redirect to %v", tc.name, tc.queryParams["redirect_uri"])
