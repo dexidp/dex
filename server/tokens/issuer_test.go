@@ -82,9 +82,11 @@ func TestIssuerSignIDTokenPicture(t *testing.T) {
 	ctx := t.Context()
 	iss, _ := newTestIssuer(t)
 
-	decode := func(t *testing.T, token string) (claims struct {
+	type pictureClaims struct {
 		Picture string `json:"picture"`
-	}) {
+	}
+
+	decode := func(t *testing.T, token string) (claims pictureClaims) {
 		t.Helper()
 		parts := strings.Split(token, ".")
 		require.Len(t, parts, 3)
