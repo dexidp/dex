@@ -69,6 +69,7 @@ type AuthCodeMutation struct {
 	claims_groups             *[]string
 	appendclaims_groups       []string
 	claims_preferred_username *string
+	claims_picture            *string
 	connector_id              *string
 	connector_data            *[]byte
 	expiry                    *time.Time
@@ -604,6 +605,42 @@ func (m *AuthCodeMutation) ResetClaimsPreferredUsername() {
 	m.claims_preferred_username = nil
 }
 
+// SetClaimsPicture sets the "claims_picture" field.
+func (m *AuthCodeMutation) SetClaimsPicture(s string) {
+	m.claims_picture = &s
+}
+
+// ClaimsPicture returns the value of the "claims_picture" field in the mutation.
+func (m *AuthCodeMutation) ClaimsPicture() (r string, exists bool) {
+	v := m.claims_picture
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldClaimsPicture returns the old "claims_picture" field's value of the AuthCode entity.
+// If the AuthCode object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AuthCodeMutation) OldClaimsPicture(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldClaimsPicture is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldClaimsPicture requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldClaimsPicture: %w", err)
+	}
+	return oldValue.ClaimsPicture, nil
+}
+
+// ResetClaimsPicture resets all changes to the "claims_picture" field.
+func (m *AuthCodeMutation) ResetClaimsPicture() {
+	m.claims_picture = nil
+}
+
 // SetConnectorID sets the "connector_id" field.
 func (m *AuthCodeMutation) SetConnectorID(s string) {
 	m.connector_id = &s
@@ -929,7 +966,7 @@ func (m *AuthCodeMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AuthCodeMutation) Fields() []string {
-	fields := make([]string, 0, 17)
+	fields := make([]string, 0, 18)
 	if m.client_id != nil {
 		fields = append(fields, authcode.FieldClientID)
 	}
@@ -959,6 +996,9 @@ func (m *AuthCodeMutation) Fields() []string {
 	}
 	if m.claims_preferred_username != nil {
 		fields = append(fields, authcode.FieldClaimsPreferredUsername)
+	}
+	if m.claims_picture != nil {
+		fields = append(fields, authcode.FieldClaimsPicture)
 	}
 	if m.connector_id != nil {
 		fields = append(fields, authcode.FieldConnectorID)
@@ -1009,6 +1049,8 @@ func (m *AuthCodeMutation) Field(name string) (ent.Value, bool) {
 		return m.ClaimsGroups()
 	case authcode.FieldClaimsPreferredUsername:
 		return m.ClaimsPreferredUsername()
+	case authcode.FieldClaimsPicture:
+		return m.ClaimsPicture()
 	case authcode.FieldConnectorID:
 		return m.ConnectorID()
 	case authcode.FieldConnectorData:
@@ -1052,6 +1094,8 @@ func (m *AuthCodeMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldClaimsGroups(ctx)
 	case authcode.FieldClaimsPreferredUsername:
 		return m.OldClaimsPreferredUsername(ctx)
+	case authcode.FieldClaimsPicture:
+		return m.OldClaimsPicture(ctx)
 	case authcode.FieldConnectorID:
 		return m.OldConnectorID(ctx)
 	case authcode.FieldConnectorData:
@@ -1144,6 +1188,13 @@ func (m *AuthCodeMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetClaimsPreferredUsername(v)
+		return nil
+	case authcode.FieldClaimsPicture:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetClaimsPicture(v)
 		return nil
 	case authcode.FieldConnectorID:
 		v, ok := value.(string)
@@ -1306,6 +1357,9 @@ func (m *AuthCodeMutation) ResetField(name string) error {
 	case authcode.FieldClaimsPreferredUsername:
 		m.ResetClaimsPreferredUsername()
 		return nil
+	case authcode.FieldClaimsPicture:
+		m.ResetClaimsPicture()
+		return nil
 	case authcode.FieldConnectorID:
 		m.ResetConnectorID()
 		return nil
@@ -1402,6 +1456,7 @@ type AuthRequestMutation struct {
 	claims_groups             *[]string
 	appendclaims_groups       []string
 	claims_preferred_username *string
+	claims_picture            *string
 	connector_id              *string
 	connector_data            *[]byte
 	expiry                    *time.Time
@@ -2115,6 +2170,42 @@ func (m *AuthRequestMutation) ResetClaimsPreferredUsername() {
 	m.claims_preferred_username = nil
 }
 
+// SetClaimsPicture sets the "claims_picture" field.
+func (m *AuthRequestMutation) SetClaimsPicture(s string) {
+	m.claims_picture = &s
+}
+
+// ClaimsPicture returns the value of the "claims_picture" field in the mutation.
+func (m *AuthRequestMutation) ClaimsPicture() (r string, exists bool) {
+	v := m.claims_picture
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldClaimsPicture returns the old "claims_picture" field's value of the AuthRequest entity.
+// If the AuthRequest object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AuthRequestMutation) OldClaimsPicture(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldClaimsPicture is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldClaimsPicture requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldClaimsPicture: %w", err)
+	}
+	return oldValue.ClaimsPicture, nil
+}
+
+// ResetClaimsPicture resets all changes to the "claims_picture" field.
+func (m *AuthRequestMutation) ResetClaimsPicture() {
+	m.claims_picture = nil
+}
+
 // SetConnectorID sets the "connector_id" field.
 func (m *AuthRequestMutation) SetConnectorID(s string) {
 	m.connector_id = &s
@@ -2604,7 +2695,7 @@ func (m *AuthRequestMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AuthRequestMutation) Fields() []string {
-	fields := make([]string, 0, 25)
+	fields := make([]string, 0, 26)
 	if m.client_id != nil {
 		fields = append(fields, authrequest.FieldClientID)
 	}
@@ -2646,6 +2737,9 @@ func (m *AuthRequestMutation) Fields() []string {
 	}
 	if m.claims_preferred_username != nil {
 		fields = append(fields, authrequest.FieldClaimsPreferredUsername)
+	}
+	if m.claims_picture != nil {
+		fields = append(fields, authrequest.FieldClaimsPicture)
 	}
 	if m.connector_id != nil {
 		fields = append(fields, authrequest.FieldConnectorID)
@@ -2716,6 +2810,8 @@ func (m *AuthRequestMutation) Field(name string) (ent.Value, bool) {
 		return m.ClaimsGroups()
 	case authrequest.FieldClaimsPreferredUsername:
 		return m.ClaimsPreferredUsername()
+	case authrequest.FieldClaimsPicture:
+		return m.ClaimsPicture()
 	case authrequest.FieldConnectorID:
 		return m.ConnectorID()
 	case authrequest.FieldConnectorData:
@@ -2775,6 +2871,8 @@ func (m *AuthRequestMutation) OldField(ctx context.Context, name string) (ent.Va
 		return m.OldClaimsGroups(ctx)
 	case authrequest.FieldClaimsPreferredUsername:
 		return m.OldClaimsPreferredUsername(ctx)
+	case authrequest.FieldClaimsPicture:
+		return m.OldClaimsPicture(ctx)
 	case authrequest.FieldConnectorID:
 		return m.OldConnectorID(ctx)
 	case authrequest.FieldConnectorData:
@@ -2903,6 +3001,13 @@ func (m *AuthRequestMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetClaimsPreferredUsername(v)
+		return nil
+	case authrequest.FieldClaimsPicture:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetClaimsPicture(v)
 		return nil
 	case authrequest.FieldConnectorID:
 		v, ok := value.(string)
@@ -3125,6 +3230,9 @@ func (m *AuthRequestMutation) ResetField(name string) error {
 		return nil
 	case authrequest.FieldClaimsPreferredUsername:
 		m.ResetClaimsPreferredUsername()
+		return nil
+	case authrequest.FieldClaimsPicture:
+		m.ResetClaimsPicture()
 		return nil
 	case authrequest.FieldConnectorID:
 		m.ResetConnectorID()
@@ -9150,6 +9258,7 @@ type RefreshTokenMutation struct {
 	claims_groups             *[]string
 	appendclaims_groups       []string
 	claims_preferred_username *string
+	claims_picture            *string
 	connector_id              *string
 	connector_data            *[]byte
 	token                     *string
@@ -9648,6 +9757,42 @@ func (m *RefreshTokenMutation) ResetClaimsPreferredUsername() {
 	m.claims_preferred_username = nil
 }
 
+// SetClaimsPicture sets the "claims_picture" field.
+func (m *RefreshTokenMutation) SetClaimsPicture(s string) {
+	m.claims_picture = &s
+}
+
+// ClaimsPicture returns the value of the "claims_picture" field in the mutation.
+func (m *RefreshTokenMutation) ClaimsPicture() (r string, exists bool) {
+	v := m.claims_picture
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldClaimsPicture returns the old "claims_picture" field's value of the RefreshToken entity.
+// If the RefreshToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RefreshTokenMutation) OldClaimsPicture(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldClaimsPicture is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldClaimsPicture requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldClaimsPicture: %w", err)
+	}
+	return oldValue.ClaimsPicture, nil
+}
+
+// ResetClaimsPicture resets all changes to the "claims_picture" field.
+func (m *RefreshTokenMutation) ResetClaimsPicture() {
+	m.claims_picture = nil
+}
+
 // SetConnectorID sets the "connector_id" field.
 func (m *RefreshTokenMutation) SetConnectorID(s string) {
 	m.connector_id = &s
@@ -9911,7 +10056,7 @@ func (m *RefreshTokenMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *RefreshTokenMutation) Fields() []string {
-	fields := make([]string, 0, 15)
+	fields := make([]string, 0, 16)
 	if m.client_id != nil {
 		fields = append(fields, refreshtoken.FieldClientID)
 	}
@@ -9938,6 +10083,9 @@ func (m *RefreshTokenMutation) Fields() []string {
 	}
 	if m.claims_preferred_username != nil {
 		fields = append(fields, refreshtoken.FieldClaimsPreferredUsername)
+	}
+	if m.claims_picture != nil {
+		fields = append(fields, refreshtoken.FieldClaimsPicture)
 	}
 	if m.connector_id != nil {
 		fields = append(fields, refreshtoken.FieldConnectorID)
@@ -9983,6 +10131,8 @@ func (m *RefreshTokenMutation) Field(name string) (ent.Value, bool) {
 		return m.ClaimsGroups()
 	case refreshtoken.FieldClaimsPreferredUsername:
 		return m.ClaimsPreferredUsername()
+	case refreshtoken.FieldClaimsPicture:
+		return m.ClaimsPicture()
 	case refreshtoken.FieldConnectorID:
 		return m.ConnectorID()
 	case refreshtoken.FieldConnectorData:
@@ -10022,6 +10172,8 @@ func (m *RefreshTokenMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldClaimsGroups(ctx)
 	case refreshtoken.FieldClaimsPreferredUsername:
 		return m.OldClaimsPreferredUsername(ctx)
+	case refreshtoken.FieldClaimsPicture:
+		return m.OldClaimsPicture(ctx)
 	case refreshtoken.FieldConnectorID:
 		return m.OldConnectorID(ctx)
 	case refreshtoken.FieldConnectorData:
@@ -10105,6 +10257,13 @@ func (m *RefreshTokenMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetClaimsPreferredUsername(v)
+		return nil
+	case refreshtoken.FieldClaimsPicture:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetClaimsPicture(v)
 		return nil
 	case refreshtoken.FieldConnectorID:
 		v, ok := value.(string)
@@ -10245,6 +10404,9 @@ func (m *RefreshTokenMutation) ResetField(name string) error {
 	case refreshtoken.FieldClaimsPreferredUsername:
 		m.ResetClaimsPreferredUsername()
 		return nil
+	case refreshtoken.FieldClaimsPicture:
+		m.ResetClaimsPicture()
+		return nil
 	case refreshtoken.FieldConnectorID:
 		m.ResetConnectorID()
 		return nil
@@ -10326,6 +10488,7 @@ type UserIdentityMutation struct {
 	claims_user_id            *string
 	claims_username           *string
 	claims_preferred_username *string
+	claims_picture            *string
 	claims_email              *string
 	claims_email_verified     *bool
 	claims_groups             *[]string
@@ -10624,6 +10787,42 @@ func (m *UserIdentityMutation) OldClaimsPreferredUsername(ctx context.Context) (
 // ResetClaimsPreferredUsername resets all changes to the "claims_preferred_username" field.
 func (m *UserIdentityMutation) ResetClaimsPreferredUsername() {
 	m.claims_preferred_username = nil
+}
+
+// SetClaimsPicture sets the "claims_picture" field.
+func (m *UserIdentityMutation) SetClaimsPicture(s string) {
+	m.claims_picture = &s
+}
+
+// ClaimsPicture returns the value of the "claims_picture" field in the mutation.
+func (m *UserIdentityMutation) ClaimsPicture() (r string, exists bool) {
+	v := m.claims_picture
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldClaimsPicture returns the old "claims_picture" field's value of the UserIdentity entity.
+// If the UserIdentity object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserIdentityMutation) OldClaimsPicture(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldClaimsPicture is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldClaimsPicture requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldClaimsPicture: %w", err)
+	}
+	return oldValue.ClaimsPicture, nil
+}
+
+// ResetClaimsPicture resets all changes to the "claims_picture" field.
+func (m *UserIdentityMutation) ResetClaimsPicture() {
+	m.claims_picture = nil
 }
 
 // SetClaimsEmail sets the "claims_email" field.
@@ -11039,7 +11238,7 @@ func (m *UserIdentityMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserIdentityMutation) Fields() []string {
-	fields := make([]string, 0, 14)
+	fields := make([]string, 0, 15)
 	if m.user_id != nil {
 		fields = append(fields, useridentity.FieldUserID)
 	}
@@ -11054,6 +11253,9 @@ func (m *UserIdentityMutation) Fields() []string {
 	}
 	if m.claims_preferred_username != nil {
 		fields = append(fields, useridentity.FieldClaimsPreferredUsername)
+	}
+	if m.claims_picture != nil {
+		fields = append(fields, useridentity.FieldClaimsPicture)
 	}
 	if m.claims_email != nil {
 		fields = append(fields, useridentity.FieldClaimsEmail)
@@ -11100,6 +11302,8 @@ func (m *UserIdentityMutation) Field(name string) (ent.Value, bool) {
 		return m.ClaimsUsername()
 	case useridentity.FieldClaimsPreferredUsername:
 		return m.ClaimsPreferredUsername()
+	case useridentity.FieldClaimsPicture:
+		return m.ClaimsPicture()
 	case useridentity.FieldClaimsEmail:
 		return m.ClaimsEmail()
 	case useridentity.FieldClaimsEmailVerified:
@@ -11137,6 +11341,8 @@ func (m *UserIdentityMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldClaimsUsername(ctx)
 	case useridentity.FieldClaimsPreferredUsername:
 		return m.OldClaimsPreferredUsername(ctx)
+	case useridentity.FieldClaimsPicture:
+		return m.OldClaimsPicture(ctx)
 	case useridentity.FieldClaimsEmail:
 		return m.OldClaimsEmail(ctx)
 	case useridentity.FieldClaimsEmailVerified:
@@ -11198,6 +11404,13 @@ func (m *UserIdentityMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetClaimsPreferredUsername(v)
+		return nil
+	case useridentity.FieldClaimsPicture:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetClaimsPicture(v)
 		return nil
 	case useridentity.FieldClaimsEmail:
 		v, ok := value.(string)
@@ -11346,6 +11559,9 @@ func (m *UserIdentityMutation) ResetField(name string) error {
 		return nil
 	case useridentity.FieldClaimsPreferredUsername:
 		m.ResetClaimsPreferredUsername()
+		return nil
+	case useridentity.FieldClaimsPicture:
+		m.ResetClaimsPicture()
 		return nil
 	case useridentity.FieldClaimsEmail:
 		m.ResetClaimsEmail()

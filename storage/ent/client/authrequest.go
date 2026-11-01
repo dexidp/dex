@@ -24,6 +24,7 @@ func (d *Database) CreateAuthRequest(ctx context.Context, authRequest storage.Au
 		SetClaimsEmailVerified(authRequest.Claims.EmailVerified).
 		SetClaimsUsername(authRequest.Claims.Username).
 		SetClaimsPreferredUsername(authRequest.Claims.PreferredUsername).
+		SetClaimsPicture(authRequest.Claims.Picture).
 		SetClaimsGroups(authRequest.Claims.Groups).
 		SetCodeChallenge(authRequest.PKCE.CodeChallenge).
 		SetCodeChallengeMethod(authRequest.PKCE.CodeChallengeMethod).
@@ -93,6 +94,7 @@ func (d *Database) UpdateAuthRequest(ctx context.Context, id string, updater fun
 		SetClaimsEmailVerified(newAuthRequest.Claims.EmailVerified).
 		SetClaimsUsername(newAuthRequest.Claims.Username).
 		SetClaimsPreferredUsername(newAuthRequest.Claims.PreferredUsername).
+		SetClaimsPicture(newAuthRequest.Claims.Picture).
 		SetClaimsGroups(newAuthRequest.Claims.Groups).
 		SetCodeChallenge(newAuthRequest.PKCE.CodeChallenge).
 		SetCodeChallengeMethod(newAuthRequest.PKCE.CodeChallengeMethod).

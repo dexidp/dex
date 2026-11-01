@@ -38,6 +38,8 @@ type AuthCode struct {
 	ClaimsGroups []string `json:"claims_groups,omitempty"`
 	// ClaimsPreferredUsername holds the value of the "claims_preferred_username" field.
 	ClaimsPreferredUsername string `json:"claims_preferred_username,omitempty"`
+	// ClaimsPicture holds the value of the "claims_picture" field.
+	ClaimsPicture string `json:"claims_picture,omitempty"`
 	// ConnectorID holds the value of the "connector_id" field.
 	ConnectorID string `json:"connector_id,omitempty"`
 	// ConnectorData holds the value of the "connector_data" field.
@@ -64,7 +66,7 @@ func (*AuthCode) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case authcode.FieldClaimsEmailVerified:
 			values[i] = new(sql.NullBool)
-		case authcode.FieldID, authcode.FieldClientID, authcode.FieldNonce, authcode.FieldRedirectURI, authcode.FieldClaimsUserID, authcode.FieldClaimsUsername, authcode.FieldClaimsEmail, authcode.FieldClaimsPreferredUsername, authcode.FieldConnectorID, authcode.FieldCodeChallenge, authcode.FieldCodeChallengeMethod, authcode.FieldSessionID:
+		case authcode.FieldID, authcode.FieldClientID, authcode.FieldNonce, authcode.FieldRedirectURI, authcode.FieldClaimsUserID, authcode.FieldClaimsUsername, authcode.FieldClaimsEmail, authcode.FieldClaimsPreferredUsername, authcode.FieldClaimsPicture, authcode.FieldConnectorID, authcode.FieldCodeChallenge, authcode.FieldCodeChallengeMethod, authcode.FieldSessionID:
 			values[i] = new(sql.NullString)
 		case authcode.FieldExpiry, authcode.FieldAuthTime:
 			values[i] = new(sql.NullTime)
@@ -152,6 +154,12 @@ func (_m *AuthCode) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field claims_preferred_username", values[i])
 			} else if value.Valid {
 				_m.ClaimsPreferredUsername = value.String
+			}
+		case authcode.FieldClaimsPicture:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field claims_picture", values[i])
+			} else if value.Valid {
+				_m.ClaimsPicture = value.String
 			}
 		case authcode.FieldConnectorID:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -260,6 +268,9 @@ func (_m *AuthCode) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("claims_preferred_username=")
 	builder.WriteString(_m.ClaimsPreferredUsername)
+	builder.WriteString(", ")
+	builder.WriteString("claims_picture=")
+	builder.WriteString(_m.ClaimsPicture)
 	builder.WriteString(", ")
 	builder.WriteString("connector_id=")
 	builder.WriteString(_m.ConnectorID)

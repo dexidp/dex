@@ -163,6 +163,7 @@ func (b *bitbucketConnector) HandleCallback(s connector.Scopes, connData []byte,
 		Username:      user.Username,
 		Email:         user.Email,
 		EmailVerified: true,
+		Picture:       user.Links.Avatar.Href,
 	}
 
 	if b.groupsRequired(s.Groups) {
@@ -259,6 +260,7 @@ func (b *bitbucketConnector) Refresh(ctx context.Context, s connector.Scopes, id
 
 	identity.Username = user.Username
 	identity.Email = user.Email
+	identity.Picture = user.Links.Avatar.Href
 
 	if b.groupsRequired(s.Groups) {
 		groups, err := b.getGroups(ctx, client, s.Groups, user.Username)
@@ -286,6 +288,11 @@ type user struct {
 	Username string `json:"username"`
 	UUID     string `json:"uuid"`
 	Email    string `json:"email"`
+	Links    struct {
+		Avatar struct {
+			Href string `json:"href"`
+		} `json:"avatar"`
+	} `json:"links"`
 }
 
 // user queries the Bitbucket API for profile information using the provided client.

@@ -3,6 +3,7 @@ package tokens
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -92,6 +93,58 @@ func TestRefreshStoreRotate(t *testing.T) {
 	// Claiming with a token that is neither current nor obsolete is rejected.
 	_, _, err = rt.Rotate(ctx, &after, &internal.RefreshToken{RefreshId: "r1", Token: "wrong"}, strategy, freshIdentity)
 	require.Error(t, err)
+}
+
+func TestRefreshStoreRotatePicture(t *testing.T) {
+	long := "https://example.com/" + strings.Repeat("a", MaxPictureLength)
+
+	for _, tc := range []struct {
+		name, fresh, want string
+	}{
+		{name: "changed", fresh: "https://example.com/new.png", want: "https://example.com/new.png"},
+		{name: "cleared", fresh: "", want: ""},
+		{name: "too long", fresh: long, want: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			rt, store := newTestStore(t)
+
+			require.NoError(t, store.CreateRefresh(ctx, storage.RefreshToken{
+				ID: "r1", Token: "t1", ClientID: "client-1", ConnectorID: "mock",
+				Claims:    storage.Claims{UserID: "u1", Picture: "https://example.com/old.png"},
+				CreatedAt: time.Now(), LastUsed: time.Now(),
+			}))
+			require.NoError(t, store.CreateOfflineSessions(ctx, storage.OfflineSessions{
+				UserID: "u1", ConnID: "mock",
+				Refresh: map[string]*storage.RefreshTokenRef{"client-1": {ID: "r1", ClientID: "client-1"}},
+			}))
+			stored, err := store.GetRefresh(ctx, "r1")
+			require.NoError(t, err)
+
+			strategy := NewRefreshStrategy(true, 0, 0, 0, nil)
+			freshIdentity := func(context.Context) (connector.Identity, error) {
+				return connector.Identity{UserID: "u1", Picture: tc.fresh}, nil
+			}
+			_, _, err = rt.Rotate(ctx, &stored, &internal.RefreshToken{RefreshId: "r1", Token: "t1"}, strategy, freshIdentity)
+			require.NoError(t, err)
+
+			after, err := store.GetRefresh(ctx, "r1")
+			require.NoError(t, err)
+			require.Equal(t, tc.want, after.Claims.Picture)
+		})
+	}
+}
+
+func TestPictureClaim(t *testing.T) {
+	atLimit := strings.Repeat("a", MaxPictureLength)
+	require.Equal(t, atLimit, PictureClaim(atLimit))
+	require.Empty(t, PictureClaim(atLimit+"a"))
+
+	// The limit counts characters, as MySQL varchar does, not bytes.
+	multibyte := strings.Repeat("é", MaxPictureLength)
+	require.Equal(t, multibyte, PictureClaim(multibyte))
+
+	require.Empty(t, ClaimsFromIdentity(connector.Identity{Picture: atLimit + "a"}).Picture)
 }
 
 func TestRefreshStoreRevoke(t *testing.T) {

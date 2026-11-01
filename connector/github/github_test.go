@@ -204,7 +204,7 @@ func TestLoginUsedAsIDWhenConfigured(t *testing.T) {
 
 func TestHandleCallbackStoresRefreshToken(t *testing.T) {
 	s := newTestServer(map[string]testResponse{
-		"/user": {data: user{Login: "some-login", ID: 12345678, Name: "Joe Bloggs", Email: "some@email.com"}},
+		"/user": {data: user{Login: "some-login", ID: 12345678, Name: "Joe Bloggs", Email: "some@email.com", AvatarURL: "https://avatars.example.com/joe.png"}},
 		"/login/oauth/access_token": {data: map[string]interface{}{
 			"access_token":  "access-token",
 			"refresh_token": "refresh-token",
@@ -222,6 +222,7 @@ func TestHandleCallbackStoresRefreshToken(t *testing.T) {
 	c := githubConnector{apiURL: s.URL, hostName: hostURL.Host, httpClient: newClient()}
 	identity, err := c.HandleCallback(connector.Scopes{OfflineAccess: true}, nil, req)
 	expectNil(t, err)
+	expectEquals(t, identity.Picture, "https://avatars.example.com/joe.png")
 
 	var data connectorData
 	if err := json.Unmarshal(identity.ConnectorData, &data); err != nil {
@@ -260,7 +261,7 @@ func TestRefreshUsesRefreshToken(t *testing.T) {
 			if got := r.Header.Get("Authorization"); got != "Bearer new-access-token" {
 				t.Fatalf("expected refreshed access token, got %q", got)
 			}
-			json.NewEncoder(w).Encode(user{Login: "new-login", ID: 12345678, Name: "New User", Email: "new@email.com"})
+			json.NewEncoder(w).Encode(user{Login: "new-login", ID: 12345678, Name: "New User", Email: "new@email.com", AvatarURL: "https://avatars.example.com/new.png"})
 		default:
 			http.NotFound(w, r)
 		}
@@ -293,6 +294,7 @@ func TestRefreshUsesRefreshToken(t *testing.T) {
 	expectEquals(t, identity.Username, "New User")
 	expectEquals(t, identity.PreferredUsername, "new-login")
 	expectEquals(t, identity.Email, "new@email.com")
+	expectEquals(t, identity.Picture, "https://avatars.example.com/new.png")
 
 	var data connectorData
 	if err := json.Unmarshal(identity.ConnectorData, &data); err != nil {
@@ -318,7 +320,7 @@ func TestRefreshWithAccessTokenOnlyConnectorData(t *testing.T) {
 			if got := r.Header.Get("Authorization"); got != "Bearer old-access-token" {
 				t.Fatalf("expected old access token, got %q", got)
 			}
-			json.NewEncoder(w).Encode(user{Login: "some-login", ID: 12345678, Name: "Some User", Email: "some@email.com"})
+			json.NewEncoder(w).Encode(user{Login: "some-login", ID: 12345678, Name: "Some User", Email: "some@email.com", AvatarURL: "https://avatars.example.com/some.png"})
 		default:
 			http.NotFound(w, r)
 		}
@@ -341,6 +343,7 @@ func TestRefreshWithAccessTokenOnlyConnectorData(t *testing.T) {
 	expectEquals(t, identity.Username, "Some User")
 	expectEquals(t, identity.PreferredUsername, "some-login")
 	expectEquals(t, identity.Email, "some@email.com")
+	expectEquals(t, identity.Picture, "https://avatars.example.com/some.png")
 	expectEquals(t, identity.ConnectorData, connData)
 }
 

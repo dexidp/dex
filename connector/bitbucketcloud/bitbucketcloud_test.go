@@ -115,7 +115,10 @@ func TestDeprecatedIncludeTeamGroups(t *testing.T) {
 
 func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
 	s := newTestServer(map[string]interface{}{
-		"/user": user{Username: "some-login"},
+		"/user": map[string]interface{}{
+			"username": "some-login",
+			"links":    map[string]interface{}{"avatar": map[string]interface{}{"href": "https://avatars.example.com/some.png"}},
+		},
 		"/user/emails": userEmailResponse{
 			pagedResponse: pagedResponse{
 				Size:    1,
@@ -145,6 +148,7 @@ func TestUsernameIncludedInFederatedIdentity(t *testing.T) {
 
 	expectNil(t, err)
 	expectEquals(t, identity.Username, "some-login")
+	expectEquals(t, identity.Picture, "https://avatars.example.com/some.png")
 
 	s.Close()
 }

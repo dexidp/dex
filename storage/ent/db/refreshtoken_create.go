@@ -82,6 +82,20 @@ func (_c *RefreshTokenCreate) SetNillableClaimsPreferredUsername(v *string) *Ref
 	return _c
 }
 
+// SetClaimsPicture sets the "claims_picture" field.
+func (_c *RefreshTokenCreate) SetClaimsPicture(v string) *RefreshTokenCreate {
+	_c.mutation.SetClaimsPicture(v)
+	return _c
+}
+
+// SetNillableClaimsPicture sets the "claims_picture" field if the given value is not nil.
+func (_c *RefreshTokenCreate) SetNillableClaimsPicture(v *string) *RefreshTokenCreate {
+	if v != nil {
+		_c.SetClaimsPicture(*v)
+	}
+	return _c
+}
+
 // SetConnectorID sets the "connector_id" field.
 func (_c *RefreshTokenCreate) SetConnectorID(v string) *RefreshTokenCreate {
 	_c.mutation.SetConnectorID(v)
@@ -195,6 +209,10 @@ func (_c *RefreshTokenCreate) defaults() {
 		v := refreshtoken.DefaultClaimsPreferredUsername
 		_c.mutation.SetClaimsPreferredUsername(v)
 	}
+	if _, ok := _c.mutation.ClaimsPicture(); !ok {
+		v := refreshtoken.DefaultClaimsPicture
+		_c.mutation.SetClaimsPicture(v)
+	}
 	if _, ok := _c.mutation.Token(); !ok {
 		v := refreshtoken.DefaultToken
 		_c.mutation.SetToken(v)
@@ -260,6 +278,9 @@ func (_c *RefreshTokenCreate) check() error {
 	}
 	if _, ok := _c.mutation.ClaimsPreferredUsername(); !ok {
 		return &ValidationError{Name: "claims_preferred_username", err: errors.New(`db: missing required field "RefreshToken.claims_preferred_username"`)}
+	}
+	if _, ok := _c.mutation.ClaimsPicture(); !ok {
+		return &ValidationError{Name: "claims_picture", err: errors.New(`db: missing required field "RefreshToken.claims_picture"`)}
 	}
 	if _, ok := _c.mutation.ConnectorID(); !ok {
 		return &ValidationError{Name: "connector_id", err: errors.New(`db: missing required field "RefreshToken.connector_id"`)}
@@ -356,6 +377,10 @@ func (_c *RefreshTokenCreate) createSpec() (*RefreshToken, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.ClaimsPreferredUsername(); ok {
 		_spec.SetField(refreshtoken.FieldClaimsPreferredUsername, field.TypeString, value)
 		_node.ClaimsPreferredUsername = value
+	}
+	if value, ok := _c.mutation.ClaimsPicture(); ok {
+		_spec.SetField(refreshtoken.FieldClaimsPicture, field.TypeString, value)
+		_node.ClaimsPicture = value
 	}
 	if value, ok := _c.mutation.ConnectorID(); ok {
 		_spec.SetField(refreshtoken.FieldConnectorID, field.TypeString, value)
