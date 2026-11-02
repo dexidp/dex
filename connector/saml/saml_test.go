@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -1001,6 +1002,73 @@ func TestHandlePOSTPopulatesSLOFields(t *testing.T) {
 	if ci.SessionIndex != "6zmm5mguyebwvajyf2sdwwcw6m" {
 		t.Errorf("unexpected SessionIndex: got %q, want %q", ci.SessionIndex, "6zmm5mguyebwvajyf2sdwwcw6m")
 	}
+}
+
+func TestLogoutSessionData(t *testing.T) {
+	conn, err := (&Config{
+		UsernameAttr:                    "Name",
+		EmailAttr:                       "email",
+		RedirectURI:                     "http://127.0.0.1:5556/dex/callback",
+		SSOURL:                          "http://foo.bar/",
+		InsecureSkipSignatureValidation: true,
+	}).openConnector(slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("KeepsOnlyTheLogoutFields", func(t *testing.T) {
+		loginData, _ := json.Marshal(cachedIdentity{
+			UserID:            "user-id",
+			Username:          "Jane Doe",
+			PreferredUsername: "jane",
+			Email:             "jane@example.com",
+			EmailVerified:     true,
+			Groups:            []string{"admins", "devs"},
+			NameID:            "jane@example.com",
+			NameIDFormat:      nameIDFormatEmailAddress,
+			SessionIndex:      "_session1",
+		})
+
+		got, err := conn.LogoutSessionData(loginData)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Exactly these keys: no claims, groups or other login data.
+		var fields map[string]string
+		if err := json.Unmarshal(got, &fields); err != nil {
+			t.Fatal(err)
+		}
+		want := map[string]string{
+			"nameId":       "jane@example.com",
+			"nameIdFormat": nameIDFormatEmailAddress,
+			"sessionIndex": "_session1",
+		}
+		if !maps.Equal(fields, want) {
+			t.Errorf("session data = %v, want %v", fields, want)
+		}
+	})
+
+	t.Run("NoNameIDMeansNoSessionData", func(t *testing.T) {
+		loginData, _ := json.Marshal(cachedIdentity{UserID: "user-id", Email: "jane@example.com"})
+		got, err := conn.LogoutSessionData(loginData)
+		if err != nil || got != nil {
+			t.Errorf("got %q, %v; want nil, nil", got, err)
+		}
+	})
+
+	t.Run("EmptyConnectorData", func(t *testing.T) {
+		got, err := conn.LogoutSessionData(nil)
+		if err != nil || got != nil {
+			t.Errorf("got %q, %v; want nil, nil", got, err)
+		}
+	})
+
+	t.Run("InvalidConnectorData", func(t *testing.T) {
+		if _, err := conn.LogoutSessionData([]byte("not json")); err == nil {
+			t.Error("expected error for unusable connector data")
+		}
+	})
 }
 
 // decodeSAMLRequest decodes a SAMLRequest query parameter value
@@ -2141,9 +2209,14 @@ func TestSLOEndToEnd(t *testing.T) {
 		t.Fatal("expected ConnectorData after HandlePOST")
 	}
 
-	// Step 2: LogoutURL — build logout redirect URL + connector state from ConnectorData
+	// Step 2: the server keeps only the logout fields of ConnectorData in the browser
+	// session, then LogoutURL builds the redirect URL + connector state from them.
+	sessionData, err := conn.LogoutSessionData(ident.ConnectorData)
+	if err != nil {
+		t.Fatalf("LogoutSessionData failed: %v", err)
+	}
 	conn.now = func() time.Time { return time.Now() }
-	logoutURL, connectorState, err := conn.LogoutURLWithState(context.Background(), ident.ConnectorData, "https://dex.example.com/logout/callback")
+	logoutURL, connectorState, err := conn.LogoutURLWithState(context.Background(), sessionData, "https://dex.example.com/logout/callback")
 	if err != nil {
 		t.Fatalf("LogoutURL failed: %v", err)
 	}

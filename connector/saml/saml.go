@@ -387,6 +387,35 @@ type cachedIdentity struct {
 	SessionIndex      string   `json:"sessionIndex,omitempty"`
 }
 
+// sloSessionData is the part of a SAML login that the browser session keeps for
+// Single Logout: what a LogoutRequest names. The claims of the login stay out of it.
+type sloSessionData struct {
+	NameID       string `json:"nameId"`
+	NameIDFormat string `json:"nameIdFormat,omitempty"`
+	SessionIndex string `json:"sessionIndex,omitempty"`
+}
+
+// LogoutSessionData extracts the Single Logout fields from the connector data of a
+// login. It returns nil when the assertion carried no NameID, so there is no
+// IdP session to end.
+func (p *provider) LogoutSessionData(connectorData []byte) ([]byte, error) {
+	if len(connectorData) == 0 {
+		return nil, nil
+	}
+	var ci cachedIdentity
+	if err := json.Unmarshal(connectorData, &ci); err != nil {
+		return nil, fmt.Errorf("saml: failed to unmarshal connector data: %v", err)
+	}
+	if ci.NameID == "" {
+		return nil, nil
+	}
+	return json.Marshal(sloSessionData{
+		NameID:       ci.NameID,
+		NameIDFormat: ci.NameIDFormat,
+		SessionIndex: ci.SessionIndex,
+	})
+}
+
 // marshalCachedIdentity serializes the identity along with SAML-specific SLO
 // fields into ConnectorData. The nameIDFormat and sessionIdx parameters come
 // from the parsed SAML assertion and are needed to construct a LogoutRequest.
@@ -899,14 +928,14 @@ func (p *provider) LogoutURLWithState(_ context.Context, connectorData []byte, c
 		return "", nil, nil
 	}
 
-	var ci cachedIdentity
+	var sd sloSessionData
 	if len(connectorData) > 0 {
-		if err := json.Unmarshal(connectorData, &ci); err != nil {
-			return "", nil, fmt.Errorf("saml: failed to unmarshal connector data for logout: %v", err)
+		if err := json.Unmarshal(connectorData, &sd); err != nil {
+			return "", nil, fmt.Errorf("saml: failed to unmarshal session data for logout: %v", err)
 		}
 	}
 
-	if ci.NameID == "" {
+	if sd.NameID == "" {
 		return "", nil, nil
 	}
 
@@ -925,12 +954,12 @@ func (p *provider) LogoutURLWithState(_ context.Context, connectorData []byte, c
 		Destination:  p.sloURL,
 		Issuer:       &issuer{Issuer: p.entityIssuer}, // §4.4.4.1: Issuer is REQUIRED
 		NameID: nameID{
-			Format: ci.NameIDFormat,
-			Value:  ci.NameID,
+			Format: sd.NameIDFormat,
+			Value:  sd.NameID,
 		},
 	}
-	if ci.SessionIndex != "" {
-		req.SessionIndex = []sessionIndex{{Value: ci.SessionIndex}}
+	if sd.SessionIndex != "" {
+		req.SessionIndex = []sessionIndex{{Value: sd.SessionIndex}}
 	}
 
 	data, err := xml.Marshal(req)

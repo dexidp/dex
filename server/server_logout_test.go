@@ -23,9 +23,17 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
+// keepLogoutSessionData is embedded by the fake stateful logout connectors: the
+// session keeps the connector data of the login as it is.
+type keepLogoutSessionData struct{}
+
+func (keepLogoutSessionData) LogoutSessionData(connectorData []byte) ([]byte, error) {
+	return connectorData, nil
+}
+
 // fakeStatefulLogoutConnector always reports a validation failure from
 // HandleLogoutCallbackWithState.
-type fakeStatefulLogoutConnector struct{}
+type fakeStatefulLogoutConnector struct{ keepLogoutSessionData }
 
 func (fakeStatefulLogoutConnector) LoginURL(connector.Scopes, string, string) (string, error) {
 	return "", nil
@@ -41,7 +49,7 @@ func (fakeStatefulLogoutConnector) HandleLogoutCallbackWithState(_ context.Conte
 
 // statusFailureStatefulLogoutConnector reports an authentic response whose
 // status says the upstream logout failed, wrapped the way a connector may.
-type statusFailureStatefulLogoutConnector struct{}
+type statusFailureStatefulLogoutConnector struct{ keepLogoutSessionData }
 
 func (statusFailureStatefulLogoutConnector) LoginURL(connector.Scopes, string, string) (string, error) {
 	return "", nil
@@ -59,6 +67,7 @@ func (statusFailureStatefulLogoutConnector) HandleLogoutCallbackWithState(_ cont
 }
 
 type capturingStatefulLogoutConnector struct {
+	keepLogoutSessionData
 	connectorData *[]byte
 }
 
@@ -76,6 +85,7 @@ func (capturingStatefulLogoutConnector) HandleLogoutCallbackWithState(_ context.
 }
 
 type replacingStatefulLogoutConnector struct {
+	keepLogoutSessionData
 	store       storage.Storage
 	sessionID   string
 	callbackErr error

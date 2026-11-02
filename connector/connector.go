@@ -165,9 +165,17 @@ type LogoutCallbackConnector interface {
 // LogoutCallbackConnector instead. The server prefers this interface over
 // LogoutCallbackConnector when both are implemented.
 type StatefulLogoutCallbackConnector interface {
+	// LogoutSessionData returns the part of the login's connector data
+	// (Identity.ConnectorData) that LogoutURLWithState needs. The server keeps
+	// only this in the browser session, so nothing else the connector holds for
+	// the login, such as upstream tokens or claims, is copied there. Returning
+	// nil means the session has nothing to log out of upstream.
+	LogoutSessionData(connectorData []byte) ([]byte, error)
+
 	// LogoutURLWithState returns the upstream provider's logout URL plus an
 	// opaque connector-specific state to be persisted by the server and
-	// passed back to HandleLogoutCallbackWithState. Returning empty url means
+	// passed back to HandleLogoutCallbackWithState. connectorData is the value
+	// LogoutSessionData returned at login. Returning empty url means
 	// upstream logout is not available; in that case state must be nil.
 	LogoutURLWithState(ctx context.Context, connectorData []byte, postLogoutRedirectURI string) (logoutURL string, state []byte, err error)
 
