@@ -130,6 +130,8 @@ type RefreshConnector interface {
 	// Refresh is called when a client attempts to claim a refresh token. The
 	// connector should attempt to update the identity object to reflect any
 	// changes since the token was last refreshed.
+	//
+	// Refresh is called outside of any storage transaction and may read storage.
 	Refresh(ctx context.Context, s Scopes, identity Identity) (Identity, error)
 }
 

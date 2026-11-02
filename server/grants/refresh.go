@@ -107,14 +107,19 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 	// When sessions are enabled, downstream refresh is disconnected from the
 	// upstream provider: use the claims cached in UserIdentity at the last login
 	// instead of contacting the connector (which may fail if the upstream token
-	// has expired). Otherwise re-read the identity from the connector.
+	// has expired). Otherwise re-read the identity from the connector, with the
+	// connector data resolved before Rotate starts.
+	var connectorData []byte
+	var connectorDataErr error
+	if userIdent == nil {
+		connectorData, connectorDataErr = g.refreshConnectorData(ctx, refreshToken)
+	}
 	freshIdentity := func(ctx context.Context) (connector.Identity, error) {
 		if userIdent != nil {
 			return tokens.IdentityFromClaims(userIdent.Claims), nil
 		}
-		connectorData, err := g.refreshConnectorData(ctx, refreshToken)
-		if err != nil {
-			return connector.Identity{}, err
+		if connectorDataErr != nil {
+			return connector.Identity{}, connectorDataErr
 		}
 		return g.refreshWithConnector(ctx, conn, connectorData, scopes, tokens.IdentityFromClaims(refreshToken.Claims))
 	}
