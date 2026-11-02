@@ -504,11 +504,13 @@ type LogoutState struct {
 	ClientID              string
 	ConnectorID           string
 
-	// ConnectorState is opaque bytes returned by LogoutCallbackConnector.LogoutURL
-	// and handed back to HandleLogoutCallback. Used by the SAML connector to
-	// remember the outgoing LogoutRequest ID so it can validate InResponseTo
-	// against a server-side, one-shot value (defense against replay of captured
-	// LogoutResponses). Nil for connectors that don't need correlation state.
+	// ConnectorState is opaque bytes returned by
+	// StatefulLogoutCallbackConnector.LogoutURLWithState and handed back to
+	// HandleLogoutCallbackWithState. The SAML connector keeps the outgoing
+	// LogoutRequest ID and Dex's callback URL in it, so it can validate
+	// InResponseTo and Destination against server-side values, and a captured
+	// LogoutResponse cannot be replayed. Nil for connectors that don't need
+	// correlation state.
 	ConnectorState []byte
 }
 
