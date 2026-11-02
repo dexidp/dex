@@ -1047,7 +1047,11 @@ func (p *provider) HandleLogoutCallbackWithState(_ context.Context, r *http.Requ
 	var samlResponse string
 	switch r.Method {
 	case http.MethodGet:
-		samlResponse = r.URL.Query().Get("SAMLResponse")
+		var err error
+		samlResponse, err = redirectSAMLResponse(r.URL.RawQuery)
+		if err != nil {
+			return fmt.Errorf("saml slo: %v", err)
+		}
 	case http.MethodPost:
 		body, err := io.ReadAll(io.LimitReader(r.Body, maxSAMLLogoutPOSTBodySize+1))
 		if err != nil {
@@ -1175,8 +1179,9 @@ func (p *provider) HandleLogoutCallbackWithState(_ context.Context, r *http.Requ
 		return fmt.Errorf("saml slo: InResponseTo mismatch: expected %q, got %q", state.RequestID, resp.InResponseTo)
 	}
 
-	// The response is authentic from here on, so a failure status is the IdP's
-	// honest answer and not a reason to distrust it.
+	// The response passed every check this connector is configured to make (the
+	// signature too, unless insecureSkipSignatureValidation is set), so a failure
+	// status is taken as the IdP's honest answer and not a reason to distrust it.
 	if err := p.validateStatus(resp.Status); err != nil {
 		return &connector.UpstreamLogoutStatusError{
 			Status:  resp.Status.StatusCode.Value,
@@ -1222,6 +1227,40 @@ func rawQueryParam(rawQuery, key string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// redirectSAMLResponse returns the decoded SAMLResponse of an HTTP-Redirect
+// callback. The binding signature covers the raw query values, so the payload is
+// taken from that same raw value. A query that names any of the signed parameters
+// more than once, under any spelling of the name (SAML%52esponse is SAMLResponse),
+// is refused: otherwise the signature check and the parser could read different
+// copies, and the parser would see a response nobody signed.
+func redirectSAMLResponse(rawQuery string) (string, error) {
+	seen := make(map[string]bool)
+	for _, pair := range strings.Split(rawQuery, "&") {
+		name, _, _ := strings.Cut(pair, "=")
+		name, err := url.QueryUnescape(name)
+		if err != nil {
+			return "", fmt.Errorf("invalid query parameter name: %v", err)
+		}
+		switch name {
+		case "SAMLResponse", "RelayState", "SigAlg", "Signature":
+			if seen[name] {
+				return "", fmt.Errorf("query parameter %s is given more than once", name)
+			}
+			seen[name] = true
+		}
+	}
+
+	raw, ok := rawQueryParam(rawQuery, "SAMLResponse")
+	if !ok {
+		return "", nil
+	}
+	value, err := url.QueryUnescape(raw)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode SAMLResponse: %v", err)
+	}
+	return value, nil
 }
 
 // validateRedirectSignature verifies the query-string signature used in SAML

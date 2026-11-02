@@ -120,4 +120,15 @@ func TestCreateOrUpdateAuthSessionPersistsConnectorData(t *testing.T) {
 	session, err := store.GetAuthSession(t.Context(), sessions[0].ID)
 	require.NoError(t, err)
 	assert.Equal(t, authReq.ConnectorData, session.ConnectorData)
+
+	// A later login that carries none must not leave the earlier data behind.
+	authReq.ConnectorData = nil
+	req = httptest.NewRequest("GET", "/", nil)
+	req.AddCookie(rec.Result().Cookies()[0])
+	rec = httptest.NewRecorder()
+	require.NoError(t, manager.CreateOrUpdateAuthSession(t.Context(), req, rec, authReq, false))
+
+	session, err = store.GetAuthSession(t.Context(), sessions[0].ID)
+	require.NoError(t, err)
+	assert.Empty(t, session.ConnectorData)
 }

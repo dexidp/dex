@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -19,6 +20,7 @@ import (
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/discovery"
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
@@ -1477,4 +1479,84 @@ func TestHandleLogoutExpiredSession(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code)
 	require.Contains(t, rr.Body.String(), "No active session")
 	require.Empty(t, wait(0), "an expired session has no relying parties left to tell")
+}
+
+// loginCallbackConnector is a callback connector whose logins carry connector data,
+// like the upstream refresh token of an OIDC login.
+type loginCallbackConnector struct{ data []byte }
+
+func (loginCallbackConnector) LoginURL(connector.Scopes, string, string) (string, []byte, error) {
+	return "", nil, nil
+}
+
+func (c loginCallbackConnector) HandleCallback(connector.Scopes, []byte, *http.Request) (connector.Identity, error) {
+	return connector.Identity{
+		UserID:        "login-user",
+		Username:      "login-user",
+		Email:         "login-user@example.com",
+		EmailVerified: true,
+		ConnectorData: c.data,
+	}, nil
+}
+
+// logoutDataCallbackConnector also supports stateful upstream logout and asks the
+// server to keep only a part of the login's connector data.
+type logoutDataCallbackConnector struct{ loginCallbackConnector }
+
+func (logoutDataCallbackConnector) LogoutSessionData(connectorData []byte) ([]byte, error) {
+	return bytes.TrimPrefix(connectorData, []byte("claims+")), nil
+}
+
+func (logoutDataCallbackConnector) LogoutURLWithState(context.Context, []byte, string) (string, []byte, error) {
+	return "", nil, nil
+}
+
+func (logoutDataCallbackConnector) HandleLogoutCallbackWithState(context.Context, *http.Request, []byte) error {
+	return nil
+}
+
+func TestLoginKeepsOnlyLogoutDataInAuthSession(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	ctx := t.Context()
+	registerTestConnector(t, server, "plain-callback", loginCallbackConnector{data: []byte(`{"refreshToken":"upstream-secret"}`)})
+	registerTestConnector(t, server, "logout-callback", logoutDataCallbackConnector{loginCallbackConnector{data: []byte("claims+logout-fields")}})
+
+	for _, tc := range []struct {
+		connectorID string
+		want        []byte
+	}{
+		{"plain-callback", nil},
+		{"logout-callback", []byte("logout-fields")},
+	} {
+		t.Run(tc.connectorID, func(t *testing.T) {
+			authReqID := "login-" + tc.connectorID
+			require.NoError(t, server.storage.CreateAuthRequest(ctx, storage.AuthRequest{
+				ID:            authReqID,
+				ConnectorID:   tc.connectorID,
+				ClientID:      "test",
+				RedirectURI:   "cb",
+				Expiry:        time.Now().Add(time.Minute),
+				ResponseTypes: []string{oauth2.ResponseTypeCode},
+				Scopes:        []string{"openid"},
+			}))
+
+			rr := httptest.NewRecorder()
+			server.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/callback/"+tc.connectorID+"?state="+authReqID, nil))
+			require.Equal(t, http.StatusSeeOther, rr.Code, rr.Body.String())
+
+			sessions, err := server.storage.ListAuthSessions(ctx)
+			require.NoError(t, err)
+			var found bool
+			for _, sess := range sessions {
+				if sess.ConnectorID != tc.connectorID {
+					continue
+				}
+				found = true
+				require.Equal(t, tc.want, sess.ConnectorData)
+			}
+			require.True(t, found, "the login must create a browser session")
+		})
+	}
 }

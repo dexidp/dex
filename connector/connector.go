@@ -20,7 +20,9 @@ func (e *UserNotInRequiredGroupsError) Error() string {
 }
 
 // UpstreamLogoutStatusError is returned by HandleLogoutCallbackWithState when the
-// upstream provider's response is authentic but reports that the logout failed.
+// upstream provider's response passed every check the connector makes (signature
+// included, unless the connector is configured to skip it) but reports that the
+// logout failed.
 // Unlike any other error of that method, it says nothing against the response
 // itself, so the server logs it and still ends the local session.
 type UpstreamLogoutStatusError struct {
@@ -185,7 +187,7 @@ type StatefulLogoutCallbackConnector interface {
 	//
 	// Any error means the response cannot be trusted and the server keeps the
 	// session. The exception is *UpstreamLogoutStatusError: it is returned only
-	// for a response that passed every authenticity check and reports a failed
-	// logout, and the server ends the session anyway.
+	// for a response that passed every check the connector makes and reports a
+	// failed logout, and the server ends the session anyway.
 	HandleLogoutCallbackWithState(ctx context.Context, r *http.Request, state []byte) error
 }

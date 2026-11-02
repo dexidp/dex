@@ -1252,8 +1252,10 @@ For OAuth/OIDC/SAML connectors, the user is redirected to upstream IDP and there
 
 **CallbackConnector** (OIDC, OAuth, SAML, GitHub, etc.):
 - Session created after successful callback
-- ConnectorData is copied into the AuthSession for stateful upstream logout;
-  refresh-token flows continue to store it with the refresh token as well
+- Connectors that implement `StatefulLogoutCallbackConnector` (SAML) keep what their
+  `LogoutSessionData` returns in the AuthSession, for the upstream logout request; other
+  connectors keep nothing there. Refresh-token flows store the full connector data on
+  the offline session, as before
 - Identity refresh via RefreshConnector when refresh token is used
 
 **PasswordConnector** (LDAP, local passwords):

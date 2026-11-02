@@ -1426,6 +1426,19 @@ func TestHandleLogoutCallback(t *testing.T) {
 	t.Run("FailedStatusStillNeedsAuthenticResponse", func(t *testing.T) {
 		// A failure status is only the IdP's honest answer when the rest of the
 		// response checks out; every forged variant stays a plain error.
+		connIssuer, err := (&Config{
+			UsernameAttr:                    "Name",
+			EmailAttr:                       "email",
+			RedirectURI:                     "http://127.0.0.1:5556/dex/callback",
+			SSOURL:                          "http://foo.bar/",
+			SSOIssuer:                       "https://idp.example.com",
+			InsecureSkipSignatureValidation: true,
+		}).openConnector(slog.New(slog.DiscardHandler))
+		if err != nil {
+			t.Fatal(err)
+		}
+		connIssuer.now = conn.now
+
 		for name, mutate := range map[string]func(string) string{
 			"WrongInResponseTo": func(x string) string { return strings.Replace(x, `InResponseTo="_req456"`, `InResponseTo="_other"`, 1) },
 			"WrongDestination": func(x string) string {
@@ -1442,19 +1455,6 @@ func TestHandleLogoutCallback(t *testing.T) {
 			},
 		} {
 			t.Run(name, func(t *testing.T) {
-				connIssuer, err := (&Config{
-					UsernameAttr:                    "Name",
-					EmailAttr:                       "email",
-					RedirectURI:                     "http://127.0.0.1:5556/dex/callback",
-					SSOURL:                          "http://foo.bar/",
-					SSOIssuer:                       "https://idp.example.com",
-					InsecureSkipSignatureValidation: true,
-				}).openConnector(slog.New(slog.DiscardHandler))
-				if err != nil {
-					t.Fatal(err)
-				}
-				connIssuer.now = conn.now
-
 				encoded := redirectBindingEncode(t, mutate(failedLogoutResponseXML))
 				req := httptest.NewRequest(http.MethodGet, "/logout/callback?SAMLResponse="+url.QueryEscape(encoded), nil)
 				err = connIssuer.HandleLogoutCallbackWithState(context.Background(), req, successState)
@@ -2162,6 +2162,105 @@ func TestHandleLogoutCallbackRedirectSignatureValidation(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, u, nil)
 		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, logoutStateFor(t, logoutRequestID)); err == nil {
 			t.Error("expected error for tampered payload")
+		}
+	})
+}
+
+func TestHandleLogoutCallbackSignedFailureStatus(t *testing.T) {
+	conn, err := (&Config{
+		CA:           "testdata/ca.crt",
+		UsernameAttr: "Name",
+		EmailAttr:    "email",
+		RedirectURI:  "http://127.0.0.1:5556/dex/callback",
+		SSOURL:       "http://foo.bar/",
+	}).openConnector(slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	respTime, _ := time.Parse(timeFormat, "2024-01-01T00:00:00Z")
+	conn.now = func() time.Time { return respTime }
+	state := logoutStateFor(t, logoutRequestID)
+
+	requireStatusError := func(t *testing.T, err error) {
+		t.Helper()
+		var statusErr *connector.UpstreamLogoutStatusError
+		if !errors.As(err, &statusErr) {
+			t.Fatalf("expected *connector.UpstreamLogoutStatusError, got %v", err)
+		}
+	}
+	requirePlainError := func(t *testing.T, err error) {
+		t.Helper()
+		var statusErr *connector.UpstreamLogoutStatusError
+		if err == nil || errors.As(err, &statusErr) {
+			t.Fatalf("expected a plain validation error, got %v", err)
+		}
+	}
+
+	t.Run("POSTSigned", func(t *testing.T) {
+		doc := etree.NewDocument()
+		if err := doc.ReadFromString(failedLogoutResponseXML); err != nil {
+			t.Fatal(err)
+		}
+		encoded := base64.StdEncoding.EncodeToString(signXMLDocument(t, doc))
+		requireStatusError(t, conn.HandleLogoutCallbackWithState(context.Background(), postSAMLResponse(encoded), state))
+	})
+
+	t.Run("POSTUnsigned", func(t *testing.T) {
+		encoded := base64.StdEncoding.EncodeToString([]byte(failedLogoutResponseXML))
+		requirePlainError(t, conn.HandleLogoutCallbackWithState(context.Background(), postSAMLResponse(encoded), state))
+	})
+
+	t.Run("RedirectSigned", func(t *testing.T) {
+		u := signRedirectBinding(t, failedLogoutResponseXML, "testdata/ca.key", "testdata/ca.crt")
+		req := httptest.NewRequest(http.MethodGet, u, nil)
+		requireStatusError(t, conn.HandleLogoutCallbackWithState(context.Background(), req, state))
+	})
+
+	t.Run("RedirectWrongKey", func(t *testing.T) {
+		u := signRedirectBinding(t, failedLogoutResponseXML, "testdata/bad-ca.key", "testdata/bad-ca.crt")
+		req := httptest.NewRequest(http.MethodGet, u, nil)
+		requirePlainError(t, conn.HandleLogoutCallbackWithState(context.Background(), req, state))
+	})
+}
+
+func TestHandleLogoutCallbackRedirectDuplicateParameters(t *testing.T) {
+	conn, err := (&Config{
+		CA:           "testdata/ca.crt",
+		UsernameAttr: "Name",
+		EmailAttr:    "email",
+		RedirectURI:  "http://127.0.0.1:5556/dex/callback",
+		SSOURL:       "http://foo.bar/",
+	}).openConnector(slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	respTime, _ := time.Parse(timeFormat, "2024-01-01T00:00:00Z")
+	conn.now = func() time.Time { return respTime }
+
+	// A response the IdP really signed, but for another request, and an unsigned
+	// one that would pass every other check of this logout.
+	signedOther := signRedirectBinding(t, strings.Replace(successLogoutResponseXML, `InResponseTo="_req456"`, `InResponseTo="_other"`, 1), "testdata/ca.key", "testdata/ca.crt")
+	forged := url.QueryEscape(redirectBindingEncode(t, successLogoutResponseXML))
+	signedQuery := strings.TrimPrefix(signedOther, "/logout/callback?")
+
+	for name, query := range map[string]string{
+		"EncodedNameFirst": "SAML%52esponse=" + forged + "&" + signedQuery,
+		"EncodedNameLast":  signedQuery + "&SAML%52esponse=" + forged,
+		"PlainNameTwice":   "SAMLResponse=" + forged + "&" + signedQuery,
+	} {
+		t.Run(name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/logout/callback?"+query, nil)
+			if err := conn.HandleLogoutCallbackWithState(context.Background(), req, logoutStateFor(t, logoutRequestID)); err == nil {
+				t.Error("expected error: the signed copy and the parsed copy must be the same one")
+			}
+		})
+	}
+
+	t.Run("SignedCopyIsTheParsedCopy", func(t *testing.T) {
+		signed := signRedirectBinding(t, successLogoutResponseXML, "testdata/ca.key", "testdata/ca.crt")
+		req := httptest.NewRequest(http.MethodGet, signed, nil)
+		if err := conn.HandleLogoutCallbackWithState(context.Background(), req, logoutStateFor(t, logoutRequestID)); err != nil {
+			t.Errorf("expected nil, got %v", err)
 		}
 	})
 }
