@@ -131,10 +131,7 @@ type RefreshConnector interface {
 	// connector should attempt to update the identity object to reflect any
 	// changes since the token was last refreshed.
 	//
-	// Refresh runs outside any storage transaction — it may read storage (the
-	// built-in password DB does) or contact an upstream provider — and is
-	// invoked at most once per refresh that refreshes the stored claims. See
-	// RefreshStore.Rotate for the rotation steps.
+	// Refresh is called outside of any storage transaction and may read storage.
 	Refresh(ctx context.Context, s Scopes, identity Identity) (Identity, error)
 }
 

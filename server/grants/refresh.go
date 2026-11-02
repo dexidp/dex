@@ -107,12 +107,8 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 	// When sessions are enabled, downstream refresh is disconnected from the
 	// upstream provider: use the claims cached in UserIdentity at the last login
 	// instead of contacting the connector (which may fail if the upstream token
-	// has expired). Otherwise re-read the identity from the connector.
-	//
-	// The connector data is resolved before Rotate starts so the callback
-	// consumes an already-resolved value: Rotate invokes freshIdentity between
-	// its storage transactions and at most once per rotation — see
-	// RefreshStore.Rotate for the claim/resolve/finalize steps.
+	// has expired). Otherwise re-read the identity from the connector, with the
+	// connector data resolved before Rotate starts.
 	var connectorData []byte
 	var connectorDataErr error
 	if userIdent == nil {
