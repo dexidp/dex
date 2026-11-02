@@ -2,7 +2,9 @@ package tokens
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -136,4 +138,343 @@ func TestRefreshStoreRevoke(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, sess.Refresh)
 	require.Equal(t, []byte("cd"), sess.ConnectorData)
+}
+
+// seedRefreshToken stores a refresh token and its offline session with the
+// given last-used time, aged past the reuse window by the caller.
+func seedRefreshToken(t *testing.T, store storage.Storage, lastUsed time.Time) {
+	t.Helper()
+	ctx := context.Background()
+	require.NoError(t, store.CreateRefresh(ctx, storage.RefreshToken{
+		ID: "r1", Token: "t1", ObsoleteToken: "t0", ClientID: "client-1", ConnectorID: "mock",
+		Claims: storage.Claims{UserID: "u1", Username: "alice"}, CreatedAt: lastUsed, LastUsed: lastUsed,
+	}))
+	require.NoError(t, store.CreateOfflineSessions(ctx, storage.OfflineSessions{
+		UserID: "u1", ConnID: "mock",
+		Refresh: map[string]*storage.RefreshTokenRef{"client-1": {ID: "r1", ClientID: "client-1"}},
+	}))
+}
+
+// blockingStorage parks the second UpdateRefreshToken call — the finalize of a
+// claimed rotation — until released, and signals its arrival. It deterministically
+// holds one rotation in the gap between its two transactions; every other call,
+// including another rotation's claim, passes through.
+type blockingStorage struct {
+	storage.Storage
+	inGap   chan struct{}
+	release chan struct{}
+	updates atomic.Int32
+}
+
+func (b *blockingStorage) UpdateRefreshToken(ctx context.Context, id string, updater func(r storage.RefreshToken) (storage.RefreshToken, error)) error {
+	if b.updates.Add(1) == 2 {
+		close(b.inGap)
+		<-b.release
+	}
+	return b.Storage.UpdateRefreshToken(ctx, id, updater)
+}
+
+// failingFinalizeStorage fails exactly one UpdateRefreshToken call, the second —
+// the finalize of the first rotation — one-shot.
+type failingFinalizeStorage struct {
+	storage.Storage
+	failNow atomic.Bool
+	updates atomic.Int32
+}
+
+func (f *failingFinalizeStorage) UpdateRefreshToken(ctx context.Context, id string, updater func(r storage.RefreshToken) (storage.RefreshToken, error)) error {
+	if f.updates.Add(1) == 2 && f.failNow.CompareAndSwap(true, false) {
+		return errors.New("injected finalize failure")
+	}
+	return f.Storage.UpdateRefreshToken(ctx, id, updater)
+}
+
+func TestRefreshStoreRotateConcurrentRefreshReusesClaimedToken(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now().UTC()
+	clock := func() time.Time { return now }
+
+	blocked := &blockingStorage{
+		Storage: memory.New(slog.New(slog.DiscardHandler)),
+		inGap:   make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	rt := NewRefreshStore(blocked, clock, slog.New(slog.DiscardHandler))
+	seedRefreshToken(t, blocked.Storage, now.Add(-31*time.Second))
+	strategy := NewRefreshStrategy(true, 0, 0, 30*time.Second, clock)
+
+	var resolves atomic.Int32
+	fresh := func(context.Context) (connector.Identity, error) {
+		resolves.Add(1)
+		return connector.Identity{UserID: "u1", Username: "bob"}, nil
+	}
+
+	stored, err := blocked.GetRefresh(ctx, "r1")
+	require.NoError(t, err)
+	req := &internal.RefreshToken{RefreshId: "r1", Token: "t1"}
+
+	var winnerRaw string
+	var winnerErr error
+	winnerDone := make(chan struct{})
+	go func() {
+		defer close(winnerDone)
+		winnerRaw, _, winnerErr = rt.Rotate(ctx, &stored, req, strategy, fresh)
+	}()
+	<-blocked.inGap // the claim committed; the finalize is parked.
+
+	// The concurrent refresh, still holding the pre-rotation token, takes the
+	// reuse path the claim opened and receives the token being minted.
+	racerRaw, _, racerErr := rt.Rotate(ctx, &stored, req, strategy, fresh)
+
+	close(blocked.release)
+	<-winnerDone
+
+	require.NoError(t, winnerErr)
+	require.NoError(t, racerErr)
+	var winnerTok, racerTok internal.RefreshToken
+	require.NoError(t, internal.Unmarshal(winnerRaw, &winnerTok))
+	require.NoError(t, internal.Unmarshal(racerRaw, &racerTok))
+	require.NotEqual(t, "t1", winnerTok.Token, "token should have rotated")
+	require.Equal(t, winnerTok.Token, racerTok.Token, "concurrent refresh must receive the same new token")
+	require.Equal(t, int32(1), resolves.Load(), "the connector must be resolved once")
+}
+
+func TestRefreshStoreRotateConcurrentRefreshWithoutReuseWindow(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now().UTC()
+	clock := func() time.Time { return now }
+
+	blocked := &blockingStorage{
+		Storage: memory.New(slog.New(slog.DiscardHandler)),
+		inGap:   make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	rt := NewRefreshStore(blocked, clock, slog.New(slog.DiscardHandler))
+	seedRefreshToken(t, blocked.Storage, now.Add(-31*time.Second))
+	strategy := NewRefreshStrategy(true, 0, 0, 0, clock)
+
+	var resolves atomic.Int32
+	fresh := func(context.Context) (connector.Identity, error) {
+		resolves.Add(1)
+		return connector.Identity{UserID: "u1", Username: "bob"}, nil
+	}
+
+	stored, err := blocked.GetRefresh(ctx, "r1")
+	require.NoError(t, err)
+	req := &internal.RefreshToken{RefreshId: "r1", Token: "t1"}
+
+	var winnerErr error
+	winnerDone := make(chan struct{})
+	go func() {
+		defer close(winnerDone)
+		_, _, winnerErr = rt.Rotate(ctx, &stored, req, strategy, fresh)
+	}()
+	<-blocked.inGap
+
+	// Without a reuse window there is no path back onto the token: the claim
+	// already rotated it, so the concurrent refresh is denied before resolving.
+	_, _, racerErr := rt.Rotate(ctx, &stored, req, strategy, fresh)
+
+	close(blocked.release)
+	<-winnerDone
+
+	require.NoError(t, winnerErr)
+	require.Error(t, racerErr, "without a reuse window the concurrent refresh must be denied")
+	require.Equal(t, int32(1), resolves.Load(), "only the winner resolves the connector")
+}
+
+func TestRefreshStoreRotateResolveFailureUndoesClaim(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now().UTC()
+	clock := func() time.Time { return now }
+
+	store := memory.New(slog.New(slog.DiscardHandler))
+	rt := NewRefreshStore(store, clock, slog.New(slog.DiscardHandler))
+	aged := now.Add(-31 * time.Second)
+	seedRefreshToken(t, store, aged)
+	strategy := NewRefreshStrategy(true, 0, 0, 30*time.Second, clock)
+
+	resolveErr := errors.New("user deleted")
+	var resolves atomic.Int32
+	fresh := func(context.Context) (connector.Identity, error) {
+		resolves.Add(1)
+		if resolveErr != nil {
+			return connector.Identity{}, resolveErr
+		}
+		return connector.Identity{UserID: "u1", Username: "bob"}, nil
+	}
+
+	stored, err := store.GetRefresh(ctx, "r1")
+	require.NoError(t, err)
+	req := &internal.RefreshToken{RefreshId: "r1", Token: "t1"}
+
+	_, _, err = rt.Rotate(ctx, &stored, req, strategy, fresh)
+	require.ErrorIs(t, err, resolveErr)
+
+	after, err := store.GetRefresh(ctx, "r1")
+	require.NoError(t, err)
+	require.Equal(t, "t1", after.Token, "a failed rotation must restore the token")
+	require.Equal(t, "t0", after.ObsoleteToken, "a failed rotation must restore the obsolete token")
+	require.Equal(t, aged, after.LastUsed, "a failed rotation must restore last-used")
+
+	// The undo closed the reuse window the claim opened: an immediate retry
+	// re-rotates — and fails again while the user is still gone, instead of
+	// minting from stale claims.
+	_, _, err = rt.Rotate(ctx, &stored, req, strategy, fresh)
+	require.ErrorIs(t, err, resolveErr)
+
+	resolveErr = nil
+	raw, ident, err := rt.Rotate(ctx, &stored, req, strategy, fresh)
+	require.NoError(t, err)
+	require.Equal(t, "bob", ident.Username)
+
+	var tok internal.RefreshToken
+	require.NoError(t, internal.Unmarshal(raw, &tok))
+	require.NotEqual(t, "t1", tok.Token)
+
+	after, err = store.GetRefresh(ctx, "r1")
+	require.NoError(t, err)
+	require.Equal(t, tok.Token, after.Token)
+	require.Equal(t, "t1", after.ObsoleteToken)
+	require.Equal(t, "bob", after.Claims.Username)
+	require.Equal(t, int32(3), resolves.Load())
+}
+
+func TestRefreshStoreRotateFinalizeFailureUndoesClaim(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now().UTC()
+	clock := func() time.Time { return now }
+
+	failing := &failingFinalizeStorage{Storage: memory.New(slog.New(slog.DiscardHandler))}
+	failing.failNow.Store(true)
+	rt := NewRefreshStore(failing, clock, slog.New(slog.DiscardHandler))
+	aged := now.Add(-31 * time.Second)
+	seedRefreshToken(t, failing.Storage, aged)
+	strategy := NewRefreshStrategy(true, 0, 0, 30*time.Second, clock)
+
+	var resolves atomic.Int32
+	fresh := func(context.Context) (connector.Identity, error) {
+		resolves.Add(1)
+		return connector.Identity{UserID: "u1", Username: "bob"}, nil
+	}
+
+	stored, err := failing.GetRefresh(ctx, "r1")
+	require.NoError(t, err)
+	req := &internal.RefreshToken{RefreshId: "r1", Token: "t1"}
+
+	_, _, err = rt.Rotate(ctx, &stored, req, strategy, fresh)
+	require.Error(t, err, "the injected finalize failure must fail the grant")
+
+	after, err := failing.GetRefresh(ctx, "r1")
+	require.NoError(t, err)
+	require.Equal(t, "t1", after.Token, "a failed finalize must restore the token")
+	require.Equal(t, "t0", after.ObsoleteToken, "a failed finalize must restore the obsolete token")
+	require.Equal(t, aged, after.LastUsed, "a failed finalize must restore last-used")
+
+	// Within the window the retry would have taken the reuse path had the claim
+	// stood; with it undone the retry re-rotates.
+	now = now.Add(time.Second)
+	raw, _, err := rt.Rotate(ctx, &stored, req, strategy, fresh)
+	require.NoError(t, err)
+	var tok internal.RefreshToken
+	require.NoError(t, internal.Unmarshal(raw, &tok))
+	require.NotEqual(t, "t1", tok.Token, "in-window retry must re-rotate, not reuse the un-rotated token")
+
+	after, err = failing.GetRefresh(ctx, "r1")
+	require.NoError(t, err)
+	require.Equal(t, "bob", after.Claims.Username)
+	require.Equal(t, int32(2), resolves.Load())
+}
+
+func TestRefreshStoreRotateReuseWindowSkipsConnector(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now().UTC()
+	clock := func() time.Time { return now }
+
+	store := memory.New(slog.New(slog.DiscardHandler))
+	rt := NewRefreshStore(store, clock, slog.New(slog.DiscardHandler))
+	seedRefreshToken(t, store, now.Add(-31*time.Second))
+	strategy := NewRefreshStrategy(true, 0, 0, 30*time.Second, clock)
+
+	var resolves atomic.Int32
+	fresh := func(context.Context) (connector.Identity, error) {
+		resolves.Add(1)
+		return connector.Identity{UserID: "u1", Username: "bob", ConnectorData: []byte("cd")}, nil
+	}
+
+	stored, err := store.GetRefresh(ctx, "r1")
+	require.NoError(t, err)
+	req := &internal.RefreshToken{RefreshId: "r1", Token: "t1"}
+
+	raw, _, err := rt.Rotate(ctx, &stored, req, strategy, fresh)
+	require.NoError(t, err)
+	var rotated internal.RefreshToken
+	require.NoError(t, internal.Unmarshal(raw, &rotated))
+
+	// The obsolete token, re-presented within the window, redeems the rotated
+	// one without consulting the connector — so a user deleted between the
+	// rotation and the retry keeps the retry working.
+	now = now.Add(time.Second)
+	retried, _, err := rt.Rotate(ctx, &stored, req, strategy, fresh)
+	require.NoError(t, err)
+	var redeemed internal.RefreshToken
+	require.NoError(t, internal.Unmarshal(retried, &redeemed))
+	require.Equal(t, rotated.Token, redeemed.Token, "obsolete token did not redeem the rotated one")
+	require.Equal(t, int32(1), resolves.Load())
+
+	// The refreshed identity's connector data lands on the offline session.
+	sess, err := store.GetOfflineSessions(ctx, "u1", "mock")
+	require.NoError(t, err)
+	require.Equal(t, []byte("cd"), sess.ConnectorData)
+}
+
+func TestRefreshStoreRotateDisabledRotationRefreshesClaims(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now().UTC()
+	clock := func() time.Time { return now }
+
+	store := memory.New(slog.New(slog.DiscardHandler))
+	rt := NewRefreshStore(store, clock, slog.New(slog.DiscardHandler))
+	aged := now.Add(-31 * time.Second)
+	seedRefreshToken(t, store, aged)
+	strategy := NewRefreshStrategy(false, 0, 0, 30*time.Second, clock)
+
+	resolveErr := errors.New("user deleted")
+	var resolves atomic.Int32
+	fresh := func(context.Context) (connector.Identity, error) {
+		resolves.Add(1)
+		if resolveErr != nil {
+			return connector.Identity{}, resolveErr
+		}
+		return connector.Identity{UserID: "u1", Username: "bob"}, nil
+	}
+
+	stored, err := store.GetRefresh(ctx, "r1")
+	require.NoError(t, err)
+	req := &internal.RefreshToken{RefreshId: "r1", Token: "t1"}
+
+	// A failed resolution undoes the in-place claim: last-used is restored and
+	// the token row is untouched.
+	_, _, err = rt.Rotate(ctx, &stored, req, strategy, fresh)
+	require.ErrorIs(t, err, resolveErr)
+	after, err := store.GetRefresh(ctx, "r1")
+	require.NoError(t, err)
+	require.Equal(t, "t1", after.Token)
+	require.Equal(t, "t0", after.ObsoleteToken)
+	require.Equal(t, aged, after.LastUsed)
+
+	resolveErr = nil
+	raw, ident, err := rt.Rotate(ctx, &stored, req, strategy, fresh)
+	require.NoError(t, err)
+	require.Equal(t, "bob", ident.Username)
+
+	// No rotation: the same token is returned, with refreshed claims.
+	var tok internal.RefreshToken
+	require.NoError(t, internal.Unmarshal(raw, &tok))
+	require.Equal(t, "t1", tok.Token)
+	after, err = store.GetRefresh(ctx, "r1")
+	require.NoError(t, err)
+	require.Equal(t, "t1", after.Token)
+	require.Equal(t, "bob", after.Claims.Username)
+	require.Equal(t, int32(2), resolves.Load())
 }
