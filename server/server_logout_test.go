@@ -68,6 +68,29 @@ func (statusFailureStatefulLogoutConnector) HandleLogoutCallbackWithState(_ cont
 	})
 }
 
+// failOnceStatefulLogoutConnector rejects the first callback, like a forged request
+// that reaches /logout/callback before the IdP's response, and accepts the next.
+type failOnceStatefulLogoutConnector struct {
+	keepLogoutSessionData
+	calls *int
+}
+
+func (failOnceStatefulLogoutConnector) LoginURL(connector.Scopes, string, string) (string, error) {
+	return "", nil
+}
+
+func (failOnceStatefulLogoutConnector) LogoutURLWithState(_ context.Context, _ []byte, _ string) (string, []byte, error) {
+	return "https://idp.example.com/slo", []byte("_req_id"), nil
+}
+
+func (c failOnceStatefulLogoutConnector) HandleLogoutCallbackWithState(_ context.Context, _ *http.Request, _ []byte) error {
+	*c.calls++
+	if *c.calls == 1 {
+		return errors.New("forced validation failure for the first callback")
+	}
+	return nil
+}
+
 type capturingStatefulLogoutConnector struct {
 	keepLogoutSessionData
 	connectorData *[]byte
@@ -525,7 +548,7 @@ func TestHandleLogoutFromCookie(t *testing.T) {
 	}
 }
 
-func TestLogoutCallbackStatefulFailureKeepsSessionClearsLogoutState(t *testing.T) {
+func TestLogoutCallbackStatefulFailureKeepsSessionAndLogoutState(t *testing.T) {
 	httpServer, server := newTestServerWithSessions(t, nil)
 	defer httpServer.Close()
 
@@ -557,7 +580,8 @@ func TestLogoutCallbackStatefulFailureKeepsSessionClearsLogoutState(t *testing.T
 
 	got, err := server.storage.GetAuthSession(ctx, sessionID)
 	require.NoError(t, err, "session must survive failed stateful logout validation")
-	require.Nil(t, got.LogoutState, "LogoutState must be cleared after failed validation")
+	require.NotNil(t, got.LogoutState, "LogoutState must survive failed validation so the real response can still arrive")
+	require.Equal(t, []byte("_req_id"), got.LogoutState.ConnectorState)
 
 	for _, cookie := range rr.Result().Cookies() {
 		if cookie.Name == "dex_session" {
@@ -606,6 +630,49 @@ func TestLogoutCallbackUpstreamStatusFailureEndsSession(t *testing.T) {
 		}
 	}
 	require.True(t, cleared, "session cookie must be cleared")
+}
+
+func TestLogoutCallbackStrayRequestDoesNotCancelLogout(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	ctx := t.Context()
+	sessionID := "test-session-stray-callback"
+	connectorID := "stateful-fail-once"
+	var calls int
+
+	registerTestConnector(t, server, connectorID, failOnceStatefulLogoutConnector{calls: &calls})
+
+	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
+		ID:           sessionID,
+		Secret:       testSessionSecret(sessionID),
+		UserID:       "test-user",
+		ConnectorID:  connectorID,
+		CreatedAt:    time.Now(),
+		LastActivity: time.Now(),
+		LogoutState: &storage.LogoutState{
+			ConnectorID:    connectorID,
+			ConnectorState: []byte("_req_id"),
+		},
+	}))
+
+	callback := func() *httptest.ResponseRecorder {
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/logout/callback", nil)
+		req.AddCookie(testSessionCookie(sessionID))
+		server.ServeHTTP(rr, req)
+		return rr
+	}
+
+	require.Equal(t, http.StatusBadRequest, callback().Code, "the stray request is rejected")
+
+	rr := callback()
+	require.Equal(t, http.StatusOK, rr.Code, "the IdP's real response must still complete the logout")
+	_, err := server.storage.GetAuthSession(ctx, sessionID)
+	require.ErrorIs(t, err, storage.ErrNotFound)
+
+	// The state went with the session: a replay finds nothing to complete.
+	require.Equal(t, http.StatusBadRequest, callback().Code)
 }
 
 func TestUpstreamLogoutUsesAuthSessionConnectorData(t *testing.T) {
@@ -749,7 +816,7 @@ func TestLogoutCallbackMissingStatefulConnectorFailsClosed(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, rr.Code)
 	got, err := server.storage.GetAuthSession(ctx, sessionID)
 	require.NoError(t, err, "session must survive when stateful callback cannot be validated")
-	require.Nil(t, got.LogoutState)
+	require.NotNil(t, got.LogoutState)
 }
 
 // TestLogoutCallbackWithExpiredSession tests that /logout/callback

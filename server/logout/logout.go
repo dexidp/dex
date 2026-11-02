@@ -390,17 +390,11 @@ func (h *Handler) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 	// complete Dex logout if that fails. Otherwise a forged request carrying a
 	// valid session cookie could clear the session without a valid IdP response.
 	if statefulLogoutErr != nil {
-		// Clear the one-shot correlation state so it cannot be replayed. The
-		// browser session remains active and can start a fresh logout attempt.
-		if err := h.Storage.UpdateAuthSession(ctx, session.ID, func(old storage.AuthSession) (storage.AuthSession, error) {
-			if logoutStatesEqual(old.LogoutState, ls) {
-				old.LogoutState = nil
-			}
-			return old, nil
-		}); err != nil {
-			h.Logger.ErrorContext(ctx, "logout: failed to clear LogoutState after failed validation",
-				"connector_id", ls.ConnectorID, "err", err)
-		}
+		// The logout stays in progress: the state is neither consumed nor cleared, so
+		// the IdP's real response can still complete it after a forged or stray
+		// request hit this endpoint. Replay is not a concern, since only a response
+		// that passes validation consumes the state and ends the session, and the
+		// connector matches the response to the one request this state names.
 		h.renderError(r, w, http.StatusBadRequest, "Upstream logout response validation failed.")
 		return
 	}
