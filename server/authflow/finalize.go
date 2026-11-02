@@ -15,6 +15,28 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
+// sessionAuthRequest returns authReq as the browser session should record it.
+// The session keeps only what the connector's upstream logout needs
+// (connector.StatefulLogoutCallbackConnector.LogoutSessionData). The rest of the
+// connector data is upstream credentials, such as refresh tokens, or claims, and
+// the session has no use for them, so for every other connector it is dropped.
+func (h *Handler) sessionAuthRequest(ctx context.Context, authReq storage.AuthRequest, conn connector.Connector) storage.AuthRequest {
+	logoutConn, ok := conn.(connector.StatefulLogoutCallbackConnector)
+	if !ok {
+		authReq.ConnectorData = nil
+		return authReq
+	}
+
+	data, err := logoutConn.LogoutSessionData(authReq.ConnectorData)
+	if err != nil {
+		h.Logger.WarnContext(ctx, "failed to derive upstream logout data for the auth session, upstream logout will be skipped",
+			"connector_id", authReq.ConnectorID, "err", err)
+		data = nil
+	}
+	authReq.ConnectorData = data
+	return authReq
+}
+
 // finalizeLogin associates the user's identity with the current AuthRequest, then returns
 // the approval page's path.
 func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity, authReq storage.AuthRequest, conn connector.Connector) (storage.AuthRequest, error) {
@@ -64,7 +86,8 @@ func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity
 	}
 
 	h.Logger.InfoContext(ctx, "login successful",
-		"connector_id", authReq.ConnectorID, "user_id", claims.UserID,
+		"connector_id", authReq.ConnectorID, "client_id", authReq.ClientID,
+		"user_id", claims.UserID,
 		"username", claims.Username, "preferred_username", claims.PreferredUsername,
 		"email", email, "groups", claims.Groups)
 

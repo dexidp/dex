@@ -198,7 +198,10 @@ func getProvider(ctx context.Context, issuer string, overrides ProviderDiscovery
 	if overrides.DeviceAuthURL != "" {
 		config.DeviceAuthURL = overrides.DeviceAuthURL
 	}
-	return config.NewProvider(context.Background()), nil
+	// Use the incoming ctx so the provider keeps the rootCAs-aware
+	// oauth2.HTTPClient. With context.Background() the provider verifies
+	// JWKS against the system roots only.
+	return config.NewProvider(ctx), nil
 }
 
 // NewGroupFromClaims creates a new group from a list of claims and appends it to the list of existing groups.

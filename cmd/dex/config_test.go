@@ -86,6 +86,25 @@ func TestInvalidRefreshTokenLifetime(t *testing.T) {
 	require.Contains(t, err.Error(), `client "proxy"`)
 }
 
+// TestInvalidTLSPreferences: bad cipher suite and curve names must be reported
+// alongside the other config errors instead of hiding them.
+func TestInvalidTLSPreferences(t *testing.T) {
+	configuration := Config{
+		Storage: Storage{Type: "sqlite3", Config: &sql.SQLite3{File: "examples/dex.db"}},
+		Web: Web{
+			HTTP:                "127.0.0.1:5556",
+			TLSCiphers:          []string{"TLS_FAKE_CIPHER"},
+			TLSCurvePreferences: []string{"UnknownCurve"},
+		},
+	}
+
+	err := configuration.Validate()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no issuer specified in config file")
+	require.Contains(t, err.Error(), `invalid TLS cipher suites: unsupported cipher suite "TLS_FAKE_CIPHER"`)
+	require.Contains(t, err.Error(), `invalid TLS curve preferences: unknown curve: "UnknownCurve"`)
+}
+
 func TestUnmarshalConfig(t *testing.T) {
 	rawConfig := []byte(`
 issuer: http://127.0.0.1:5556/dex

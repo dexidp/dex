@@ -33,6 +33,9 @@ func LookupRefreshToken(ctx context.Context, s storage.Storage, strategy *Refres
 			logger.ErrorContext(ctx, "failed to get refresh token", "err", err)
 			return nil, fmt.Errorf("get refresh token: %w", err)
 		}
+		// Usually the token was replaced by a newer login of the same user on the
+		// same client, so this is logged at info level, not as an error.
+		logger.InfoContext(ctx, "refresh token not found", "token_id", token.RefreshId)
 		return nil, ErrRefreshTokenInvalid
 	}
 
