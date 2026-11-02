@@ -355,9 +355,19 @@ func (h *Handler) handleLogoutCallback(w http.ResponseWriter, r *http.Request) {
 			switch logoutConn := conn.Connector.(type) {
 			case connector.StatefulLogoutCallbackConnector:
 				if err := logoutConn.HandleLogoutCallbackWithState(ctx, r, ls.ConnectorState); err != nil {
-					h.Logger.ErrorContext(ctx, "logout: upstream logout response validation failed",
-						"connector_id", ls.ConnectorID, "err", err)
-					statefulLogoutErr = err
+					var statusErr *connector.UpstreamLogoutStatusError
+					if errors.As(err, &statusErr) {
+						// The response is authentic and the provider reports that
+						// it could not end its session. The user still asked to
+						// log out of Dex, so the local session ends below.
+						h.Logger.WarnContext(ctx, "logout: upstream provider reported a failed logout, ending the Dex session anyway",
+							"connector_id", ls.ConnectorID, "upstream_status", statusErr.Status,
+							"upstream_message", statusErr.Message)
+					} else {
+						h.Logger.ErrorContext(ctx, "logout: upstream logout response validation failed",
+							"connector_id", ls.ConnectorID, "err", err)
+						statefulLogoutErr = err
+					}
 				}
 			case connector.LogoutCallbackConnector:
 				if len(ls.ConnectorState) > 0 {

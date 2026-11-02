@@ -15,6 +15,18 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
+// sessionAuthRequest returns authReq as the browser session should record it.
+// The connector data is kept only for connectors whose upstream logout needs it
+// (connector.StatefulLogoutCallbackConnector). For every other connector it is
+// upstream credentials, such as refresh tokens, and the session has no use for
+// them, so it is dropped.
+func sessionAuthRequest(authReq storage.AuthRequest, conn connector.Connector) storage.AuthRequest {
+	if _, ok := conn.(connector.StatefulLogoutCallbackConnector); !ok {
+		authReq.ConnectorData = nil
+	}
+	return authReq
+}
+
 // finalizeLogin associates the user's identity with the current AuthRequest, then returns
 // the approval page's path.
 func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity, authReq storage.AuthRequest, conn connector.Connector) (storage.AuthRequest, error) {

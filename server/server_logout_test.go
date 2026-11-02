@@ -39,6 +39,25 @@ func (fakeStatefulLogoutConnector) HandleLogoutCallbackWithState(_ context.Conte
 	return errors.New("forced validation failure for tests")
 }
 
+// statusFailureStatefulLogoutConnector reports an authentic response whose
+// status says the upstream logout failed, wrapped the way a connector may.
+type statusFailureStatefulLogoutConnector struct{}
+
+func (statusFailureStatefulLogoutConnector) LoginURL(connector.Scopes, string, string) (string, error) {
+	return "", nil
+}
+
+func (statusFailureStatefulLogoutConnector) LogoutURLWithState(_ context.Context, _ []byte, _ string) (string, []byte, error) {
+	return "https://idp.example.com/slo", []byte("_req_id"), nil
+}
+
+func (statusFailureStatefulLogoutConnector) HandleLogoutCallbackWithState(_ context.Context, _ *http.Request, _ []byte) error {
+	return fmt.Errorf("saml slo: %w", &connector.UpstreamLogoutStatusError{
+		Status:  "urn:oasis:names:tc:SAML:2.0:status:Responder",
+		Message: "session store unavailable",
+	})
+}
+
 type capturingStatefulLogoutConnector struct {
 	connectorData *[]byte
 }
@@ -533,6 +552,48 @@ func TestLogoutCallbackStatefulFailureKeepsSessionClearsLogoutState(t *testing.T
 			require.NotEqual(t, -1, cookie.MaxAge, "session cookie must not be cleared on failure")
 		}
 	}
+}
+
+func TestLogoutCallbackUpstreamStatusFailureEndsSession(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	ctx := t.Context()
+	sessionID := "test-session-upstream-status"
+	connectorID := "stateful-status-failure"
+
+	registerTestConnector(t, server, connectorID, statusFailureStatefulLogoutConnector{})
+
+	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
+		ID:           sessionID,
+		Secret:       testSessionSecret(sessionID),
+		UserID:       "test-user",
+		ConnectorID:  connectorID,
+		CreatedAt:    time.Now(),
+		LastActivity: time.Now(),
+		LogoutState: &storage.LogoutState{
+			ConnectorID:    connectorID,
+			ConnectorState: []byte("_req_id"),
+		},
+	}))
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/logout/callback", nil)
+	req.AddCookie(testSessionCookie(sessionID))
+	server.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, "an upstream Responder status must not leave the user on an error page")
+
+	_, err := server.storage.GetAuthSession(ctx, sessionID)
+	require.ErrorIs(t, err, storage.ErrNotFound, "the Dex session must end even though the upstream logout failed")
+
+	var cleared bool
+	for _, cookie := range rr.Result().Cookies() {
+		if cookie.Name == "dex_session" && cookie.MaxAge == -1 {
+			cleared = true
+		}
+	}
+	require.True(t, cleared, "session cookie must be cleared")
 }
 
 func TestUpstreamLogoutUsesAuthSessionConnectorData(t *testing.T) {

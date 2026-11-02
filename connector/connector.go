@@ -19,6 +19,24 @@ func (e *UserNotInRequiredGroupsError) Error() string {
 	return fmt.Sprintf("user %q is not in any of the required groups %v", e.UserID, e.Groups)
 }
 
+// UpstreamLogoutStatusError is returned by HandleLogoutCallbackWithState when the
+// upstream provider's response is authentic but reports that the logout failed.
+// Unlike any other error of that method, it says nothing against the response
+// itself, so the server logs it and still ends the local session.
+type UpstreamLogoutStatusError struct {
+	// Status is the status code the provider reported.
+	Status string
+	// Message is the provider's status message, if any.
+	Message string
+}
+
+func (e *UpstreamLogoutStatusError) Error() string {
+	if e.Message != "" {
+		return fmt.Sprintf("upstream logout failed with status %q: %s", e.Status, e.Message)
+	}
+	return fmt.Sprintf("upstream logout failed with status %q", e.Status)
+}
+
 // Connector is a mechanism for federating login to a remote identity service.
 //
 // Implementations are expected to implement either the PasswordConnector or
@@ -156,5 +174,10 @@ type StatefulLogoutCallbackConnector interface {
 	// HandleLogoutCallbackWithState validates the upstream provider's logout
 	// response received in the callback request. state is the value returned
 	// by the matching LogoutURLWithState call.
+	//
+	// Any error means the response cannot be trusted and the server keeps the
+	// session. The exception is *UpstreamLogoutStatusError: it is returned only
+	// for a response that passed every authenticity check and reports a failed
+	// logout, and the server ends the session anyway.
 	HandleLogoutCallbackWithState(ctx context.Context, r *http.Request, state []byte) error
 }

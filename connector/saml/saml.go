@@ -846,37 +846,6 @@ func newRequestID() (string, error) {
 	return fmt.Sprintf("_%x", buf), nil
 }
 
-// sloCallbackURLFromRequest reconstructs the absolute URL of this HTTP request (SLO callback).
-// Used to validate LogoutResponse Destination per SAML 2.0 Bindings §3.4.5.2. When Host is
-// missing (e.g. some unit tests), returns empty and Destination checking is skipped.
-func sloCallbackURLFromRequest(r *http.Request) string {
-	host := r.Host
-	if h := r.Header.Get("X-Forwarded-Host"); h != "" {
-		if i := strings.IndexByte(h, ','); i >= 0 {
-			h = strings.TrimSpace(h[:i])
-		} else {
-			h = strings.TrimSpace(h)
-		}
-		host = h
-	}
-	if host == "" {
-		return ""
-	}
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
-	}
-	if p := r.Header.Get("X-Forwarded-Proto"); p != "" {
-		if i := strings.IndexByte(p, ','); i >= 0 {
-			p = strings.TrimSpace(p[:i])
-		} else {
-			p = strings.TrimSpace(p)
-		}
-		scheme = p
-	}
-	return scheme + "://" + host + r.URL.Path
-}
-
 // sloURLsMatch compares two URLs ignoring trailing slashes, with case-insensitive
 // scheme/host comparison per RFC 3986 §3.1/§3.2.2. Default-port normalization
 // (e.g. https://x → https://x:443) is intentionally NOT performed: SAML IdPs
@@ -899,21 +868,33 @@ func sloURLsMatch(a, b string) bool {
 		pa.RawQuery == pb.RawQuery
 }
 
+// logoutState is the connector state of one logout: what LogoutURLWithState
+// hands to the server and HandleLogoutCallbackWithState gets back.
+type logoutState struct {
+	// RequestID is the ID of the outgoing LogoutRequest, which the response
+	// must echo in InResponseTo.
+	RequestID string `json:"requestId"`
+	// Destination is Dex's own logout callback URL, the one the response must
+	// be addressed to. It comes from the server, not from the incoming request.
+	Destination string `json:"destination"`
+}
+
 // LogoutURLWithState builds a SAML LogoutRequest and returns the IdP's SLO
 // endpoint URL with the request encoded using HTTP-Redirect binding
-// (deflate + base64). The second return value is the outgoing LogoutRequest
-// ID, which the server persists in storage.LogoutState.ConnectorState and
-// hands back to HandleLogoutCallbackWithState so InResponseTo can be matched
-// against a server-side, one-shot value (defeats replay of captured
-// LogoutResponses).
+// (deflate + base64). The second return value is the logout state: the
+// outgoing LogoutRequest ID and Dex's /logout/callback URL. The server
+// persists it in storage.LogoutState.ConnectorState and hands it back to
+// HandleLogoutCallbackWithState, so InResponseTo is matched against a
+// server-side, one-shot value (defeats replay of captured LogoutResponses) and
+// Destination against the URL Dex itself announced.
 //
-// postLogoutRedirectURI is Dex's own /logout/callback URL; SAML doesn't carry
-// it in the request (the IdP knows where to send the LogoutResponse via its
-// configured SP metadata), so it is intentionally ignored here.
+// callbackURI is Dex's own /logout/callback URL. SAML doesn't carry it in the
+// request (the IdP knows where to send the LogoutResponse via its configured
+// SP metadata); it is kept in the state to check the response's Destination.
 //
 // See: https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf §3.4
 // and https://docs.oasis-open.org/security/saml/v2.0/saml-profiles-2.0-os.pdf §4.4.
-func (p *provider) LogoutURLWithState(_ context.Context, connectorData []byte, _ string) (string, []byte, error) {
+func (p *provider) LogoutURLWithState(_ context.Context, connectorData []byte, callbackURI string) (string, []byte, error) {
 	if p.sloURL == "" {
 		return "", nil, nil
 	}
@@ -927,6 +908,10 @@ func (p *provider) LogoutURLWithState(_ context.Context, connectorData []byte, _
 
 	if ci.NameID == "" {
 		return "", nil, nil
+	}
+
+	if callbackURI == "" {
+		return "", nil, errors.New("saml: missing logout callback URI")
 	}
 
 	reqID, err := newRequestID()
@@ -976,7 +961,7 @@ func (p *provider) LogoutURLWithState(_ context.Context, connectorData []byte, _
 	// We do not emit RelayState. SAML 2.0 Bindings §3.4.3 limits it to 80
 	// bytes and Dex correlates the SLO flow through the session cookie +
 	// server-side LogoutState; InResponseTo is matched against the request
-	// ID we hand back to the server below.
+	// ID we hand back to the server in the state below.
 	samlReqEscaped := url.QueryEscape(encoded)
 	baseQuery := "SAMLRequest=" + samlReqEscaped
 
@@ -995,7 +980,12 @@ func (p *provider) LogoutURLWithState(_ context.Context, connectorData []byte, _
 		u.RawQuery = baseQuery
 	}
 
-	return u.String(), []byte(reqID), nil
+	state, err := json.Marshal(logoutState{RequestID: reqID, Destination: callbackURI})
+	if err != nil {
+		return "", nil, fmt.Errorf("saml: failed to marshal logout state: %v", err)
+	}
+
+	return u.String(), state, nil
 }
 
 // HandleLogoutCallbackWithState validates the IdP's LogoutResponse received
@@ -1003,15 +993,26 @@ func (p *provider) LogoutURLWithState(_ context.Context, connectorData []byte, _
 // SAMLResponse parameter via either GET query (HTTP-Redirect binding:
 // deflated + base64) or POST form (HTTP-POST binding: base64 only).
 //
-// state is the value previously returned by LogoutURLWithState — for SAML,
-// the bytes of the outgoing LogoutRequest ID. The server retrieves it from
+// state is the value previously returned by LogoutURLWithState: the outgoing
+// LogoutRequest ID and Dex's logout callback URL. The server retrieves it from
 // storage.LogoutState.ConnectorState; using a server-side, single-use value
 // (instead of an IdP-echoed RelayState) makes InResponseTo replay-resistant
 // even when the LogoutResponse is HTTP-POST and RelayState isn't covered by
 // the signature.
-func (p *provider) HandleLogoutCallbackWithState(_ context.Context, r *http.Request, state []byte) error {
-	if len(state) == 0 {
-		return fmt.Errorf("saml slo: missing server-side LogoutRequest ID")
+//
+// A response that fails any check below returns a plain error. A response that
+// passes them all but reports a failed logout returns
+// *connector.UpstreamLogoutStatusError, which is why the status is checked last.
+func (p *provider) HandleLogoutCallbackWithState(_ context.Context, r *http.Request, rawState []byte) error {
+	var state logoutState
+	if len(rawState) == 0 {
+		return errors.New("saml slo: missing server-side logout state")
+	}
+	if err := json.Unmarshal(rawState, &state); err != nil {
+		return fmt.Errorf("saml slo: invalid server-side logout state: %v", err)
+	}
+	if state.RequestID == "" || state.Destination == "" {
+		return errors.New("saml slo: incomplete server-side logout state")
 	}
 
 	var samlResponse string
@@ -1081,8 +1082,11 @@ func (p *provider) HandleLogoutCallbackWithState(_ context.Context, r *http.Requ
 		return fmt.Errorf("saml slo: %w", xrvErr)
 	}
 
+	// The HTTP-POST signature is embedded in the XML. Everything below reads the
+	// element the validator vouched for, not the bytes that arrived.
 	if r.Method == http.MethodPost && p.validator != nil {
-		if _, err := p.validateSignature(rawResp); err != nil {
+		rawResp, err = p.validateSignature(rawResp)
+		if err != nil {
 			return fmt.Errorf("saml slo: %v", err)
 		}
 	}
@@ -1101,8 +1105,8 @@ func (p *provider) HandleLogoutCallbackWithState(_ context.Context, r *http.Requ
 	if resp.Status == nil {
 		return fmt.Errorf("saml slo: LogoutResponse is missing required Status element")
 	}
-	if err := p.validateStatus(resp.Status); err != nil {
-		return fmt.Errorf("saml slo: %v", err)
+	if resp.Status.StatusCode == nil {
+		return errors.New("saml slo: LogoutResponse did not contain a StatusCode")
 	}
 
 	// SAML Profiles §4.4.4.2 requires Issuer in LogoutResponse.
@@ -1126,22 +1130,40 @@ func (p *provider) HandleLogoutCallbackWithState(_ context.Context, r *http.Requ
 		return fmt.Errorf("saml slo: LogoutResponse IssueInstant %s is too old (now: %s)", issueInstant, now)
 	}
 
-	if resp.Destination != "" {
-		if recv := sloCallbackURLFromRequest(r); recv != "" {
-			if !sloURLsMatch(resp.Destination, recv) {
-				return fmt.Errorf("saml slo: expected Destination %q, callback URL was %q", resp.Destination, recv)
-			}
-		}
+	// SAML Bindings §3.4.5.2 and §3.5.5.2: a signed message carries the Destination
+	// it was sent to. Compare it with the callback URL Dex announced, never with
+	// the URL of the incoming request, whose host and scheme the sender controls.
+	if resp.Destination == "" {
+		return errors.New("saml slo: LogoutResponse is missing required Destination attribute")
+	}
+	if !sloURLsMatch(resp.Destination, state.Destination) {
+		return fmt.Errorf("saml slo: expected Destination %q, got %q", state.Destination, resp.Destination)
 	}
 
 	// Match InResponseTo against the one-shot request ID the server kept in
 	// LogoutState.ConnectorState.
-	expectedReqID := string(state)
-	if resp.InResponseTo != expectedReqID {
-		return fmt.Errorf("saml slo: InResponseTo mismatch: expected %q, got %q", expectedReqID, resp.InResponseTo)
+	if resp.InResponseTo != state.RequestID {
+		return fmt.Errorf("saml slo: InResponseTo mismatch: expected %q, got %q", state.RequestID, resp.InResponseTo)
+	}
+
+	// The response is authentic from here on, so a failure status is the IdP's
+	// honest answer and not a reason to distrust it.
+	if err := p.validateStatus(resp.Status); err != nil {
+		return &connector.UpstreamLogoutStatusError{
+			Status:  resp.Status.StatusCode.Value,
+			Message: responseStatusMessage(resp.Status),
+		}
 	}
 
 	return nil
+}
+
+// responseStatusMessage returns the human readable StatusMessage of a SAML status, if any.
+func responseStatusMessage(s *status) string {
+	if s.StatusMessage == nil {
+		return ""
+	}
+	return s.StatusMessage.Value
 }
 
 // redirectSigAlgToHash maps XML Signature algorithm URIs used in SAML HTTP-Redirect
@@ -1239,7 +1261,9 @@ func (p *provider) validateRedirectSignature(r *http.Request, samlMsgParam strin
 	return fmt.Errorf("redirect binding signature validation failed")
 }
 
-// validateSignature validates the XML digital signature of the given raw XML.
+// validateSignature validates the XML digital signature of the given raw XML
+// and returns the document rebuilt from the element the validator verified.
+// Callers must read the returned bytes and not rawXML.
 func (p *provider) validateSignature(rawXML []byte) ([]byte, error) {
 	if p.validator == nil {
 		return nil, fmt.Errorf("signature validation unavailable (no validator configured)")
@@ -1255,9 +1279,15 @@ func (p *provider) validateSignature(rawXML []byte) ([]byte, error) {
 		return nil, fmt.Errorf("empty XML document")
 	}
 
-	if _, err := p.validator.Validate(root); err != nil {
+	transformed, err := p.validator.Validate(root)
+	if err != nil {
 		return nil, fmt.Errorf("signature validation failed: %v", err)
 	}
 
-	return rawXML, nil
+	doc.SetRoot(transformed)
+	signed, err := doc.WriteToBytes()
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize verified XML: %v", err)
+	}
+	return signed, nil
 }

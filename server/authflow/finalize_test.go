@@ -2,8 +2,10 @@ package authflow
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"log/slog"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -98,4 +100,33 @@ func TestFinalizeLoginLogsClientID(t *testing.T) {
 		require.Equal(t, "example-app", record["client_id"])
 	}
 	require.True(t, logged, "finalizeLogin did not log a successful login")
+}
+
+type statefulLogoutConnector struct{}
+
+func (statefulLogoutConnector) LogoutURLWithState(context.Context, []byte, string) (string, []byte, error) {
+	return "", nil, nil
+}
+
+func (statefulLogoutConnector) HandleLogoutCallbackWithState(context.Context, *http.Request, []byte) error {
+	return nil
+}
+
+// plainConnector implements no logout capability, like the OIDC and OAuth2 connectors.
+type plainConnector struct{}
+
+func TestSessionAuthRequestConnectorData(t *testing.T) {
+	authReq := storage.AuthRequest{ID: "req", ConnectorData: []byte(`{"refreshToken":"upstream"}`)}
+
+	t.Run("StatefulLogoutConnectorKeepsData", func(t *testing.T) {
+		got := sessionAuthRequest(authReq, statefulLogoutConnector{})
+		require.Equal(t, authReq.ConnectorData, got.ConnectorData)
+	})
+
+	t.Run("OtherConnectorsDropData", func(t *testing.T) {
+		got := sessionAuthRequest(authReq, plainConnector{})
+		require.Nil(t, got.ConnectorData)
+		require.Equal(t, authReq.ID, got.ID)
+		require.NotNil(t, authReq.ConnectorData, "the login's own request must keep its data")
+	})
 }
