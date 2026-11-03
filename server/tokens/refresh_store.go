@@ -139,13 +139,11 @@ func ClaimsFromIdentity(identity connector.Identity) storage.Claims {
 // client and the identity its claims were refreshed to.
 //
 // Rotation runs as two storage transactions around the identity resolution: the
-// claim transaction reuses the token or rotates it, the finalize transaction
-// writes the refreshed claims. The updaters never read storage or contact a
-// connector — resolution does, between the transactions, so backends that
-// serialize on a single connection or lock (SQLite, memory) cannot deadlock on
-// it (#5017). Rotating in the claim keeps a concurrent refresh on the reuse
-// path: it receives the same new token instead of resolving the connector a
-// second time. A resolution or finalize that fails undoes the claim.
+// claim reuses the token or rotates it, the finalize writes the refreshed claims.
+// The updaters never read storage, so backends that serialize on one connection
+// or lock (SQLite, memory) cannot deadlock. A concurrent refresh that lands
+// between the two reuses the new token. A failed resolve or finalize undoes the
+// claim.
 func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.RefreshToken, requestToken *internal.RefreshToken, strategy *RefreshStrategy, freshIdentity func(context.Context) (connector.Identity, error)) (string, connector.Identity, error) {
 	newToken := &internal.RefreshToken{
 		Token:     requestToken.Token,
@@ -194,11 +192,8 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 			}
 		}
 
-		// Claim the rotation — or, with rotation disabled and the token past
-		// its reuse window, the in-place claims refresh. The token rotates in
-		// the claim itself, so a concurrent refresh reuses the new token
-		// instead of resolving the connector again. Should the rotation fail,
-		// undoClaim rolls it back.
+		// Rotate the token here, not in the finalize, so a concurrent refresh
+		// reuses the new token instead of resolving the connector again.
 		claimedFrom = old.LastUsed
 		prevObsolete = old.ObsoleteToken
 		old.LastUsed = lastUsed
