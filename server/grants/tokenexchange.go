@@ -124,11 +124,13 @@ func (g *tokenExchange) delegate(ctx context.Context, req *Request, client stora
 	}
 	subjectClaimsConn, ok := subjectConn.Connector.(connector.TokenClaimsConnector)
 	if !ok {
-		return nil, invalidRequest("token type not supported for delegation")
+		g.logger.ErrorContext(ctx, "connector cannot return verified claims", "connector_id", req.ConnectorID)
+		return nil, invalidRequest("subject connector does not support delegation")
 	}
 	actorClaimsConn, ok := actorConn.Connector.(connector.TokenClaimsConnector)
 	if !ok {
-		return nil, invalidRequest("token type not supported for delegation")
+		g.logger.ErrorContext(ctx, "connector cannot return verified claims", "connector_id", req.ActorConnectorID)
+		return nil, invalidRequest("actor connector does not support delegation")
 	}
 
 	identity, err := subjectConn.Connector.(connector.TokenIdentityConnector).TokenIdentity(ctx, req.SubjectTokenType, req.SubjectToken)
