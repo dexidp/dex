@@ -246,6 +246,7 @@ func (s *Server) mount(routes router.Mux, c Config, rc resolvedConfig) {
 			Sessions:            sessions,
 			SessionsEnabled:     c.SessionConfig != nil,
 			SupportedGrantTypes: rc.grantTypes,
+			Delegation:          c.TokenExchangeDelegation,
 		},
 		&userinfo.Handler{
 			Issuer: s.issuerURL.String(),

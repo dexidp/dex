@@ -16,6 +16,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/dexidp/dex/server/authflow"
+	"github.com/dexidp/dex/server/grants"
 	"github.com/dexidp/dex/server/mfa"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/session"
@@ -72,6 +73,10 @@ type Config struct {
 
 	// If set, the server will use this connector to handle password grants
 	PasswordConnector string
+
+	// TokenExchangeDelegation enables RFC 8693 delegation on the token-exchange
+	// grant for the listed clients.
+	TokenExchangeDelegation []grants.DelegationPolicy
 
 	// PKCE configuration
 	PKCE authflow.PKCEConfig

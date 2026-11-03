@@ -139,6 +139,14 @@ type TokenIdentityConnector interface {
 	TokenIdentity(ctx context.Context, subjectTokenType, subjectToken string) (Identity, error)
 }
 
+// TokenClaimsConnector verifies a signed token and returns the token's own
+// claims, with no userinfo lookup and no claim mapping applied. The
+// token-exchange grant needs the raw claims (aud, exp, act, may_act) for RFC
+// 8693 delegation, which TokenIdentity does not expose.
+type TokenClaimsConnector interface {
+	TokenClaims(ctx context.Context, tokenType, token string) (map[string]any, error)
+}
+
 // LogoutCallbackConnector is a connector that can initiate upstream logout and
 // optionally validate the upstream provider's logout response.
 // Connectors that implement this interface support RP-Initiated Logout by

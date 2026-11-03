@@ -94,6 +94,9 @@ func (i *Issuer) SignAccessToken(ctx context.Context, auth Authorization) (strin
 func (i *Issuer) SignIDToken(ctx context.Context, auth Authorization, accessToken, code string) (string, time.Time, error) {
 	issuedAt := i.now()
 	expiry := issuedAt.Add(i.idTokensValidFor)
+	if !auth.ExpiresAt.IsZero() && auth.ExpiresAt.Before(expiry) {
+		expiry = auth.ExpiresAt
+	}
 
 	subjectString, err := GenSubject(auth.Claims.UserID, auth.ConnectorID)
 	if err != nil {
@@ -115,6 +118,7 @@ func (i *Issuer) SignIDToken(ctx context.Context, auth Authorization, accessToke
 	}
 
 	tok.SessionID = auth.SessionID
+	tok.Act = auth.Act
 
 	signingAlg, err := i.signer.Algorithm(ctx)
 	if err != nil {

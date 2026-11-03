@@ -82,6 +82,10 @@ type Introspection struct {
 	// TokenUse is the introspected token's use, for example `access_token` or `refresh_token`.
 	TokenUse string `json:"token_use"`
 
+	// Act is the actor of a delegated token (RFC 8693 §4.1), reported at the
+	// top level as that section describes for introspection responses.
+	Act *tokens.ActorClaims `json:"act,omitempty"`
+
 	// Extra is arbitrary data set from the token claims.
 	Extra IntrospectionExtra `json:"ext,omitempty"`
 }
@@ -316,6 +320,13 @@ func (h *Handler) introspectAccessToken(ctx context.Context, token string) (*Int
 		h.Logger.ErrorContext(ctx, "error while fetching token claims", "err", err.Error())
 		return nil, newIntrospectInternalServerError()
 	}
+	var actor struct {
+		Act *tokens.ActorClaims `json:"act"`
+	}
+	if err := idToken.Claims(&actor); err != nil {
+		h.Logger.ErrorContext(ctx, "error while fetching token claims", "err", err.Error())
+		return nil, newIntrospectInternalServerError()
+	}
 
 	clientID, err := tokens.GetClientID(idToken.Audience, claims.AuthorizingParty)
 	if err != nil {
@@ -343,6 +354,7 @@ func (h *Handler) introspectAccessToken(ctx context.Context, token string) (*Int
 		Username:  claims.PreferredUsername,
 		Audience:  idToken.Audience,
 		Issuer:    h.Issuer,
+		Act:       actor.Act,
 
 		Extra:     claims,
 		TokenType: "Bearer",

@@ -88,6 +88,17 @@ type IDTokenClaims struct {
 	PreferredUsername string `json:"preferred_username,omitempty"`
 
 	FederatedIDClaims *FederatedIDClaims `json:"federated_claims,omitempty"`
+
+	// Act names the party acting on behalf of the subject (RFC 8693 §4.1).
+	// Only tokens minted by a delegated token exchange carry it.
+	Act *ActorClaims `json:"act,omitempty"`
+}
+
+// ActorClaims is the RFC 8693 "act" claim: the actor's issuer and subject, as
+// the actor token's verified claims stated them.
+type ActorClaims struct {
+	Issuer  string `json:"iss,omitempty"`
+	Subject string `json:"sub"`
 }
 
 // FederatedIDClaims carries the upstream connector's identity for the

@@ -27,6 +27,15 @@ type Authorization struct {
 	// that user happens to have open to tokens minted by the password, token
 	// exchange and client credentials grants — none of which joined it.
 	SessionID string
+
+	// Act is the actor a delegated token exchange verified; nil for every other
+	// grant. It is emitted as the "act" claim.
+	Act *ActorClaims
+
+	// ExpiresAt, when set, caps the issued tokens' expiry below the default
+	// lifetime. A delegated exchange sets it so the issued token never outlives
+	// the subject or actor token it was minted from.
+	ExpiresAt time.Time
 }
 
 // TokenSet is what the /token endpoint returns for an Authorization.

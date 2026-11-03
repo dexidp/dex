@@ -1338,3 +1338,54 @@ func TestHandleCallbackUserInfoSubMatch(t *testing.T) {
 		})
 	}
 }
+
+// TestTokenClaims checks the claims-only verification used for RFC 8693
+// delegation: the token's own claims come back, the audience is not checked,
+// and no identity mapping runs, so a token without a name claim verifies.
+func TestTokenClaims(t *testing.T) {
+	tokenTypeJWT := "urn:ietf:params:oauth:token-type:jwt"
+	tokenTypeID := "urn:ietf:params:oauth:token-type:id_token"
+	tokenTypeAccess := "urn:ietf:params:oauth:token-type:access_token"
+
+	testServer, err := setupServer(map[string]any{"sub": "workload-1", "may_act": map[string]any{"sub": "x"}}, true)
+	if err != nil {
+		t.Fatal("failed to setup test server", err)
+	}
+	defer testServer.Close()
+	conn, err := newConnector(Config{Issuer: testServer.URL, Scopes: []string{"openid"}})
+	if err != nil {
+		t.Fatal("failed to create new connector", err)
+	}
+
+	res, err := http.Get(testServer.URL + "/token")
+	if err != nil {
+		t.Fatal("failed to get token", err)
+	}
+	defer res.Body.Close()
+	var tokenResponse map[string]any
+	if err := json.NewDecoder(res.Body).Decode(&tokenResponse); err != nil {
+		t.Fatal("failed to decode token", err)
+	}
+	token := tokenResponse["id_token"].(string)
+
+	for _, tokenType := range []string{tokenTypeJWT, tokenTypeID} {
+		claims, err := conn.TokenClaims(context.Background(), tokenType, token)
+		if err != nil {
+			t.Fatalf("%s: unexpected error: %v", tokenType, err)
+		}
+		expectEquals(t, claims["sub"], "workload-1")
+		expectEquals(t, claims["iss"], testServer.URL)
+		expectEquals(t, claims["aud"], "clientID")
+		expectEquals(t, claims["may_act"], map[string]any{"sub": "x"})
+		if _, ok := claims["exp"].(float64); !ok {
+			t.Errorf("%s: exp claim missing", tokenType)
+		}
+	}
+
+	if _, err := conn.TokenClaims(context.Background(), tokenTypeAccess, token); err == nil {
+		t.Error("access_token type: expected an error")
+	}
+	if _, err := conn.TokenClaims(context.Background(), tokenTypeJWT, token+"x"); err == nil {
+		t.Error("tampered token: expected an error")
+	}
+}

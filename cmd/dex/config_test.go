@@ -712,3 +712,54 @@ enablePasswordDB: true
 		})
 	}
 }
+
+func TestDelegationConfig(t *testing.T) {
+	rawConfig := []byte(`
+issuer: http://127.0.0.1:5556/dex
+storage:
+  type: memory
+web:
+  http: 127.0.0.1:5556
+oauth2:
+  tokenExchange:
+    delegation:
+      - clientID: gateway
+        actorConnectors: [agent-runtime]
+connectors:
+- type: mockCallback
+  id: agent-runtime
+  name: Agent runtime
+  grantTypes:
+  - "urn:ietf:params:oauth:grant-type:token-exchange"
+`)
+	var c Config
+	require.NoError(t, yaml.Unmarshal(rawConfig, &c))
+	require.Equal(t, []DelegationPolicy{{ClientID: "gateway", ActorConnectors: []string{"agent-runtime"}}}, c.OAuth2.TokenExchange.Delegation)
+	require.NoError(t, c.Validate())
+
+	tests := []struct {
+		name     string
+		policies []DelegationPolicy
+		wantErr  string
+	}{
+		{"no client", []DelegationPolicy{{ActorConnectors: []string{"agent-runtime"}}}, "entry without clientID"},
+		{"duplicate client", []DelegationPolicy{{ClientID: "gateway", ActorConnectors: []string{"agent-runtime"}}, {ClientID: "gateway", ActorConnectors: []string{"agent-runtime"}}}, `client "gateway" listed twice`},
+		{"no actor connectors", []DelegationPolicy{{ClientID: "gateway"}}, "actorConnectors is empty"},
+		{"unknown actor connector", []DelegationPolicy{{ClientID: "gateway", ActorConnectors: []string{"missing"}}}, `actor connector "missing" is not a configured connector`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			invalid := c
+			invalid.OAuth2.TokenExchange.Delegation = tc.policies
+			err := invalid.Validate()
+			require.ErrorContains(t, err, tc.wantErr)
+		})
+	}
+
+	t.Run("connectors from storage only", func(t *testing.T) {
+		unchecked := c
+		unchecked.StaticConnectors = nil
+		unchecked.OAuth2.TokenExchange.Delegation = []DelegationPolicy{{ClientID: "gateway", ActorConnectors: []string{"anything"}}}
+		require.NoError(t, unchecked.Validate())
+	})
+}
