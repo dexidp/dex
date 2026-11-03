@@ -21,7 +21,8 @@ import (
 // Issue mint.
 //
 // A client with a delegation policy must also present an actor token; the
-// issued token then carries the actor in its "act" claim (RFC 8693 §4.1).
+// issued token then carries the actor in its "act" claim (RFC 8693 §4.1) and
+// only the audiences the policy allows.
 type tokenExchange struct {
 	issuer     *tokens.Issuer
 	logger     *slog.Logger
@@ -46,7 +47,9 @@ func (g *tokenExchange) ScopePolicy() ScopePolicy {
 	return ScopePolicy{}
 }
 
-// ConnectorID reads the required connector_id parameter (an RFC 8693 extension).
+// ConnectorID reads the connector_id parameter (an RFC 8693 extension). Empty
+// means the subject token was issued by Dex itself and is verified with its
+// own keys.
 func (g *tokenExchange) ConnectorID(ctx context.Context, req *Request, client storage.Client) (string, *oauth2.Error) {
 	return req.ConnectorID, nil
 }
@@ -67,53 +70,126 @@ func (g *tokenExchange) Authorize(ctx context.Context, req *Request, client stor
 		return nil, invalidRequest("connector only verifies actor tokens")
 	}
 
+	policy, delegating := g.delegation.byClient[client.ID]
+	delegating = delegating && !client.Public
+	if !delegating && req.ActorToken != "" {
+		return nil, invalidRequest("delegation is not enabled for this client")
+	}
+
+	var (
+		subject *subject
+		err     error
+	)
+	if req.ConnectorID == "" {
+		subject, err = g.selfSubject(ctx, req, client)
+	} else {
+		subject, err = g.connectorSubject(ctx, req, client, conn, delegating)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !delegating {
+		return g.impersonate(ctx, req, client, subject)
+	}
+	return g.delegate(ctx, req, client, subject, policy)
+}
+
+// subject is the verified subject token: the identity to issue for, the
+// connector that becomes part of the sub, and the token's own claims when the
+// verifier exposes them (nil for a connector without TokenClaimsConnector).
+type subject struct {
+	identity    connector.Identity
+	connectorID string
+	claims      map[string]any
+}
+
+// selfSubject verifies a subject token Dex issued itself, with its own keys.
+// The identity is rebuilt from the token so the issued sub is the same, and
+// the token must have been issued to the requesting client.
+func (g *tokenExchange) selfSubject(ctx context.Context, req *Request, client storage.Client) (*subject, error) {
+	claims, err := g.issuer.VerifyToken(ctx, req.SubjectToken)
+	if err != nil {
+		g.logger.ErrorContext(ctx, "failed to verify subject token", "err", err)
+		return nil, &oauth2.Error{Type: oauth2.AccessDenied, Status: http.StatusUnauthorized}
+	}
+	if !audienceContains(claims["aud"], client.ID) {
+		return nil, invalidRequest("subject token audience does not include this client")
+	}
+	identity, connectorID, err := identityFromClaims(claims)
+	if err != nil {
+		g.logger.ErrorContext(ctx, "failed to decode subject token", "err", err)
+		return nil, &oauth2.Error{Type: oauth2.AccessDenied, Status: http.StatusUnauthorized}
+	}
+	return &subject{identity: identity, connectorID: connectorID, claims: claims}, nil
+}
+
+// connectorSubject verifies a subject token through its connector. The
+// token's claims are fetched only for delegation, which needs them.
+func (g *tokenExchange) connectorSubject(ctx context.Context, req *Request, client storage.Client, conn connectors.Connector, withClaims bool) (*subject, error) {
 	teConn, ok := conn.Connector.(connector.TokenIdentityConnector)
 	if !ok {
 		g.logger.ErrorContext(ctx, "connector doesn't implement token exchange", "connector_id", req.ConnectorID)
 		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Requested connector does not exist.", Status: http.StatusBadRequest}
 	}
-
-	policy, delegating := g.delegation.byClient[client.ID]
-	if !delegating || client.Public {
-		if req.ActorToken != "" {
-			return nil, invalidRequest("delegation is not enabled for this client")
+	var claimsConn connector.TokenClaimsConnector
+	if withClaims {
+		if claimsConn, ok = conn.Connector.(connector.TokenClaimsConnector); !ok {
+			g.logger.ErrorContext(ctx, "connector cannot return verified claims", "connector_id", req.ConnectorID)
+			return nil, invalidRequest("subject connector does not support delegation")
 		}
-		return g.impersonate(ctx, req, client, teConn)
+		if req.SubjectTokenType != oauth2.TokenTypeID {
+			return nil, invalidRequest("token type not supported for delegation")
+		}
 	}
-	return g.delegate(ctx, req, client, conn, policy)
-}
-
-// impersonate is the exchange without an actor: the issued token says nothing
-// about who presented the subject token.
-func (g *tokenExchange) impersonate(ctx context.Context, req *Request, client storage.Client, teConn connector.TokenIdentityConnector) (Responder, error) {
 	identity, err := teConn.TokenIdentity(ctx, req.SubjectTokenType, req.SubjectToken)
 	if err != nil {
 		g.logger.ErrorContext(ctx, "failed to verify subject token", "err", err)
 		return nil, &oauth2.Error{Type: oauth2.AccessDenied, Status: http.StatusUnauthorized}
 	}
+	s := &subject{identity: identity, connectorID: req.ConnectorID}
+	if claimsConn != nil {
+		if s.claims, err = claimsConn.TokenClaims(ctx, req.SubjectTokenType, req.SubjectToken); err != nil {
+			g.logger.ErrorContext(ctx, "failed to verify subject token", "err", err)
+			return nil, &oauth2.Error{Type: oauth2.AccessDenied, Status: http.StatusUnauthorized}
+		}
+		if !audienceContains(s.claims["aud"], client.ID) {
+			return nil, invalidRequest("subject token audience does not include this client")
+		}
+	}
+	return s, nil
+}
 
+// impersonate is the exchange without an actor: the issued token says nothing
+// about who presented the subject token.
+func (g *tokenExchange) impersonate(ctx context.Context, req *Request, client storage.Client, subject *subject) (Responder, error) {
 	reqType := requestedTokenType(req)
-	g.logger.InfoContext(ctx, "token exchange successful", append(identityLogAttrs(req, client, identity),
+	g.logger.InfoContext(ctx, "token exchange successful", append(identityLogAttrs(subject, client),
 		"subject_token_type", req.SubjectTokenType, "requested_token_type", reqType)...)
 
 	return g.respond(ctx, tokens.Authorization{
 		Client:      client,
-		Claims:      tokens.ClaimsFromIdentity(identity),
+		Claims:      tokens.ClaimsFromIdentity(subject.identity),
 		Scopes:      req.Scopes,
-		ConnectorID: req.ConnectorID,
+		ConnectorID: subject.connectorID,
+		ExpiresAt:   earliestExpiry(subject.claims),
 	}, reqType)
 }
 
-// delegate is the exchange with an actor (RFC 8693 §1.1 delegation). Both
-// tokens must be signed tokens whose claims the connectors return, so the grant
-// can check the actor's audience, the subject's may_act, and bound the issued
-// token's lifetime by both.
-func (g *tokenExchange) delegate(ctx context.Context, req *Request, client storage.Client, subjectConn connectors.Connector, policy DelegationPolicy) (Responder, error) {
+// delegate is the exchange with an actor (RFC 8693 §1.1 delegation). The
+// actor token must be a signed token whose claims its connector returns, so
+// the grant can check its audience, the subject's may_act, and bound the
+// issued token's lifetime by both tokens.
+func (g *tokenExchange) delegate(ctx context.Context, req *Request, client storage.Client, subject *subject, policy DelegationPolicy) (Responder, error) {
 	if req.ActorToken == "" {
 		return nil, invalidRequest("this client must present an actor_token")
 	}
-	if req.SubjectTokenType != oauth2.TokenTypeID || !slices.Contains([]string{oauth2.TokenTypeID, oauth2.TokenTypeJWT}, req.ActorTokenType) {
+	if !slices.Contains([]string{oauth2.TokenTypeID, oauth2.TokenTypeJWT}, req.ActorTokenType) {
 		return nil, invalidRequest("token type not supported for delegation")
+	}
+	for _, scope := range req.Scopes {
+		if peerID, ok := tokens.ParseCrossClientScope(scope); ok && peerID != client.ID && !slices.Contains(policy.Audiences, peerID) {
+			return nil, &oauth2.Error{Type: oauth2.InvalidTarget, Description: "audience not allowed for delegation", Status: http.StatusBadRequest}
+		}
 	}
 	if !slices.Contains(policy.ActorConnectors, req.ActorConnectorID) {
 		return nil, invalidRequest("actor connector not allowed for this client")
@@ -122,28 +198,12 @@ func (g *tokenExchange) delegate(ctx context.Context, req *Request, client stora
 	if oerr != nil {
 		return nil, oerr
 	}
-	subjectClaimsConn, ok := subjectConn.Connector.(connector.TokenClaimsConnector)
-	if !ok {
-		g.logger.ErrorContext(ctx, "connector cannot return verified claims", "connector_id", req.ConnectorID)
-		return nil, invalidRequest("subject connector does not support delegation")
-	}
 	actorClaimsConn, ok := actorConn.Connector.(connector.TokenClaimsConnector)
 	if !ok {
 		g.logger.ErrorContext(ctx, "connector cannot return verified claims", "connector_id", req.ActorConnectorID)
 		return nil, invalidRequest("actor connector does not support delegation")
 	}
-
-	identity, err := subjectConn.Connector.(connector.TokenIdentityConnector).TokenIdentity(ctx, req.SubjectTokenType, req.SubjectToken)
-	if err != nil {
-		g.logger.ErrorContext(ctx, "failed to verify subject token", "err", err)
-		return nil, &oauth2.Error{Type: oauth2.AccessDenied, Status: http.StatusUnauthorized}
-	}
-	subjectClaims, err := subjectClaimsConn.TokenClaims(ctx, req.SubjectTokenType, req.SubjectToken)
-	if err != nil {
-		g.logger.ErrorContext(ctx, "failed to verify subject token", "err", err)
-		return nil, &oauth2.Error{Type: oauth2.AccessDenied, Status: http.StatusUnauthorized}
-	}
-	if subjectClaims["act"] != nil {
+	if subject.claims["act"] != nil {
 		return nil, invalidRequest("delegated subject tokens are not supported")
 	}
 
@@ -155,7 +215,7 @@ func (g *tokenExchange) delegate(ctx context.Context, req *Request, client stora
 	if !audienceContains(actorClaims["aud"], client.ID) {
 		return nil, invalidRequest("actor token audience does not include this client")
 	}
-	if mayAct, ok := subjectClaims["may_act"]; ok && !mayActAllows(mayAct, actorClaims) {
+	if mayAct, ok := subject.claims["may_act"]; ok && !mayActAllows(mayAct, actorClaims) {
 		return nil, invalidRequest("actor is not authorized by the subject token's may_act claim")
 	}
 	actor := &tokens.ActorClaims{Issuer: claimString(actorClaims, "iss"), Subject: claimString(actorClaims, "sub")}
@@ -164,17 +224,17 @@ func (g *tokenExchange) delegate(ctx context.Context, req *Request, client stora
 	}
 
 	reqType := requestedTokenType(req)
-	g.logger.InfoContext(ctx, "token exchange successful", append(identityLogAttrs(req, client, identity),
+	g.logger.InfoContext(ctx, "token exchange successful", append(identityLogAttrs(subject, client),
 		"subject_token_type", req.SubjectTokenType, "requested_token_type", reqType,
 		"actor_connector_id", req.ActorConnectorID, "actor_iss", actor.Issuer, "actor_sub", actor.Subject)...)
 
 	return g.respond(ctx, tokens.Authorization{
 		Client:      client,
-		Claims:      tokens.ClaimsFromIdentity(identity),
+		Claims:      tokens.ClaimsFromIdentity(subject.identity),
 		Scopes:      req.Scopes,
-		ConnectorID: req.ConnectorID,
+		ConnectorID: subject.connectorID,
 		Act:         actor,
-		ExpiresAt:   earliestExpiry(subjectClaims, actorClaims),
+		ExpiresAt:   earliestExpiry(subject.claims, actorClaims),
 	}, reqType)
 }
 
@@ -208,13 +268,14 @@ func (g *tokenExchange) respond(ctx context.Context, auth tokens.Authorization, 
 	}, nil
 }
 
-func identityLogAttrs(req *Request, client storage.Client, identity connector.Identity) []any {
+func identityLogAttrs(subject *subject, client storage.Client) []any {
+	identity := subject.identity
 	email := identity.Email
 	if !identity.EmailVerified {
 		email += " (unverified)"
 	}
 	return []any{
-		"connector_id", req.ConnectorID, "client_id", client.ID,
+		"connector_id", subject.connectorID, "client_id", client.ID,
 		"user_id", identity.UserID,
 		"username", identity.Username, "preferred_username", identity.PreferredUsername,
 		"email", email, "groups", identity.Groups,

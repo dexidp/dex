@@ -306,6 +306,9 @@ type TokenExchange struct {
 type DelegationPolicy struct {
 	ClientID        string   `json:"clientID"`
 	ActorConnectors []string `json:"actorConnectors"`
+	// Audiences are the cross-client audiences (audience:server:client_id:X
+	// scopes) a delegated token may carry; none by default.
+	Audiences []string `json:"audiences"`
 }
 
 // PKCE holds the PKCE (Proof Key for Code Exchange) configuration.

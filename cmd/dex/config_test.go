@@ -725,6 +725,7 @@ oauth2:
     delegation:
       - clientID: gateway
         actorConnectors: [agent-runtime]
+        audiences: [backend-api]
 connectors:
 - type: mockCallback
   id: agent-runtime
@@ -734,7 +735,7 @@ connectors:
 `)
 	var c Config
 	require.NoError(t, yaml.Unmarshal(rawConfig, &c))
-	require.Equal(t, []DelegationPolicy{{ClientID: "gateway", ActorConnectors: []string{"agent-runtime"}}}, c.OAuth2.TokenExchange.Delegation)
+	require.Equal(t, []DelegationPolicy{{ClientID: "gateway", ActorConnectors: []string{"agent-runtime"}, Audiences: []string{"backend-api"}}}, c.OAuth2.TokenExchange.Delegation)
 	require.NoError(t, c.Validate())
 
 	tests := []struct {

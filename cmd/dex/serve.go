@@ -962,7 +962,7 @@ func buildMFAProviders(authenticators []MFAAuthenticator, issuerURL string, logg
 func delegationPolicies(policies []DelegationPolicy) []grants.DelegationPolicy {
 	out := make([]grants.DelegationPolicy, 0, len(policies))
 	for _, p := range policies {
-		out = append(out, grants.DelegationPolicy{ClientID: p.ClientID, ActorConnectors: p.ActorConnectors})
+		out = append(out, grants.DelegationPolicy{ClientID: p.ClientID, ActorConnectors: p.ActorConnectors, Audiences: p.Audiences})
 	}
 	return out
 }

@@ -1,8 +1,12 @@
 package grants
 
 import (
+	"fmt"
 	"slices"
 	"time"
+
+	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/server/internal"
 )
 
 // DelegationPolicy enables RFC 8693 delegation on the token-exchange grant for
@@ -11,6 +15,10 @@ import (
 type DelegationPolicy struct {
 	ClientID        string
 	ActorConnectors []string
+	// Audiences are the cross-client audiences a delegated token may carry.
+	// Consumers outside this list may not read the act claim, so a delegated
+	// token never reaches them.
+	Audiences []string
 }
 
 // delegationPolicies indexes the configured policies by client and collects the
@@ -81,4 +89,29 @@ func mayActAllows(mayAct any, actor map[string]any) bool {
 		return false
 	}
 	return true
+}
+
+// identityFromClaims rebuilds the identity a Dex-issued token was minted from:
+// the user ID and connector ID encoded in its sub, and the profile claims it
+// carries. Issuing from this identity reproduces the token's sub.
+func identityFromClaims(claims map[string]any) (connector.Identity, string, error) {
+	var subject internal.IDTokenSubject
+	if err := internal.Unmarshal(claimString(claims, "sub"), &subject); err != nil {
+		return connector.Identity{}, "", fmt.Errorf("decode subject: %w", err)
+	}
+	identity := connector.Identity{
+		UserID:            subject.UserId,
+		Username:          claimString(claims, "name"),
+		PreferredUsername: claimString(claims, "preferred_username"),
+		Email:             claimString(claims, "email"),
+	}
+	identity.EmailVerified, _ = claims["email_verified"].(bool)
+	if groups, ok := claims["groups"].([]any); ok {
+		for _, g := range groups {
+			if s, ok := g.(string); ok {
+				identity.Groups = append(identity.Groups, s)
+			}
+		}
+	}
+	return identity, subject.ConnId, nil
 }

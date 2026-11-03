@@ -136,12 +136,14 @@ web:
 #   tokenExchange:
 #     # Delegation: a listed client must present an actor_token next to the
 #     # subject_token, verified by one of its actorConnectors; the issued token
-#     # carries the actor in its "act" claim. Clients not listed exchange
+#     # carries the actor in its "act" claim and may only name the audiences
+#     # listed here (backends that read "act"). Clients not listed exchange
 #     # tokens without an actor. An actor connector verifies actor tokens only
 #     # and cannot be used as connector_id.
 #     delegation:
 #       - clientID: gateway
 #         actorConnectors: [agent-runtime]
+#         audiences: [backend-api]
 #
 #   # PKCE (Proof Key for Code Exchange) configuration
 #   pkce:

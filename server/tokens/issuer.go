@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/google/uuid"
 
 	"github.com/dexidp/dex/server/signer"
@@ -211,4 +212,19 @@ func (i *Issuer) crossClientTrusted(ctx context.Context, clientID, peerID string
 		}
 	}
 	return false, nil
+}
+
+// VerifyToken verifies a token this issuer signed (an ID or access token) and
+// returns its claims. The audience is left to the caller.
+func (i *Issuer) VerifyToken(ctx context.Context, raw string) (map[string]any, error) {
+	verifier := oidc.NewVerifier(i.issuerURL.String(), &signer.KeySet{Signer: i.signer}, &oidc.Config{SkipClientIDCheck: true})
+	token, err := verifier.Verify(ctx, raw)
+	if err != nil {
+		return nil, err
+	}
+	var claims map[string]any
+	if err := token.Claims(&claims); err != nil {
+		return nil, fmt.Errorf("decode claims: %w", err)
+	}
+	return claims, nil
 }
