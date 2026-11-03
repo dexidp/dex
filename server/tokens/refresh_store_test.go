@@ -155,15 +155,23 @@ func seedRefreshToken(t *testing.T, store storage.Storage, lastUsed time.Time) {
 	}))
 }
 
-// blockingStorage parks the second UpdateRefreshToken call — the finalize of a
-// claimed rotation — until released, and signals its arrival. It deterministically
-// holds one rotation in the gap between its two transactions; every other call,
-// including another rotation's claim, passes through.
+// blockingStorage parks the second UpdateRefreshToken call, the finalize of the
+// first rotation, until released. Every other call passes through.
 type blockingStorage struct {
 	storage.Storage
 	inGap   chan struct{}
 	release chan struct{}
 	updates atomic.Int32
+}
+
+// waitInGap waits until a rotation is parked between its claim and finalize.
+func (b *blockingStorage) waitInGap(t *testing.T) {
+	t.Helper()
+	select {
+	case <-b.inGap:
+	case <-time.After(5 * time.Second):
+		t.Fatal("rotation never reached the gap between claim and finalize")
+	}
 }
 
 func (b *blockingStorage) UpdateRefreshToken(ctx context.Context, id string, updater func(r storage.RefreshToken) (storage.RefreshToken, error)) error {
@@ -174,8 +182,8 @@ func (b *blockingStorage) UpdateRefreshToken(ctx context.Context, id string, upd
 	return b.Storage.UpdateRefreshToken(ctx, id, updater)
 }
 
-// failingFinalizeStorage fails exactly one UpdateRefreshToken call, the second —
-// the finalize of the first rotation — one-shot.
+// failingFinalizeStorage fails the second UpdateRefreshToken call, the finalize
+// of the first rotation, once.
 type failingFinalizeStorage struct {
 	storage.Storage
 	failNow atomic.Bool
@@ -220,7 +228,7 @@ func TestRefreshStoreRotateConcurrentRefreshReusesClaimedToken(t *testing.T) {
 		defer close(winnerDone)
 		winnerRaw, _, winnerErr = rt.Rotate(ctx, &stored, req, strategy, fresh)
 	}()
-	<-blocked.inGap // the claim committed; the finalize is parked.
+	blocked.waitInGap(t)
 
 	// The concurrent refresh, still holding the pre-rotation token, takes the
 	// reuse path the claim opened and receives the token being minted.
@@ -269,7 +277,7 @@ func TestRefreshStoreRotateConcurrentRefreshWithoutReuseWindow(t *testing.T) {
 		defer close(winnerDone)
 		_, _, winnerErr = rt.Rotate(ctx, &stored, req, strategy, fresh)
 	}()
-	<-blocked.inGap
+	blocked.waitInGap(t)
 
 	// Without a reuse window there is no path back onto the token: the claim
 	// already rotated it, so the concurrent refresh is denied before resolving.
@@ -317,9 +325,8 @@ func TestRefreshStoreRotateResolveFailureUndoesClaim(t *testing.T) {
 	require.Equal(t, "t0", after.ObsoleteToken, "a failed rotation must restore the obsolete token")
 	require.Equal(t, aged, after.LastUsed, "a failed rotation must restore last-used")
 
-	// The undo closed the reuse window the claim opened: an immediate retry
-	// re-rotates — and fails again while the user is still gone, instead of
-	// minting from stale claims.
+	// The undo closed the reuse window, so a retry rotates again and fails
+	// while the user is still gone instead of minting from stale claims.
 	_, _, err = rt.Rotate(ctx, &stored, req, strategy, fresh)
 	require.ErrorIs(t, err, resolveErr)
 
@@ -411,9 +418,8 @@ func TestRefreshStoreRotateReuseWindowSkipsConnector(t *testing.T) {
 	var rotated internal.RefreshToken
 	require.NoError(t, internal.Unmarshal(raw, &rotated))
 
-	// The obsolete token, re-presented within the window, redeems the rotated
-	// one without consulting the connector — so a user deleted between the
-	// rotation and the retry keeps the retry working.
+	// Within the window the obsolete token redeems the rotated one without
+	// consulting the connector, so the retry works even if the user is gone.
 	now = now.Add(time.Second)
 	retried, _, err := rt.Rotate(ctx, &stored, req, strategy, fresh)
 	require.NoError(t, err)
