@@ -59,6 +59,7 @@ func RunTests(t *testing.T, newStorage func(t *testing.T) storage.Storage) {
 		{"DeviceTokenCRUD", testDeviceTokenCRUD},
 		{"UserIdentityCRUD", testUserIdentityCRUD},
 		{"AuthSessionCRUD", testAuthSessionCRUD},
+		{"AuthSessionLogoutState", testAuthSessionLogoutState},
 	})
 }
 
@@ -1401,10 +1402,11 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 	now := time.Now().UTC().Round(time.Millisecond)
 
 	session := storage.AuthSession{
-		ID:          storage.NewID(),
-		Secret:      storage.NewID(),
-		UserID:      "user1",
-		ConnectorID: "conn1",
+		ID:            storage.NewID(),
+		Secret:        storage.NewID(),
+		UserID:        "user1",
+		ConnectorID:   "conn1",
+		ConnectorData: []byte(`{"nameID":"alice","sessionIndex":"session-1"}`),
 		ClientStates: map[string]*storage.ClientAuthState{
 			"client1": {
 				AuthenticatedAt:   now,
@@ -1465,6 +1467,7 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 		}
 		old.LastActivity = newNow
 		old.IdleExpiry = newNow.Add(time.Hour)
+		old.ConnectorData = []byte(`{"nameID":"alice","sessionIndex":"session-2"}`)
 		return old, nil
 	}); err != nil {
 		t.Fatalf("update auth session: %v", err)
@@ -1480,6 +1483,9 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 	}
 	if got.ClientStates["client2"] == nil {
 		t.Fatal("expected client2 state to exist")
+	}
+	if want := `{"nameID":"alice","sessionIndex":"session-2"}`; string(got.ConnectorData) != want {
+		t.Errorf("expected connector data %q, got %q", want, got.ConnectorData)
 	}
 	// The idle timeout has to move with the activity that reset it, or a session
 	// never outlives its first one.
@@ -1504,4 +1510,90 @@ func testAuthSessionCRUD(t *testing.T, s storage.Storage) {
 	// Get deleted should return ErrNotFound.
 	_, err = s.GetAuthSession(ctx, session.ID)
 	mustBeErrNotFound(t, "auth session", err)
+}
+
+// testAuthSessionLogoutState verifies that storage backends round-trip the
+// LogoutState (including the opaque connector-specific ConnectorState used by
+// SAML for InResponseTo correlation) and can clear it back to nil.
+//
+// Backends serialize LogoutState differently (etcd/kubernetes embed a struct,
+// while SQL and ent store a JSON blob); without this
+// test, missing a field in any of those mirrors would silently break SAML SLO
+// at runtime with "No logout in progress." after the upstream redirect.
+func testAuthSessionLogoutState(t *testing.T, s storage.Storage) {
+	ctx := t.Context()
+
+	now := time.Now().UTC().Round(time.Millisecond)
+
+	session := storage.AuthSession{
+		ID:             storage.NewID(),
+		Secret:         storage.NewID(),
+		UserID:         "user-logout",
+		ConnectorID:    "conn-logout",
+		ClientStates:   map[string]*storage.ClientAuthState{},
+		CreatedAt:      now,
+		LastActivity:   now,
+		AbsoluteExpiry: now.Add(24 * time.Hour),
+		IdleExpiry:     now.Add(1 * time.Hour),
+	}
+
+	if err := s.CreateAuthSession(ctx, session); err != nil {
+		t.Fatalf("create auth session: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = s.DeleteAuthSession(ctx, session.ID)
+	})
+
+	// Initially LogoutState must be nil.
+	got, err := s.GetAuthSession(ctx, session.ID)
+	if err != nil {
+		t.Fatalf("get auth session: %v", err)
+	}
+	if got.LogoutState != nil {
+		t.Fatalf("expected nil LogoutState on fresh session, got %+v", got.LogoutState)
+	}
+
+	// Set LogoutState with a non-trivial ConnectorState (mimics SAML's
+	// outgoing LogoutRequest ID used for InResponseTo correlation).
+	want := &storage.LogoutState{
+		PostLogoutRedirectURI: "https://app.example.com/done",
+		State:                 "client-state-xyz",
+		ClientID:              "client1",
+		ConnectorID:           session.ConnectorID,
+		ConnectorState:        []byte("_saml_request_id_12345"),
+	}
+	if err := s.UpdateAuthSession(ctx, session.ID, func(old storage.AuthSession) (storage.AuthSession, error) {
+		old.LogoutState = want
+		return old, nil
+	}); err != nil {
+		t.Fatalf("update auth session with LogoutState: %v", err)
+	}
+
+	got, err = s.GetAuthSession(ctx, session.ID)
+	if err != nil {
+		t.Fatalf("get auth session after LogoutState write: %v", err)
+	}
+	if got.LogoutState == nil {
+		t.Fatalf("expected LogoutState to round-trip, got nil")
+	}
+	if diff := pretty.Compare(want, got.LogoutState); diff != "" {
+		t.Errorf("LogoutState did not round-trip: %s", diff)
+	}
+
+	// Clear LogoutState back to nil; the storage must persist nil, not an
+	// empty struct (server uses nil to mean "no logout in progress").
+	if err := s.UpdateAuthSession(ctx, session.ID, func(old storage.AuthSession) (storage.AuthSession, error) {
+		old.LogoutState = nil
+		return old, nil
+	}); err != nil {
+		t.Fatalf("update auth session clearing LogoutState: %v", err)
+	}
+
+	got, err = s.GetAuthSession(ctx, session.ID)
+	if err != nil {
+		t.Fatalf("get auth session after LogoutState clear: %v", err)
+	}
+	if got.LogoutState != nil {
+		t.Errorf("expected nil LogoutState after clear, got %+v", got.LogoutState)
+	}
 }
