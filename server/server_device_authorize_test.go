@@ -83,6 +83,10 @@ func TestHandleDeviceCode(t *testing.T) {
 			})
 			defer httpServer.Close()
 
+			if err := s.storage.CreateClient(t.Context(), storage.Client{ID: "test", Public: true}); err != nil {
+				t.Fatal(err)
+			}
+
 			u, err := url.Parse(s.issuerURL.String())
 			if err != nil {
 				t.Fatalf("Could not parse issuer URL %v", err)
@@ -236,6 +240,66 @@ func TestVerifyCodeResponse(t *testing.T) {
 				if !strings.Contains(location, "redirect_uri=%2Fnon-root-path%2Fdevice%2Fcallback") {
 					t.Errorf("Invalid redirect_uri parameter. Expected to contain /device/callback (URL encoded), got %v", location)
 				}
+			}
+		})
+	}
+}
+
+func TestDeviceCodeClientAuthentication(t *testing.T) {
+	tests := []struct {
+		name         string
+		form         url.Values
+		basicID      string
+		basicSecret  string
+		expectedCode int
+		expectedID   string
+	}{
+		{"secret in form", url.Values{"client_id": {"conf"}, "client_secret": {"s3cret"}}, "", "", http.StatusOK, "conf"},
+		{"secret in basic auth", url.Values{}, "conf", "s3cret", http.StatusOK, "conf"},
+		{"missing client", url.Values{}, "", "", http.StatusUnauthorized, ""},
+		{"unknown client", url.Values{"client_id": {"nope"}}, "", "", http.StatusUnauthorized, ""},
+		{"wrong secret in form", url.Values{"client_id": {"conf"}, "client_secret": {"wrong"}}, "", "", http.StatusUnauthorized, ""},
+		{"wrong secret in basic auth", url.Values{}, "conf", "wrong", http.StatusUnauthorized, ""},
+		{"basic auth wins over form", url.Values{"client_id": {"conf"}, "client_secret": {"s3cret"}}, "conf", "wrong", http.StatusUnauthorized, ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			httpServer, s := newTestServer(t, nil)
+			defer httpServer.Close()
+
+			err := s.storage.CreateClient(t.Context(), storage.Client{
+				ID:           "conf",
+				Secret:       "s3cret",
+				RedirectURIs: []string{s.issuerURL.AbsPath("/device/callback")},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			req := httptest.NewRequest(http.MethodPost, s.issuerURL.AbsPath("/device/code"), strings.NewReader(tc.form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			if tc.basicID != "" {
+				req.SetBasicAuth(tc.basicID, tc.basicSecret)
+			}
+			rr := httptest.NewRecorder()
+			s.ServeHTTP(rr, req)
+
+			if rr.Code != tc.expectedCode {
+				t.Fatalf("expected status %d, got %d: %s", tc.expectedCode, rr.Code, rr.Body)
+			}
+			if tc.expectedID == "" {
+				return
+			}
+			var resp device.DeviceCodeResponse
+			if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+				t.Fatal(err)
+			}
+			dr, err := s.storage.GetDeviceRequest(t.Context(), resp.UserCode)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if dr.ClientID != tc.expectedID {
+				t.Errorf("stored client_id %q, want %q", dr.ClientID, tc.expectedID)
 			}
 		})
 	}
