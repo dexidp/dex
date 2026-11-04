@@ -78,7 +78,7 @@ func parseRequest(r *http.Request) (*Request, *oauth2.Error) {
 	}
 
 	var oerr *oauth2.Error
-	if req.ClientID, req.ClientSecret, oerr = ClientCredentials(r); oerr != nil {
+	if req.ClientID, req.ClientSecret, oerr = ClientCredentials(r, r.PostForm); oerr != nil {
 		return nil, oerr
 	}
 

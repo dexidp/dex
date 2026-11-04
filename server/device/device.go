@@ -151,7 +151,7 @@ func (h *Handler) parseDeviceCodeRequest(r *http.Request) (deviceCodeRequest, *d
 		scopes = []string{"openid"}
 	}
 
-	clientID, clientSecret, oerr := grants.ClientCredentials(r)
+	clientID, clientSecret, oerr := grants.ClientCredentials(r, r.Form)
 	if oerr != nil {
 		return deviceCodeRequest{}, oauth2FlowError(oerr)
 	}

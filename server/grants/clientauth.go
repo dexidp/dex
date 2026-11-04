@@ -11,13 +11,13 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
-// ClientCredentials returns the client credentials of a request to the token or
-// device authorization endpoint: from the Authorization header when present,
-// otherwise from the form body.
-func ClientCredentials(r *http.Request) (id, secret string, oerr *oauth2.Error) {
+// ClientCredentials returns the client credentials of a request: from the
+// Authorization header when present, otherwise from form, the parsed form the
+// endpoint reads its other parameters from.
+func ClientCredentials(r *http.Request, form url.Values) (id, secret string, oerr *oauth2.Error) {
 	basicID, basicSecret, ok := r.BasicAuth()
 	if !ok {
-		return r.PostFormValue("client_id"), r.PostFormValue("client_secret"), nil
+		return form.Get("client_id"), form.Get("client_secret"), nil
 	}
 
 	var err error
@@ -31,7 +31,7 @@ func ClientCredentials(r *http.Request) (id, secret string, oerr *oauth2.Error) 
 }
 
 // AuthenticateClient looks the client up and checks its secret in constant time.
-// A public client has an empty secret, so it authenticates without one.
+// A client with an empty secret authenticates without one.
 func AuthenticateClient(ctx context.Context, s storage.Storage, logger *slog.Logger, id, secret string) (storage.Client, *oauth2.Error) {
 	client, err := s.GetClient(ctx, id)
 	if err != nil {
