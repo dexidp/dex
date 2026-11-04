@@ -2,11 +2,9 @@ package grants
 
 import (
 	"context"
-	"crypto/subtle"
 	"errors"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -79,17 +77,9 @@ func parseRequest(r *http.Request) (*Request, *oauth2.Error) {
 		RequestedTokenType: r.PostFormValue("requested_token_type"),
 	}
 
-	if id, secret, ok := r.BasicAuth(); ok {
-		var err error
-		if req.ClientID, err = url.QueryUnescape(id); err != nil {
-			return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "client_id improperly encoded", Status: http.StatusBadRequest}
-		}
-		if req.ClientSecret, err = url.QueryUnescape(secret); err != nil {
-			return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "client_secret improperly encoded", Status: http.StatusBadRequest}
-		}
-	} else {
-		req.ClientID = r.PostFormValue("client_id")
-		req.ClientSecret = r.PostFormValue("client_secret")
+	var oerr *oauth2.Error
+	if req.ClientID, req.ClientSecret, oerr = ClientCredentials(r); oerr != nil {
+		return nil, oerr
 	}
 
 	return req, nil
@@ -343,27 +333,11 @@ func (h *Handler) resolveConnector(ctx context.Context, connID string, client st
 // authenticateClient resolves the client from the parsed credentials. On failure
 // it writes the error response and returns ok=false.
 func (h *Handler) authenticateClient(ctx context.Context, w http.ResponseWriter, req *Request) (storage.Client, bool) {
-	client, err := h.Storage.GetClient(ctx, req.ClientID)
-	if err != nil {
-		if err != storage.ErrNotFound {
-			h.Logger.ErrorContext(ctx, "failed to get client", "err", err)
-			h.writeError(ctx, w, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError})
-		} else {
-			h.writeError(ctx, w, &oauth2.Error{Type: oauth2.InvalidClient, Description: "Invalid client credentials.", Status: http.StatusUnauthorized})
-		}
+	client, oerr := AuthenticateClient(ctx, h.Storage, h.Logger, req.ClientID, req.ClientSecret)
+	if oerr != nil {
+		h.writeError(ctx, w, oerr)
 		return storage.Client{}, false
 	}
-
-	if subtle.ConstantTimeCompare([]byte(client.Secret), []byte(req.ClientSecret)) != 1 {
-		if req.ClientSecret == "" {
-			h.Logger.InfoContext(ctx, "missing client_secret on token request", "client_id", client.ID)
-		} else {
-			h.Logger.InfoContext(ctx, "invalid client_secret on token request", "client_id", client.ID)
-		}
-		h.writeError(ctx, w, &oauth2.Error{Type: oauth2.InvalidClient, Description: "Invalid client credentials.", Status: http.StatusUnauthorized})
-		return storage.Client{}, false
-	}
-
 	return client, true
 }
 
