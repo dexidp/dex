@@ -368,22 +368,42 @@ func (f *failingRefreshConnector) Refresh(_ context.Context, _ connector.Scopes,
 	return connector.Identity{}, errors.New("upstream: refresh token expired")
 }
 
+// failingUpdateStorage fails every refresh token update, as a storage outage
+// would during rotation.
+type failingUpdateStorage struct {
+	storage.Storage
+}
+
+func (failingUpdateStorage) UpdateRefreshToken(context.Context, string, func(storage.RefreshToken) (storage.RefreshToken, error)) error {
+	return errors.New("storage unavailable")
+}
+
 // TestRefreshUpstreamRejection verifies that an upstream refusing the refresh
 // with invalid_grant is passed on to the client as invalid_grant, while any other
-// upstream failure stays a server error.
+// failure stays a server error.
 func TestRefreshUpstreamRejection(t *testing.T) {
+	rejected := &xoauth2.RetrieveError{
+		ErrorCode:        "invalid_grant",
+		ErrorDescription: "The refresh token is invalid or expired.",
+	}
+
 	tests := []struct {
-		name       string
-		err        error
-		wantStatus int
-		wantError  string
+		name        string
+		err         error // returned by the connector's Refresh; nil keeps the mock connector
+		failStorage bool
+		wantStatus  int
+		wantError   string
 	}{
 		{
-			name: "upstream rejects the refresh token",
-			err: fmt.Errorf("oidc: failed to get refresh token: %w", &xoauth2.RetrieveError{
-				ErrorCode:        "invalid_grant",
-				ErrorDescription: "The refresh token is invalid or expired.",
-			}),
+			name:       "upstream rejects the refresh token",
+			err:        fmt.Errorf("oidc: failed to get refresh token: %w", rejected),
+			wantStatus: http.StatusBadRequest,
+			wantError:  "invalid_grant",
+		},
+		{
+			// The shape a connector gets when its HTTP client refreshes the token.
+			name:       "upstream rejects the refresh token behind an HTTP client",
+			err:        fmt.Errorf("get user: %w", &url.Error{Op: "Get", URL: "https://upstream.example.com/user", Err: rejected}),
 			wantStatus: http.StatusBadRequest,
 			wantError:  "invalid_grant",
 		},
@@ -394,22 +414,28 @@ func TestRefreshUpstreamRejection(t *testing.T) {
 			wantError:  "invalid_request",
 		},
 		{
-			name:       "upstream unreachable",
-			err:        errors.New("oidc: failed to get refresh token: connection refused"),
-			wantStatus: http.StatusInternalServerError,
-			wantError:  "invalid_request",
+			name:        "storage fails during rotation",
+			failStorage: true,
+			wantStatus:  http.StatusInternalServerError,
+			wantError:   "invalid_request",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			httpServer, s := newTestServer(t, nil)
+			httpServer, s := newTestServer(t, func(c *Config) {
+				if tc.failStorage {
+					c.Storage = failingUpdateStorage{Storage: memory.New(newLogger(t))}
+				}
+			})
 			defer httpServer.Close()
 
 			mockRefreshTokenTestStorage(t, s.storage, false)
-			s.connectors.Set("test", connectors.Connector{
-				Connector: &failingRefreshConnector{err: tc.err},
-			})
+			if tc.err != nil {
+				s.connectors.Set("test", connectors.Connector{
+					Connector: &failingRefreshConnector{err: tc.err},
+				})
+			}
 
 			tokenData, err := internal.Marshal(&internal.RefreshToken{RefreshId: "test", Token: "bar"})
 			require.NoError(t, err)
