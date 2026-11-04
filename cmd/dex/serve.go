@@ -637,7 +637,7 @@ func runServe(options serveOptions) error {
 
 	group.Add(run.SignalHandler(context.Background(), os.Interrupt, syscall.SIGTERM))
 	if err := group.Run(); err != nil {
-		if _, ok := err.(run.SignalError); !ok {
+		if !errors.Is(err, run.ErrSignal) {
 			return fmt.Errorf("run groups: %w", err)
 		}
 		logger.Info("shutdown now", "err", err)
