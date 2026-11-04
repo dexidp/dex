@@ -8,6 +8,8 @@ import (
 	"slices"
 	"time"
 
+	xoauth2 "golang.org/x/oauth2"
+
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
@@ -127,7 +129,7 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 	rawNewToken, ident, err := g.issuer.Refresh.Rotate(ctx, refreshToken, req.refreshID, g.policy, freshIdentity)
 	if err != nil {
 		g.logger.ErrorContext(ctx, "failed to rotate refresh token", "err", err)
-		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
+		return nil, rotateError(err)
 	}
 
 	auth := tokens.Authorization{
@@ -310,4 +312,18 @@ func refreshLookupError(err error) *oauth2.Error {
 	default:
 		return &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
 	}
+}
+
+// rotateError maps a failed rotation to the grant's OAuth2 error response. An
+// upstream that answers the connector's refresh with invalid_grant has ended the
+// user's session there, so it is passed on as invalid_grant: clients rely on it
+// to start a new login, and a 500 would only have them retry. Any other failure
+// is a server error.
+// https://datatracker.ietf.org/doc/html/rfc6749#section-5.2
+func rotateError(err error) *oauth2.Error {
+	var retrieveErr *xoauth2.RetrieveError
+	if errors.As(err, &retrieveErr) && retrieveErr.ErrorCode == oauth2.InvalidGrant {
+		return &oauth2.Error{Type: oauth2.InvalidGrant, Description: "The upstream identity provider rejected the refresh token.", Status: http.StatusBadRequest}
+	}
+	return &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
 }
