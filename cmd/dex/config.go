@@ -174,6 +174,11 @@ func (c Config) validateDelegation() error {
 				return fmt.Errorf("oauth2.tokenExchange.delegation: client %q: actor connector %q is not a configured connector", policy.ClientID, id)
 			}
 		}
+		for _, scope := range policy.AllowedScopes {
+			if strings.HasPrefix(scope, "audience:server:client_id:") {
+				return fmt.Errorf("oauth2.tokenExchange.delegation: client %q: allowedScopes may not contain %q, name targets with allowedAudiences", policy.ClientID, scope)
+			}
+		}
 	}
 	return nil
 }
@@ -306,9 +311,12 @@ type TokenExchange struct {
 type DelegationPolicy struct {
 	ClientID        string   `json:"clientID"`
 	ActorConnectors []string `json:"actorConnectors"`
-	// Audiences are the cross-client audiences (audience:server:client_id:X
-	// scopes) a delegated token may carry; none by default.
-	Audiences []string `json:"audiences"`
+	// AllowedAudiences are the client IDs a delegated token may name through
+	// the audience parameter, besides the client's own ID; none by default.
+	AllowedAudiences []string `json:"allowedAudiences"`
+	// AllowedScopes are the scope values a delegated token may carry beyond
+	// Dex's standard scopes; none by default.
+	AllowedScopes []string `json:"allowedScopes"`
 }
 
 // PKCE holds the PKCE (Proof Key for Code Exchange) configuration.

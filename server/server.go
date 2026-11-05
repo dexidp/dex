@@ -104,6 +104,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		IssuerURL: s.issuerURL,
 	}
 	s.issuer = tokens.NewIssuer(s.storage, c.Signer, s.issuerURL.URL, rc.idTokensValidFor, rc.now, s.logger)
+	s.issuer.Sessions = s.sessions
 	s.connectors = connectors.NewCache(s.storage, connectors.Resolver(s.storage, s.logger, ConnectorsConfig))
 	s.backchannel = &backchannel.Notifier{
 		Storage:   s.storage,
@@ -259,7 +260,7 @@ func (s *Server) mount(routes router.Mux, c Config, rc resolvedConfig) {
 			Storage:       s.storage,
 			Logger:        s.logger,
 			RefreshPolicy: c.RefreshTokenPolicy,
-			Sessions:      sessions,
+			Tokens:        s.issuer,
 		},
 		&device.Handler{
 			IssuerURL:        s.issuerURL,

@@ -36,6 +36,10 @@ type Authorization struct {
 	// Only a delegated token exchange sets it.
 	ScopeClaim string
 
+	// Audience lists client IDs a token exchange named with the audience
+	// parameter (RFC 8693 §2.1); each becomes an entry of the aud claim.
+	Audience []string
+
 	// ExpiresAt, when set, caps the issued tokens' expiry below the default
 	// lifetime. A delegated exchange sets it so the issued token never outlives
 	// the subject or actor token it was minted from.

@@ -3,6 +3,7 @@ package tokens
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -28,6 +29,10 @@ type Issuer struct {
 
 	// Refresh persists and rotates refresh tokens.
 	Refresh *RefreshStore
+
+	// Sessions resolves whether the browser session a token was issued under
+	// is still alive. Nil when sessions are disabled.
+	Sessions SessionChecker
 }
 
 // NewIssuer wires an issuer from the shared dependencies.
@@ -177,7 +182,10 @@ func (i *Issuer) SignIDToken(ctx context.Context, auth Authorization, accessToke
 		}
 	}
 
-	tok.Audience = GetAudience(clientID, auth.Scopes)
+	tok.Audience = withAudiences(clientID, auth.Audience, GetAudience(clientID, auth.Scopes))
+	if auth.Act != nil {
+		tok.ClientID = clientID
+	}
 	if len(tok.Audience) > 1 {
 		tok.AuthorizingParty = clientID
 	}
@@ -192,6 +200,27 @@ func (i *Issuer) SignIDToken(ctx context.Context, auth Authorization, accessToke
 		return "", expiry, fmt.Errorf("failed to sign payload: %v", err)
 	}
 	return idToken, expiry, nil
+}
+
+// withAudiences puts the extra audiences an exchange named in front of aud,
+// leaving out the client's own ID and duplicates, so the client stays last as
+// GetAudience places it.
+func withAudiences(clientID string, extra []string, aud Audience) Audience {
+	if len(extra) == 0 {
+		return aud
+	}
+	var out Audience
+	for _, a := range extra {
+		if a != clientID && !out.contains(a) {
+			out = append(out, a)
+		}
+	}
+	for _, a := range aud {
+		if !out.contains(a) {
+			out = append(out, a)
+		}
+	}
+	return out
 }
 
 // crossClientTrusted reports whether peerID's client trusts clientID as a peer.
@@ -215,17 +244,66 @@ func (i *Issuer) crossClientTrusted(ctx context.Context, clientID, peerID string
 	return false, nil
 }
 
-// VerifyToken verifies a token this issuer signed (an ID or access token) and
-// returns its claims. The audience is left to the caller.
-func (i *Issuer) VerifyToken(ctx context.Context, raw string) (map[string]any, error) {
-	verifier := oidc.NewVerifier(i.issuerURL.String(), &signer.KeySet{Signer: i.signer}, &oidc.Config{SkipClientIDCheck: true})
+// ErrInvalidToken reports a token this issuer did not sign, that has expired,
+// or whose issuing client cannot be resolved.
+var ErrInvalidToken = errors.New("invalid token")
+
+// ErrSessionEnded reports a token bound to a browser session that has ended.
+var ErrSessionEnded = errors.New("token session has ended")
+
+// SessionChecker reports whether a browser session is still alive.
+type SessionChecker interface {
+	Alive(ctx context.Context, sessionID string) bool
+}
+
+// VerifiedToken is a token this issuer signed, verified and still live.
+type VerifiedToken struct {
+	Token  *oidc.IDToken
+	Claims map[string]any
+	// Client is the client the token was issued to, resolved from its aud and
+	// azp, not the client presenting it.
+	Client storage.Client
+	// SessionID is the token's sid claim, empty when it carries none.
+	SessionID string
+}
+
+// VerifyToken verifies a token this issuer signed (an ID or access token),
+// resolves the client it was issued to, and applies that client's session
+// binding: a token carrying sid, issued to a client whose tokens end with the
+// session (RefreshTokenLifetime session), is refused once that session ends
+// (RFC 7662 §4 reports such a token inactive). It returns ErrInvalidToken or
+// ErrSessionEnded for those refusals and other errors for storage failures.
+func (i *Issuer) VerifyToken(ctx context.Context, raw string) (*VerifiedToken, error) {
+	verifier := oidc.NewVerifier(i.issuerURL.String(), &signer.KeySet{Signer: i.signer}, &oidc.Config{SkipClientIDCheck: true, Now: i.now})
 	token, err := verifier.Verify(ctx, raw)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", ErrInvalidToken, err)
 	}
 	var claims map[string]any
 	if err := token.Claims(&claims); err != nil {
-		return nil, fmt.Errorf("decode claims: %w", err)
+		return nil, fmt.Errorf("%w: decode claims: %v", ErrInvalidToken, err)
 	}
-	return claims, nil
+	azp, _ := claims["azp"].(string)
+	clientID, err := GetClientID(token.Audience, azp)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidToken, err)
+	}
+	client, err := i.storage.GetClient(ctx, clientID)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return nil, fmt.Errorf("%w: issuing client %q not found", ErrInvalidToken, clientID)
+		}
+		return nil, fmt.Errorf("get client %q: %w", clientID, err)
+	}
+	sid, _ := claims["sid"].(string)
+	if sid != "" && client.RefreshBoundToSession() && (i.Sessions == nil || !i.Sessions.Alive(ctx, sid)) {
+		return nil, ErrSessionEnded
+	}
+	return &VerifiedToken{Token: token, Claims: claims, Client: client, SessionID: sid}, nil
+}
+
+// Now is the issuer's clock, so callers report expiries on the same clock the
+// tokens were signed with.
+func (i *Issuer) Now() time.Time {
+	return i.now()
 }

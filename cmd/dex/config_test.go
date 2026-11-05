@@ -725,7 +725,8 @@ oauth2:
     delegation:
       - clientID: gateway
         actorConnectors: [agent-runtime]
-        audiences: [backend-api]
+        allowedAudiences: [backend-api]
+        allowedScopes: [tools:read]
 connectors:
 - type: mockCallback
   id: agent-runtime
@@ -735,7 +736,7 @@ connectors:
 `)
 	var c Config
 	require.NoError(t, yaml.Unmarshal(rawConfig, &c))
-	require.Equal(t, []DelegationPolicy{{ClientID: "gateway", ActorConnectors: []string{"agent-runtime"}, Audiences: []string{"backend-api"}}}, c.OAuth2.TokenExchange.Delegation)
+	require.Equal(t, []DelegationPolicy{{ClientID: "gateway", ActorConnectors: []string{"agent-runtime"}, AllowedAudiences: []string{"backend-api"}, AllowedScopes: []string{"tools:read"}}}, c.OAuth2.TokenExchange.Delegation)
 	require.NoError(t, c.Validate())
 
 	tests := []struct {
@@ -747,6 +748,7 @@ connectors:
 		{"duplicate client", []DelegationPolicy{{ClientID: "gateway", ActorConnectors: []string{"agent-runtime"}}, {ClientID: "gateway", ActorConnectors: []string{"agent-runtime"}}}, `client "gateway" listed twice`},
 		{"no actor connectors", []DelegationPolicy{{ClientID: "gateway"}}, "actorConnectors is empty"},
 		{"unknown actor connector", []DelegationPolicy{{ClientID: "gateway", ActorConnectors: []string{"missing"}}}, `actor connector "missing" is not a configured connector`},
+		{"cross-client scope", []DelegationPolicy{{ClientID: "gateway", ActorConnectors: []string{"agent-runtime"}, AllowedScopes: []string{"audience:server:client_id:backend-api"}}}, `allowedScopes may not contain "audience:server:client_id:backend-api"`},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

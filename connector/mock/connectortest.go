@@ -42,7 +42,10 @@ type Callback struct {
 	// Claims is what TokenClaims returns for any token. A nil map makes
 	// TokenClaims fail, as an unverifiable token would.
 	Claims map[string]any
-	Logger *slog.Logger
+	// TokenIdentityFails makes TokenIdentity fail, as an unverifiable token
+	// would.
+	TokenIdentityFails bool
+	Logger             *slog.Logger
 }
 
 // LoginURL returns the URL to redirect the user to login with.
@@ -70,6 +73,9 @@ func (m *Callback) Refresh(ctx context.Context, s connector.Scopes, identity con
 }
 
 func (m *Callback) TokenIdentity(ctx context.Context, subjectTokenType, subjectToken string) (connector.Identity, error) {
+	if m.TokenIdentityFails {
+		return connector.Identity{}, errors.New("mock: token does not verify")
+	}
 	return m.Identity, nil
 }
 

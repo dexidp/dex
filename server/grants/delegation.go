@@ -18,10 +18,24 @@ import (
 type DelegationPolicy struct {
 	ClientID        string
 	ActorConnectors []string
-	// Audiences are the cross-client audiences a delegated token may carry.
-	// Consumers outside this list may not read the act claim, so a delegated
-	// token never reaches them.
-	Audiences []string
+	// AllowedAudiences are the client IDs a delegated token may name through
+	// the audience parameter, besides the client's own ID. Consumers outside
+	// this list may not read the act claim, so a delegated token never reaches
+	// them.
+	AllowedAudiences []string
+	// AllowedScopes are the scope values a delegated token may carry beyond
+	// Dex's standard scopes.
+	AllowedScopes []string
+}
+
+// standardScopes are the scopes any delegating client may request; others
+// must be listed in its AllowedScopes.
+var standardScopes = map[string]bool{
+	tokens.ScopeOpenID:      true,
+	tokens.ScopeEmail:       true,
+	tokens.ScopeProfile:     true,
+	tokens.ScopeGroups:      true,
+	tokens.ScopeFederatedID: true,
 }
 
 // delegationPolicies indexes the configured policies by client and collects the
@@ -77,19 +91,55 @@ func audienceContains(claim any, aud string) bool {
 	return false
 }
 
-// mayActAllows applies RFC 8693 §4.4: the actor's sub must equal may_act's sub,
-// and its iss must equal may_act's iss when may_act states one. A may_act that
-// is not an object authorizes nobody.
-func mayActAllows(mayAct any, actor map[string]any) bool {
+// mayActInformational are may_act members that describe the authorized party
+// without identifying it (RFC 8693 §4.4 gives email as an example).
+var mayActInformational = map[string]bool{"email": true, "email_verified": true, "name": true, "preferred_username": true}
+
+// mayActAllows applies Dex's may_act rule (RFC 8693 §4.4 leaves matching to
+// the authorization server). may_act must carry sub or client_id, and iss only
+// together with sub; any member other than those and the informational ones
+// refuses, since Dex cannot tell whether it identifies the actor.
+//
+// In delegation, sub must equal the actor token's sub, iss its iss; without
+// iss the client must have a single actor connector, so a sub from another
+// issuer cannot match. client_id must equal the requesting client's ID.
+//
+// In impersonation (actor nil) the client becomes the actor: may_act must
+// carry client_id equal to the requesting client and no sub, which only an
+// actor token could prove.
+func mayActAllows(mayAct any, actor map[string]any, clientID string, singleActorIssuer bool) bool {
 	allowed, ok := mayAct.(map[string]any)
 	if !ok {
 		return false
 	}
-	if claimString(allowed, "sub") == "" || claimString(allowed, "sub") != claimString(actor, "sub") {
+	for name, value := range allowed {
+		switch {
+		case mayActInformational[name]:
+		case name == "sub" || name == "iss" || name == "client_id":
+			if _, ok := value.(string); !ok {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	sub, iss, cid := claimString(allowed, "sub"), claimString(allowed, "iss"), claimString(allowed, "client_id")
+	if sub == "" && cid == "" || iss != "" && sub == "" {
 		return false
 	}
-	if iss := claimString(allowed, "iss"); iss != "" && iss != claimString(actor, "iss") {
+	if cid != "" && cid != clientID {
 		return false
+	}
+	if actor == nil {
+		return sub == "" && cid == clientID
+	}
+	if sub != "" {
+		if sub != claimString(actor, "sub") {
+			return false
+		}
+		if iss == "" && !singleActorIssuer || iss != "" && iss != claimString(actor, "iss") {
+			return false
+		}
 	}
 	return true
 }
@@ -113,35 +163,27 @@ func priorActor(claim any) (*tokens.ActorClaims, error) {
 	return &tokens.ActorClaims{Issuer: claimString(m, "iss"), Subject: claimString(m, "sub"), Act: inner}, nil
 }
 
-// delegatedScopes keeps the requested scopes a delegated token may carry. A
-// subject token with a scope claim bounds them: scopes it does not list are
-// dropped, so a chain can only narrow. Cross-client audience scopes are bounded
-// by the delegation policy instead and always pass.
-func delegatedScopes(requested []string, subjectScope any) []string {
+// delegatedScopes keeps the requested scopes the subject token allows, so a
+// chain can only narrow. A subject with a scope claim keeps the requested
+// scopes it lists. A delegated subject (one carrying act) without a scope
+// claim grants none, since an earlier hop may have narrowed it to nothing. A
+// subject that is neither leaves the request unchanged.
+func delegatedScopes(requested []string, subjectScope any, delegatedSubject bool) []string {
 	bound, ok := subjectScope.(string)
 	if !ok {
+		if delegatedSubject {
+			return nil
+		}
 		return requested
 	}
 	allowed := strings.Fields(bound)
 	var kept []string
 	for _, scope := range requested {
-		if _, cross := tokens.ParseCrossClientScope(scope); cross || slices.Contains(allowed, scope) {
+		if slices.Contains(allowed, scope) {
 			kept = append(kept, scope)
 		}
 	}
 	return kept
-}
-
-// scopeClaim renders the scope claim of a delegated token: its scopes without
-// the cross-client audience ones, which the aud claim expresses.
-func scopeClaim(scopes []string) string {
-	var out []string
-	for _, scope := range scopes {
-		if _, cross := tokens.ParseCrossClientScope(scope); !cross {
-			out = append(out, scope)
-		}
-	}
-	return strings.Join(out, " ")
 }
 
 // identityFromClaims rebuilds the identity a Dex-issued token was minted from:
