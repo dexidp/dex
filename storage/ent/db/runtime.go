@@ -30,10 +30,6 @@ func init() {
 	authcodeDescClientID := authcodeFields[1].Descriptor()
 	// authcode.ClientIDValidator is a validator for the "client_id" field. It is called by the builders before save.
 	authcode.ClientIDValidator = authcodeDescClientID.Validators[0].(func(string) error)
-	// authcodeDescNonce is the schema descriptor for nonce field.
-	authcodeDescNonce := authcodeFields[3].Descriptor()
-	// authcode.NonceValidator is a validator for the "nonce" field. It is called by the builders before save.
-	authcode.NonceValidator = authcodeDescNonce.Validators[0].(func(string) error)
 	// authcodeDescRedirectURI is the schema descriptor for redirect_uri field.
 	authcodeDescRedirectURI := authcodeFields[4].Descriptor()
 	// authcode.RedirectURIValidator is a validator for the "redirect_uri" field. It is called by the builders before save.
@@ -42,14 +38,6 @@ func init() {
 	authcodeDescClaimsUserID := authcodeFields[5].Descriptor()
 	// authcode.ClaimsUserIDValidator is a validator for the "claims_user_id" field. It is called by the builders before save.
 	authcode.ClaimsUserIDValidator = authcodeDescClaimsUserID.Validators[0].(func(string) error)
-	// authcodeDescClaimsUsername is the schema descriptor for claims_username field.
-	authcodeDescClaimsUsername := authcodeFields[6].Descriptor()
-	// authcode.ClaimsUsernameValidator is a validator for the "claims_username" field. It is called by the builders before save.
-	authcode.ClaimsUsernameValidator = authcodeDescClaimsUsername.Validators[0].(func(string) error)
-	// authcodeDescClaimsEmail is the schema descriptor for claims_email field.
-	authcodeDescClaimsEmail := authcodeFields[7].Descriptor()
-	// authcode.ClaimsEmailValidator is a validator for the "claims_email" field. It is called by the builders before save.
-	authcode.ClaimsEmailValidator = authcodeDescClaimsEmail.Validators[0].(func(string) error)
 	// authcodeDescClaimsPreferredUsername is the schema descriptor for claims_preferred_username field.
 	authcodeDescClaimsPreferredUsername := authcodeFields[10].Descriptor()
 	// authcode.DefaultClaimsPreferredUsername holds the default value on creation for the claims_preferred_username field.
@@ -202,18 +190,6 @@ func init() {
 	keys.IDValidator = keysDescID.Validators[0].(func(string) error)
 	oauth2clientFields := schema.OAuth2Client{}.Fields()
 	_ = oauth2clientFields
-	// oauth2clientDescSecret is the schema descriptor for secret field.
-	oauth2clientDescSecret := oauth2clientFields[1].Descriptor()
-	// oauth2client.SecretValidator is a validator for the "secret" field. It is called by the builders before save.
-	oauth2client.SecretValidator = oauth2clientDescSecret.Validators[0].(func(string) error)
-	// oauth2clientDescName is the schema descriptor for name field.
-	oauth2clientDescName := oauth2clientFields[5].Descriptor()
-	// oauth2client.NameValidator is a validator for the "name" field. It is called by the builders before save.
-	oauth2client.NameValidator = oauth2clientDescName.Validators[0].(func(string) error)
-	// oauth2clientDescLogoURL is the schema descriptor for logo_url field.
-	oauth2clientDescLogoURL := oauth2clientFields[6].Descriptor()
-	// oauth2client.LogoURLValidator is a validator for the "logo_url" field. It is called by the builders before save.
-	oauth2client.LogoURLValidator = oauth2clientDescLogoURL.Validators[0].(func(string) error)
 	// oauth2clientDescBackchannelLogoutURI is the schema descriptor for backchannel_logout_uri field.
 	oauth2clientDescBackchannelLogoutURI := oauth2clientFields[11].Descriptor()
 	// oauth2client.DefaultBackchannelLogoutURI holds the default value on creation for the backchannel_logout_uri field.
