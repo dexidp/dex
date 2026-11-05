@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/dexidp/dex/server/internal"
@@ -234,6 +235,7 @@ func (m *Manager) CreateOrUpdateAuthSession(ctx context.Context, r *http.Request
 				old.IdleExpiry = now.Add(m.Config.ValidIfNotUsedFor)
 				old.IPAddress = remoteIP(r)
 				old.UserAgent = r.UserAgent()
+				old.ConnectorData = slices.Clone(authReq.ConnectorData)
 				if old.ClientStates == nil {
 					old.ClientStates = make(map[string]*storage.ClientAuthState)
 				}
@@ -253,10 +255,11 @@ func (m *Manager) CreateOrUpdateAuthSession(ctx context.Context, r *http.Request
 	}
 
 	newSession := storage.AuthSession{
-		ID:          storage.NewID(),
-		Secret:      storage.NewID(),
-		UserID:      userID,
-		ConnectorID: connectorID,
+		ID:            storage.NewID(),
+		Secret:        storage.NewID(),
+		UserID:        userID,
+		ConnectorID:   connectorID,
+		ConnectorData: slices.Clone(authReq.ConnectorData),
 		ClientStates: map[string]*storage.ClientAuthState{
 			authReq.ClientID: clientState,
 		},

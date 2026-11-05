@@ -503,6 +503,15 @@ type LogoutState struct {
 	State                 string // RP's opaque state parameter
 	ClientID              string
 	ConnectorID           string
+
+	// ConnectorState is opaque bytes returned by
+	// StatefulLogoutCallbackConnector.LogoutURLWithState and handed back to
+	// HandleLogoutCallbackWithState. The SAML connector keeps the outgoing
+	// LogoutRequest ID and Dex's callback URL in it, so it can validate
+	// InResponseTo and Destination against server-side values, and a captured
+	// LogoutResponse cannot be replayed. Nil for connectors that don't need
+	// correlation state.
+	ConnectorState []byte
 }
 
 // AuthSession is one signed-in browser: a user, the connector they authenticated
@@ -527,6 +536,13 @@ type AuthSession struct {
 	UserID       string
 	ConnectorID  string
 	ClientStates map[string]*ClientAuthState // clientID -> auth state
+
+	// ConnectorData is what the connector that established this browser session
+	// returned from LogoutSessionData, and nothing else of the login's connector
+	// data. Stateful logout connectors use it to build an upstream logout request
+	// for this exact session. It is empty for connectors without upstream logout.
+	ConnectorData []byte
+
 	CreatedAt    time.Time
 	LastActivity time.Time
 
