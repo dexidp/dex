@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -53,6 +54,7 @@ type Config struct {
 	Tenant               string          `json:"tenant"`
 	OnlySecurityGroups   bool            `json:"onlySecurityGroups"`
 	Groups               []string        `json:"groups"`
+	GroupsFilter         string          `json:"groupsFilter"`
 	GroupNameFormat      GroupNameFormat `json:"groupNameFormat"`
 	UseGroupsAsWhitelist bool            `json:"useGroupsAsWhitelist"`
 	EmailToLowercase     bool            `json:"emailToLowercase"`
@@ -84,6 +86,16 @@ type Config struct {
 
 // Open returns a strategy for logging in through Microsoft.
 func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, error) {
+	var groupsFilter *regexp.Regexp
+	var err error
+
+	if c.GroupsFilter != "" {
+		groupsFilter, err = regexp.Compile(c.GroupsFilter)
+		if err != nil {
+			logger.Warn("ignoring invalid", "invalid_regex", c.GroupsFilter, "connector_id", id)
+		}
+	}
+
 	m := microsoftConnector{
 		apiURL:                 strings.TrimSuffix(c.APIURL, "/"),
 		graphURL:               strings.TrimSuffix(c.GraphURL, "/"),
@@ -94,6 +106,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 		tenant:                 c.Tenant,
 		onlySecurityGroups:     c.OnlySecurityGroups,
 		groups:                 c.Groups,
+		groupsFilter:           groupsFilter,
 		groupNameFormat:        c.GroupNameFormat,
 		useGroupsAsWhitelist:   c.UseGroupsAsWhitelist,
 		batchGroupLookups:      c.BatchGroupLookups,
@@ -128,6 +141,11 @@ func (c *Config) Open(id string, logger *slog.Logger) (connector.Connector, erro
 		return nil, fmt.Errorf("invalid groupNameFormat: %s", m.groupNameFormat)
 	}
 
+	// The code currently only supports groupsFilter or useGroupsAsWhitelist.
+	if c.GroupsFilter != "" && c.UseGroupsAsWhitelist {
+		return nil, fmt.Errorf("invalid config: you can only use groupsFilter or useGroupsAsWhitelist")
+	}
+
 	return &m, nil
 }
 
@@ -153,6 +171,7 @@ type microsoftConnector struct {
 	onlySecurityGroups     bool
 	groupNameFormat        GroupNameFormat
 	groups                 []string
+	groupsFilter           *regexp.Regexp
 	useGroupsAsWhitelist   bool
 	batchGroupLookups      bool
 	logger                 *slog.Logger
@@ -548,6 +567,16 @@ func (c *microsoftConnector) getGroups(ctx context.Context, client *http.Client,
 		return nil, &connector.UserNotInRequiredGroupsError{UserID: userID, Groups: c.groups}
 	} else if c.useGroupsAsWhitelist {
 		return filteredGroups, nil
+	}
+
+	if len(userGroups) > 0 && c.groupsFilter != nil {
+		var toReturnFilteredGroup []string
+		for _, group := range userGroups {
+			if c.groupsFilter.MatchString(group) {
+				toReturnFilteredGroup = append(toReturnFilteredGroup, group)
+			}
+		}
+		return toReturnFilteredGroup, nil
 	}
 
 	return userGroups, nil
