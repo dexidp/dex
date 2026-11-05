@@ -286,7 +286,7 @@ func (g *tokenExchange) delegate(ctx context.Context, req *Request, client stora
 	}
 	prior, err := priorActor(subject.claims["act"])
 	if err != nil {
-		return nil, invalidRequest("invalid act claim in subject token")
+		return nil, invalidRequest("invalid subject_token")
 	}
 
 	actorClaims, err := actorClaimsConn.TokenClaims(ctx, req.ActorTokenType, req.ActorToken)
