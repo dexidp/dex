@@ -671,6 +671,45 @@ func TestRefresh(t *testing.T) {
 	}
 }
 
+// TestRefreshUpstreamRejection verifies that a refresh the upstream refuses keeps
+// the upstream's OAuth2 error, so the server can tell a rejected refresh token
+// apart from other failures.
+func TestRefreshUpstreamRejection(t *testing.T) {
+	mux, err := oidcTestMux(map[string]interface{}{"sub": "subvalue"}, true)
+	require.NoError(t, err)
+
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/token" {
+			mux.ServeHTTP(w, r)
+			return
+		}
+		w.Header().Add("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(&map[string]string{
+			"error":             "invalid_grant",
+			"error_description": "The refresh token is invalid or expired.",
+		})
+	}))
+	defer testServer.Close()
+
+	conn, err := newConnector(Config{
+		Issuer:       testServer.URL,
+		ClientID:     "clientID",
+		ClientSecret: "clientSecret",
+		Scopes:       []string{"openid", "offline_access"},
+		RedirectURI:  fmt.Sprintf("%s/callback", testServer.URL),
+	})
+	require.NoError(t, err)
+
+	_, err = conn.Refresh(t.Context(), connector.Scopes{OfflineAccess: true}, connector.Identity{
+		ConnectorData: []byte(`{"RefreshToken":"asdf"}`),
+	})
+
+	var retrieveErr *oauth2.RetrieveError
+	require.ErrorAs(t, err, &retrieveErr)
+	require.Equal(t, "invalid_grant", retrieveErr.ErrorCode)
+}
+
 func TestTokenIdentity(t *testing.T) {
 	tokenTypeAccess := "urn:ietf:params:oauth:token-type:access_token"
 	tokenTypeID := "urn:ietf:params:oauth:token-type:id_token"

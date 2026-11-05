@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
+	xoauth2 "golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/connectors"
@@ -344,6 +345,8 @@ func TestRefreshTokenAuthTime(t *testing.T) {
 // but always returns an error on Refresh, proving that the upstream is not contacted.
 type failingRefreshConnector struct {
 	identity connector.Identity
+	// err is returned by Refresh. When nil, a generic upstream error is returned.
+	err error
 }
 
 func (f *failingRefreshConnector) LoginURL(_ connector.Scopes, callbackURL, state string) (string, []byte, error) {
@@ -359,7 +362,104 @@ func (f *failingRefreshConnector) HandleCallback(_ connector.Scopes, _ []byte, _
 }
 
 func (f *failingRefreshConnector) Refresh(_ context.Context, _ connector.Scopes, _ connector.Identity) (connector.Identity, error) {
+	if f.err != nil {
+		return connector.Identity{}, f.err
+	}
 	return connector.Identity{}, errors.New("upstream: refresh token expired")
+}
+
+// failingUpdateStorage fails every refresh token update, as a storage outage
+// would during rotation.
+type failingUpdateStorage struct {
+	storage.Storage
+}
+
+func (failingUpdateStorage) UpdateRefreshToken(context.Context, string, func(storage.RefreshToken) (storage.RefreshToken, error)) error {
+	return errors.New("storage unavailable")
+}
+
+// TestRefreshUpstreamRejection verifies that an upstream refusing the refresh
+// with invalid_grant is passed on to the client as invalid_grant and logged at
+// info, while any other failure stays a server error logged at error.
+func TestRefreshUpstreamRejection(t *testing.T) {
+	rejected := &xoauth2.RetrieveError{
+		ErrorCode:        "invalid_grant",
+		ErrorDescription: "The refresh token is invalid or expired.",
+	}
+
+	tests := []struct {
+		name        string
+		err         error // returned by the connector's Refresh; nil keeps the mock connector
+		failStorage bool
+		wantStatus  int
+		wantError   string
+	}{
+		{
+			name:       "upstream rejects the refresh token",
+			err:        fmt.Errorf("oidc: failed to get refresh token: %w", rejected),
+			wantStatus: http.StatusBadRequest,
+			wantError:  "invalid_grant",
+		},
+		{
+			// The shape a connector gets when its HTTP client refreshes the token.
+			name:       "upstream rejects the refresh token behind an HTTP client",
+			err:        fmt.Errorf("get user: %w", &url.Error{Op: "Get", URL: "https://upstream.example.com/user", Err: rejected}),
+			wantStatus: http.StatusBadRequest,
+			wantError:  "invalid_grant",
+		},
+		{
+			name:       "upstream rejects the client",
+			err:        fmt.Errorf("oidc: failed to get refresh token: %w", &xoauth2.RetrieveError{ErrorCode: "invalid_client"}),
+			wantStatus: http.StatusInternalServerError,
+			wantError:  "invalid_request",
+		},
+		{
+			name:        "storage fails during rotation",
+			failStorage: true,
+			wantStatus:  http.StatusInternalServerError,
+			wantError:   "invalid_request",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var logBuf bytes.Buffer
+			httpServer, s := newTestServer(t, func(c *Config) {
+				c.Logger = slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+				if tc.failStorage {
+					c.Storage = failingUpdateStorage{Storage: memory.New(newLogger(t))}
+				}
+			})
+			defer httpServer.Close()
+
+			mockRefreshTokenTestStorage(t, s.storage, false)
+			if tc.err != nil {
+				s.connectors.Set("test", connectors.Connector{
+					Connector: &failingRefreshConnector{err: tc.err},
+				})
+			}
+
+			tokenData, err := internal.Marshal(&internal.RefreshToken{RefreshId: "test", Token: "bar"})
+			require.NoError(t, err)
+
+			rr := doRefreshGrant(t, s, tokenData, 0)
+			require.Equal(t, tc.wantStatus, rr.Code, "body: %s", rr.Body.String())
+
+			var resp struct {
+				Error string `json:"error"`
+			}
+			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+			assert.Equal(t, tc.wantError, resp.Error)
+
+			logs := logBuf.String()
+			if tc.wantStatus == http.StatusBadRequest {
+				assert.Contains(t, logs, `level=INFO msg="failed to rotate refresh token"`)
+				assert.NotContains(t, logs, "level=ERROR")
+			} else {
+				assert.Contains(t, logs, `level=ERROR msg="failed to rotate refresh token"`)
+			}
+		})
+	}
 }
 
 func TestRefreshDisconnectsUpstreamWhenSessionsEnabled(t *testing.T) {
