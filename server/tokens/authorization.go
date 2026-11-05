@@ -32,6 +32,10 @@ type Authorization struct {
 	// grant. It is emitted as the "act" claim.
 	Act *ActorClaims
 
+	// ScopeClaim, when set, is emitted as the "scope" claim (RFC 8693 §4.2).
+	// Only a delegated token exchange sets it.
+	ScopeClaim string
+
 	// ExpiresAt, when set, caps the issued tokens' expiry below the default
 	// lifetime. A delegated exchange sets it so the issued token never outlives
 	// the subject or actor token it was minted from.

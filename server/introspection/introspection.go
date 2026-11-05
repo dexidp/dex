@@ -321,7 +321,8 @@ func (h *Handler) introspectAccessToken(ctx context.Context, token string) (*Int
 		return nil, newIntrospectInternalServerError()
 	}
 	var actor struct {
-		Act *tokens.ActorClaims `json:"act"`
+		Act   *tokens.ActorClaims `json:"act"`
+		Scope string              `json:"scope"`
 	}
 	if err := idToken.Claims(&actor); err != nil {
 		h.Logger.ErrorContext(ctx, "error while fetching token claims", "err", err.Error())
@@ -355,6 +356,7 @@ func (h *Handler) introspectAccessToken(ctx context.Context, token string) (*Int
 		Audience:  idToken.Audience,
 		Issuer:    h.Issuer,
 		Act:       actor.Act,
+		Scope:     actor.Scope,
 
 		Extra:     claims,
 		TokenType: "Bearer",

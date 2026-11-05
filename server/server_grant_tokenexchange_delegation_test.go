@@ -25,8 +25,9 @@ const (
 )
 
 // delegationServer serves a subject connector "mock" and an actor connector
-// "actor", with client "gateway" delegating through "actor", "plain" exchanging
-// without an actor, and "public" a public client listed for delegation.
+// "actor", with client "gateway" delegating through "actor", "relay" delegating
+// again a token gateway obtained for it, "plain" exchanging without an actor,
+// and "public" a public client listed for delegation.
 func delegationServer(t *testing.T, now time.Time) (*httptest.Server, *Server, *mock.Callback, *mock.Callback) {
 	t.Helper()
 	ctx := t.Context()
@@ -37,7 +38,8 @@ func delegationServer(t *testing.T, now time.Time) (*httptest.Server, *Server, *
 		c.Now = func() time.Time { return now }
 		c.IDTokensValidFor = time.Hour
 		c.TokenExchangeDelegation = []grants.DelegationPolicy{
-			{ClientID: "gateway", ActorConnectors: []string{"actor"}, Audiences: []string{"backend"}},
+			{ClientID: "gateway", ActorConnectors: []string{"actor"}, Audiences: []string{"backend", "relay"}},
+			{ClientID: "relay", ActorConnectors: []string{"actor"}},
 			{ClientID: "public", ActorConnectors: []string{"actor"}},
 		}
 		for _, client := range []storage.Client{
@@ -45,6 +47,7 @@ func delegationServer(t *testing.T, now time.Time) (*httptest.Server, *Server, *
 			{ID: "plain", Secret: "secret"},
 			{ID: "public", Secret: "secret", Public: true},
 			{ID: "backend", Secret: "secret", TrustedPeers: []string{"gateway"}},
+			{ID: "relay", Secret: "secret", TrustedPeers: []string{"gateway"}},
 		} {
 			require.NoError(t, c.Storage.CreateClient(ctx, client))
 		}
@@ -147,7 +150,13 @@ func TestHandleTokenExchangeDelegation(t *testing.T) {
 		{name: "actor token does not verify", actorInvalid: true, expectedCode: http.StatusBadRequest, expectedError: "invalid actor_token"},
 		{name: "actor audience is another client", actor: func(c map[string]any) { c["aud"] = "other" }, expectedCode: http.StatusBadRequest, expectedError: "actor token audience does not include this client"},
 		{name: "actor without audience", actor: func(c map[string]any) { delete(c, "aud") }, expectedCode: http.StatusBadRequest, expectedError: "actor token audience does not include this client"},
-		{name: "subject already delegated", subject: func(c map[string]any) { c["act"] = map[string]any{"sub": "earlier"} }, expectedCode: http.StatusBadRequest, expectedError: "delegated subject tokens are not supported"},
+		{name: "subject act without sub", subject: func(c map[string]any) { c["act"] = map[string]any{"iss": "https://earlier.example.test"} }, expectedCode: http.StatusBadRequest, expectedError: "invalid act claim in subject token"},
+		{name: "plain client with delegated subject", edit: func(v url.Values) {
+			v.Set("client_id", "plain")
+			v.Del("actor_token")
+			v.Del("actor_token_type")
+			v.Del("actor_connector_id")
+		}, subject: func(c map[string]any) { c["act"] = map[string]any{"sub": "earlier"} }, expectedCode: http.StatusBadRequest, expectedError: "delegated subject tokens require an actor_token"},
 		{name: "may_act names another actor", subject: func(c map[string]any) { c["may_act"] = map[string]any{"sub": "someone-else"} }, expectedCode: http.StatusBadRequest, expectedError: "actor is not authorized by the subject token's may_act claim"},
 		{name: "subject audience is another client", subject: func(c map[string]any) { c["aud"] = []any{"other"} }, expectedCode: http.StatusBadRequest, expectedError: "subject token audience does not include this client"},
 		{name: "audience outside the policy", edit: func(v url.Values) { v.Set("scope", "openid audience:server:client_id:plain") }, expectedCode: http.StatusBadRequest, expectedType: oauth2.InvalidTarget, expectedError: "audience not allowed for delegation"},
@@ -334,15 +343,60 @@ func TestHandleTokenExchangeSelfIssuedSubject(t *testing.T) {
 		require.Contains(t, rr.Body.String(), "subject token audience does not include this client")
 	})
 
-	t.Run("delegated token as subject", func(t *testing.T) {
-		first := exchangedToken(t, s, httpServer, exchangeValues("gateway", "mock", "subject", oauth2.TokenTypeID, true))
-		rr := postToken(t, s, httpServer, exchangeValues("gateway", "", first, oauth2.TokenTypeAccess, true))
+	t.Run("delegated token without actor", func(t *testing.T) {
+		forBackend := exchangeValues("gateway", "mock", "subject", oauth2.TokenTypeID, true)
+		forBackend.Set("scope", "openid audience:server:client_id:backend")
+		first := exchangedToken(t, s, httpServer, forBackend)
+		rr := postToken(t, s, httpServer, exchangeValues("backend", "", first, oauth2.TokenTypeAccess, false))
 		require.Equal(t, http.StatusBadRequest, rr.Code)
-		require.Contains(t, rr.Body.String(), "delegated subject tokens are not supported")
+		require.Contains(t, rr.Body.String(), "delegated subject tokens require an actor_token")
 	})
 
 	t.Run("not a Dex token", func(t *testing.T) {
 		rr := postToken(t, s, httpServer, exchangeValues("plain", "", "foobar", oauth2.TokenTypeID, false))
 		require.Equal(t, http.StatusUnauthorized, rr.Code, rr.Body.String())
 	})
+}
+
+// A delegated token exchanged again with a new actor token nests the earlier
+// actor (RFC 8693 §4.1), and the issued scope and expiry only narrow.
+func TestHandleTokenExchangeDelegationChain(t *testing.T) {
+	now := time.Now()
+	httpServer, s, subjectConn, actorConn := delegationServer(t, now)
+	defer httpServer.Close()
+	subjectConn.Claims = map[string]any{"sub": "person-1", "aud": "gateway"}
+	actorConn.Claims = map[string]any{"iss": delegationActorIssuer, "sub": delegationActorSubject, "aud": "gateway", "exp": float64(now.Add(10 * time.Minute).Unix())}
+
+	forRelay := exchangeValues("gateway", "mock", "subject", oauth2.TokenTypeID, true)
+	forRelay.Set("scope", "openid tools:read tools:write audience:server:client_id:relay")
+	first := exchangedToken(t, s, httpServer, forRelay)
+	a := jwtPayload(t, first)
+	require.Equal(t, "openid tools:read tools:write", a["scope"], "cross-client scopes are expressed in aud")
+
+	actorConn.Claims = map[string]any{"iss": "https://cluster.example.test", "sub": "system:serviceaccount:apps:relay", "aud": "relay", "exp": float64(now.Add(time.Hour).Unix())}
+	again := exchangeValues("relay", "", first, oauth2.TokenTypeAccess, true)
+	again.Set("scope", "tools:read admin")
+	second := exchangedToken(t, s, httpServer, again)
+	b := jwtPayload(t, second)
+
+	require.Equal(t, a["sub"], b["sub"])
+	require.Equal(t, map[string]any{
+		"iss": "https://cluster.example.test",
+		"sub": "system:serviceaccount:apps:relay",
+		"act": map[string]any{"iss": delegationActorIssuer, "sub": delegationActorSubject},
+	}, b["act"])
+	require.Equal(t, "tools:read", b["scope"], "scopes the subject does not carry are dropped")
+	require.Equal(t, a["exp"], b["exp"], "never outlives the subject token")
+
+	data := url.Values{}
+	data.Set("token", second)
+	req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token/introspect", strings.NewReader(data.Encode()))
+	req.Header.Set("content-type", "application/x-www-form-urlencoded")
+	ir := httptest.NewRecorder()
+	s.ServeHTTP(ir, req)
+	require.Equal(t, http.StatusOK, ir.Code, ir.Body.String())
+	var intro map[string]any
+	require.NoError(t, json.Unmarshal(ir.Body.Bytes(), &intro))
+	require.Equal(t, b["act"], intro["act"])
+	require.Equal(t, "tools:read", intro["scope"])
 }

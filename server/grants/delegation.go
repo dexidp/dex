@@ -1,12 +1,15 @@
 package grants
 
 import (
+	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/tokens"
 )
 
 // DelegationPolicy enables RFC 8693 delegation on the token-exchange grant for
@@ -89,6 +92,56 @@ func mayActAllows(mayAct any, actor map[string]any) bool {
 		return false
 	}
 	return true
+}
+
+// priorActor decodes a delegated subject token's act claim, with any nested
+// chain, so a new actor can be placed in front of it (RFC 8693 §4.1). It
+// returns nil when the claim is absent and an error when it is present but has
+// no sub at some level.
+func priorActor(claim any) (*tokens.ActorClaims, error) {
+	if claim == nil {
+		return nil, nil
+	}
+	m, ok := claim.(map[string]any)
+	if !ok || claimString(m, "sub") == "" {
+		return nil, errors.New("malformed act claim")
+	}
+	inner, err := priorActor(m["act"])
+	if err != nil {
+		return nil, err
+	}
+	return &tokens.ActorClaims{Issuer: claimString(m, "iss"), Subject: claimString(m, "sub"), Act: inner}, nil
+}
+
+// delegatedScopes keeps the requested scopes a delegated token may carry. A
+// subject token with a scope claim bounds them: scopes it does not list are
+// dropped, so a chain can only narrow. Cross-client audience scopes are bounded
+// by the delegation policy instead and always pass.
+func delegatedScopes(requested []string, subjectScope any) []string {
+	bound, ok := subjectScope.(string)
+	if !ok {
+		return requested
+	}
+	allowed := strings.Fields(bound)
+	var kept []string
+	for _, scope := range requested {
+		if _, cross := tokens.ParseCrossClientScope(scope); cross || slices.Contains(allowed, scope) {
+			kept = append(kept, scope)
+		}
+	}
+	return kept
+}
+
+// scopeClaim renders the scope claim of a delegated token: its scopes without
+// the cross-client audience ones, which the aud claim expresses.
+func scopeClaim(scopes []string) string {
+	var out []string
+	for _, scope := range scopes {
+		if _, cross := tokens.ParseCrossClientScope(scope); !cross {
+			out = append(out, scope)
+		}
+	}
+	return strings.Join(out, " ")
 }
 
 // identityFromClaims rebuilds the identity a Dex-issued token was minted from:

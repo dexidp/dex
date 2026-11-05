@@ -92,13 +92,19 @@ type IDTokenClaims struct {
 	// Act names the party acting on behalf of the subject (RFC 8693 §4.1).
 	// Only tokens minted by a delegated token exchange carry it.
 	Act *ActorClaims `json:"act,omitempty"`
+
+	// Scope lists the scopes granted to a delegated token (RFC 8693 §4.2),
+	// space-separated. Only tokens minted by a delegated token exchange carry it.
+	Scope string `json:"scope,omitempty"`
 }
 
 // ActorClaims is the RFC 8693 "act" claim: the actor's issuer and subject, as
-// the actor token's verified claims stated them.
+// the actor token's verified claims stated them. Act, when set, is the prior
+// actor of a delegation chain.
 type ActorClaims struct {
-	Issuer  string `json:"iss,omitempty"`
-	Subject string `json:"sub"`
+	Issuer  string       `json:"iss,omitempty"`
+	Subject string       `json:"sub"`
+	Act     *ActorClaims `json:"act,omitempty"`
 }
 
 // FederatedIDClaims carries the upstream connector's identity for the

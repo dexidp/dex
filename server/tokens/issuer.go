@@ -120,6 +120,7 @@ func (i *Issuer) SignIDToken(ctx context.Context, auth Authorization, accessToke
 
 	tok.SessionID = auth.SessionID
 	tok.Act = auth.Act
+	tok.Scope = auth.ScopeClaim
 
 	signingAlg, err := i.signer.Algorithm(ctx)
 	if err != nil {

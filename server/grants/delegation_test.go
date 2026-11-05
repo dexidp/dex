@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexidp/dex/server/tokens"
 )
 
 func TestAudienceContains(t *testing.T) {
@@ -53,4 +55,31 @@ func TestNewDelegationPolicies(t *testing.T) {
 	require.Equal(t, []string{"x", "y"}, p.byClient["b"].ActorConnectors)
 	_, ok := p.byClient["c"]
 	require.False(t, ok)
+}
+
+func TestPriorActor(t *testing.T) {
+	got, err := priorActor(nil)
+	require.NoError(t, err)
+	require.Nil(t, got)
+
+	got, err = priorActor(map[string]any{"iss": "https://b", "sub": "b", "act": map[string]any{"sub": "a"}})
+	require.NoError(t, err)
+	require.Equal(t, &tokens.ActorClaims{Issuer: "https://b", Subject: "b", Act: &tokens.ActorClaims{Subject: "a"}}, got)
+
+	for _, bad := range []any{"a", map[string]any{"iss": "https://b"}, map[string]any{"sub": "b", "act": map[string]any{}}} {
+		_, err := priorActor(bad)
+		require.Error(t, err, "%v", bad)
+	}
+}
+
+func TestDelegatedScopes(t *testing.T) {
+	requested := []string{"openid", "tools:read", "admin", "audience:server:client_id:backend"}
+	require.Equal(t, requested, delegatedScopes(requested, nil), "no scope claim on the subject: unchanged")
+	require.Equal(t, []string{"tools:read", "audience:server:client_id:backend"}, delegatedScopes(requested, "tools:read tools:write"))
+	require.Equal(t, []string{"audience:server:client_id:backend"}, delegatedScopes(requested, ""))
+}
+
+func TestScopeClaim(t *testing.T) {
+	require.Equal(t, "openid tools:read", scopeClaim([]string{"openid", "audience:server:client_id:backend", "tools:read"}))
+	require.Empty(t, scopeClaim([]string{"audience:server:client_id:backend"}))
 }
