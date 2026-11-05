@@ -264,6 +264,10 @@ func (h *Handler) parseAuthorizationRequest(r *http.Request) (*storage.AuthReque
 			hasOpenIDScope = true
 		case tokens.ScopeOfflineAccess, tokens.ScopeEmail, tokens.ScopeProfile, tokens.ScopeGroups, tokens.ScopeFederatedID:
 		default:
+			if tokens.HasAllowedScopePrefix(h.AllowedScopePrefixes, scope) {
+				continue
+			}
+
 			peerID, ok := tokens.ParseCrossClientScope(scope)
 			if !ok {
 				unrecognized = append(unrecognized, scope)
