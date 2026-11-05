@@ -379,8 +379,8 @@ func (failingUpdateStorage) UpdateRefreshToken(context.Context, string, func(sto
 }
 
 // TestRefreshUpstreamRejection verifies that an upstream refusing the refresh
-// with invalid_grant is passed on to the client as invalid_grant, while any other
-// failure stays a server error.
+// with invalid_grant is passed on to the client as invalid_grant and logged at
+// info, while any other failure stays a server error logged at error.
 func TestRefreshUpstreamRejection(t *testing.T) {
 	rejected := &xoauth2.RetrieveError{
 		ErrorCode:        "invalid_grant",
@@ -423,7 +423,9 @@ func TestRefreshUpstreamRejection(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			var logBuf bytes.Buffer
 			httpServer, s := newTestServer(t, func(c *Config) {
+				c.Logger = slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 				if tc.failStorage {
 					c.Storage = failingUpdateStorage{Storage: memory.New(newLogger(t))}
 				}
@@ -448,6 +450,14 @@ func TestRefreshUpstreamRejection(t *testing.T) {
 			}
 			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 			assert.Equal(t, tc.wantError, resp.Error)
+
+			logs := logBuf.String()
+			if tc.wantStatus == http.StatusBadRequest {
+				assert.Contains(t, logs, `level=INFO msg="failed to rotate refresh token"`)
+				assert.NotContains(t, logs, "level=ERROR")
+			} else {
+				assert.Contains(t, logs, `level=ERROR msg="failed to rotate refresh token"`)
+			}
 		})
 	}
 }
