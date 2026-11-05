@@ -89,12 +89,6 @@ func (g *tokenExchange) Authorize(ctx context.Context, req *Request, client stor
 	if req.ActorToken == "" {
 		return nil, invalidRequest("this client must present an actor_token")
 	}
-	if req.ActorConnectorID == "" {
-		return nil, invalidRequest("actor_connector_id is required with actor_token")
-	}
-	if !slices.Contains(policy.ActorConnectors, req.ActorConnectorID) {
-		return nil, invalidRequest("actor connector not allowed for this client")
-	}
 	if len(req.Resource) > 0 {
 		return nil, invalidTarget("resource is not supported, use audience")
 	}
@@ -275,23 +269,13 @@ func (g *tokenExchange) impersonate(ctx context.Context, req *Request, client st
 // the grant can check its audience, the subject's may_act, and bound the
 // issued token's lifetime by both tokens.
 func (g *tokenExchange) delegate(ctx context.Context, req *Request, client storage.Client, subject *subject, policy DelegationPolicy) (Responder, error) {
-	actorConn, oerr := g.resolveConnector(ctx, req.ActorConnectorID, client, oauth2.GrantTypeTokenExchange)
-	if oerr != nil {
-		return nil, invalidRequest(oerr.Description)
-	}
-	actorClaimsConn, ok := actorConn.Connector.(connector.TokenClaimsConnector)
-	if !ok {
-		g.logger.ErrorContext(ctx, "connector cannot return verified claims", "connector_id", req.ActorConnectorID)
-		return nil, invalidRequest("actor connector does not support delegation")
-	}
 	prior, err := priorActor(subject.claims["act"])
 	if err != nil {
 		return nil, invalidRequest("invalid subject_token")
 	}
 
-	actorClaims, err := actorClaimsConn.TokenClaims(ctx, req.ActorTokenType, req.ActorToken)
-	if err != nil {
-		g.logger.InfoContext(ctx, "failed to verify actor token", "actor_connector_id", req.ActorConnectorID, "err", err)
+	actorClaims, actorConnID := g.verifyActor(ctx, req, client, policy)
+	if actorClaims == nil {
 		return nil, invalidRequest("invalid actor_token")
 	}
 	if !audienceContains(actorClaims["aud"], client.ID) {
@@ -312,7 +296,7 @@ func (g *tokenExchange) delegate(ctx context.Context, req *Request, client stora
 	reqType := requestedTokenType(req)
 	attrs := append(identityLogAttrs(subject, client),
 		"subject_token_type", req.SubjectTokenType, "requested_token_type", reqType,
-		"actor_connector_id", req.ActorConnectorID, "actor_iss", actor.Issuer, "actor_sub", actor.Subject)
+		"actor_connector_id", actorConnID, "actor_iss", actor.Issuer, "actor_sub", actor.Subject)
 	if prior != nil {
 		attrs = append(attrs, "prior_actor_sub", prior.Subject, "prior_client_id", claimString(subject.claims, "client_id"))
 	}
@@ -330,6 +314,35 @@ func (g *tokenExchange) delegate(ctx context.Context, req *Request, client stora
 		Audience:    req.Audience,
 		ExpiresAt:   earliestExpiry(subject.claims, actorClaims),
 	}, reqType, granted)
+}
+
+// verifyActor verifies the actor token with the client's actor connectors, in
+// order, and returns the claims of the first that verifies it and that
+// connector's ID. The request does not name the connector (RFC 8693 §2.1 has
+// no such parameter). A connector the client may not use for token exchange,
+// or that cannot return verified claims, is a configuration error: it is
+// logged and skipped. It returns nil claims when no connector verifies.
+func (g *tokenExchange) verifyActor(ctx context.Context, req *Request, client storage.Client, policy DelegationPolicy) (map[string]any, string) {
+	for _, id := range policy.ActorConnectors {
+		conn, oerr := g.resolveConnector(ctx, id, client, oauth2.GrantTypeTokenExchange)
+		if oerr != nil {
+			g.logger.ErrorContext(ctx, "actor connector unusable for this client", "client_id", client.ID, "actor_connector_id", id, "err", oerr.Description)
+			continue
+		}
+		claimsConn, ok := conn.Connector.(connector.TokenClaimsConnector)
+		if !ok {
+			g.logger.ErrorContext(ctx, "actor connector cannot return verified claims", "actor_connector_id", id)
+			continue
+		}
+		claims, err := claimsConn.TokenClaims(ctx, req.ActorTokenType, req.ActorToken)
+		if err != nil {
+			g.logger.DebugContext(ctx, "actor token not verified by connector", "actor_connector_id", id, "err", err)
+			continue
+		}
+		return claims, id
+	}
+	g.logger.InfoContext(ctx, "failed to verify actor token", "client_id", client.ID)
+	return nil, ""
 }
 
 // respond signs the requested token type. RFC 8693 returns a single requested

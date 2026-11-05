@@ -49,7 +49,6 @@ type Request struct {
 	RequestedTokenType string
 	ActorToken         string
 	ActorTokenType     string
-	ActorConnectorID   string
 	// Audience and Resource repeat (RFC 8693 §2.1), so each holds every value.
 	Audience []string
 	Resource []string
@@ -83,7 +82,6 @@ func parseRequest(r *http.Request) (*Request, *oauth2.Error) {
 		RequestedTokenType: r.PostFormValue("requested_token_type"),
 		ActorToken:         r.PostFormValue("actor_token"),
 		ActorTokenType:     r.PostFormValue("actor_token_type"),
-		ActorConnectorID:   r.PostFormValue("actor_connector_id"),
 		Audience:           r.PostForm["audience"],
 		Resource:           r.PostForm["resource"],
 	}

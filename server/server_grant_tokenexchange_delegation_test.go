@@ -25,22 +25,26 @@ const (
 )
 
 // delegationServer serves a subject connector "mock" and an actor connector
-// "actor". Client "gateway" delegates through "actor" and may name "backend",
+// "actor", plus "other-actor", which verifies nothing. Client "gateway"
+// delegates through "actor" and may name "backend",
 // "relay" and "untrusted" (which does not trust it) as audiences; "relay"
-// delegates again a token gateway obtained for it; "plain" exchanges without
-// an actor; "public" is a public client listed for delegation.
+// delegates again a token gateway obtained for it, trying "other-actor"
+// first; "plain" exchanges without an actor; "public" is a public client
+// listed for delegation.
 func delegationServer(t *testing.T, now time.Time, updateConfig func(c *Config)) (*httptest.Server, *Server, *mock.Callback, *mock.Callback) {
 	t.Helper()
 	ctx := t.Context()
 	actor := mockConnector("actor")
 	actor.GrantTypes = []string{oauth2.GrantTypeTokenExchange}
-	httpServer, s := newTestServerWith(t, []storage.Connector{mockConnector("mock"), actor}, func(c *Config) {
+	otherActor := mockConnector("other-actor")
+	otherActor.GrantTypes = []string{oauth2.GrantTypeTokenExchange}
+	httpServer, s := newTestServerWith(t, []storage.Connector{mockConnector("mock"), actor, otherActor}, func(c *Config) {
 		c.AllowedGrantTypes = []string{oauth2.GrantTypeTokenExchange, oauth2.GrantTypeRefreshToken, oauth2.GrantTypeClientCredentials}
 		c.Now = func() time.Time { return now }
 		c.IDTokensValidFor = time.Hour
 		c.TokenExchangeDelegation = []grants.DelegationPolicy{
 			{ClientID: "gateway", ActorConnectors: []string{"actor"}, AllowedAudiences: []string{"backend", "relay", "untrusted"}, AllowedScopes: []string{"tools:read", "tools:write"}},
-			{ClientID: "relay", ActorConnectors: []string{"actor"}, AllowedScopes: []string{"tools:read"}},
+			{ClientID: "relay", ActorConnectors: []string{"other-actor", "actor"}, AllowedScopes: []string{"tools:read"}},
 			{ClientID: "public", ActorConnectors: []string{"actor"}},
 		}
 		for _, client := range []storage.Client{
@@ -102,7 +106,6 @@ func introspect(t *testing.T, s *Server, httpServer *httptest.Server, token stri
 func dropActor(v url.Values) {
 	v.Del("actor_token")
 	v.Del("actor_token_type")
-	v.Del("actor_connector_id")
 }
 
 func TestHandleTokenExchangeDelegation(t *testing.T) {
@@ -123,7 +126,6 @@ func TestHandleTokenExchangeDelegation(t *testing.T) {
 		vals.Set("scope", "openid")
 		vals.Set("subject_token", "subject")
 		vals.Set("subject_token_type", oauth2.TokenTypeID)
-		vals.Set("actor_connector_id", "actor")
 		vals.Set("actor_token", "actor")
 		vals.Set("actor_token_type", oauth2.TokenTypeJWT)
 		return vals
@@ -168,7 +170,7 @@ func TestHandleTokenExchangeDelegation(t *testing.T) {
 		{name: "plain client with actor", edit: func(v url.Values) { v.Set("client_id", "plain") }, expectedCode: http.StatusBadRequest, expectedError: "delegation is not enabled for this client"},
 		{name: "public client", edit: func(v url.Values) { v.Set("client_id", "public") }, expectedCode: http.StatusBadRequest, expectedError: "delegation is not enabled for this client"},
 		{name: "delegating client without actor", edit: dropActor, expectedCode: http.StatusBadRequest, expectedError: "this client must present an actor_token"},
-		{name: "actor_token without actor_connector_id", edit: func(v url.Values) { v.Del("actor_connector_id") }, expectedCode: http.StatusBadRequest, expectedError: "actor_connector_id is required with actor_token"},
+		{name: "actor_connector_id is not a parameter", edit: func(v url.Values) { v.Set("actor_connector_id", "mock") }, expectedCode: http.StatusOK},
 		{name: "actor connector as subject connector", edit: func(v url.Values) { v.Set("connector_id", "actor") }, expectedCode: http.StatusBadRequest, expectedError: "connector only verifies actor tokens"},
 		{name: "actor connector as subject connector for plain client", edit: func(v url.Values) {
 			plain(v)
@@ -176,7 +178,6 @@ func TestHandleTokenExchangeDelegation(t *testing.T) {
 		}, expectedCode: http.StatusBadRequest, expectedError: "connector only verifies actor tokens"},
 		{name: "access_token subject", edit: func(v url.Values) { v.Set("subject_token_type", oauth2.TokenTypeAccess) }, expectedCode: http.StatusBadRequest, expectedError: "token type not supported for delegation"},
 		{name: "access_token actor", edit: func(v url.Values) { v.Set("actor_token_type", oauth2.TokenTypeAccess) }, expectedCode: http.StatusBadRequest, expectedError: "token type not supported for delegation"},
-		{name: "actor connector not in policy", edit: func(v url.Values) { v.Set("actor_connector_id", "mock") }, expectedCode: http.StatusBadRequest, expectedError: "actor connector not allowed for this client"},
 		{name: "subject token does not verify", subjectInvalid: true, expectedCode: http.StatusBadRequest, expectedError: "invalid subject_token"},
 		{name: "subject token does not verify, impersonation", edit: plain, subjectInvalid: true, expectedCode: http.StatusBadRequest, expectedError: "invalid subject_token"},
 		{name: "actor token does not verify", actorInvalid: true, expectedCode: http.StatusBadRequest, expectedError: "invalid actor_token"},
@@ -328,7 +329,6 @@ func exchangeValues(client, connectorID, subjectToken, subjectType string, withA
 	vals.Set("subject_token", subjectToken)
 	vals.Set("subject_token_type", subjectType)
 	if withActor {
-		vals.Set("actor_connector_id", "actor")
 		vals.Set("actor_token", "actor")
 		vals.Set("actor_token_type", oauth2.TokenTypeJWT)
 	}
