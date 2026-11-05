@@ -19,6 +19,7 @@ import (
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/client"
 	"github.com/dexidp/dex/storage/ent/db"
+	"github.com/dexidp/dex/storage/sqlretry"
 )
 
 const (
@@ -46,12 +47,17 @@ func (m *MySQL) Open(logger *slog.Logger) (storage.Storage, error) {
 		return nil, err
 	}
 
-	databaseClient := client.NewDatabase(
+	opts := []func(*client.Database){
 		client.WithClient(db.NewClient(db.Driver(drv))),
 		client.WithHasher(sha256.New),
 		// Set tx isolation leve for each transaction as dex does for postgres
 		client.WithTxIsolationLevel(sql.LevelSerializable),
-	)
+	}
+	if m.RetryOnSerializationFailure {
+		opts = append(opts, client.WithTxRetryCheck(sqlretry.IsSerializationFailure))
+	}
+
+	databaseClient := client.NewDatabase(opts...)
 
 	if err := databaseClient.Schema().Create(context.TODO()); err != nil {
 		return nil, err
