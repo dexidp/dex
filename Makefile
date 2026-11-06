@@ -38,8 +38,12 @@ examples: bin/grpc-client bin/example-app ## Build example app.
 .PHONY: release-binary
 release-binary: LD_FLAGS = "-w -X main.version=$(VERSION) -extldflags \"-static\""
 release-binary: ## Build release binaries (used to build a final container image).
-	@go build -o /go/bin/dex -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
-	@go build -o /go/bin/docker-entrypoint -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/docker-entrypoint
+	# Use the pure Go DNS resolver (netgo) so that the binary does not depend on
+	# libc's getaddrinfo. This is required for distroless base images, which do
+	# not ship the dynamic libraries needed for CGO-based name resolution.
+	# See https://github.com/dexidp/dex/issues/2469
+	@go build -tags netgo -o /go/bin/dex -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
+	@go build -tags netgo -o /go/bin/docker-entrypoint -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/docker-entrypoint
 
 bin/dex:
 	@mkdir -p bin/
