@@ -151,6 +151,9 @@ func (o *ProviderDiscoveryOverrides) Empty() bool {
 	return o.TokenURL == "" && o.AuthURL == "" && o.JWKSURL == "" && o.UserInfoURL == "" && o.DeviceAuthURL == "" && o.EndSessionURL == ""
 }
 
+// jwksFetchTimeout bounds a fetch of the issuer's signing keys.
+var jwksFetchTimeout = 5 * time.Second
+
 func getProvider(ctx context.Context, issuer string, overrides ProviderDiscoveryOverrides) (*oidc.Provider, error) {
 	provider, err := oidc.NewProvider(ctx, issuer)
 	if err != nil {
@@ -375,6 +378,17 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		}
 	}
 
+	// go-oidc fetches the issuer's signing keys in the background, on a context
+	// detached from the request, and every verification that needs the keys
+	// waits on that one fetch. httpClient has no overall timeout, so a keys
+	// endpoint that accepts the connection and never answers would stall every
+	// verification. Bound the key fetch, keeping the transport so rootCAs and
+	// proxy settings still apply.
+	keysCtx := context.WithValue(ctx, oauth2.HTTPClient, &http.Client{
+		Transport: httpClient.Transport,
+		Timeout:   jwksFetchTimeout,
+	})
+
 	clientID := c.ClientID
 	return &oidcConnector{
 		provider:    provider,
@@ -386,10 +400,8 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 			Scopes:       scopes,
 			RedirectURL:  c.RedirectURI,
 		},
-		verifier: provider.VerifierContext(
-			ctx, // Pass our ctx with customized http.Client
-			&oidc.Config{ClientID: clientID},
-		),
+		verifier:                  provider.VerifierContext(keysCtx, &oidc.Config{ClientID: clientID}),
+		exchangeVerifier:          provider.VerifierContext(keysCtx, &oidc.Config{SkipClientIDCheck: true}),
 		logger:                    logger.With(slog.Group("connector", "type", "oidc", "id", id)),
 		cancel:                    cancel,
 		httpClient:                httpClient,
@@ -426,6 +438,7 @@ type oidcConnector struct {
 	redirectURI               string
 	oauth2Config              *oauth2.Config
 	verifier                  *oidc.IDTokenVerifier
+	exchangeVerifier          *oidc.IDTokenVerifier
 	cancel                    context.CancelFunc
 	logger                    *slog.Logger
 	httpClient                *http.Client
@@ -587,7 +600,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		switch token.TokenType {
 		case "urn:ietf:params:oauth:token-type:id_token":
 			// Verify only works on ID tokens
-			idToken, err := c.provider.Verifier(&oidc.Config{SkipClientIDCheck: true}).Verify(ctx, token.AccessToken)
+			idToken, err := c.exchangeVerifier.Verify(ctx, token.AccessToken)
 			if err != nil {
 				return identity, fmt.Errorf("oidc: failed to verify token: %v", err)
 			}
