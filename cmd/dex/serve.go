@@ -818,6 +818,7 @@ func newTLSReloader(logger *slog.Logger, certFile, keyFile, caFile string, baseC
 			loaded, err := loadTLSConfig(certFile, keyFile, caFile, baseConfig)
 			if err != nil {
 				logger.Error("reload TLS config", "err", err)
+				continue
 			}
 			ptr.Store(loaded)
 		}
@@ -830,6 +831,8 @@ func newTLSReloader(logger *slog.Logger, certFile, keyFile, caFile string, baseC
 		initialConfig.GetConfigForClient = func(chi *tls.ClientHelloInfo) (*tls.Config, error) { return ptr.Load(), nil }
 	} else {
 		// net/http only uses Certificates or GetCertificate
+		initialConfig = initialConfig.Clone()
+		initialConfig.Certificates = nil // Always call GetCertificate, including clients without SNI.
 		initialConfig.GetCertificate = func(chi *tls.ClientHelloInfo) (*tls.Certificate, error) { return &ptr.Load().Certificates[0], nil }
 	}
 	return initialConfig, nil
