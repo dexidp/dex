@@ -19,6 +19,26 @@ func (e *UserNotInRequiredGroupsError) Error() string {
 	return fmt.Sprintf("user %q is not in any of the required groups %v", e.UserID, e.Groups)
 }
 
+// UpstreamLogoutStatusError is returned by HandleLogoutCallbackWithState when the
+// upstream provider's response passed every check the connector makes (signature
+// included, unless the connector is configured to skip it) but reports that the
+// logout failed.
+// Unlike any other error of that method, it says nothing against the response
+// itself, so the server logs it and still ends the local session.
+type UpstreamLogoutStatusError struct {
+	// Status is the status code the provider reported.
+	Status string
+	// Message is the provider's status message, if any.
+	Message string
+}
+
+func (e *UpstreamLogoutStatusError) Error() string {
+	if e.Message != "" {
+		return fmt.Sprintf("upstream logout failed with status %q: %s", e.Status, e.Message)
+	}
+	return fmt.Sprintf("upstream logout failed with status %q", e.Status)
+}
+
 // Connector is a mechanism for federating login to a remote identity service.
 //
 // Implementations are expected to implement either the PasswordConnector or
@@ -110,6 +130,8 @@ type RefreshConnector interface {
 	// Refresh is called when a client attempts to claim a refresh token. The
 	// connector should attempt to update the identity object to reflect any
 	// changes since the token was last refreshed.
+	//
+	// Refresh is called outside of any storage transaction and may read storage.
 	Refresh(ctx context.Context, s Scopes, identity Identity) (Identity, error)
 }
 
@@ -134,4 +156,40 @@ type LogoutCallbackConnector interface {
 	// Connectors that don't receive a structured response (e.g. OIDC) should
 	// return nil.
 	HandleLogoutCallback(ctx context.Context, r *http.Request) error
+}
+
+// StatefulLogoutCallbackConnector is an optional capability for connectors
+// whose logout flow needs server-side correlation state to be carried from
+// the outgoing logout request to the inbound logout response. The server
+// persists the opaque state alongside the logout session and hands it back
+// on the callback, allowing the connector to enforce one-shot, replay-proof
+// checks (e.g. SAML's InResponseTo).
+//
+// Connectors that don't need correlation state should implement the simpler
+// LogoutCallbackConnector instead. The server prefers this interface over
+// LogoutCallbackConnector when both are implemented.
+type StatefulLogoutCallbackConnector interface {
+	// LogoutSessionData returns the part of the login's connector data
+	// (Identity.ConnectorData) that LogoutURLWithState needs. The server keeps
+	// only this in the browser session, so nothing else the connector holds for
+	// the login, such as upstream tokens or claims, is copied there. Returning
+	// nil means the session has nothing to log out of upstream.
+	LogoutSessionData(connectorData []byte) ([]byte, error)
+
+	// LogoutURLWithState returns the upstream provider's logout URL plus an
+	// opaque connector-specific state to be persisted by the server and
+	// passed back to HandleLogoutCallbackWithState. connectorData is the value
+	// LogoutSessionData returned at login. Returning empty url means
+	// upstream logout is not available; in that case state must be nil.
+	LogoutURLWithState(ctx context.Context, connectorData []byte, postLogoutRedirectURI string) (logoutURL string, state []byte, err error)
+
+	// HandleLogoutCallbackWithState validates the upstream provider's logout
+	// response received in the callback request. state is the value returned
+	// by the matching LogoutURLWithState call.
+	//
+	// Any error means the response cannot be trusted and the server keeps the
+	// session. The exception is *UpstreamLogoutStatusError: it is returned only
+	// for a response that passed every check the connector makes and reports a
+	// failed logout, and the server ends the session anyway.
+	HandleLogoutCallbackWithState(ctx context.Context, r *http.Request, state []byte) error
 }

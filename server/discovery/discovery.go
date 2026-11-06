@@ -13,17 +13,18 @@ import (
 
 	jose "github.com/go-jose/go-jose/v4"
 
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/signer"
+	"github.com/dexidp/dex/server/templates"
 )
 
-// Handler serves the discovery document and the JWKS. AbsURL builds an absolute
-// URL under the issuer; RenderError renders an HTML error page. Both are
-// supplied by the server so the handler does not depend on the whole Server.
+// Handler serves the discovery document and the JWKS. Like every other domain
+// handler it takes the issuer URL and the templates directly, so it can be
+// built without a Server.
 type Handler struct {
-	Issuer          string
-	AbsURL          func(...string) string
-	RenderError     func(*http.Request, http.ResponseWriter, int, string)
+	IssuerURL       oauth2.IssuerURL
+	Templates       *templates.Templates
 	Signer          signer.Signer
 	Logger          *slog.Logger
 	ResponseTypes   map[string]bool
@@ -36,6 +37,11 @@ type Handler struct {
 	docErr  error
 }
 
+// renderError renders a user-facing HTML error page.
+func (h *Handler) renderError(r *http.Request, w http.ResponseWriter, status int, description string) {
+	templates.RenderError(h.Templates, h.Logger, r, w, status, description)
+}
+
 // Mount registers the discovery routes.
 func (h *Handler) Mount(m router.Mux) {
 	m.HandleCORS("/.well-known/openid-configuration", h.serveDocument)
@@ -44,22 +50,27 @@ func (h *Handler) Mount(m router.Mux) {
 
 // Document is the OIDC discovery document.
 type Document struct {
-	Issuer            string   `json:"issuer"`
-	Auth              string   `json:"authorization_endpoint"`
-	Token             string   `json:"token_endpoint"`
-	Keys              string   `json:"jwks_uri"`
-	UserInfo          string   `json:"userinfo_endpoint"`
-	DeviceEndpoint    string   `json:"device_authorization_endpoint"`
-	Introspect        string   `json:"introspection_endpoint"`
-	EndSession        string   `json:"end_session_endpoint,omitempty"`
-	GrantTypes        []string `json:"grant_types_supported"`
-	ResponseTypes     []string `json:"response_types_supported"`
-	Subjects          []string `json:"subject_types_supported"`
-	IDTokenAlgs       []string `json:"id_token_signing_alg_values_supported"`
-	CodeChallengeAlgs []string `json:"code_challenge_methods_supported"`
-	Scopes            []string `json:"scopes_supported"`
-	AuthMethods       []string `json:"token_endpoint_auth_methods_supported"`
-	Claims            []string `json:"claims_supported"`
+	Issuer         string `json:"issuer"`
+	Auth           string `json:"authorization_endpoint"`
+	Token          string `json:"token_endpoint"`
+	Keys           string `json:"jwks_uri"`
+	UserInfo       string `json:"userinfo_endpoint"`
+	DeviceEndpoint string `json:"device_authorization_endpoint"`
+	Introspect     string `json:"introspection_endpoint"`
+	EndSession     string `json:"end_session_endpoint,omitempty"`
+	// BackchannelLogout and BackchannelLogoutSession advertise OIDC Back-Channel
+	// Logout 1.0. Both are omitted rather than sent as false when sessions are off,
+	// matching how end_session_endpoint disappears with them.
+	BackchannelLogout        bool     `json:"backchannel_logout_supported,omitempty"`
+	BackchannelLogoutSession bool     `json:"backchannel_logout_session_supported,omitempty"`
+	GrantTypes               []string `json:"grant_types_supported"`
+	ResponseTypes            []string `json:"response_types_supported"`
+	Subjects                 []string `json:"subject_types_supported"`
+	IDTokenAlgs              []string `json:"id_token_signing_alg_values_supported"`
+	CodeChallengeAlgs        []string `json:"code_challenge_methods_supported"`
+	Scopes                   []string `json:"scopes_supported"`
+	AuthMethods              []string `json:"token_endpoint_auth_methods_supported"`
+	Claims                   []string `json:"claims_supported"`
 }
 
 // Keys serves the JSON Web Key Set.
@@ -69,13 +80,13 @@ func (h *Handler) Keys(w http.ResponseWriter, r *http.Request) {
 	keys, err := h.Signer.ValidationKeys(ctx)
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "failed to get keys", "err", err)
-		h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+		h.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 		return
 	}
 
 	if len(keys) == 0 {
 		h.Logger.ErrorContext(ctx, "no public keys found.")
-		h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+		h.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 		return
 	}
 
@@ -89,7 +100,7 @@ func (h *Handler) Keys(w http.ResponseWriter, r *http.Request) {
 	data, err := json.MarshalIndent(jwks, "", "  ")
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "failed to marshal discovery data", "err", err)
-		h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+		h.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 		return
 	}
 
@@ -110,7 +121,7 @@ func (h *Handler) serveDocument(w http.ResponseWriter, r *http.Request) {
 	})
 	if h.docErr != nil {
 		h.Logger.ErrorContext(r.Context(), "failed to marshal discovery data", "err", h.docErr)
-		h.RenderError(r, w, http.StatusInternalServerError, "Internal server error.")
+		h.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 		return
 	}
 
@@ -122,13 +133,13 @@ func (h *Handler) serveDocument(w http.ResponseWriter, r *http.Request) {
 // Construct builds the discovery document from the current configuration.
 func (h *Handler) Construct(ctx context.Context) Document {
 	d := Document{
-		Issuer:            h.Issuer,
-		Auth:              h.AbsURL("/auth"),
-		Token:             h.AbsURL("/token"),
-		Keys:              h.AbsURL("/keys"),
-		UserInfo:          h.AbsURL("/userinfo"),
-		DeviceEndpoint:    h.AbsURL("/device/code"),
-		Introspect:        h.AbsURL("/token/introspect"),
+		Issuer:            h.IssuerURL.String(),
+		Auth:              h.IssuerURL.AbsURL("/auth"),
+		Token:             h.IssuerURL.AbsURL("/token"),
+		Keys:              h.IssuerURL.AbsURL("/keys"),
+		UserInfo:          h.IssuerURL.AbsURL("/userinfo"),
+		DeviceEndpoint:    h.IssuerURL.AbsURL("/device/code"),
+		Introspect:        h.IssuerURL.AbsURL("/token/introspect"),
 		Subjects:          []string{"public"},
 		IDTokenAlgs:       []string{string(jose.RS256)},
 		CodeChallengeAlgs: h.PKCEMethods,
@@ -136,7 +147,8 @@ func (h *Handler) Construct(ctx context.Context) Document {
 		AuthMethods:       []string{"client_secret_basic", "client_secret_post"},
 		Claims: []string{
 			"iss", "sub", "aud", "iat", "exp", "email", "email_verified",
-			"locale", "name", "preferred_username", "at_hash",
+			"locale", "name", "preferred_username", "at_hash", "groups",
+			"federated_claims",
 		},
 	}
 
@@ -156,7 +168,12 @@ func (h *Handler) Construct(ctx context.Context) Document {
 	d.GrantTypes = h.GrantTypes
 
 	if h.SessionsEnabled {
-		d.EndSession = h.AbsURL("/logout")
+		d.EndSession = h.IssuerURL.AbsURL("/logout")
+		d.BackchannelLogout = true
+		// Dex always puts a sid in its logout tokens, so clients never need to set
+		// backchannel_logout_session_required to get one.
+		d.BackchannelLogoutSession = true
+		d.Claims = append(d.Claims, "sid")
 	}
 
 	return d

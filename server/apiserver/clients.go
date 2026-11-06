@@ -17,15 +17,18 @@ func (d dexAPI) GetClient(ctx context.Context, req *api.GetClientReq) (*api.GetC
 
 	return &api.GetClientResp{
 		Client: &api.Client{
-			Id:                c.ID,
-			Name:              c.Name,
-			Secret:            c.Secret,
-			RedirectUris:      c.RedirectURIs,
-			TrustedPeers:      c.TrustedPeers,
-			Public:            c.Public,
-			LogoUrl:           c.LogoURL,
-			AllowedConnectors: c.AllowedConnectors,
-			SsoSharedWith:     c.SSOSharedWith,
+			Id:                     c.ID,
+			Name:                   c.Name,
+			Secret:                 c.Secret,
+			RedirectUris:           c.RedirectURIs,
+			TrustedPeers:           c.TrustedPeers,
+			Public:                 c.Public,
+			LogoUrl:                c.LogoURL,
+			AllowedConnectors:      c.AllowedConnectors,
+			SsoSharedWith:          c.SSOSharedWith,
+			BackchannelLogoutUri:   c.BackchannelLogoutURI,
+			PostLogoutRedirectUris: c.PostLogoutRedirectURIs,
+			RefreshTokenLifetime:   c.RefreshTokenLifetime,
 		},
 	}, nil
 }
@@ -42,16 +45,23 @@ func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*ap
 		req.Client.Secret = storage.NewID() + storage.NewID()
 	}
 
+	if err := storage.ValidateRefreshTokenLifetime(req.Client.RefreshTokenLifetime); err != nil {
+		return nil, err
+	}
+
 	c := storage.Client{
-		ID:                req.Client.Id,
-		Secret:            req.Client.Secret,
-		RedirectURIs:      req.Client.RedirectUris,
-		TrustedPeers:      req.Client.TrustedPeers,
-		Public:            req.Client.Public,
-		Name:              req.Client.Name,
-		LogoURL:           req.Client.LogoUrl,
-		AllowedConnectors: req.Client.AllowedConnectors,
-		SSOSharedWith:     req.Client.SsoSharedWith,
+		ID:                     req.Client.Id,
+		Secret:                 req.Client.Secret,
+		RedirectURIs:           req.Client.RedirectUris,
+		TrustedPeers:           req.Client.TrustedPeers,
+		Public:                 req.Client.Public,
+		Name:                   req.Client.Name,
+		LogoURL:                req.Client.LogoUrl,
+		AllowedConnectors:      req.Client.AllowedConnectors,
+		SSOSharedWith:          req.Client.SsoSharedWith,
+		BackchannelLogoutURI:   req.Client.BackchannelLogoutUri,
+		PostLogoutRedirectURIs: req.Client.PostLogoutRedirectUris,
+		RefreshTokenLifetime:   req.Client.RefreshTokenLifetime,
 	}
 	if err := d.s.CreateClient(ctx, c); err != nil {
 		if err == storage.ErrAlreadyExists {
@@ -69,6 +79,9 @@ func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*ap
 func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*api.UpdateClientResp, error) {
 	if req.Id == "" {
 		return nil, errors.New("update client: no client ID supplied")
+	}
+	if err := storage.ValidateRefreshTokenLifetime(req.GetRefreshTokenLifetime()); err != nil {
+		return nil, err
 	}
 
 	err := d.s.UpdateClient(ctx, req.Id, func(old storage.Client) (storage.Client, error) {
@@ -89,6 +102,17 @@ func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*ap
 		}
 		if req.SsoSharedWith != nil {
 			old.SSOSharedWith = req.SsoSharedWith
+		}
+		// Explicit presence, so that sending an empty string clears the URI rather
+		// than being indistinguishable from not mentioning it.
+		if req.BackchannelLogoutUri != nil {
+			old.BackchannelLogoutURI = req.GetBackchannelLogoutUri()
+		}
+		if req.PostLogoutRedirectUris != nil {
+			old.PostLogoutRedirectURIs = req.PostLogoutRedirectUris
+		}
+		if req.RefreshTokenLifetime != nil {
+			old.RefreshTokenLifetime = req.GetRefreshTokenLifetime()
 		}
 		return old, nil
 	})
@@ -124,14 +148,17 @@ func (d dexAPI) ListClients(ctx context.Context, req *api.ListClientReq) (*api.L
 	clients := make([]*api.ClientInfo, 0, len(clientList))
 	for _, client := range clientList {
 		c := api.ClientInfo{
-			Id:                client.ID,
-			Name:              client.Name,
-			RedirectUris:      client.RedirectURIs,
-			TrustedPeers:      client.TrustedPeers,
-			Public:            client.Public,
-			LogoUrl:           client.LogoURL,
-			AllowedConnectors: client.AllowedConnectors,
-			SsoSharedWith:     client.SSOSharedWith,
+			Id:                     client.ID,
+			Name:                   client.Name,
+			RedirectUris:           client.RedirectURIs,
+			TrustedPeers:           client.TrustedPeers,
+			Public:                 client.Public,
+			LogoUrl:                client.LogoURL,
+			AllowedConnectors:      client.AllowedConnectors,
+			SsoSharedWith:          client.SSOSharedWith,
+			BackchannelLogoutUri:   client.BackchannelLogoutURI,
+			PostLogoutRedirectUris: client.PostLogoutRedirectURIs,
+			RefreshTokenLifetime:   client.RefreshTokenLifetime,
 		}
 		clients = append(clients, &c)
 	}

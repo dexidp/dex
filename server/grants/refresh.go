@@ -8,10 +8,13 @@ import (
 	"slices"
 	"time"
 
+	xoauth2 "golang.org/x/oauth2"
+
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
+	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
@@ -21,6 +24,7 @@ import (
 // issues a fresh token set. Its response reuses the rotated refresh token rather
 // than minting a new one, so it mints its own instead of the standard Issue.
 type refresh struct {
+	sessions        *session.Manager
 	storage         storage.Storage
 	issuer          *tokens.Issuer
 	policy          *tokens.RefreshStrategy
@@ -75,6 +79,18 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 		return nil, oerr
 	}
 
+	// Resolved before anything is rotated or read from the connector: a token whose
+	// session has ended is not going to produce a token set. Skipped outright when
+	// sessions are off — nothing was ever bound to one, so the read would only
+	// confirm that, and refusing a refresh over it would be indefensible.
+	var sessionID string
+	if g.sessionsEnabled {
+		var oerr *oauth2.Error
+		if sessionID, oerr = g.sessionID(ctx, refreshToken, client); oerr != nil {
+			return nil, oerr
+		}
+	}
+
 	var userIdent *storage.UserIdentity
 	if g.sessionsEnabled {
 		ui, err := g.storage.GetUserIdentity(ctx, refreshToken.Claims.UserID, refreshToken.ConnectorID)
@@ -93,22 +109,31 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 	// When sessions are enabled, downstream refresh is disconnected from the
 	// upstream provider: use the claims cached in UserIdentity at the last login
 	// instead of contacting the connector (which may fail if the upstream token
-	// has expired). Otherwise re-read the identity from the connector.
+	// has expired). Otherwise re-read the identity from the connector, with the
+	// connector data resolved before Rotate starts.
+	var connectorData []byte
+	var connectorDataErr error
+	if userIdent == nil {
+		connectorData, connectorDataErr = g.refreshConnectorData(ctx, refreshToken)
+	}
 	freshIdentity := func(ctx context.Context) (connector.Identity, error) {
 		if userIdent != nil {
 			return tokens.IdentityFromClaims(userIdent.Claims), nil
 		}
-		connectorData, err := g.refreshConnectorData(ctx, refreshToken)
-		if err != nil {
-			return connector.Identity{}, err
+		if connectorDataErr != nil {
+			return connector.Identity{}, connectorDataErr
 		}
 		return g.refreshWithConnector(ctx, conn, connectorData, scopes, tokens.IdentityFromClaims(refreshToken.Claims))
 	}
 
 	rawNewToken, ident, err := g.issuer.Refresh.Rotate(ctx, refreshToken, req.refreshID, g.policy, freshIdentity)
 	if err != nil {
-		g.logger.ErrorContext(ctx, "failed to rotate refresh token", "err", err)
-		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
+		if upstreamRejected(err) {
+			g.logger.InfoContext(ctx, "failed to rotate refresh token", "err", err)
+		} else {
+			g.logger.ErrorContext(ctx, "failed to rotate refresh token", "err", err)
+		}
+		return nil, rotateError(err)
 	}
 
 	auth := tokens.Authorization{
@@ -118,6 +143,7 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 		ConnectorID: refreshToken.ConnectorID,
 		Nonce:       refreshToken.Nonce,
 		AuthTime:    authTime,
+		SessionID:   sessionID,
 	}
 
 	accessToken, _, err := g.issuer.SignAccessToken(ctx, auth)
@@ -133,6 +159,72 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 
 	ts := tokens.TokenSet{AccessToken: accessToken, IDToken: idToken, RefreshToken: rawNewToken, Expiry: expiry}
 	return ts.Response(g.now()), nil
+}
+
+// sessionID returns the sid for the refreshed tokens, and refuses the refresh when
+// the session has ended and the client asked its tokens to end with it.
+//
+// The sid names where a token came from and is carried across refreshes unchanged,
+// dead session or not; stripping it would make the token active again at the next
+// refresh, undoing what introspection just reported. Whether the token is still good
+// for anything is the client's RefreshTokenLifetime, read the same way here and in
+// introspection (see sessionAlive in server/introspection).
+//
+// Origin comes from the stored reference and nowhere else: a token minted outside a
+// browser flow has none and must not acquire one from whatever session its user
+// happens to have open.
+func (g *refresh) sessionID(ctx context.Context, refreshToken *storage.RefreshToken, client storage.Client) (string, *oauth2.Error) {
+	bound := client.RefreshBoundToSession()
+
+	offlineSessions, err := g.storage.GetOfflineSessions(ctx, refreshToken.Claims.UserID, refreshToken.ConnectorID)
+	if err != nil {
+		if !errors.Is(err, storage.ErrNotFound) {
+			g.logger.ErrorContext(ctx, "refresh: failed to read offline session for sid", "err", err)
+		}
+		if bound {
+			// Nothing to check the token against. For a standalone token that costs
+			// only its sid, which can make it look less bound than it is but never
+			// more; for a bound one it would mean handing out a token whose whole
+			// validity rests on a session nobody could read.
+			return "", sessionEndedError()
+		}
+		return "", nil
+	}
+
+	ref, ok := offlineSessions.Refresh[refreshToken.ClientID]
+	if !ok || ref.SessionID == "" {
+		// Issued outside a browser flow — the password grant, or before sessions were
+		// turned on. There is no session to be bound to, so there is none to end.
+		return "", nil
+	}
+
+	if !bound {
+		return ref.SessionID, nil
+	}
+
+	if !g.sessions.Alive(ctx, ref.SessionID) {
+		// Through the store, not storage.DeleteRefresh: the token and the offline
+		// session's reference to it have to go together, or the admin API lists a
+		// token that no longer exists and fails trying to revoke it.
+		g.issuer.Refresh.RevokeClients(ctx, refreshToken.Claims.UserID, refreshToken.ConnectorID,
+			[]string{refreshToken.ClientID})
+
+		g.logger.InfoContext(ctx, "refresh: refused, session ended",
+			"client_id", refreshToken.ClientID, "user_id", refreshToken.Claims.UserID)
+		return "", sessionEndedError()
+	}
+	return ref.SessionID, nil
+}
+
+// sessionEndedError reports a refused refresh as invalid_grant, the one code RFC
+// 6749 §5.2 has for a refresh token that is no longer good for anything. The client
+// owns the session in question, so the description names the reason.
+func sessionEndedError() *oauth2.Error {
+	return &oauth2.Error{
+		Type:        oauth2.InvalidGrant,
+		Description: "The session this refresh token belongs to has ended.",
+		Status:      http.StatusBadRequest,
+	}
 }
 
 // refreshScopes resolves the scopes for this refresh. Per RFC 6749 §6 the client
@@ -183,11 +275,15 @@ func (g *refresh) refreshWithConnector(ctx context.Context, conn connectors.Conn
 	}
 
 	ident.ConnectorData = connectorData
-	g.logger.Debug("connector data before refresh", "connector_data", ident.ConnectorData)
+	g.logger.DebugContext(ctx, "connector data before refresh", "user_id", ident.UserID, "connector_data_bytes", len(ident.ConnectorData))
 
 	newIdent, err := refreshConn.Refresh(ctx, tokens.ParseScopes(scopes), ident)
 	if err != nil {
-		g.logger.ErrorContext(ctx, "failed to refresh identity", "err", err)
+		if upstreamRejected(err) {
+			g.logger.InfoContext(ctx, "failed to refresh identity", "err", err)
+		} else {
+			g.logger.ErrorContext(ctx, "failed to refresh identity", "err", err)
+		}
 		return ident, err
 	}
 	return newIdent, nil
@@ -210,17 +306,39 @@ func parseRefreshToken(code string) (*internal.RefreshToken, *oauth2.Error) {
 }
 
 // refreshLookupError maps a tokens.LookupRefreshToken sentinel to the grant's
-// OAuth2 error response.
+// OAuth2 error response. A rejected token is invalid_grant: RFC 6749 section 5.2
+// uses it for a refresh token that is "invalid, expired, revoked ... or was
+// issued to another client", and clients rely on it to start a new login.
+// https://datatracker.ietf.org/doc/html/rfc6749#section-5.2
 func refreshLookupError(err error) *oauth2.Error {
 	const claimedDesc = "Refresh token is invalid or has already been claimed by another client."
 	switch {
-	case errors.Is(err, tokens.ErrRefreshTokenInvalid):
-		return &oauth2.Error{Type: oauth2.InvalidRequest, Description: claimedDesc, Status: http.StatusBadRequest}
-	case errors.Is(err, tokens.ErrRefreshTokenClaimedByOtherClient):
+	case errors.Is(err, tokens.ErrRefreshTokenInvalid), errors.Is(err, tokens.ErrRefreshTokenClaimedByOtherClient):
 		return &oauth2.Error{Type: oauth2.InvalidGrant, Description: claimedDesc, Status: http.StatusBadRequest}
 	case errors.Is(err, tokens.ErrRefreshTokenExpired):
-		return &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Refresh token expired.", Status: http.StatusBadRequest}
+		return &oauth2.Error{Type: oauth2.InvalidGrant, Description: "Refresh token expired.", Status: http.StatusBadRequest}
 	default:
 		return &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
 	}
+}
+
+// rotateError maps a failed rotation to the grant's OAuth2 error response. An
+// upstream that answers the connector's refresh with invalid_grant has ended the
+// user's session there, so it is passed on as invalid_grant: clients rely on it
+// to start a new login, and a 500 would only have them retry. Any other failure
+// is a server error.
+// https://datatracker.ietf.org/doc/html/rfc6749#section-5.2
+func rotateError(err error) *oauth2.Error {
+	if upstreamRejected(err) {
+		return &oauth2.Error{Type: oauth2.InvalidGrant, Description: "The upstream identity provider rejected the refresh token.", Status: http.StatusBadRequest}
+	}
+	return &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
+}
+
+// upstreamRejected reports whether the upstream answered the connector's refresh
+// with invalid_grant. That is the expected end of the user's session there, not a
+// server fault, so it is logged at info rather than error.
+func upstreamRejected(err error) bool {
+	var retrieveErr *xoauth2.RetrieveError
+	return errors.As(err, &retrieveErr) && retrieveErr.ErrorCode == oauth2.InvalidGrant
 }

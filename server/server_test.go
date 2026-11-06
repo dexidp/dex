@@ -32,6 +32,7 @@ import (
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/connector/mock"
+	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/device"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
@@ -79,128 +80,6 @@ E2qpAoGAZo5Wwwk7q8b1n9n/ACh4LpE+QgbFdlJxlfFLJCKstl37atzS8UewOSZj
 FDWV28nTP9sqbtsmU8Tem2jzMvZ7C/Q0AuDoKELFUpux8shm8wfIhyaPnXUGZoAZ
 Np4vUwMSYV5mopESLWOg3loBxKyLGFtgGKVCjGiQvy6zISQ4fQo=
 -----END RSA PRIVATE KEY-----`)
-
-func newTestServer(t *testing.T, updateConfig func(c *Config)) (*httptest.Server, *Server) {
-	var server *Server
-	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		server.ServeHTTP(w, r)
-	}))
-
-	logger := newLogger(t)
-	ctx := t.Context()
-
-	sig, err := signer.NewMockSigner(testKey)
-	if err != nil {
-		t.Fatalf("failed to create mock signer: %v", err)
-	}
-
-	config := Config{
-		Issuer:  s.URL,
-		Storage: memory.New(logger),
-		Web: WebConfig{
-			Dir: "../web",
-		},
-		Logger:             logger,
-		PrometheusRegistry: prometheus.NewRegistry(),
-		HealthChecker:      gosundheit.New(),
-		SkipApprovalScreen: true, // Don't prompt for approval, just immediately redirect with code.
-		AllowedGrantTypes: []string{ // all implemented types
-			oauth2.GrantTypeDeviceCode,
-			oauth2.GrantTypeAuthorizationCode,
-			oauth2.GrantTypeClientCredentials,
-			oauth2.GrantTypeRefreshToken,
-			oauth2.GrantTypeTokenExchange,
-			oauth2.GrantTypeImplicit,
-			oauth2.GrantTypePassword,
-		},
-		Signer: sig,
-	}
-	if updateConfig != nil {
-		updateConfig(&config)
-	}
-	s.URL = config.Issuer
-
-	// Default rotation policy, set before the server is built so the token
-	// endpoint captures it.
-	if config.RefreshTokenPolicy == nil {
-		config.RefreshTokenPolicy = tokens.NewRefreshStrategy(true, 0, 0, 0, config.Now)
-	}
-
-	connector := storage.Connector{
-		ID:              "mock",
-		Type:            "mockCallback",
-		Name:            "Mock",
-		ResourceVersion: "1",
-	}
-	if err := config.Storage.CreateConnector(ctx, connector); err != nil {
-		t.Fatalf("create connector: %v", err)
-	}
-
-	if server, err = newServer(ctx, config); err != nil {
-		t.Fatal(err)
-	}
-
-	return s, server
-}
-
-func newTestServerMultipleConnectors(t *testing.T, updateConfig func(c *Config)) (*httptest.Server, *Server) {
-	var server *Server
-	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		server.ServeHTTP(w, r)
-	}))
-
-	logger := newLogger(t)
-	ctx := t.Context()
-
-	sig, err := signer.NewMockSigner(testKey)
-	if err != nil {
-		t.Fatalf("failed to create mock signer: %v", err)
-	}
-
-	config := Config{
-		Issuer:  s.URL,
-		Storage: memory.New(logger),
-		Web: WebConfig{
-			Dir: "../web",
-		},
-		Logger:             logger,
-		PrometheusRegistry: prometheus.NewRegistry(),
-		Signer:             sig,
-	}
-	if updateConfig != nil {
-		updateConfig(&config)
-	}
-	s.URL = config.Issuer
-
-	if config.RefreshTokenPolicy == nil {
-		config.RefreshTokenPolicy = tokens.NewRefreshStrategy(true, 0, 0, 0, config.Now)
-	}
-
-	connector := storage.Connector{
-		ID:              "mock",
-		Type:            "mockCallback",
-		Name:            "Mock",
-		ResourceVersion: "1",
-	}
-	connector2 := storage.Connector{
-		ID:              "mock2",
-		Type:            "mockCallback",
-		Name:            "Mock",
-		ResourceVersion: "1",
-	}
-	if err := config.Storage.CreateConnector(ctx, connector); err != nil {
-		t.Fatalf("create connector: %v", err)
-	}
-	if err := config.Storage.CreateConnector(ctx, connector2); err != nil {
-		t.Fatalf("create connector: %v", err)
-	}
-
-	if server, err = newServer(ctx, config); err != nil {
-		t.Fatal(err)
-	}
-	server.skipApproval = true // Don't prompt for approval, just immediately redirect with code.
-	return s, server
-}
 
 func TestNewTestServer(t *testing.T) {
 	newTestServer(t, nil)
@@ -1286,7 +1165,7 @@ func TestPasswordDB(t *testing.T) {
 
 	logger := newLogger(t)
 	s := memory.New(logger)
-	conn := newPasswordDB(s)
+	conn := connectors.NewPasswordDB(s)
 
 	pw := "hi"
 
@@ -1376,7 +1255,7 @@ func TestPasswordDB(t *testing.T) {
 func TestPasswordDBUsernamePrompt(t *testing.T) {
 	logger := newLogger(t)
 	s := memory.New(logger)
-	conn := newPasswordDB(s)
+	conn := connectors.NewPasswordDB(s)
 
 	expected := "Email Address"
 	if actual := conn.Prompt(); actual != expected {
@@ -1640,7 +1519,7 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 				// Add the Clients to the test server
 				client := storage.Client{
 					ID:           clientID,
-					RedirectURIs: []string{s.absPath(oauth2.DeviceCallbackURI)},
+					RedirectURIs: []string{s.issuerURL.AbsPath(oauth2.DeviceCallbackURI)},
 					Public:       true,
 				}
 				if err := s.storage.CreateClient(ctx, client); err != nil {
@@ -1751,7 +1630,7 @@ func TestOAuth2DeviceFlow(t *testing.T) {
 					ClientSecret: client.Secret,
 					Endpoint:     p.Endpoint(),
 					Scopes:       requestedScopes,
-					RedirectURL:  s.absURL(oauth2.DeviceCallbackURI),
+					RedirectURL:  s.issuerURL.AbsURL(oauth2.DeviceCallbackURI),
 				}
 				if len(tc.scopes) != 0 {
 					oauth2Config.Scopes = tc.scopes
@@ -1820,7 +1699,7 @@ func TestServerSupportedGrants(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			_, srv := newTestServer(t, tc.config)
-			require.Equal(t, tc.resGrants, srv.supportedGrantTypes)
+			require.Equal(t, tc.resGrants, srv.discovery.GrantTypes)
 		})
 	}
 }

@@ -265,6 +265,26 @@ func (_u *AuthCodeUpdate) ClearAuthTime() *AuthCodeUpdate {
 	return _u
 }
 
+// SetSessionID sets the "session_id" field.
+func (_u *AuthCodeUpdate) SetSessionID(v string) *AuthCodeUpdate {
+	_u.mutation.SetSessionID(v)
+	return _u
+}
+
+// SetNillableSessionID sets the "session_id" field if the given value is not nil.
+func (_u *AuthCodeUpdate) SetNillableSessionID(v *string) *AuthCodeUpdate {
+	if v != nil {
+		_u.SetSessionID(*v)
+	}
+	return _u
+}
+
+// ClearSessionID clears the value of the "session_id" field.
+func (_u *AuthCodeUpdate) ClearSessionID() *AuthCodeUpdate {
+	_u.mutation.ClearSessionID()
+	return _u
+}
+
 // Mutation returns the AuthCodeMutation object of the builder.
 func (_u *AuthCodeUpdate) Mutation() *AuthCodeMutation {
 	return _u.mutation
@@ -418,6 +438,12 @@ func (_u *AuthCodeUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.AuthTimeCleared() {
 		_spec.ClearField(authcode.FieldAuthTime, field.TypeTime)
+	}
+	if value, ok := _u.mutation.SessionID(); ok {
+		_spec.SetField(authcode.FieldSessionID, field.TypeString, value)
+	}
+	if _u.mutation.SessionIDCleared() {
+		_spec.ClearField(authcode.FieldSessionID, field.TypeString)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -675,6 +701,26 @@ func (_u *AuthCodeUpdateOne) ClearAuthTime() *AuthCodeUpdateOne {
 	return _u
 }
 
+// SetSessionID sets the "session_id" field.
+func (_u *AuthCodeUpdateOne) SetSessionID(v string) *AuthCodeUpdateOne {
+	_u.mutation.SetSessionID(v)
+	return _u
+}
+
+// SetNillableSessionID sets the "session_id" field if the given value is not nil.
+func (_u *AuthCodeUpdateOne) SetNillableSessionID(v *string) *AuthCodeUpdateOne {
+	if v != nil {
+		_u.SetSessionID(*v)
+	}
+	return _u
+}
+
+// ClearSessionID clears the value of the "session_id" field.
+func (_u *AuthCodeUpdateOne) ClearSessionID() *AuthCodeUpdateOne {
+	_u.mutation.ClearSessionID()
+	return _u
+}
+
 // Mutation returns the AuthCodeMutation object of the builder.
 func (_u *AuthCodeUpdateOne) Mutation() *AuthCodeMutation {
 	return _u.mutation
@@ -858,6 +904,12 @@ func (_u *AuthCodeUpdateOne) sqlSave(ctx context.Context) (_node *AuthCode, err 
 	}
 	if _u.mutation.AuthTimeCleared() {
 		_spec.ClearField(authcode.FieldAuthTime, field.TypeTime)
+	}
+	if value, ok := _u.mutation.SessionID(); ok {
+		_spec.SetField(authcode.FieldSessionID, field.TypeString, value)
+	}
+	if _u.mutation.SessionIDCleared() {
+		_spec.ClearField(authcode.FieldSessionID, field.TypeString)
 	}
 	_node = &AuthCode{config: _u.config}
 	_spec.Assign = _node.assignValues

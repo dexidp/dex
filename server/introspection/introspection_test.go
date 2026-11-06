@@ -158,7 +158,7 @@ func TestIntrospectErrHelper(t *testing.T) {
 		t.Run(tc.testName, func(t *testing.T) {
 			w1 := httptest.NewRecorder()
 
-			h.introspectErrHelper(w1, tc.err.typ, tc.err.desc, tc.err.code)
+			h.writeError(w1, tc.err.typ, tc.err.desc, tc.err.code)
 
 			res := w1.Result()
 			require.Equal(t, tc.resStatusCode, res.StatusCode)

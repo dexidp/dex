@@ -17,8 +17,8 @@ export GOBIN=$(PWD)/bin
 LD_FLAGS="-w -X main.version=$(VERSION)"
 
 # Dependency versions
-GOLANGCI_VERSION   = 2.4.0
-GOTESTSUM_VERSION ?= 1.12.0
+GOLANGCI_VERSION   = 2.15.0
+GOTESTSUM_VERSION ?= 1.13.0
 
 PROTOC_VERSION             = 29.3
 PROTOC_GEN_GO_VERSION      = 1.36.5
@@ -34,10 +34,6 @@ KIND_TMP_DIR    = "$(PWD)/bin/test/dex-kind-kubeconfig"
 build: bin/dex ## Build Dex binaries.
 
 examples: bin/grpc-client bin/example-app ## Build example app.
-
-.PHONY: update-gomplate
-update-gomplate: ## Check and update gomplate version in Dockerfile.
-	@./scripts/update-gomplate
 
 .PHONY: release-binary
 release-binary: LD_FLAGS = "-w -X main.version=$(VERSION) -extldflags \"-static\""
@@ -188,7 +184,7 @@ kind-down: ## Delete the kind cluster.
 
 bin/golangci-lint:
 	@mkdir -p bin
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | BINARY=golangci-lint bash -s -- v${GOLANGCI_VERSION}
+	curl -sSfL https://golangci-lint.run/install.sh | sh -s v${GOLANGCI_VERSION}
 
 bin/gotestsum:
 	@mkdir -p bin

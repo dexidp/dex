@@ -110,13 +110,16 @@ func (d dexAPI) DeleteUserIdentity(ctx context.Context, req *api.DeleteUserIdent
 	// an error so the caller is never told a GDPR purge succeeded while data was
 	// left behind.
 
-	// Cascade: delete auth session.
-	if err := d.s.DeleteAuthSession(ctx, req.UserId, req.ConnectorId); err != nil && !errors.Is(err, storage.ErrNotFound) {
-		d.logger.Error("api: failed to delete auth session during identity purge", "err", err)
-		return nil, fmt.Errorf("purge auth session: %v", err)
+	// Cascade: delete every session this identity signed in with, telling each
+	// session's relying parties on the way out.
+	if _, err := d.terminateSessions(ctx, func(s storage.AuthSession) bool {
+		return s.UserID == req.UserId && s.ConnectorID == req.ConnectorId
+	}); err != nil {
+		return nil, fmt.Errorf("purge auth sessions: %v", err)
 	}
 
-	// Cascade: revoke all refresh tokens (best-effort, consistent with logout flow).
+	// Cascade: revoke all refresh tokens (best-effort). A purge has to take every
+	// credential with it, so the unscoped revoke is the right one here.
 	d.revokeUserRefreshTokens(ctx, req.UserId, req.ConnectorId)
 
 	// Cascade: delete offline sessions.

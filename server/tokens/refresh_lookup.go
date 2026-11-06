@@ -2,6 +2,7 @@ package tokens
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -32,6 +33,9 @@ func LookupRefreshToken(ctx context.Context, s storage.Storage, strategy *Refres
 			logger.ErrorContext(ctx, "failed to get refresh token", "err", err)
 			return nil, fmt.Errorf("get refresh token: %w", err)
 		}
+		// Usually the token was replaced by a newer login of the same user on the
+		// same client, so this is logged at info level, not as an error.
+		logger.InfoContext(ctx, "refresh token not found", "token_id", token.RefreshId)
 		return nil, ErrRefreshTokenInvalid
 	}
 
@@ -42,11 +46,14 @@ func LookupRefreshToken(ctx context.Context, s storage.Storage, strategy *Refres
 		return nil, ErrRefreshTokenClaimedByOtherClient
 	}
 
-	if refresh.Token != token.Token {
+	// Constant-time comparison of the token secret: introspection reaches this
+	// path unauthenticated, so a byte-by-byte '!=' would leak the secret via
+	// timing. Matches the client-secret/nonce comparisons elsewhere in the server.
+	if subtle.ConstantTimeCompare([]byte(refresh.Token), []byte(token.Token)) != 1 {
 		switch {
 		case !strategy.AllowedToReuse(refresh.LastUsed):
 			fallthrough
-		case refresh.ObsoleteToken != token.Token:
+		case subtle.ConstantTimeCompare([]byte(refresh.ObsoleteToken), []byte(token.Token)) != 1:
 			fallthrough
 		case refresh.ObsoleteToken == "":
 			logger.ErrorContext(ctx, "refresh token claimed twice", "token_id", refresh.ID)

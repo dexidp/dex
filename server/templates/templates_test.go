@@ -70,3 +70,37 @@ func TestRelativeURL(t *testing.T) {
 		})
 	}
 }
+
+func TestSortConnectors(t *testing.T) {
+	connectors := []ConnectorInfo{
+		{ID: "keycloak", Name: "keycloak"},
+		{ID: "okta", Name: "Okta"},
+		{ID: "azure", Name: "azure ad"},
+		{ID: "google", Name: "Google"},
+	}
+
+	sortConnectors(connectors)
+
+	// Byte order would have put both lowercase names below both capitalised
+	// ones, which is a property of ASCII rather than of anything the operator
+	// meant by naming a connector.
+	expected := []string{"azure ad", "Google", "keycloak", "Okta"}
+	for i, name := range expected {
+		if connectors[i].Name != name {
+			t.Fatalf("position %d: got %q, expected %q", i, connectors[i].Name, name)
+		}
+	}
+}
+
+func TestSortConnectorsKeepsCaseVariantsStable(t *testing.T) {
+	connectors := []ConnectorInfo{
+		{ID: "second", Name: "SSO"},
+		{ID: "first", Name: "sso"},
+	}
+
+	sortConnectors(connectors)
+
+	if connectors[0].ID != "second" || connectors[1].ID != "first" {
+		t.Fatalf("names differing only in case were reordered: %q, %q", connectors[0].ID, connectors[1].ID)
+	}
+}

@@ -43,11 +43,15 @@
   padding: 32px;
 }
 
+/* A width rather than a minimum: the button has to be the same size whatever
+ * the connector is called, and it has to give way on a screen too narrow to
+ * hold it rather than push out of the panel. */
 .theme-btn-provider {
   background-color: #fff;
   border: 1px solid #d0d5dd;
   color: #1a1a1a;
-  min-width: 260px;
+  max-width: 100%;
+  width: 260px;
 }
 
 .theme-btn-provider:hover {
@@ -126,4 +130,12 @@
   font-size: 14px;
   width: 260px;
   margin: 4px auto;
+}
+
+/* Palette the shared stylesheet reads for the home page. */
+.theme-body {
+  --dex-fg: #1a1a1a;
+  --dex-fg-muted: #6b7280;
+  --dex-border: #e8eaed;
+  --dex-accent: #2f6fb0;
 }

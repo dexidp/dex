@@ -68,7 +68,7 @@ func (s *Server) handleDeviceStart(w http.ResponseWriter, r *http.Request) {
 		pollInterval = 5
 	}
 
-	sessionID := s.devices.Save(session.DeviceState{
+	s.sessions.StartDevice(s.session(w, r), &session.Device{
 		DeviceCode:      deviceResp.DeviceCode,
 		UserCode:        deviceResp.UserCode,
 		VerificationURI: deviceResp.VerificationURI,
@@ -76,61 +76,43 @@ func (s *Server) handleDeviceStart(w http.ResponseWriter, r *http.Request) {
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
-		"status":     "ok",
-		"session_id": sessionID,
-	})
+	json.NewEncoder(w).Encode(map[string]any{"status": "ok"})
 }
 
 // handleDeviceStatus renders the device flow pending page with verification URL and user code.
 func (s *Server) handleDeviceStatus(w http.ResponseWriter, r *http.Request) {
-	// JS redirects here without session_id, so always show the latest session.
-	sessionID, state, ok := s.devices.GetLatest()
-	if !ok {
+	device := s.session(w, r).Device
+	if device == nil {
 		http.Error(w, "No device flow in progress", http.StatusBadRequest)
 		return
 	}
 
 	s.renderer.RenderDevicePage(w, DevicePageData{
-		SessionID:       sessionID,
-		DeviceCode:      state.DeviceCode,
-		UserCode:        state.UserCode,
-		VerificationURI: state.VerificationURI,
-		PollInterval:    state.PollInterval,
+		AdminEnabled:    s.admin != nil,
+		DeviceCode:      device.DeviceCode,
+		UserCode:        device.UserCode,
+		VerificationURI: device.VerificationURI,
+		PollInterval:    device.PollInterval,
 		LogoURI:         dexLogoDataURI,
 	})
 }
 
 // handleDevicePoll polls the token endpoint on behalf of the device.
 func (s *Server) handleDevicePoll(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		DeviceCode string `json:"device_code"`
-		SessionID  string `json:"session_id"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request", http.StatusBadRequest)
-		return
-	}
-
-	state, ok := s.devices.Get(req.SessionID)
-	if !ok {
+	sess := s.session(w, r)
+	device := sess.Device
+	if device == nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusGone)
 		json.NewEncoder(w).Encode(map[string]any{
-			"error":             "session_expired",
-			"error_description": "This device flow session has been superseded by a new one",
+			"error":             "no_device_flow",
+			"error_description": "This browser has no device flow in progress",
 		})
 		return
 	}
 
-	if req.DeviceCode != state.DeviceCode {
-		http.Error(w, "Invalid device code", http.StatusBadRequest)
-		return
-	}
-
 	// If we already have a token, return success.
-	if state.Token != nil {
+	if device.Token != nil {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "complete"})
 		return
@@ -139,7 +121,7 @@ func (s *Server) handleDevicePoll(w http.ResponseWriter, r *http.Request) {
 	// Poll the token endpoint.
 	data := url.Values{}
 	data.Set("grant_type", "urn:ietf:params:oauth:grant-type:device_code")
-	data.Set("device_code", req.DeviceCode)
+	data.Set("device_code", device.DeviceCode)
 	data.Set("client_id", s.clientID)
 	data.Set("client_secret", s.clientSecret)
 
@@ -173,7 +155,7 @@ func (s *Server) handleDevicePoll(w http.ResponseWriter, r *http.Request) {
 			"id_token": tokenData.IDToken,
 		})
 
-		s.devices.SetToken(req.SessionID, token)
+		s.sessions.SetDeviceToken(sess, token)
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "complete"})
@@ -207,14 +189,22 @@ func (s *Server) handleDevicePoll(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "pending"})
 }
 
-// handleDeviceComplete displays the token obtained via the Device Code Flow.
+// handleDeviceComplete displays the token obtained via the Device Code Flow and
+// signs this browser in with it, the same as any other completed flow.
 func (s *Server) handleDeviceComplete(w http.ResponseWriter, r *http.Request) {
-	// JS redirects here without session_id, so always show the latest session.
-	_, state, ok := s.devices.GetLatest()
-	if !ok || state.Token == nil {
+	sess := s.session(w, r)
+	if sess.Device == nil || sess.Device.Token == nil {
 		http.Error(w, "No token available", http.StatusBadRequest)
 		return
 	}
 
-	s.renderTokenResult(w, r, state.Token)
+	token := sess.Device.Token
+	rawIDToken, _ := token.Extra("id_token").(string)
+	if claims, raw, err := s.claimsFromToken(r, token); err == nil {
+		s.sessions.SignIn(sess, claims, token, raw)
+		rawIDToken = raw
+	}
+
+	s.sessions.RememberTokens(sess, "Device code", token, rawIDToken)
+	http.Redirect(w, r, "/tokens", http.StatusSeeOther)
 }

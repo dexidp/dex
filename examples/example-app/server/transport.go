@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"os"
-	"slices"
 	"time"
 )
 
@@ -81,24 +80,4 @@ func (d debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	log.Printf("%s", respDump)
 	return resp, nil
-}
-
-// buildScopes constructs a scope list from base scopes and cross-client IDs.
-func buildScopes(baseScopes, crossClients []string) []string {
-	scopes := make([]string, len(baseScopes))
-	copy(scopes, baseScopes)
-
-	for _, client := range crossClients {
-		if client != "" {
-			scopes = append(scopes, "audience:server:client_id:"+client)
-		}
-	}
-
-	return uniqueStrings(scopes)
-}
-
-// uniqueStrings deduplicates and sorts a string slice in place.
-func uniqueStrings(values []string) []string {
-	slices.Sort(values)
-	return slices.Compact(values)
 }

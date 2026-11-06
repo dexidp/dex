@@ -20,6 +20,13 @@ type Authorization struct {
 	Nonce         string
 	AuthTime      time.Time
 	ConnectorData []byte
+
+	// SessionID is the browser session this authorization belongs to, emitted as
+	// the "sid" claim. Only the flows that actually pass through a browser set it.
+	// Resolving it from the user's identity instead would attach whatever session
+	// that user happens to have open to tokens minted by the password, token
+	// exchange and client credentials grants — none of which joined it.
+	SessionID string
 }
 
 // TokenSet is what the /token endpoint returns for an Authorization.

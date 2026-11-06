@@ -13,6 +13,7 @@ import (
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/router"
+	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
@@ -88,6 +89,15 @@ type Introspection struct {
 type IntrospectionExtra struct {
 	AuthorizingParty string `json:"azp,omitempty"`
 
+	// SessionID is the "sid" claim carried by tokens issued under a browser
+	// session. Absent for tokens minted without one — client credentials, or any
+	// token at all when sessions are disabled.
+	//
+	// Note what this does not mean: introspection reports on the token, not on the
+	// session. A token from a session that has since ended still introspects as
+	// active until it expires, because nothing here consults session storage.
+	SessionID string `json:"sid,omitempty"`
+
 	Email         string `json:"email,omitempty"`
 	EmailVerified *bool  `json:"email_verified,omitempty"`
 
@@ -158,6 +168,11 @@ type Handler struct {
 	Storage       storage.Storage
 	Logger        *slog.Logger
 	RefreshPolicy *tokens.RefreshStrategy
+
+	// Sessions resolves whether the browser session a token was issued under is
+	// still alive. Nil when sessions are disabled, in which case no token carries
+	// a sid and there is nothing to check.
+	Sessions *session.Manager
 }
 
 // Mount registers the introspection route.
@@ -270,6 +285,25 @@ func (h *Handler) introspectRefreshToken(ctx context.Context, token string) (*In
 	}, nil
 }
 
+// sessionAlive reports whether a token's session still stands, for clients that
+// asked to be judged that way.
+//
+// RFC 7662 §4 requires the server to report a revoked token as inactive, and ending
+// a session revokes the tokens bound to it. Which tokens those are is the client's
+// RefreshTokenLifetime, the same declaration the refresh grant reads — the two must
+// agree, or a standalone client refreshes into a token that is inactive from birth.
+//
+// The comparison is against the sid, not merely the existence of a session: signing
+// out and back in makes a new session under the same subject, and the old token must
+// not be revived by it.
+func (h *Handler) sessionAlive(ctx context.Context, client storage.Client, subject, sessionID string) bool {
+	if sessionID == "" || !client.RefreshBoundToSession() {
+		return true
+	}
+
+	return h.Sessions.Alive(ctx, sessionID)
+}
+
 func (h *Handler) introspectAccessToken(ctx context.Context, token string) (*Introspection, error) {
 	verifier := oidc.NewVerifier(h.Issuer, &signer.KeySet{Signer: h.Signer}, &oidc.Config{SkipClientIDCheck: true})
 	idToken, err := verifier.Verify(ctx, token)
@@ -293,6 +327,10 @@ func (h *Handler) introspectAccessToken(ctx context.Context, token string) (*Int
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "error while fetching client from storage", "err", err.Error())
 		return nil, newIntrospectInternalServerError()
+	}
+
+	if !h.sessionAlive(ctx, client, idToken.Subject, claims.SessionID) {
+		return nil, newIntrospectInactiveTokenError()
 	}
 
 	return &Introspection{
@@ -333,10 +371,10 @@ func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		if intErr, ok := err.(*introspectionError); ok {
-			h.introspectErrHelper(w, intErr.typ, intErr.desc, intErr.code)
+			h.writeError(w, intErr.typ, intErr.desc, intErr.code)
 		} else {
 			h.Logger.ErrorContext(ctx, "an unknown error occurred", "err", err.Error())
-			h.introspectErrHelper(w, oauth2.ServerError, "An unknown error occurred", http.StatusInternalServerError)
+			h.writeError(w, oauth2.ServerError, "An unknown error occurred", http.StatusInternalServerError)
 		}
 
 		return
@@ -345,7 +383,7 @@ func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 	rawJSON, jsonErr := json.Marshal(introspect)
 	if jsonErr != nil {
 		h.Logger.ErrorContext(ctx, "failed to marshal introspection response", "err", jsonErr)
-		h.introspectErrHelper(w, oauth2.ServerError, "", http.StatusInternalServerError)
+		h.writeError(w, oauth2.ServerError, "", http.StatusInternalServerError)
 		return
 	}
 
@@ -353,15 +391,14 @@ func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 	w.Write(rawJSON)
 }
 
-func (h *Handler) introspectErrHelper(w http.ResponseWriter, typ, description string, statusCode int) {
+// writeError writes an OAuth2 error response. An inactive token is not an
+// error to the caller: RFC 7662 answers it with a 200 and active=false.
+func (h *Handler) writeError(w http.ResponseWriter, typ, description string, statusCode int) {
 	if typ == oauth2.InactiveToken {
 		introspectInactiveErr(w)
 		return
 	}
-
-	if err := oauth2.WriteError(w, typ, description, statusCode); err != nil {
-		h.Logger.Error("introspect error response", "err", err)
-	}
+	oauth2.WriteErrorResponse(h.Logger, w, typ, description, statusCode)
 }
 
 func introspectInactiveErr(w http.ResponseWriter) {

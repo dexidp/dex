@@ -1,13 +1,16 @@
 package templates
 
 import (
+	"cmp"
 	"fmt"
 	"html/template"
 	"io"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 
@@ -278,11 +281,15 @@ type ConnectorInfo struct {
 	Type string
 }
 
-type byName []ConnectorInfo
-
-func (n byName) Len() int           { return len(n) }
-func (n byName) Less(i, j int) bool { return n[i].Name < n[j].Name }
-func (n byName) Swap(i, j int)      { n[i], n[j] = n[j], n[i] }
+// sortConnectors orders the login screen the way a reader scans it, which is
+// not the way bytes compare: "okta" sorting after "Zendesk" is an artifact of
+// capital letters coming first in ASCII, and connector names are whatever the
+// operator typed. Names that differ only in case keep a stable order.
+func sortConnectors(connectors []ConnectorInfo) {
+	slices.SortStableFunc(connectors, func(a, b ConnectorInfo) int {
+		return cmp.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
+	})
+}
 
 func (t *Templates) Device(r *http.Request, w http.ResponseWriter, postURL string, userCode string, lastWasInvalid bool) error {
 	if lastWasInvalid {
@@ -306,7 +313,7 @@ func (t *Templates) DeviceSuccess(r *http.Request, w http.ResponseWriter, client
 }
 
 func (t *Templates) Login(r *http.Request, w http.ResponseWriter, connectors []ConnectorInfo) error {
-	sort.Sort(byName(connectors))
+	sortConnectors(connectors)
 	data := struct {
 		Connectors []ConnectorInfo
 		ReqPath    string
@@ -377,18 +384,32 @@ func (t *Templates) TOTPVerify(r *http.Request, w http.ResponseWriter, postURL, 
 }
 
 type HomeData struct {
-	LoggedIn       bool
-	Username       string
-	Email          string
-	EmailVerified  bool
-	Groups         []string
-	ConnectorName  string
-	LastLoginEpoch int64
-	IPAddress      string
-	UserAgent      string
-	LogoutURL      string
-	DiscoveryURL   string
-	ReqPath        string
+	LoggedIn      bool
+	Username      string
+	Email         string
+	EmailVerified bool
+	Groups        []string
+	ConnectorName string
+	// Each timestamp reaches the page twice: ISO for the <time> element's
+	// datetime attribute, which the page's script reads and restates in the
+	// visitor's timezone, and Text as the UTC rendering shown until (or unless)
+	// that script runs. Empty means the row is omitted.
+	//
+	// SignedIn is when this session began, not the identity's last login: the
+	// page describes one session, and the identity's last login moves when the
+	// same user signs in from somewhere else entirely.
+	SignedInISO        string
+	SignedInText       string
+	SessionExpiresISO  string
+	SessionExpiresText string
+	// SessionExpiryIsIdle says SessionExpiresEpoch is the idle timeout rather
+	// than the absolute one, so the page can say the deadline slides.
+	SessionExpiryIsIdle bool
+	IPAddress           string
+	UserAgent           string
+	LogoutURL           string
+	DiscoveryURL        string
+	ReqPath             string
 }
 
 // HasHome reports whether the home template was loaded.
@@ -428,6 +449,15 @@ func (t *Templates) OOB(r *http.Request, w http.ResponseWriter, code string) err
 		ReqPath string
 	}{code, r.URL.Path}
 	return renderTemplate(w, t.oobTmpl, data)
+}
+
+// RenderError renders the user-facing error page and reports a template failure
+// to the logger. Every domain handler's renderError delegates here, so the
+// error page and the way a failed render is reported stay in one place.
+func RenderError(t *Templates, logger *slog.Logger, r *http.Request, w http.ResponseWriter, status int, description string) {
+	if err := t.Err(r, w, status, description); err != nil {
+		logger.ErrorContext(r.Context(), "server template error", "err", err)
+	}
 }
 
 func (t *Templates) Err(r *http.Request, w http.ResponseWriter, errCode int, errMsg string) error {

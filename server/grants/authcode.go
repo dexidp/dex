@@ -100,6 +100,14 @@ func ExchangeAuthCode(ctx context.Context, s storage.Storage, conns *connectors.
 		Nonce:         authCode.Nonce,
 		AuthTime:      authCode.AuthTime,
 		ConnectorData: authCode.ConnectorData,
+
+		// Stamped on the code while the browser was still here: the token endpoint
+		// has no cookie to consult, and resolving the session from the user would
+		// hand this token whichever session that user has open elsewhere. A code
+		// redeemed after its session ended still names it, which is what the sid
+		// means — where the token came from. Whether that token is good for
+		// anything is the session check in introspection and refresh.
+		SessionID: authCode.SessionID,
 	}
 
 	// A refresh token is only issued when the connector supports it, the grant

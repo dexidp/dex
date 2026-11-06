@@ -65,6 +65,7 @@ func (rt *RefreshStore) Create(ctx context.Context, auth Authorization) (string,
 		ClientID:  refresh.ClientID,
 		CreatedAt: refresh.CreatedAt,
 		LastUsed:  refresh.LastUsed,
+		SessionID: auth.SessionID,
 	}
 
 	session, err := rt.storage.GetOfflineSessions(ctx, refresh.Claims.UserID, refresh.ConnectorID)
@@ -137,21 +138,30 @@ func ClaimsFromIdentity(identity connector.Identity) storage.Claims {
 // syncs the offline session. It returns the marshaled token to hand back to the
 // client and the identity its claims were refreshed to.
 //
-// freshIdentity supplies the up-to-date identity. It is invoked inside the
-// storage transaction, and only when a token is actually minted, so the upstream
-// connector is contacted at most once even under concurrent refreshes.
+// Rotation runs as two storage transactions around the identity resolution: the
+// claim reuses the token or rotates it, the finalize writes the refreshed claims.
+// The updaters never read storage, so backends that serialize on one connection
+// or lock (SQLite, memory) cannot deadlock. A concurrent refresh that lands
+// between the two reuses the new token. A failed resolve, finalize or offline
+// session update undoes the claim.
 func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.RefreshToken, requestToken *internal.RefreshToken, strategy *RefreshStrategy, freshIdentity func(context.Context) (connector.Identity, error)) (string, connector.Identity, error) {
-	var idErr error
-
 	newToken := &internal.RefreshToken{
 		Token:     requestToken.Token,
 		RefreshId: requestToken.RefreshId,
 	}
 
-	lastUsed := rt.now()
 	ident := IdentityFromClaims(storageToken.Claims)
+	lastUsed := rt.now()
+	mint := false
+	var claimedFrom time.Time
+	var prevObsolete string
 
-	refreshTokenUpdater := func(old storage.RefreshToken) (storage.RefreshToken, error) {
+	// Claim: decide reuse or rotation from the live row.
+	claim := func(old storage.RefreshToken) (storage.RefreshToken, error) {
+		// Reset per execution: a backend that retries the updater (kubernetes,
+		// on conflict) must not carry a stale decision from an earlier run.
+		mint = false
+
 		rotationEnabled := strategy.RotationEnabled()
 		reusingAllowed := strategy.AllowedToReuse(old.LastUsed)
 
@@ -180,39 +190,66 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 			if old.Token != requestToken.Token {
 				return old, errors.New("refresh token claimed twice")
 			}
+		}
 
-			// Issue a new refresh token, keeping the previous one claimable within reuse.
+		// Rotate the token here, not in the finalize, so a concurrent refresh
+		// reuses the new token instead of resolving the connector again.
+		claimedFrom = old.LastUsed
+		prevObsolete = old.ObsoleteToken
+		old.LastUsed = lastUsed
+		if strategy.RotationEnabled() {
 			old.ObsoleteToken = old.Token
 			newToken.Token = storage.NewID()
+			old.Token = newToken.Token
 		}
-
-		old.Token = newToken.Token
-		old.LastUsed = lastUsed
-
-		// ConnectorData has been moved to the offline session.
 		old.ConnectorData = nil
-
-		ident, idErr = freshIdentity(ctx)
-		if idErr != nil {
-			return old, idErr
-		}
-
-		// Refresh the stored claims. UserID intentionally left untouched.
-		old.Claims.Username = ident.Username
-		old.Claims.PreferredUsername = ident.PreferredUsername
-		old.Claims.Email = ident.Email
-		old.Claims.EmailVerified = ident.EmailVerified
-		old.Claims.Groups = ident.Groups
-
+		mint = true
 		return old, nil
 	}
 
-	if err := rt.storage.UpdateRefreshToken(ctx, storageToken.ID, refreshTokenUpdater); err != nil {
-		rt.logger.ErrorContext(ctx, "failed to update refresh token", "err", err)
+	if err := rt.storage.UpdateRefreshToken(ctx, storageToken.ID, claim); err != nil {
+		rt.logger.ErrorContext(ctx, "failed to claim refresh token rotation", "err", err)
 		return "", ident, err
 	}
 
+	if mint {
+		// Resolve the identity outside any transaction: the connector may read
+		// storage (the password DB does) or contact an upstream provider.
+		var idErr error
+		ident, idErr = freshIdentity(ctx)
+		if idErr != nil {
+			rt.undoClaim(ctx, storageToken.ID, strategy.RotationEnabled(), newToken.Token, prevObsolete, lastUsed, claimedFrom)
+			return "", ident, idErr
+		}
+
+		// Finalize: write the refreshed claims.
+		finalize := func(old storage.RefreshToken) (storage.RefreshToken, error) {
+			if old.Token != newToken.Token {
+				return old, errors.New("refresh token claimed twice")
+			}
+
+			// Refresh the stored claims. UserID intentionally left untouched.
+			old.Claims.Username = ident.Username
+			old.Claims.PreferredUsername = ident.PreferredUsername
+			old.Claims.Email = ident.Email
+			old.Claims.EmailVerified = ident.EmailVerified
+			old.Claims.Groups = ident.Groups
+
+			old.ConnectorData = nil
+			return old, nil
+		}
+
+		if err := rt.storage.UpdateRefreshToken(ctx, storageToken.ID, finalize); err != nil {
+			rt.logger.ErrorContext(ctx, "failed to finalize refresh token rotation", "err", err)
+			rt.undoClaim(ctx, storageToken.ID, strategy.RotationEnabled(), newToken.Token, prevObsolete, lastUsed, claimedFrom)
+			return "", ident, err
+		}
+	}
+
 	if err := rt.updateOfflineSession(ctx, storageToken, ident, lastUsed); err != nil {
+		if mint {
+			rt.undoClaim(ctx, storageToken.ID, strategy.RotationEnabled(), newToken.Token, prevObsolete, lastUsed, claimedFrom)
+		}
 		return "", ident, err
 	}
 
@@ -224,20 +261,41 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 	return rawToken, ident, nil
 }
 
+// undoClaim rolls a claim back after a failed resolution, finalize or offline
+// session update. The guard applies only to a row still showing our own claim;
+// an undo that itself fails is logged and otherwise ignored.
+func (rt *RefreshStore) undoClaim(ctx context.Context, id string, rotate bool, mintedToken, prevObsolete string, lastUsed, claimedFrom time.Time) {
+	err := rt.storage.UpdateRefreshToken(ctx, id, func(old storage.RefreshToken) (storage.RefreshToken, error) {
+		if old.Token != mintedToken || old.LastUsed.Before(lastUsed) {
+			return old, nil
+		}
+		if rotate {
+			old.Token = old.ObsoleteToken
+			old.ObsoleteToken = prevObsolete
+		}
+		old.LastUsed = claimedFrom
+		return old, nil
+	})
+	if err != nil {
+		rt.logger.ErrorContext(ctx, "failed to undo refresh token claim", "err", err)
+	}
+}
+
 // updateOfflineSession records the refresh token's new last-used time, and any
 // updated connector data, on the user's offline session.
 func (rt *RefreshStore) updateOfflineSession(ctx context.Context, refresh *storage.RefreshToken, ident connector.Identity, lastUsed time.Time) error {
 	offlineSessionUpdater := func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
-		if old.Refresh[refresh.ClientID].ID != refresh.ID {
+		ref := old.Refresh[refresh.ClientID]
+		if ref == nil || ref.ID != refresh.ID {
 			return old, errors.New("refresh token invalid")
 		}
 
-		old.Refresh[refresh.ClientID].LastUsed = lastUsed
+		ref.LastUsed = lastUsed
 		if len(ident.ConnectorData) > 0 {
 			old.ConnectorData = ident.ConnectorData
 		}
 
-		rt.logger.DebugContext(ctx, "saved connector data", "user_id", ident.UserID, "connector_data", ident.ConnectorData)
+		rt.logger.DebugContext(ctx, "saved connector data", "user_id", ident.UserID, "connector_data_bytes", len(ident.ConnectorData))
 		return old, nil
 	}
 
@@ -249,15 +307,44 @@ func (rt *RefreshStore) updateOfflineSession(ctx context.Context, refresh *stora
 	return nil
 }
 
-// Revoke deletes every refresh token for the user/connector pair and clears the
-// references in the offline session, keeping the session object. Errors are
-// logged but not returned: revocation is best-effort.
+// RevokeClients deletes the refresh tokens issued to the named clients for the
+// user/connector pair, in one pass over the offline session. Every other client's
+// token is left alone. See RevokeAll for the unscoped variant.
+func (rt *RefreshStore) RevokeClients(ctx context.Context, userID, connectorID string, clientIDs []string) {
+	if len(clientIDs) == 0 {
+		return
+	}
+
+	revoking := make(map[string]struct{}, len(clientIDs))
+	for _, id := range clientIDs {
+		if id != "" {
+			revoking[id] = struct{}{}
+		}
+	}
+
+	rt.revoke(ctx, userID, connectorID, func(id string) bool {
+		_, ok := revoking[id]
+		return ok
+	})
+}
+
+// RevokeAll deletes every refresh token for the user/connector pair. This is the
+// administrative hammer, reached through the gRPC API when an operator terminates a
+// user's sessions or deletes their identity — not something an ordinary RP-initiated
+// logout does.
+func (rt *RefreshStore) RevokeAll(ctx context.Context, userID, connectorID string) {
+	rt.revoke(ctx, userID, connectorID, func(string) bool { return true })
+}
+
+// revoke deletes the refresh tokens of every client matching the predicate and
+// clears their references in the offline session, keeping the session object.
+// Errors are logged but not returned: revocation is best-effort.
 //
 // To avoid a race where a token issued between the snapshot and the offline
 // session update would have its reference wiped, we snapshot the token IDs,
 // remove only those references (the updater sees the latest state, so a
 // concurrently added reference survives), then delete the tokens.
-func (rt *RefreshStore) Revoke(ctx context.Context, userID, connectorID string) {
+func (rt *RefreshStore) revoke(ctx context.Context, userID, connectorID string, match func(clientID string) bool) {
 	offlineSessions, err := rt.storage.GetOfflineSessions(ctx, userID, connectorID)
 	if err != nil {
 		if !errors.Is(err, storage.ErrNotFound) {
@@ -267,8 +354,14 @@ func (rt *RefreshStore) Revoke(ctx context.Context, userID, connectorID string) 
 	}
 
 	tokenIDs := make(map[string]struct{}, len(offlineSessions.Refresh))
-	for _, ref := range offlineSessions.Refresh {
-		tokenIDs[ref.ID] = struct{}{}
+	for clientID, ref := range offlineSessions.Refresh {
+		if match(clientID) {
+			tokenIDs[ref.ID] = struct{}{}
+		}
+	}
+
+	if len(tokenIDs) == 0 {
+		return
 	}
 
 	if err := rt.storage.UpdateOfflineSessions(ctx, userID, connectorID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {

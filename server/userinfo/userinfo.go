@@ -57,7 +57,5 @@ func (h *Handler) handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) writeError(w http.ResponseWriter, typ, description string, statusCode int) {
-	if err := oauth2.WriteError(w, typ, description, statusCode); err != nil {
-		h.Logger.Error("userinfo error response", "err", err)
-	}
+	oauth2.WriteErrorResponse(h.Logger, w, typ, description, statusCode)
 }

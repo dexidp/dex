@@ -40,7 +40,7 @@ type DeviceCodeResponse struct {
 
 // Handler serves the browser side of the device authorization grant.
 type Handler struct {
-	IssuerURL        url.URL
+	IssuerURL        oauth2.IssuerURL
 	Storage          storage.Storage
 	Templates        *templates.Templates
 	Now              func() time.Time
@@ -71,6 +71,11 @@ type deviceFlowError struct {
 	message string
 }
 
+// oauth2FlowError turns an OAuth2 error into a flow error written as JSON.
+func oauth2FlowError(e *oauth2.Error) *deviceFlowError {
+	return &deviceFlowError{status: e.Status, code: e.Type, message: e.Description}
+}
+
 func (h *Handler) writeFlowError(r *http.Request, w http.ResponseWriter, e *deviceFlowError) {
 	if e.code != "" {
 		h.writeError(w, e.code, e.message, e.status)
@@ -81,20 +86,16 @@ func (h *Handler) writeFlowError(r *http.Request, w http.ResponseWriter, e *devi
 
 // writeError writes a JSON OAuth2 error response.
 func (h *Handler) writeError(w http.ResponseWriter, typ, description string, statusCode int) {
-	if err := oauth2.WriteError(w, typ, description, statusCode); err != nil {
-		h.Logger.Error("device error response", "err", err)
-	}
+	oauth2.WriteErrorResponse(h.Logger, w, typ, description, statusCode)
 }
 
 // renderError renders an HTML error page.
 func (h *Handler) renderError(r *http.Request, w http.ResponseWriter, status int, description string) {
-	if err := h.Templates.Err(r, w, status, description); err != nil {
-		h.Logger.ErrorContext(r.Context(), "server template error", "err", err)
-	}
+	templates.RenderError(h.Templates, h.Logger, r, w, status, description)
 }
 
 func (h *Handler) getDeviceVerificationURI() string {
-	return path.Join(h.IssuerURL.Path, "/device/auth/verify_code")
+	return h.IssuerURL.AbsPath("/device/auth/verify_code")
 }
 
 // handleDeviceExchange serves the /device user-code entry page.
@@ -150,9 +151,14 @@ func (h *Handler) parseDeviceCodeRequest(r *http.Request) (deviceCodeRequest, *d
 		scopes = []string{"openid"}
 	}
 
+	clientID, clientSecret, oerr := grants.ClientCredentials(r, r.Form)
+	if oerr != nil {
+		return deviceCodeRequest{}, oauth2FlowError(oerr)
+	}
+
 	return deviceCodeRequest{
-		clientID:     r.Form.Get("client_id"),
-		clientSecret: r.Form.Get("client_secret"),
+		clientID:     clientID,
+		clientSecret: clientSecret,
 		scopes:       scopes,
 		pkce: storage.PKCE{
 			CodeChallenge:       r.Form.Get("code_challenge"),
@@ -168,7 +174,7 @@ func (h *Handler) createDeviceAuthorization(ctx context.Context, req deviceCodeR
 
 	deviceCode := storage.NewDeviceCode()
 	userCode := storage.NewUserCode()
-	expireTime := time.Now().Add(h.RequestsValidFor)
+	expireTime := h.Now().Add(h.RequestsValidFor)
 
 	if err := h.Storage.CreateDeviceRequest(ctx, storage.DeviceRequest{
 		UserCode:     userCode,
@@ -223,6 +229,12 @@ func (h *Handler) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 	req, ferr := h.parseDeviceCodeRequest(r)
 	if ferr != nil {
 		h.writeFlowError(r, w, ferr)
+		return
+	}
+
+	// Issue a code only to a client that can complete the flow.
+	if _, oerr := grants.AuthenticateClient(r.Context(), h.Storage, h.Logger, req.clientID, req.clientSecret); oerr != nil {
+		h.writeFlowError(r, w, oauth2FlowError(oerr))
 		return
 	}
 
@@ -282,10 +294,14 @@ func (h *Handler) verifyUserCode(w http.ResponseWriter, r *http.Request) {
 	u.Path = path.Join(u.Path, "/auth")
 	q := u.Query()
 	q.Set("client_id", deviceRequest.ClientID)
-	q.Set("client_secret", deviceRequest.ClientSecret)
+	// Do not put client_secret in this browser redirect: /auth is the
+	// authorization endpoint and never consumes it, so it would only leak the
+	// confidential secret into browser history, Referer, and access logs. The
+	// client is authenticated later in completeDeviceAuthorization against the
+	// stored device request.
 	q.Set("state", deviceRequest.UserCode)
 	q.Set("response_type", "code")
-	q.Set("redirect_uri", path.Join(h.IssuerURL.Path, oauth2.DeviceCallbackURI))
+	q.Set("redirect_uri", h.IssuerURL.AbsPath(oauth2.DeviceCallbackURI))
 	q.Set("scope", strings.Join(deviceRequest.Scopes, " "))
 	u.RawQuery = q.Encode()
 
@@ -353,16 +369,26 @@ func (h *Handler) completeDeviceAuthorization(w http.ResponseWriter, r *http.Req
 		return "", &deviceFlowError{status: status, message: "Invalid or expired user code."}
 	}
 
-	client, err := h.Storage.GetClient(ctx, deviceReq.ClientID)
-	if err != nil {
-		if err != storage.ErrNotFound {
-			h.Logger.ErrorContext(ctx, "failed to get client", "err", err)
-			return "", &deviceFlowError{status: http.StatusInternalServerError, code: oauth2.ServerError}
-		}
-		return "", &deviceFlowError{status: http.StatusUnauthorized, code: oauth2.InvalidClient, message: "Invalid client credentials."}
+	// Bind the auth code to this device request: it must have been minted for the
+	// same client and issued to the device callback redirect. The authorization_code
+	// grant enforces the same client/redirect binding (see grants/authcode.go); the
+	// device callback must not skip it, or a code minted for one client could be
+	// redeemed against another client's device request (cross-client token theft).
+	// The redirect is matched on its parsed path suffix, mirroring how the auth flow
+	// recognizes the device callback: the issuer path prefix does not matter, and a
+	// "/device/callback" in the query string can not spoof it. A value that fails to
+	// parse is not a valid device redirect.
+	redirectURL, err := url.Parse(authCode.RedirectURI)
+	validRedirect := err == nil && strings.HasSuffix(redirectURL.Path, oauth2.DeviceCallbackURI)
+	if authCode.ClientID != deviceReq.ClientID || !validRedirect {
+		h.Logger.ErrorContext(ctx, "device callback: auth code does not match the device request",
+			"auth_code_client_id", authCode.ClientID, "device_client_id", deviceReq.ClientID)
+		return "", &deviceFlowError{status: http.StatusBadRequest, message: "Invalid or expired auth code."}
 	}
-	if client.Secret != deviceReq.ClientSecret {
-		return "", &deviceFlowError{status: http.StatusUnauthorized, code: oauth2.InvalidClient, message: "Invalid client credentials."}
+
+	client, oerr := grants.AuthenticateClient(ctx, h.Storage, h.Logger, deviceReq.ClientID, deviceReq.ClientSecret)
+	if oerr != nil {
+		return "", oauth2FlowError(oerr)
 	}
 
 	// ExchangeAuthCode consumes the code (its atomic single-use gate) and returns
