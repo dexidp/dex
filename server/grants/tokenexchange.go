@@ -22,7 +22,7 @@ import (
 // builds its own response from the issuer primitives instead of the standard
 // Issue mint.
 //
-// A client with a delegation policy must also present an actor token; the
+// A client with a delegation policy may also present an actor token; the
 // issued token then carries the actor in its "act" claim (RFC 8693 §4.1),
 // nested in front of any actor the subject token already names, and only the
 // audiences and scopes the policy allows.
@@ -74,20 +74,18 @@ func (g *tokenExchange) Authorize(ctx context.Context, req *Request, client stor
 		return nil, invalidRequest("connector only verifies actor tokens")
 	}
 
-	policy, delegating := g.delegation.byClient[client.ID]
-	if !delegating || client.Public {
-		if req.ActorToken != "" {
-			return nil, invalidRequest("delegation is not enabled for this client")
-		}
+	// actor_token is optional (RFC 8693 §2.1): without one, any client
+	// impersonates the subject.
+	if req.ActorToken == "" {
 		subject, err := g.verifySubject(ctx, req, client, conn, false)
 		if err != nil {
 			return nil, err
 		}
 		return g.impersonate(ctx, req, client, subject)
 	}
-
-	if req.ActorToken == "" {
-		return nil, invalidRequest("this client must present an actor_token")
+	policy, delegating := g.delegation.byClient[client.ID]
+	if !delegating || client.Public {
+		return nil, invalidRequest("delegation is not enabled for this client")
 	}
 	if len(req.Resource) > 0 {
 		return nil, invalidTarget("resource is not supported, use audience")

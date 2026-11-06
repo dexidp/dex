@@ -169,7 +169,7 @@ func TestHandleTokenExchangeDelegation(t *testing.T) {
 		{name: "actor_token_type without token", edit: func(v url.Values) { v.Del("actor_token") }, expectedCode: http.StatusBadRequest, expectedError: "actor_token and actor_token_type must be sent together"},
 		{name: "plain client with actor", edit: func(v url.Values) { v.Set("client_id", "plain") }, expectedCode: http.StatusBadRequest, expectedError: "delegation is not enabled for this client"},
 		{name: "public client", edit: func(v url.Values) { v.Set("client_id", "public") }, expectedCode: http.StatusBadRequest, expectedError: "delegation is not enabled for this client"},
-		{name: "delegating client without actor", edit: dropActor, expectedCode: http.StatusBadRequest, expectedError: "this client must present an actor_token"},
+		{name: "delegating client without actor impersonates", edit: dropActor, expectedCode: http.StatusOK},
 		{name: "actor_connector_id is not a parameter", edit: func(v url.Values) { v.Set("actor_connector_id", "mock") }, expectedCode: http.StatusOK},
 		{name: "actor connector as subject connector", edit: func(v url.Values) { v.Set("connector_id", "actor") }, expectedCode: http.StatusBadRequest, expectedError: "connector only verifies actor tokens"},
 		{name: "actor connector as subject connector for plain client", edit: func(v url.Values) {
@@ -238,7 +238,7 @@ func TestHandleTokenExchangeDelegation(t *testing.T) {
 			var res tokens.Response
 			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &res))
 			claims := jwtPayload(t, res.AccessToken)
-			if vals.Get("client_id") == "plain" {
+			if vals.Get("actor_token") == "" {
 				require.NotContains(t, claims, "act")
 				require.NotContains(t, claims, "client_id")
 				require.NotContains(t, claims, "scope")
