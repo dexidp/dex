@@ -142,8 +142,8 @@ func ClaimsFromIdentity(identity connector.Identity) storage.Claims {
 // claim reuses the token or rotates it, the finalize writes the refreshed claims.
 // The updaters never read storage, so backends that serialize on one connection
 // or lock (SQLite, memory) cannot deadlock. A concurrent refresh that lands
-// between the two reuses the new token. A failed resolve or finalize undoes the
-// claim.
+// between the two reuses the new token. A failed resolve, finalize or offline
+// session update undoes the claim.
 func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.RefreshToken, requestToken *internal.RefreshToken, strategy *RefreshStrategy, freshIdentity func(context.Context) (connector.Identity, error)) (string, connector.Identity, error) {
 	newToken := &internal.RefreshToken{
 		Token:     requestToken.Token,
@@ -247,6 +247,9 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 	}
 
 	if err := rt.updateOfflineSession(ctx, storageToken, ident, lastUsed); err != nil {
+		if mint {
+			rt.undoClaim(ctx, storageToken.ID, strategy.RotationEnabled(), newToken.Token, prevObsolete, lastUsed, claimedFrom)
+		}
 		return "", ident, err
 	}
 
@@ -258,9 +261,9 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 	return rawToken, ident, nil
 }
 
-// undoClaim rolls a claim back after a failed resolution or finalize. The guard
-// applies only to a row still showing our own claim; an undo that itself fails
-// is logged and otherwise ignored.
+// undoClaim rolls a claim back after a failed resolution, finalize or offline
+// session update. The guard applies only to a row still showing our own claim;
+// an undo that itself fails is logged and otherwise ignored.
 func (rt *RefreshStore) undoClaim(ctx context.Context, id string, rotate bool, mintedToken, prevObsolete string, lastUsed, claimedFrom time.Time) {
 	err := rt.storage.UpdateRefreshToken(ctx, id, func(old storage.RefreshToken) (storage.RefreshToken, error) {
 		if old.Token != mintedToken || old.LastUsed.Before(lastUsed) {
