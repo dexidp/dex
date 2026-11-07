@@ -136,17 +136,16 @@ func validateConnectorID(connectors []storage.Connector, connectorID string) boo
 }
 
 // sessionMatchesHint checks whether the session's user identity matches the
-// subject from an id_token_hint by encoding the session's (userID, connectorID)
-// via GenSubject and doing a string comparison.
-func sessionMatchesHint(session *storage.AuthSession, hintSubject string) bool {
+// subject from an id_token_hint.
+func sessionMatchesHint(session *storage.AuthSession, hintSubject string, order tokens.SubjectOrder) bool {
 	if session == nil {
 		return false
 	}
-	encoded, err := tokens.GenSubject(session.UserID, session.ConnectorID)
+	userID, connectorID, err := tokens.ParseSubjectWithOrder(hintSubject, order)
 	if err != nil {
 		return false
 	}
-	return encoded == hintSubject
+	return session.UserID == userID && session.ConnectorID == connectorID
 }
 
 // PKCEConfig holds PKCE (Proof Key for Code Exchange) settings.

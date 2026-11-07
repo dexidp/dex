@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"net/url"
+	"strings"
 
 	jose "github.com/go-jose/go-jose/v4"
 
@@ -97,6 +99,20 @@ type FederatedIDClaims struct {
 	UserID      string `json:"user_id,omitempty"`
 }
 
+type SubjectFormat string
+
+const (
+	SubjectFormatBase64 SubjectFormat = "base64"
+	SubjectFormatPlain  SubjectFormat = "plain"
+)
+
+type SubjectOrder string
+
+const (
+	SubjectOrderUserConnector SubjectOrder = "user-connector"
+	SubjectOrderConnectorUser SubjectOrder = "connector-user"
+)
+
 // GetClientID resolves the requesting client from an audience and azp: the single
 // audience entry, or the azp when the audience holds several clients.
 func GetClientID(aud Audience, azp string) (string, error) {
@@ -137,10 +153,106 @@ func GetAudience(clientID string, scopes []string) Audience {
 
 // GenSubject encodes a (userID, connectorID) pair into an ID token subject.
 func GenSubject(userID string, connID string) (string, error) {
-	sub := &internal.IDTokenSubject{
-		UserId: userID,
-		ConnId: connID,
+	return GenSubjectWithFormatAndOrder(userID, connID, SubjectFormatBase64, SubjectOrderUserConnector)
+}
+
+func ParseSubjectFormat(raw string) (SubjectFormat, error) {
+	format := SubjectFormat(raw)
+	if format == "" {
+		return SubjectFormatBase64, nil
+	}
+	switch format {
+	case SubjectFormatBase64, SubjectFormatPlain:
+		return format, nil
+	case "legacy":
+		return SubjectFormatBase64, nil
+	case "pair":
+		return SubjectFormatPlain, nil
+	default:
+		return "", fmt.Errorf("unsupported subject format %q", raw)
+	}
+}
+
+func GenSubjectWithFormat(userID string, connID string, format SubjectFormat) (string, error) {
+	return GenSubjectWithFormatAndOrder(userID, connID, format, SubjectOrderUserConnector)
+}
+
+func ParseSubjectOrder(raw string) (SubjectOrder, error) {
+	order := SubjectOrder(raw)
+	if order == "" {
+		return SubjectOrderUserConnector, nil
+	}
+	switch order {
+	case SubjectOrderUserConnector, SubjectOrderConnectorUser:
+		return order, nil
+	case "userID,connectorID", "default":
+		return SubjectOrderUserConnector, nil
+	case "connectorID,userID", "reversed":
+		return SubjectOrderConnectorUser, nil
+	default:
+		return "", fmt.Errorf("unsupported subject order %q", raw)
+	}
+}
+
+func GenSubjectWithFormatAndOrder(userID string, connID string, format SubjectFormat, order SubjectOrder) (string, error) {
+	switch format {
+	case "", SubjectFormatBase64:
+		sub := &internal.IDTokenSubject{
+			UserId: userID,
+			ConnId: connID,
+		}
+
+		return internal.Marshal(sub)
+	case SubjectFormatPlain:
+		o, err := ParseSubjectOrder(string(order))
+		if err != nil {
+			return "", err
+		}
+		if o == SubjectOrderConnectorUser {
+			return url.QueryEscape(connID) + "|" + url.QueryEscape(userID), nil
+		}
+		return url.QueryEscape(userID) + "|" + url.QueryEscape(connID), nil
+	default:
+		return "", fmt.Errorf("unsupported subject format %q", format)
+	}
+}
+
+// ParseSubject decodes an ID token subject into (userID, connectorID).
+func ParseSubject(subject string) (string, string, error) {
+	return ParseSubjectWithOrder(subject, SubjectOrderUserConnector)
+}
+
+// ParseSubjectWithOrder decodes an ID token subject into (userID, connectorID).
+func ParseSubjectWithOrder(subject string, order SubjectOrder) (string, string, error) {
+	if strings.Contains(subject, "|") {
+		o, err := ParseSubjectOrder(string(order))
+		if err != nil {
+			return "", "", err
+		}
+		parts := strings.SplitN(subject, "|", 2)
+		if len(parts) != 2 {
+			return "", "", fmt.Errorf("invalid plain subject")
+		}
+		first, err := url.QueryUnescape(parts[0])
+		if err != nil {
+			return "", "", fmt.Errorf("invalid plain subject first segment: %w", err)
+		}
+		second, err := url.QueryUnescape(parts[1])
+		if err != nil {
+			return "", "", fmt.Errorf("invalid plain subject second segment: %w", err)
+		}
+		if o == SubjectOrderConnectorUser {
+			return second, first, nil
+		}
+		return first, second, nil
 	}
 
-	return internal.Marshal(sub)
+	sub := &internal.IDTokenSubject{
+		UserId: "",
+		ConnId: "",
+	}
+	if err := internal.Unmarshal(subject, sub); err != nil {
+		return "", "", err
+	}
+	return sub.UserId, sub.ConnId, nil
 }

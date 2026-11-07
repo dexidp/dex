@@ -40,6 +40,8 @@ type Handler struct {
 	Sessions *session.Manager
 	// Issuer mints tokens for the authorization response (see response.go).
 	Issuer *tokens.Issuer
+	// SubjectOrder is used to parse plain id_token_hint subjects.
+	SubjectOrder tokens.SubjectOrder
 
 	// MFAEnabled reports whether any authenticator is configured; DefaultMFAChain
 	// is the chain applied to clients that set none. Together they let the

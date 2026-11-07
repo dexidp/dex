@@ -40,6 +40,12 @@ ID Tokens contains standard claims assert which client app logged the user in, w
 }
 ```
 
+By default, Dex emits `sub` in a protobuf+base64url format. To use a
+wildcard-friendly string subject (for example in AWS IAM trust policies), set
+`oauth2.subjectClaim: plain` in Dex configuration.
+For plain subjects, you can also control order with
+`oauth2.subjectClaimOrder`: `user-connector` (default) or `connector-user`.
+
 Because these tokens are signed by dex and [contain standard-based claims][standard-claims] other services can consume them as service-to-service credentials. Systems that can already consume OpenID Connect ID Tokens issued by dex include:
 
 * [Kubernetes][kubernetes]
