@@ -710,12 +710,13 @@ func (c *githubConnector) teamsForOrg(ctx context.Context, client *http.Client, 
 		}
 
 		for _, t := range teams {
-			// GitHub org names are case-insensitive; the API returns canonical (lowercase) form.
+			// GitHub org names are case-insensitive. Groups are built from the name in the
+			// config, so warn if it differs from the canonical login returned by the API.
 			// https://docs.github.com/en/rest/teams/teams?apiVersion=2026-03-10#list-teams-for-the-authenticated-user
 			if strings.EqualFold(t.Org.Login, orgName) {
 				if !warnedCaseMismatch && t.Org.Login != orgName {
 					c.logger.Warn(
-						"org name in config differs in case from GitHub canonical form; use lowercase in config to keep group claims consistent",
+						"org name in config differs in case from GitHub; use the canonical name to keep group claims consistent",
 						"org", orgName,
 						"canonical", t.Org.Login,
 					)
