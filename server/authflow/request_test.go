@@ -440,6 +440,59 @@ func TestParseAuthorizationRequest(t *testing.T) {
 	}
 }
 
+func TestParseAuthorizationRequestDeviceCallbackNonRootIssuer(t *testing.T) {
+	tests := []struct {
+		name    string
+		client  storage.Client
+		wantErr bool
+	}{
+		{
+			name:   "public client with bare device callback",
+			client: storage.Client{ID: "dev", Public: true, RedirectURIs: []string{"/device/callback"}},
+		},
+		{
+			name:   "public client without redirect URIs",
+			client: storage.Client{ID: "dev", Public: true},
+		},
+		{
+			name:   "public client with issuer device callback",
+			client: storage.Client{ID: "dev", Public: true, RedirectURIs: []string{"/dex/device/callback"}},
+		},
+		{
+			name:    "public client with other redirect URIs",
+			client:  storage.Client{ID: "dev", Public: true, RedirectURIs: []string{"http://foo.com/bar"}},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			httpServer, server := newTestHandler(t, func(c *testFlowConfig) {
+				c.IssuerURL.Path = "/dex"
+				c.Storage = storage.WithStaticClients(c.Storage, []storage.Client{tc.client})
+			})
+
+			// What the device verify step sends after the user enters their code.
+			params := url.Values{
+				"client_id":     {"dev"},
+				"redirect_uri":  {"/dex/device/callback"},
+				"response_type": {"code"},
+				"scope":         {"openid"},
+				"state":         {"ABCD-WXYZ"},
+			}
+			req := httptest.NewRequest("GET", httpServer.URL+"/dex/auth?"+params.Encode(), nil)
+
+			authReq, _, err := server.parseAuthorizationRequest(req)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, "/dex/device/callback", authReq.RedirectURI)
+		})
+	}
+}
+
 func TestValidRedirectURI(t *testing.T) {
 	tests := []struct {
 		client      storage.Client
