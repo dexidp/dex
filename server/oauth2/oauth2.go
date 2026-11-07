@@ -13,6 +13,7 @@ const (
 	TemporarilyUnavailable  = "temporarily_unavailable"
 	UnsupportedGrantType    = "unsupported_grant_type"
 	InvalidGrant            = "invalid_grant"
+	InvalidTarget           = "invalid_target"
 	InvalidClient           = "invalid_client"
 	InactiveToken           = "inactive_token"
 	LoginRequired           = "login_required"

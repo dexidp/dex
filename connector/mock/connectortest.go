@@ -32,13 +32,20 @@ var (
 	_ connector.CallbackConnector      = &Callback{}
 	_ connector.RefreshConnector       = &Callback{}
 	_ connector.TokenIdentityConnector = &Callback{}
+	_ connector.TokenClaimsConnector   = &Callback{}
 )
 
 // Callback is a connector that requires no user interaction and always returns the same identity.
 type Callback struct {
 	// The returned identity.
 	Identity connector.Identity
-	Logger   *slog.Logger
+	// Claims is what TokenClaims returns for any token. A nil map makes
+	// TokenClaims fail, as an unverifiable token would.
+	Claims map[string]any
+	// TokenIdentityFails makes TokenIdentity fail, as an unverifiable token
+	// would.
+	TokenIdentityFails bool
+	Logger             *slog.Logger
 }
 
 // LoginURL returns the URL to redirect the user to login with.
@@ -66,7 +73,17 @@ func (m *Callback) Refresh(ctx context.Context, s connector.Scopes, identity con
 }
 
 func (m *Callback) TokenIdentity(ctx context.Context, subjectTokenType, subjectToken string) (connector.Identity, error) {
+	if m.TokenIdentityFails {
+		return connector.Identity{}, errors.New("mock: token does not verify")
+	}
 	return m.Identity, nil
+}
+
+func (m *Callback) TokenClaims(ctx context.Context, tokenType, token string) (map[string]any, error) {
+	if m.Claims == nil {
+		return nil, errors.New("mock: token does not verify")
+	}
+	return m.Claims, nil
 }
 
 // CallbackConfig holds the configuration parameters for a connector which requires no interaction.

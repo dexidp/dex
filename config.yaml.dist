@@ -132,6 +132,22 @@ web:
 #   # Uncomment to use a specific connector for password grants
 #   passwordConnector: local
 #
+#   # Token exchange (RFC 8693) configuration
+#   tokenExchange:
+#     # Delegation: a listed client must present an actor_token next to the
+#     # subject_token, verified by one of its actorConnectors; the issued token
+#     # carries the actor in its "act" claim and may only name, with the
+#     # audience parameter, the audiences listed in allowedAudiences (backends
+#     # that read "act"), and carry only the standard scopes and those listed in
+#     # allowedScopes. Clients not listed exchange tokens without an actor. An
+#     # actor connector verifies actor tokens only and cannot be used as
+#     # connector_id.
+#     delegation:
+#       - clientID: gateway
+#         actorConnectors: [agent-runtime]
+#         allowedAudiences: [backend-api]
+#         allowedScopes: [tools:read]
+#
 #   # PKCE (Proof Key for Code Exchange) configuration
 #   pkce:
 #     # If true, PKCE is required for all authorization code flows (OAuth 2.1).
