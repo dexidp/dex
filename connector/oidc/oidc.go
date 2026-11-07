@@ -136,13 +136,19 @@ type ProviderDiscoveryOverrides struct {
 	// JWKSURL provides a way to user overwrite the JWKS URL
 	// from the .well-known/openid-configuration jwks_uri
 	JWKSURL string `json:"jwksURL"`
+	// UserInfoURL provides a way to override the UserInfo URL
+	// from the .well-known/openid-configuration userinfo_endpoint
+	UserInfoURL string `json:"userInfoURL"`
+	// DeviceAuthURL provides a way to override the Device Authorization URL
+	// from the .well-known/openid-configuration device_authorization_endpoint
+	DeviceAuthURL string `json:"deviceAuthURL"`
 	// EndSessionURL provides a way to override the end_session_endpoint
 	// from the .well-known/openid-configuration
 	EndSessionURL string `json:"endSessionURL"`
 }
 
 func (o *ProviderDiscoveryOverrides) Empty() bool {
-	return o.TokenURL == "" && o.AuthURL == "" && o.JWKSURL == "" && o.EndSessionURL == ""
+	return o.TokenURL == "" && o.AuthURL == "" && o.JWKSURL == "" && o.UserInfoURL == "" && o.DeviceAuthURL == "" && o.EndSessionURL == ""
 }
 
 func getProvider(ctx context.Context, issuer string, overrides ProviderDiscoveryOverrides) (*oidc.Provider, error) {
@@ -186,7 +192,16 @@ func getProvider(ctx context.Context, issuer string, overrides ProviderDiscovery
 	if overrides.JWKSURL != "" {
 		config.JWKSURL = overrides.JWKSURL
 	}
-	return config.NewProvider(context.Background()), nil
+	if overrides.UserInfoURL != "" {
+		config.UserInfoURL = overrides.UserInfoURL
+	}
+	if overrides.DeviceAuthURL != "" {
+		config.DeviceAuthURL = overrides.DeviceAuthURL
+	}
+	// Use the incoming ctx so the provider keeps the rootCAs-aware
+	// oauth2.HTTPClient. With context.Background() the provider verifies
+	// JWKS against the system roots only.
+	return config.NewProvider(ctx), nil
 }
 
 // NewGroupFromClaims creates a new group from a list of claims and appends it to the list of existing groups.
@@ -539,7 +554,7 @@ func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identit
 	}
 	token, err := c.oauth2Config.TokenSource(ctx, t).Token()
 	if err != nil {
-		return identity, fmt.Errorf("oidc: failed to get refresh token: %v", err)
+		return identity, fmt.Errorf("oidc: failed to get refresh token: %w", err)
 	}
 	return c.createIdentity(ctx, identity, token, refreshCaller)
 }
@@ -591,6 +606,9 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		return identity, errors.New("oidc: no id_token in token response")
 	}
 
+	// Keep the verified ID Token subject to compare against the userinfo response below.
+	idTokenSubject, _ := claims["sub"].(string)
+
 	// We immediately want to run getUserInfo if configured before we validate the claims.
 	// For token exchanges with access tokens, this is how we verify the token.
 	if c.getUserInfo {
@@ -603,6 +621,11 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		}
 		if err := userInfo.Claims(&claims); err != nil {
 			return identity, fmt.Errorf("oidc: failed to decode userinfo claims: %v", err)
+		}
+
+		// The userinfo sub must match the ID Token sub (OpenID Connect Core 5.3.2).
+		if userInfoSubject, _ := claims["sub"].(string); idTokenSubject != "" && userInfoSubject != idTokenSubject {
+			return identity, fmt.Errorf("oidc: userinfo sub %q does not match id_token sub %q", userInfoSubject, idTokenSubject)
 		}
 	}
 
@@ -664,9 +687,12 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 			vs, found = claims[groupsKey].([]interface{})
 		}
 
-		// Fallback when claims[groupsKey] is a string instead of an array of strings.
+		// Fallback when claims[groupsKey] is a string instead of an array of
+		// strings. Fold it into the array path so groupsFilter (and the other
+		// per-group handling below) applies uniformly.
 		if g, b := claims[groupsKey].(string); b {
-			groups = []string{g}
+			vs = []interface{}{g}
+			found = true
 		}
 
 		if found {
@@ -766,7 +792,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 // LogoutURL returns the upstream OIDC provider's end_session_endpoint URL.
 // Per the OIDC RP-Initiated Logout spec, the post_logout_redirect_uri parameter
 // tells the upstream where to redirect after logout.
-func (c *oidcConnector) LogoutURL(_ context.Context, _ []byte, postLogoutRedirectURI string) (string, error) {
+func (c *oidcConnector) LogoutURL(_ context.Context, postLogoutRedirectURI string) (string, error) {
 	if c.endSessionURL == "" {
 		return "", nil
 	}

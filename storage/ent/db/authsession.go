@@ -21,10 +21,12 @@ type AuthSession struct {
 	UserID string `json:"user_id,omitempty"`
 	// ConnectorID holds the value of the "connector_id" field.
 	ConnectorID string `json:"connector_id,omitempty"`
-	// Nonce holds the value of the "nonce" field.
-	Nonce string `json:"nonce,omitempty"`
+	// Secret holds the value of the "secret" field.
+	Secret string `json:"secret,omitempty"`
 	// ClientStates holds the value of the "client_states" field.
 	ClientStates []byte `json:"client_states,omitempty"`
+	// ConnectorData holds the value of the "connector_data" field.
+	ConnectorData []byte `json:"connector_data,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// LastActivity holds the value of the "last_activity" field.
@@ -36,7 +38,9 @@ type AuthSession struct {
 	// AbsoluteExpiry holds the value of the "absolute_expiry" field.
 	AbsoluteExpiry time.Time `json:"absolute_expiry,omitempty"`
 	// IdleExpiry holds the value of the "idle_expiry" field.
-	IdleExpiry   time.Time `json:"idle_expiry,omitempty"`
+	IdleExpiry time.Time `json:"idle_expiry,omitempty"`
+	// LogoutState holds the value of the "logout_state" field.
+	LogoutState  []byte `json:"logout_state,omitempty"`
 	selectValues sql.SelectValues
 }
 
@@ -45,9 +49,9 @@ func (*AuthSession) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case authsession.FieldClientStates:
+		case authsession.FieldClientStates, authsession.FieldConnectorData, authsession.FieldLogoutState:
 			values[i] = new([]byte)
-		case authsession.FieldID, authsession.FieldUserID, authsession.FieldConnectorID, authsession.FieldNonce, authsession.FieldIPAddress, authsession.FieldUserAgent:
+		case authsession.FieldID, authsession.FieldUserID, authsession.FieldConnectorID, authsession.FieldSecret, authsession.FieldIPAddress, authsession.FieldUserAgent:
 			values[i] = new(sql.NullString)
 		case authsession.FieldCreatedAt, authsession.FieldLastActivity, authsession.FieldAbsoluteExpiry, authsession.FieldIdleExpiry:
 			values[i] = new(sql.NullTime)
@@ -84,17 +88,23 @@ func (_m *AuthSession) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.ConnectorID = value.String
 			}
-		case authsession.FieldNonce:
+		case authsession.FieldSecret:
 			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field nonce", values[i])
+				return fmt.Errorf("unexpected type %T for field secret", values[i])
 			} else if value.Valid {
-				_m.Nonce = value.String
+				_m.Secret = value.String
 			}
 		case authsession.FieldClientStates:
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field client_states", values[i])
 			} else if value != nil {
 				_m.ClientStates = *value
+			}
+		case authsession.FieldConnectorData:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field connector_data", values[i])
+			} else if value != nil {
+				_m.ConnectorData = *value
 			}
 		case authsession.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -131,6 +141,12 @@ func (_m *AuthSession) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field idle_expiry", values[i])
 			} else if value.Valid {
 				_m.IdleExpiry = value.Time
+			}
+		case authsession.FieldLogoutState:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field logout_state", values[i])
+			} else if value != nil {
+				_m.LogoutState = *value
 			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
@@ -174,11 +190,14 @@ func (_m *AuthSession) String() string {
 	builder.WriteString("connector_id=")
 	builder.WriteString(_m.ConnectorID)
 	builder.WriteString(", ")
-	builder.WriteString("nonce=")
-	builder.WriteString(_m.Nonce)
+	builder.WriteString("secret=")
+	builder.WriteString(_m.Secret)
 	builder.WriteString(", ")
 	builder.WriteString("client_states=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ClientStates))
+	builder.WriteString(", ")
+	builder.WriteString("connector_data=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ConnectorData))
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))
@@ -197,6 +216,9 @@ func (_m *AuthSession) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("idle_expiry=")
 	builder.WriteString(_m.IdleExpiry.Format(time.ANSIC))
+	builder.WriteString(", ")
+	builder.WriteString("logout_state=")
+	builder.WriteString(fmt.Sprintf("%v", _m.LogoutState))
 	builder.WriteByte(')')
 	return builder.String()
 }

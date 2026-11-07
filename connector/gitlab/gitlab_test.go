@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -176,6 +177,24 @@ func TestHandleCallbackWithoutRootCADataFailsTLS(t *testing.T) {
 	}
 }
 
+func TestOAuth2ConfigScopesForInheritedGroups(t *testing.T) {
+	c := gitlabConnector{inheritedGroups: true}
+
+	cfg := c.oauth2Config(connector.Scopes{})
+	expectEquals(t, cfg.Scopes, []string{scopeUser})
+
+	cfg = c.oauth2Config(connector.Scopes{Groups: true})
+	expectEquals(t, cfg.Scopes, []string{scopeUser, scopeOpenID, scopeReadAPI})
+
+	c.groups = []string{"team-1"}
+	cfg = c.oauth2Config(connector.Scopes{})
+	expectEquals(t, cfg.Scopes, []string{scopeUser, scopeOpenID, scopeReadAPI})
+
+	c.getGroupsPermission = true
+	cfg = c.oauth2Config(connector.Scopes{Groups: true})
+	expectEquals(t, cfg.Scopes, []string{scopeUser, scopeOpenID, scopeReadAPI})
+}
+
 func TestUserGroups(t *testing.T) {
 	s := newTestServer(map[string]interface{}{
 		"/oauth/userinfo": userInfo{
@@ -185,13 +204,63 @@ func TestUserGroups(t *testing.T) {
 	defer s.Close()
 
 	c := gitlabConnector{baseURL: s.URL}
-	groups, err := c.getGroups(context.Background(), newClient(), true, "joebloggs")
+	groups, err := c.resolveIdentityGroups(context.Background(), newClient(), true, "joebloggs", 12345678)
 
 	expectNil(t, err)
 	expectEquals(t, groups, []string{
 		"team-1",
 		"team-2",
 	})
+}
+
+func TestUserGroupsWithInheritedGroups(t *testing.T) {
+	s := newTestServer(map[string]interface{}{
+		"/oauth/userinfo": userInfo{
+			Groups: []string{"team-legacy"},
+		},
+		"/api/v4/groups?all_available=false&page=1&per_page=100": []gitlabGroup{
+			{FullPath: "team-1"},
+			{FullPath: "team-2/sub"},
+		},
+	})
+	defer s.Close()
+
+	c := gitlabConnector{baseURL: s.URL, inheritedGroups: true}
+	groups, err := c.resolveIdentityGroups(context.Background(), newClient(), true, "joebloggs", 12345678)
+
+	expectNil(t, err)
+	expectEquals(t, groups, []string{
+		"team-1",
+		"team-2/sub",
+	})
+}
+
+func TestUserGroupsWithInheritedGroupsPagination(t *testing.T) {
+	pageOneGroups := make([]gitlabGroup, 0, inheritedGroupsPerPage)
+	expectedGroups := make([]string, 0, inheritedGroupsPerPage+1)
+	for i := 0; i < inheritedGroupsPerPage; i++ {
+		group := fmt.Sprintf("team-%03d", i)
+		pageOneGroups = append(pageOneGroups, gitlabGroup{FullPath: group})
+		expectedGroups = append(expectedGroups, group)
+	}
+	expectedGroups = append(expectedGroups, "team-100")
+
+	s := newTestServer(map[string]interface{}{
+		"/oauth/userinfo": userInfo{
+			Groups: []string{},
+		},
+		"/api/v4/groups?all_available=false&page=1&per_page=100": pageOneGroups,
+		"/api/v4/groups?all_available=false&page=2&per_page=100": []gitlabGroup{
+			{FullPath: "team-100"},
+		},
+	})
+	defer s.Close()
+
+	c := gitlabConnector{baseURL: s.URL, inheritedGroups: true}
+	groups, err := c.resolveIdentityGroups(context.Background(), newClient(), true, "joebloggs", 12345678)
+
+	expectNil(t, err)
+	expectEquals(t, groups, expectedGroups)
 }
 
 func TestUserGroupsWithFiltering(t *testing.T) {
@@ -203,11 +272,36 @@ func TestUserGroupsWithFiltering(t *testing.T) {
 	defer s.Close()
 
 	c := gitlabConnector{baseURL: s.URL, groups: []string{"team-1"}}
-	groups, err := c.getGroups(context.Background(), newClient(), true, "joebloggs")
+	groups, err := c.resolveIdentityGroups(context.Background(), newClient(), true, "joebloggs", 12345678)
 
 	expectNil(t, err)
 	expectEquals(t, groups, []string{
 		"team-1",
+	})
+}
+
+func TestUserGroupsWithInheritedGroupsFiltering(t *testing.T) {
+	s := newTestServer(map[string]interface{}{
+		"/oauth/userinfo": userInfo{
+			Groups: []string{"team-legacy"},
+		},
+		"/api/v4/groups?all_available=false&page=1&per_page=100": []gitlabGroup{
+			{FullPath: "team-1"},
+			{FullPath: "team-2/sub"},
+		},
+	})
+	defer s.Close()
+
+	c := gitlabConnector{
+		baseURL:         s.URL,
+		groups:          []string{"team-2/sub"},
+		inheritedGroups: true,
+	}
+	groups, err := c.resolveIdentityGroups(context.Background(), newClient(), true, "joebloggs", 12345678)
+
+	expectNil(t, err)
+	expectEquals(t, groups, []string{
+		"team-2/sub",
 	})
 }
 
@@ -220,7 +314,7 @@ func TestUserGroupsWithoutOrgs(t *testing.T) {
 	defer s.Close()
 
 	c := gitlabConnector{baseURL: s.URL}
-	groups, err := c.getGroups(context.Background(), newClient(), true, "joebloggs")
+	groups, err := c.resolveIdentityGroups(context.Background(), newClient(), true, "joebloggs", 12345678)
 
 	expectNil(t, err)
 	expectEquals(t, len(groups), 0)
@@ -340,7 +434,13 @@ func TestLoginWithTeamNonWhitelisted(t *testing.T) {
 	_, err = c.HandleCallback(connector.Scopes{Groups: true}, nil, req)
 
 	expectNotNil(t, err, "HandleCallback error")
-	expectEquals(t, err.Error(), "gitlab: get groups: gitlab: user \"joebloggs\" is not in any of the required groups")
+	var groupsErr *connector.UserNotInRequiredGroupsError
+	if !errors.As(err, &groupsErr) {
+		t.Fatalf("expected *connector.UserNotInRequiredGroupsError, got %T: %v", err, err)
+	}
+	expectEquals(t, groupsErr.UserID, "joebloggs")
+	expectEquals(t, groupsErr.Groups, []string{"team-2"})
+	expectEquals(t, err.Error(), "gitlab: get groups: user \"joebloggs\" is not in any of the required groups [team-2]")
 }
 
 func TestRefresh(t *testing.T) {
@@ -450,6 +550,115 @@ func TestGroupsWithPermission(t *testing.T) {
 		"ops/project:owner",
 		"dev/project1:maintainer",
 		"dev/project2:developer",
+	})
+}
+
+func TestGroupsWithPermissionAndInheritedGroups(t *testing.T) {
+	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "application/json")
+
+		switch r.RequestURI {
+		case "/api/v4/user":
+			json.NewEncoder(w).Encode(gitlabUser{Email: "some@email.com", ID: 12345678, Name: "Joe Bloggs", Username: "joebloggs"})
+		case "/oauth/token":
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
+				"expires_in":   "30",
+			})
+		case "/oauth/userinfo":
+			json.NewEncoder(w).Encode(userInfo{
+				Groups:          []string{"ignored-direct-group"},
+				OwnerPermission: []string{"ops"},
+			})
+		case "/api/v4/groups?all_available=false&page=1&per_page=100":
+			json.NewEncoder(w).Encode([]gitlabGroup{
+				{ID: 1, FullPath: "ops"},
+				{ID: 2, FullPath: "ops/project"},
+				{ID: 3, FullPath: "analytics"},
+			})
+		case "/api/v4/groups/3/members/all/12345678":
+			json.NewEncoder(w).Encode(gitlabGroupMember{AccessLevel: accessLevelReporter})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer s.Close()
+
+	hostURL, err := url.Parse(s.URL)
+	expectNil(t, err)
+
+	req, err := http.NewRequest("GET", hostURL.String(), nil)
+	expectNil(t, err)
+
+	c := gitlabConnector{
+		baseURL:             s.URL,
+		httpClient:          newClient(),
+		getGroupsPermission: true,
+		inheritedGroups:     true,
+	}
+	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, nil, req)
+	expectNil(t, err)
+
+	expectEquals(t, identity.Groups, []string{
+		"ops",
+		"ops/project",
+		"analytics",
+		"ops:owner",
+		"ops/project:owner",
+		"analytics:reporter",
+	})
+}
+
+func TestGroupsWithPermissionAndInheritedGroupsSkipsForbiddenPermissionLookup(t *testing.T) {
+	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "application/json")
+
+		switch r.RequestURI {
+		case "/api/v4/user":
+			json.NewEncoder(w).Encode(gitlabUser{Email: "some@email.com", ID: 12345678, Name: "Joe Bloggs", Username: "joebloggs"})
+		case "/oauth/token":
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
+				"expires_in":   "30",
+			})
+		case "/oauth/userinfo":
+			json.NewEncoder(w).Encode(userInfo{
+				Groups:          []string{"ignored-direct-group"},
+				OwnerPermission: []string{"ops"},
+			})
+		case "/api/v4/groups?all_available=false&page=1&per_page=100":
+			json.NewEncoder(w).Encode([]gitlabGroup{
+				{ID: 1, FullPath: "ops"},
+				{ID: 2, FullPath: "private/analytics"},
+			})
+		case "/api/v4/groups/2/members/all/12345678":
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"message":"403 Forbidden"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer s.Close()
+
+	hostURL, err := url.Parse(s.URL)
+	expectNil(t, err)
+
+	req, err := http.NewRequest("GET", hostURL.String(), nil)
+	expectNil(t, err)
+
+	c := gitlabConnector{
+		baseURL:             s.URL,
+		httpClient:          newClient(),
+		getGroupsPermission: true,
+		inheritedGroups:     true,
+	}
+	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, nil, req)
+	expectNil(t, err)
+
+	expectEquals(t, identity.Groups, []string{
+		"ops",
+		"private/analytics",
+		"ops:owner",
 	})
 }
 

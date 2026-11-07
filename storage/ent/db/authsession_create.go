@@ -32,15 +32,21 @@ func (_c *AuthSessionCreate) SetConnectorID(v string) *AuthSessionCreate {
 	return _c
 }
 
-// SetNonce sets the "nonce" field.
-func (_c *AuthSessionCreate) SetNonce(v string) *AuthSessionCreate {
-	_c.mutation.SetNonce(v)
+// SetSecret sets the "secret" field.
+func (_c *AuthSessionCreate) SetSecret(v string) *AuthSessionCreate {
+	_c.mutation.SetSecret(v)
 	return _c
 }
 
 // SetClientStates sets the "client_states" field.
 func (_c *AuthSessionCreate) SetClientStates(v []byte) *AuthSessionCreate {
 	_c.mutation.SetClientStates(v)
+	return _c
+}
+
+// SetConnectorData sets the "connector_data" field.
+func (_c *AuthSessionCreate) SetConnectorData(v []byte) *AuthSessionCreate {
+	_c.mutation.SetConnectorData(v)
 	return _c
 }
 
@@ -93,6 +99,12 @@ func (_c *AuthSessionCreate) SetAbsoluteExpiry(v time.Time) *AuthSessionCreate {
 // SetIdleExpiry sets the "idle_expiry" field.
 func (_c *AuthSessionCreate) SetIdleExpiry(v time.Time) *AuthSessionCreate {
 	_c.mutation.SetIdleExpiry(v)
+	return _c
+}
+
+// SetLogoutState sets the "logout_state" field.
+func (_c *AuthSessionCreate) SetLogoutState(v []byte) *AuthSessionCreate {
+	_c.mutation.SetLogoutState(v)
 	return _c
 }
 
@@ -165,12 +177,12 @@ func (_c *AuthSessionCreate) check() error {
 			return &ValidationError{Name: "connector_id", err: fmt.Errorf(`db: validator failed for field "AuthSession.connector_id": %w`, err)}
 		}
 	}
-	if _, ok := _c.mutation.Nonce(); !ok {
-		return &ValidationError{Name: "nonce", err: errors.New(`db: missing required field "AuthSession.nonce"`)}
+	if _, ok := _c.mutation.Secret(); !ok {
+		return &ValidationError{Name: "secret", err: errors.New(`db: missing required field "AuthSession.secret"`)}
 	}
-	if v, ok := _c.mutation.Nonce(); ok {
-		if err := authsession.NonceValidator(v); err != nil {
-			return &ValidationError{Name: "nonce", err: fmt.Errorf(`db: validator failed for field "AuthSession.nonce": %w`, err)}
+	if v, ok := _c.mutation.Secret(); ok {
+		if err := authsession.SecretValidator(v); err != nil {
+			return &ValidationError{Name: "secret", err: fmt.Errorf(`db: validator failed for field "AuthSession.secret": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.ClientStates(); !ok {
@@ -242,13 +254,17 @@ func (_c *AuthSessionCreate) createSpec() (*AuthSession, *sqlgraph.CreateSpec) {
 		_spec.SetField(authsession.FieldConnectorID, field.TypeString, value)
 		_node.ConnectorID = value
 	}
-	if value, ok := _c.mutation.Nonce(); ok {
-		_spec.SetField(authsession.FieldNonce, field.TypeString, value)
-		_node.Nonce = value
+	if value, ok := _c.mutation.Secret(); ok {
+		_spec.SetField(authsession.FieldSecret, field.TypeString, value)
+		_node.Secret = value
 	}
 	if value, ok := _c.mutation.ClientStates(); ok {
 		_spec.SetField(authsession.FieldClientStates, field.TypeBytes, value)
 		_node.ClientStates = value
+	}
+	if value, ok := _c.mutation.ConnectorData(); ok {
+		_spec.SetField(authsession.FieldConnectorData, field.TypeBytes, value)
+		_node.ConnectorData = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(authsession.FieldCreatedAt, field.TypeTime, value)
@@ -273,6 +289,10 @@ func (_c *AuthSessionCreate) createSpec() (*AuthSession, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.IdleExpiry(); ok {
 		_spec.SetField(authsession.FieldIdleExpiry, field.TypeTime, value)
 		_node.IdleExpiry = value
+	}
+	if value, ok := _c.mutation.LogoutState(); ok {
+		_spec.SetField(authsession.FieldLogoutState, field.TypeBytes, value)
+		_node.LogoutState = value
 	}
 	return _node, _spec
 }

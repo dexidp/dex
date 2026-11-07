@@ -69,17 +69,19 @@ func newJWKPair(key crypto.Signer, algorithm jose.SignatureAlgorithm) (priv, pub
 	}
 	keyID := hex.EncodeToString(b)
 
-	return &jose.JSONWebKey{
-			Key:       key,
-			KeyID:     keyID,
-			Algorithm: string(algorithm),
-			Use:       "sig",
-		}, &jose.JSONWebKey{
-			Key:       key.Public(),
-			KeyID:     keyID,
-			Algorithm: string(algorithm),
-			Use:       "sig",
-		}, nil
+	priv = &jose.JSONWebKey{
+		Key:       key,
+		KeyID:     keyID,
+		Algorithm: string(algorithm),
+		Use:       "sig",
+	}
+	pub = &jose.JSONWebKey{
+		Key:       key.Public(),
+		KeyID:     keyID,
+		Algorithm: string(algorithm),
+		Use:       "sig",
+	}
+	return priv, pub, nil
 }
 
 type keyRotator struct {

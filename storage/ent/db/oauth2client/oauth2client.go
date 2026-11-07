@@ -31,6 +31,10 @@ const (
 	FieldPostLogoutRedirectUris = "post_logout_redirect_uris"
 	// FieldSSOSharedWith holds the string denoting the sso_shared_with field in the database.
 	FieldSSOSharedWith = "sso_shared_with"
+	// FieldBackchannelLogoutURI holds the string denoting the backchannel_logout_uri field in the database.
+	FieldBackchannelLogoutURI = "backchannel_logout_uri"
+	// FieldRefreshTokenLifetime holds the string denoting the refresh_token_lifetime field in the database.
+	FieldRefreshTokenLifetime = "refresh_token_lifetime"
 	// FieldClientCredentialsClaims holds the string denoting the client_credentials_claims field in the database.
 	FieldClientCredentialsClaims = "client_credentials_claims"
 	// Table holds the table name of the oauth2client in the database.
@@ -50,6 +54,8 @@ var Columns = []string{
 	FieldMfaChain,
 	FieldPostLogoutRedirectUris,
 	FieldSSOSharedWith,
+	FieldBackchannelLogoutURI,
+	FieldRefreshTokenLifetime,
 	FieldClientCredentialsClaims,
 }
 
@@ -70,6 +76,10 @@ var (
 	NameValidator func(string) error
 	// LogoURLValidator is a validator for the "logo_url" field. It is called by the builders before save.
 	LogoURLValidator func(string) error
+	// DefaultBackchannelLogoutURI holds the default value on creation for the "backchannel_logout_uri" field.
+	DefaultBackchannelLogoutURI string
+	// DefaultRefreshTokenLifetime holds the default value on creation for the "refresh_token_lifetime" field.
+	DefaultRefreshTokenLifetime string
 	// IDValidator is a validator for the "id" field. It is called by the builders before save.
 	IDValidator func(string) error
 )
@@ -100,4 +110,14 @@ func ByName(opts ...sql.OrderTermOption) OrderOption {
 // ByLogoURL orders the results by the logo_url field.
 func ByLogoURL(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldLogoURL, opts...).ToFunc()
+}
+
+// ByBackchannelLogoutURI orders the results by the backchannel_logout_uri field.
+func ByBackchannelLogoutURI(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBackchannelLogoutURI, opts...).ToFunc()
+}
+
+// ByRefreshTokenLifetime orders the results by the refresh_token_lifetime field.
+func ByRefreshTokenLifetime(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRefreshTokenLifetime, opts...).ToFunc()
 }

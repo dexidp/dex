@@ -1,96 +1,104 @@
-{{ define "info-value" }}
-  {{ if gt (len .) 24 }}
-  <details class="dex-info-details">
-    <summary>{{ . }}</summary>
-    <div>{{ . }}</div>
-  </details>
-  {{ else }}
-  <span class="dex-info-value">{{ . }}</span>
-  {{ end }}
-{{ end }}
-
 {{ template "header.html" . }}
 
-<div class="theme-panel">
-  <div style="text-align: center; margin-bottom: 16px;">
-    <img src="{{ url .ReqPath logo }}" alt="{{ issuer }}" style="max-height: 36px;">
+<div class="theme-panel dex-home">
+  {{ if .LoggedIn }}
+  <div class="dex-identity">
+    {{ if .Username }}<h2 class="dex-identity__name">{{ .Username }}</h2>{{ end }}
+    {{ if .Email }}
+    <div class="dex-identity__email">
+      {{ .Email }}
+      {{ if .EmailVerified }}<span class="dex-identity__state">(verified)</span>
+      {{ else }}<span class="dex-identity__state dex-identity__state--warn">(not verified)</span>{{ end }}
+    </div>
+    {{ end }}
   </div>
 
-  {{ if .LoggedIn }}
-  <hr class="dex-separator">
-  <div class="dex-info-table">
-    {{ if .Username }}
-    <div class="dex-info-row">
-      <span class="dex-info-label">Username</span>
-      {{ template "info-value" .Username }}
-    </div>
-    {{ end }}
-    {{ if .Email }}
-    <div class="dex-info-row">
-      <span class="dex-info-label">Email</span>
-      <span class="dex-info-value">{{ .Email }}{{ if .EmailVerified }} &#10003;{{ end }}</span>
-    </div>
-    {{ end }}
-    {{ if .Groups }}
-    <div class="dex-info-row">
-      <span class="dex-info-label">Groups</span>
-      <details class="dex-info-details">
-        <summary>{{ len .Groups }} group{{ if gt (len .Groups) 1 }}s{{ end }}</summary>
-        <ul class="dex-info-details__list">
-          {{ range .Groups }}<li>{{ . }}</li>{{ end }}
-        </ul>
-      </details>
-    </div>
-    {{ end }}
+  <dl class="dex-facts">
     {{ if .ConnectorName }}
-    <div class="dex-info-row">
-      <span class="dex-info-label">Connector</span>
-      {{ template "info-value" .ConnectorName }}
+    <div class="dex-fact">
+      <dt>Signed in with</dt>
+      <dd>{{ .ConnectorName }}</dd>
+    </div>
+    {{ end }}
+    {{ if .SignedInISO }}
+    <div class="dex-fact">
+      <dt>Signed in</dt>
+      <dd><time datetime="{{ .SignedInISO }}">{{ .SignedInText }}</time></dd>
+    </div>
+    {{ end }}
+    {{ if .SessionExpiresISO }}
+    <div class="dex-fact">
+      <dt>{{ if .SessionExpiryIsIdle }}Expires if idle{{ else }}Session ends{{ end }}</dt>
+      <dd><time datetime="{{ .SessionExpiresISO }}">{{ .SessionExpiresText }}</time></dd>
     </div>
     {{ end }}
     {{ if .IPAddress }}
-    <div class="dex-info-row">
-      <span class="dex-info-label">IP address</span>
-      {{ template "info-value" .IPAddress }}
+    <div class="dex-fact">
+      <dt>Signed in from</dt>
+      <dd>{{ .IPAddress }}</dd>
+    </div>
+    {{ end }}
+    {{ if .Groups }}
+    <div class="dex-fact">
+      <dt id="groups-label">Groups <span class="dex-count">{{ len .Groups }}</span></dt>
+      <dd>
+        <ul class="dex-groups" tabindex="0" aria-labelledby="groups-label">
+          {{ range .Groups }}<li>{{ . }}</li>{{ end }}
+        </ul>
+      </dd>
     </div>
     {{ end }}
     {{ if .UserAgent }}
-    <div class="dex-info-row">
-      <span class="dex-info-label">Browser</span>
-      {{ template "info-value" .UserAgent }}
+    <div class="dex-fact">
+      <dt>Browser</dt>
+      <dd class="dex-fact__long">{{ .UserAgent }}</dd>
     </div>
     {{ end }}
-    {{ if .LastLoginEpoch }}
-    <div class="dex-info-row">
-      <span class="dex-info-label">Last login</span>
-      <span class="dex-info-value" id="last-login"></span>
-    </div>
-    {{ end }}
-  </div>
-  <hr class="dex-separator">
+  </dl>
 
-  <div class="theme-form-row">
-    <a href="{{ .LogoutURL }}" class="dex-btn theme-btn--primary" style="display: inline-block; text-decoration: none; padding: 8px 16px;">Logout</a>
+  <div class="dex-home__actions">
+    <a href="{{ .LogoutURL }}" class="dex-btn theme-btn--primary">Log out</a>
   </div>
   {{ else }}
-  <div>
-    <div class="dex-subtle-text">Not logged in</div>
+  <div class="dex-home__empty">
+    <h2 class="dex-home__empty-title">Not signed in</h2>
+    <p class="dex-home__empty-text">
+      This is the dex identity provider. Sign in from the application you want to use.
+    </p>
   </div>
   {{ end }}
 
-  <div class="theme-form-row">
-    <a href="{{ .DiscoveryURL }}" class="dex-subtle-text">Discovery</a>
+  <div class="dex-home__footer">
+    <a href="{{ .DiscoveryURL }}" class="dex-home__link">OpenID configuration</a>
   </div>
 </div>
 
-{{ if .LastLoginEpoch }}
+{{ if .LoggedIn }}
 <script>
-  (function() {
-    var epoch = {{ .LastLoginEpoch }};
-    var el = document.getElementById('last-login');
-    if (el && epoch) {
-      el.textContent = new Date(epoch * 1000).toLocaleString();
+  (function () {
+    // A long group list is capped by CSS; fade its bottom edge so the cut is
+    // visible on platforms whose scrollbars only appear while scrolling. The
+    // fade tracks the scroll position — left up permanently it would dim the
+    // last group even once you had scrolled down to read it.
+    var groups = document.querySelector('.dex-groups');
+    if (groups) {
+      var syncFade = function () {
+        var more = groups.scrollTop + groups.clientHeight < groups.scrollHeight - 1;
+        groups.classList.toggle('dex-groups--clipped', more);
+      };
+      syncFade();
+      groups.addEventListener('scroll', syncFade, {passive: true});
+      // A narrower window wraps long group names onto more lines, so whether
+      // the list overflows is not settled once at load.
+      window.addEventListener('resize', syncFade, {passive: true});
     }
+
+    // The server states these in UTC; restate them in the visitor's own zone.
+    document.querySelectorAll('time[datetime]').forEach(function (el) {
+      var date = new Date(el.getAttribute('datetime'));
+      if (isNaN(date.getTime())) return;
+      el.textContent = date.toLocaleString([], {dateStyle: 'medium', timeStyle: 'short'});
+    });
   })();
 </script>
 {{ end }}
