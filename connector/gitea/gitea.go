@@ -251,7 +251,7 @@ func (c *giteaConnector) Refresh(ctx context.Context, s connector.Scopes, ident 
 	})
 	user, err := c.user(ctx, client)
 	if err != nil {
-		return ident, fmt.Errorf("gitea: get user: %v", err)
+		return ident, fmt.Errorf("gitea: get user: %w", err)
 	}
 
 	username := user.Name
@@ -400,7 +400,7 @@ func (c *giteaConnector) user(ctx context.Context, client *http.Client) (giteaUs
 	req = req.WithContext(ctx)
 	resp, err := client.Do(req)
 	if err != nil {
-		return u, fmt.Errorf("gitea: get URL %v", err)
+		return u, fmt.Errorf("gitea: get URL %w", err)
 	}
 	defer resp.Body.Close()
 

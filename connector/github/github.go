@@ -377,7 +377,7 @@ func (c *githubConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 	})
 	user, err := c.user(ctx, client)
 	if err != nil {
-		return identity, fmt.Errorf("github: get user: %v", err)
+		return identity, fmt.Errorf("github: get user: %w", err)
 	}
 
 	username := user.Name
@@ -552,7 +552,7 @@ func get(ctx context.Context, client *http.Client, apiURL string, v interface{})
 	req.Header.Set("X-GitHub-Api-Version", githubAPIVersion)
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("github: get URL %v", err)
+		return "", fmt.Errorf("github: get URL %w", err)
 	}
 	defer resp.Body.Close()
 

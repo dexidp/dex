@@ -17,6 +17,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/oauth2"
+
 	"github.com/dexidp/dex/connector"
 )
 
@@ -777,5 +779,30 @@ func TestTokenIdentity(t *testing.T) {
 			expectEquals(t, identity.EmailVerified, true)
 			expectEquals(t, identity.Groups, tc.expectGroups)
 		})
+	}
+}
+
+// TestRefreshUpstreamRejection verifies that a refresh GitLab refuses keeps
+// the upstream's OAuth2 error, so the server can tell a rejected refresh
+// token apart from other failures.
+func TestRefreshUpstreamRejection(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid_grant"})
+	}))
+	defer s.Close()
+
+	c := gitlabConnector{baseURL: s.URL, httpClient: newClient()}
+	connData, err := json.Marshal(connectorData{RefreshToken: "refresh-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = c.Refresh(t.Context(), connector.Scopes{OfflineAccess: true}, connector.Identity{ConnectorData: connData})
+
+	var retrieveErr *oauth2.RetrieveError
+	if !errors.As(err, &retrieveErr) || retrieveErr.ErrorCode != "invalid_grant" {
+		t.Fatalf("expected the upstream invalid_grant in the error chain, got %v", err)
 	}
 }
