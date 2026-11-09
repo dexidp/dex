@@ -554,7 +554,7 @@ func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identit
 	}
 	token, err := c.oauth2Config.TokenSource(ctx, t).Token()
 	if err != nil {
-		return identity, fmt.Errorf("oidc: failed to get refresh token: %v", err)
+		return identity, fmt.Errorf("oidc: failed to get refresh token: %w", err)
 	}
 	return c.createIdentity(ctx, identity, token, refreshCaller)
 }
@@ -606,6 +606,9 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		return identity, errors.New("oidc: no id_token in token response")
 	}
 
+	// Keep the verified ID Token subject to compare against the userinfo response below.
+	idTokenSubject, _ := claims["sub"].(string)
+
 	// We immediately want to run getUserInfo if configured before we validate the claims.
 	// For token exchanges with access tokens, this is how we verify the token.
 	if c.getUserInfo {
@@ -618,6 +621,11 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		}
 		if err := userInfo.Claims(&claims); err != nil {
 			return identity, fmt.Errorf("oidc: failed to decode userinfo claims: %v", err)
+		}
+
+		// The userinfo sub must match the ID Token sub (OpenID Connect Core 5.3.2).
+		if userInfoSubject, _ := claims["sub"].(string); idTokenSubject != "" && userInfoSubject != idTokenSubject {
+			return identity, fmt.Errorf("oidc: userinfo sub %q does not match id_token sub %q", userInfoSubject, idTokenSubject)
 		}
 	}
 
@@ -679,9 +687,12 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 			vs, found = claims[groupsKey].([]interface{})
 		}
 
-		// Fallback when claims[groupsKey] is a string instead of an array of strings.
+		// Fallback when claims[groupsKey] is a string instead of an array of
+		// strings. Fold it into the array path so groupsFilter (and the other
+		// per-group handling below) applies uniformly.
 		if g, b := claims[groupsKey].(string); b {
-			groups = []string{g}
+			vs = []interface{}{g}
+			found = true
 		}
 
 		if found {
