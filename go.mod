@@ -13,7 +13,7 @@ require (
 	github.com/dexidp/dex/api/v2 v2.4.0
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/ghodss/yaml v1.0.0
-	github.com/go-jose/go-jose/v4 v4.1.8
+	github.com/go-jose/go-jose/v4 v4.1.9
 	github.com/go-ldap/ldap/v3 v3.4.15
 	github.com/go-sql-driver/mysql v1.10.1
 	github.com/go-webauthn/webauthn v0.18.2
@@ -27,7 +27,7 @@ require (
 	github.com/kylelemons/godebug v1.1.0
 	github.com/lib/pq v1.12.3
 	github.com/mattermost/xml-roundtrip-validator v0.1.0
-	github.com/mattn/go-sqlite3 v1.14.52
+	github.com/mattn/go-sqlite3 v1.14.53
 	github.com/oklog/run v1.2.0
 	github.com/openbao/openbao/api/v2 v2.7.1
 	github.com/pkg/errors v0.9.1
@@ -42,7 +42,7 @@ require (
 	golang.org/x/exp v0.0.0-20240823005443-9b4947da3948
 	golang.org/x/net v0.62.0
 	golang.org/x/oauth2 v0.37.0
-	google.golang.org/api v0.310.0
+	google.golang.org/api v0.311.0
 	google.golang.org/grpc v1.85.0
 	google.golang.org/protobuf v1.36.12
 )
@@ -51,7 +51,7 @@ require (
 	ariga.io/atlas v0.36.2-0.20250730182955-2c6300d0a3e1 // indirect
 	cel.dev/expr v0.25.3 // indirect
 	cloud.google.com/go/auth v0.24.1-0.20261001053825-dbc26066f70a // indirect
-	cloud.google.com/go/auth/oauth2adapt v0.3.0 // indirect
+	cloud.google.com/go/auth/oauth2adapt v0.3.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/Azure/go-ntlmssp v0.1.1 // indirect
@@ -146,7 +146,7 @@ require (
 	golang.org/x/tools v0.52.0 // indirect
 	golang.org/x/tools/go/packages/packagestest v0.1.1-deprecated // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20261012220534-4341edf3f941 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20261019180522-ce908d29299b // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20261026165753-2ffab32bce7e // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
