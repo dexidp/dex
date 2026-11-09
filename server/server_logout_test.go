@@ -1,9 +1,11 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -15,11 +17,126 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/discovery"
 	"github.com/dexidp/dex/server/internal"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
+
+// keepLogoutSessionData is embedded by the fake stateful logout connectors: the
+// session keeps the connector data of the login as it is.
+type keepLogoutSessionData struct{}
+
+func (keepLogoutSessionData) LogoutSessionData(connectorData []byte) ([]byte, error) {
+	return connectorData, nil
+}
+
+// fakeStatefulLogoutConnector always reports a validation failure from
+// HandleLogoutCallbackWithState.
+type fakeStatefulLogoutConnector struct{ keepLogoutSessionData }
+
+func (fakeStatefulLogoutConnector) LoginURL(connector.Scopes, string, string) (string, error) {
+	return "", nil
+}
+
+func (fakeStatefulLogoutConnector) LogoutURLWithState(_ context.Context, _ []byte, _ string) (string, []byte, error) {
+	return "https://idp.example.com/slo", []byte("_req_id"), nil
+}
+
+func (fakeStatefulLogoutConnector) HandleLogoutCallbackWithState(_ context.Context, _ *http.Request, _ []byte) error {
+	return errors.New("forced validation failure for tests")
+}
+
+// statusFailureStatefulLogoutConnector reports an authentic response whose
+// status says the upstream logout failed, wrapped the way a connector may.
+type statusFailureStatefulLogoutConnector struct{ keepLogoutSessionData }
+
+func (statusFailureStatefulLogoutConnector) LoginURL(connector.Scopes, string, string) (string, error) {
+	return "", nil
+}
+
+func (statusFailureStatefulLogoutConnector) LogoutURLWithState(_ context.Context, _ []byte, _ string) (string, []byte, error) {
+	return "https://idp.example.com/slo", []byte("_req_id"), nil
+}
+
+func (statusFailureStatefulLogoutConnector) HandleLogoutCallbackWithState(_ context.Context, _ *http.Request, _ []byte) error {
+	return fmt.Errorf("saml slo: %w", &connector.UpstreamLogoutStatusError{
+		Status:  "urn:oasis:names:tc:SAML:2.0:status:Responder",
+		Message: "session store unavailable",
+	})
+}
+
+// failOnceStatefulLogoutConnector rejects the first callback, like a forged request
+// that reaches /logout/callback before the IdP's response, and accepts the next.
+type failOnceStatefulLogoutConnector struct {
+	keepLogoutSessionData
+	calls *int
+}
+
+func (failOnceStatefulLogoutConnector) LoginURL(connector.Scopes, string, string) (string, error) {
+	return "", nil
+}
+
+func (failOnceStatefulLogoutConnector) LogoutURLWithState(_ context.Context, _ []byte, _ string) (string, []byte, error) {
+	return "https://idp.example.com/slo", []byte("_req_id"), nil
+}
+
+func (c failOnceStatefulLogoutConnector) HandleLogoutCallbackWithState(_ context.Context, _ *http.Request, _ []byte) error {
+	*c.calls++
+	if *c.calls == 1 {
+		return errors.New("forced validation failure for the first callback")
+	}
+	return nil
+}
+
+type capturingStatefulLogoutConnector struct {
+	keepLogoutSessionData
+	connectorData *[]byte
+}
+
+func (capturingStatefulLogoutConnector) LoginURL(connector.Scopes, string, string) (string, error) {
+	return "", nil
+}
+
+func (c capturingStatefulLogoutConnector) LogoutURLWithState(_ context.Context, connectorData []byte, _ string) (string, []byte, error) {
+	*c.connectorData = append((*c.connectorData)[:0], connectorData...)
+	return "https://idp.example.com/slo", []byte("_req_id"), nil
+}
+
+func (capturingStatefulLogoutConnector) HandleLogoutCallbackWithState(_ context.Context, _ *http.Request, _ []byte) error {
+	return nil
+}
+
+type replacingStatefulLogoutConnector struct {
+	keepLogoutSessionData
+	store       storage.Storage
+	sessionID   string
+	callbackErr error
+}
+
+func (replacingStatefulLogoutConnector) LoginURL(connector.Scopes, string, string) (string, error) {
+	return "", nil
+}
+
+func (replacingStatefulLogoutConnector) LogoutURLWithState(_ context.Context, _ []byte, _ string) (string, []byte, error) {
+	return "https://idp.example.com/slo", []byte("_new_req_id"), nil
+}
+
+func (c replacingStatefulLogoutConnector) HandleLogoutCallbackWithState(ctx context.Context, _ *http.Request, _ []byte) error {
+	err := c.store.UpdateAuthSession(ctx, c.sessionID, func(old storage.AuthSession) (storage.AuthSession, error) {
+		old.LogoutState = &storage.LogoutState{
+			ConnectorID:    old.ConnectorID,
+			ConnectorState: []byte("_new_req_id"),
+		}
+		return old, nil
+	})
+	if err != nil {
+		return err
+	}
+	return c.callbackErr
+}
 
 func TestHandleLogoutNoSessions(t *testing.T) {
 	httpServer, server := newTestServer(t, nil)
@@ -429,6 +546,277 @@ func TestHandleLogoutFromCookie(t *testing.T) {
 			require.Equal(t, -1, c.MaxAge)
 		}
 	}
+}
+
+func TestLogoutCallbackStatefulFailureKeepsSessionAndLogoutState(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	ctx := t.Context()
+	sessionID := "test-session"
+	connectorID := "stateful-fake"
+
+	registerTestConnector(t, server, connectorID, fakeStatefulLogoutConnector{})
+
+	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
+		ID:           sessionID,
+		Secret:       testSessionSecret(sessionID),
+		UserID:       "test-user",
+		ConnectorID:  connectorID,
+		CreatedAt:    time.Now(),
+		LastActivity: time.Now(),
+		LogoutState: &storage.LogoutState{
+			ConnectorID:    connectorID,
+			ConnectorState: []byte("_req_id"),
+		},
+	}))
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/logout/callback", nil)
+	req.AddCookie(testSessionCookie(sessionID))
+	server.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+
+	got, err := server.storage.GetAuthSession(ctx, sessionID)
+	require.NoError(t, err, "session must survive failed stateful logout validation")
+	require.NotNil(t, got.LogoutState, "LogoutState must survive failed validation so the real response can still arrive")
+	require.Equal(t, []byte("_req_id"), got.LogoutState.ConnectorState)
+
+	for _, cookie := range rr.Result().Cookies() {
+		if cookie.Name == "dex_session" {
+			require.NotEqual(t, -1, cookie.MaxAge, "session cookie must not be cleared on failure")
+		}
+	}
+}
+
+func TestLogoutCallbackUpstreamStatusFailureEndsSession(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	ctx := t.Context()
+	sessionID := "test-session-upstream-status"
+	connectorID := "stateful-status-failure"
+
+	registerTestConnector(t, server, connectorID, statusFailureStatefulLogoutConnector{})
+
+	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
+		ID:           sessionID,
+		Secret:       testSessionSecret(sessionID),
+		UserID:       "test-user",
+		ConnectorID:  connectorID,
+		CreatedAt:    time.Now(),
+		LastActivity: time.Now(),
+		LogoutState: &storage.LogoutState{
+			ConnectorID:    connectorID,
+			ConnectorState: []byte("_req_id"),
+		},
+	}))
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/logout/callback", nil)
+	req.AddCookie(testSessionCookie(sessionID))
+	server.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, "an upstream Responder status must not leave the user on an error page")
+
+	_, err := server.storage.GetAuthSession(ctx, sessionID)
+	require.ErrorIs(t, err, storage.ErrNotFound, "the Dex session must end even though the upstream logout failed")
+
+	var cleared bool
+	for _, cookie := range rr.Result().Cookies() {
+		if cookie.Name == "dex_session" && cookie.MaxAge == -1 {
+			cleared = true
+		}
+	}
+	require.True(t, cleared, "session cookie must be cleared")
+}
+
+func TestLogoutCallbackStrayRequestDoesNotCancelLogout(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	ctx := t.Context()
+	sessionID := "test-session-stray-callback"
+	connectorID := "stateful-fail-once"
+	var calls int
+
+	registerTestConnector(t, server, connectorID, failOnceStatefulLogoutConnector{calls: &calls})
+
+	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
+		ID:           sessionID,
+		Secret:       testSessionSecret(sessionID),
+		UserID:       "test-user",
+		ConnectorID:  connectorID,
+		CreatedAt:    time.Now(),
+		LastActivity: time.Now(),
+		LogoutState: &storage.LogoutState{
+			ConnectorID:    connectorID,
+			ConnectorState: []byte("_req_id"),
+		},
+	}))
+
+	callback := func() *httptest.ResponseRecorder {
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/logout/callback", nil)
+		req.AddCookie(testSessionCookie(sessionID))
+		server.ServeHTTP(rr, req)
+		return rr
+	}
+
+	require.Equal(t, http.StatusBadRequest, callback().Code, "the stray request is rejected")
+
+	rr := callback()
+	require.Equal(t, http.StatusOK, rr.Code, "the IdP's real response must still complete the logout")
+	_, err := server.storage.GetAuthSession(ctx, sessionID)
+	require.ErrorIs(t, err, storage.ErrNotFound)
+
+	// The state went with the session: a replay finds nothing to complete.
+	require.Equal(t, http.StatusBadRequest, callback().Code)
+}
+
+func TestUpstreamLogoutUsesAuthSessionConnectorData(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	ctx := t.Context()
+	sessionID := "test-session-connector-data"
+	connectorID := "stateful-capturing-fake"
+	wantConnectorData := []byte(`{"nameID":"browser-user","sessionIndex":"browser-session"}`)
+	var gotConnectorData []byte
+	registerTestConnector(t, server, connectorID, capturingStatefulLogoutConnector{
+		connectorData: &gotConnectorData,
+	})
+
+	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
+		ID:            sessionID,
+		Secret:        testSessionSecret(sessionID),
+		UserID:        "test-user",
+		ConnectorID:   connectorID,
+		ConnectorData: wantConnectorData,
+		CreatedAt:     time.Now(),
+		LastActivity:  time.Now(),
+	}))
+	require.NoError(t, server.storage.CreateOfflineSessions(ctx, storage.OfflineSessions{
+		UserID:        "test-user",
+		ConnID:        connectorID,
+		ConnectorData: []byte(`{"nameID":"other-device","sessionIndex":"other-session"}`),
+		Refresh:       map[string]*storage.RefreshTokenRef{},
+	}))
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/logout", nil)
+	req.AddCookie(testSessionCookie(sessionID))
+	server.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusSeeOther, rr.Code)
+	require.Equal(t, "https://idp.example.com/slo", rr.Header().Get("Location"))
+	require.Equal(t, wantConnectorData, gotConnectorData)
+}
+
+func TestLogoutCallbackFailureDoesNotClearNewerLogoutState(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	ctx := t.Context()
+	sessionID := "test-session-race"
+	connectorID := "stateful-replacing-fake"
+	registerTestConnector(t, server, connectorID, replacingStatefulLogoutConnector{
+		store:       server.storage,
+		sessionID:   sessionID,
+		callbackErr: errors.New("forced validation failure after a newer logout started"),
+	})
+
+	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
+		ID:           sessionID,
+		Secret:       testSessionSecret(sessionID),
+		UserID:       "test-user",
+		ConnectorID:  connectorID,
+		CreatedAt:    time.Now(),
+		LastActivity: time.Now(),
+		LogoutState: &storage.LogoutState{
+			ConnectorID:    connectorID,
+			ConnectorState: []byte("_old_req_id"),
+		},
+	}))
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/logout/callback", nil)
+	req.AddCookie(testSessionCookie(sessionID))
+	server.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+	got, err := server.storage.GetAuthSession(ctx, sessionID)
+	require.NoError(t, err)
+	require.NotNil(t, got.LogoutState)
+	require.Equal(t, []byte("_new_req_id"), got.LogoutState.ConnectorState)
+}
+
+func TestLogoutCallbackSuccessDoesNotConsumeNewerLogoutState(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	ctx := t.Context()
+	sessionID := "test-session-success-race"
+	connectorID := "stateful-success-replacing-fake"
+	registerTestConnector(t, server, connectorID, replacingStatefulLogoutConnector{
+		store:     server.storage,
+		sessionID: sessionID,
+	})
+
+	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
+		ID:           sessionID,
+		Secret:       testSessionSecret(sessionID),
+		UserID:       "test-user",
+		ConnectorID:  connectorID,
+		CreatedAt:    time.Now(),
+		LastActivity: time.Now(),
+		LogoutState: &storage.LogoutState{
+			ConnectorID:    connectorID,
+			ConnectorState: []byte("_old_req_id"),
+		},
+	}))
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/logout/callback", nil)
+	req.AddCookie(testSessionCookie(sessionID))
+	server.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+	got, err := server.storage.GetAuthSession(ctx, sessionID)
+	require.NoError(t, err, "stale successful callback must not delete the session")
+	require.NotNil(t, got.LogoutState)
+	require.Equal(t, []byte("_new_req_id"), got.LogoutState.ConnectorState)
+}
+
+func TestLogoutCallbackMissingStatefulConnectorFailsClosed(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	ctx := t.Context()
+	sessionID := "test-session-missing-connector"
+	require.NoError(t, server.storage.CreateAuthSession(ctx, storage.AuthSession{
+		ID:           sessionID,
+		Secret:       testSessionSecret(sessionID),
+		UserID:       "test-user",
+		ConnectorID:  "missing",
+		CreatedAt:    time.Now(),
+		LastActivity: time.Now(),
+		LogoutState: &storage.LogoutState{
+			ConnectorID:    "missing",
+			ConnectorState: []byte("_req_id"),
+		},
+	}))
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/logout/callback", nil)
+	req.AddCookie(testSessionCookie(sessionID))
+	server.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+	got, err := server.storage.GetAuthSession(ctx, sessionID)
+	require.NoError(t, err, "session must survive when stateful callback cannot be validated")
+	require.NotNil(t, got.LogoutState)
 }
 
 // TestLogoutCallbackWithExpiredSession tests that /logout/callback
@@ -1158,4 +1546,84 @@ func TestHandleLogoutExpiredSession(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code)
 	require.Contains(t, rr.Body.String(), "No active session")
 	require.Empty(t, wait(0), "an expired session has no relying parties left to tell")
+}
+
+// loginCallbackConnector is a callback connector whose logins carry connector data,
+// like the upstream refresh token of an OIDC login.
+type loginCallbackConnector struct{ data []byte }
+
+func (loginCallbackConnector) LoginURL(connector.Scopes, string, string) (string, []byte, error) {
+	return "", nil, nil
+}
+
+func (c loginCallbackConnector) HandleCallback(connector.Scopes, []byte, *http.Request) (connector.Identity, error) {
+	return connector.Identity{
+		UserID:        "login-user",
+		Username:      "login-user",
+		Email:         "login-user@example.com",
+		EmailVerified: true,
+		ConnectorData: c.data,
+	}, nil
+}
+
+// logoutDataCallbackConnector also supports stateful upstream logout and asks the
+// server to keep only a part of the login's connector data.
+type logoutDataCallbackConnector struct{ loginCallbackConnector }
+
+func (logoutDataCallbackConnector) LogoutSessionData(connectorData []byte) ([]byte, error) {
+	return bytes.TrimPrefix(connectorData, []byte("claims+")), nil
+}
+
+func (logoutDataCallbackConnector) LogoutURLWithState(context.Context, []byte, string) (string, []byte, error) {
+	return "", nil, nil
+}
+
+func (logoutDataCallbackConnector) HandleLogoutCallbackWithState(context.Context, *http.Request, []byte) error {
+	return nil
+}
+
+func TestLoginKeepsOnlyLogoutDataInAuthSession(t *testing.T) {
+	httpServer, server := newTestServerWithSessions(t, nil)
+	defer httpServer.Close()
+
+	ctx := t.Context()
+	registerTestConnector(t, server, "plain-callback", loginCallbackConnector{data: []byte(`{"refreshToken":"upstream-secret"}`)})
+	registerTestConnector(t, server, "logout-callback", logoutDataCallbackConnector{loginCallbackConnector{data: []byte("claims+logout-fields")}})
+
+	for _, tc := range []struct {
+		connectorID string
+		want        []byte
+	}{
+		{"plain-callback", nil},
+		{"logout-callback", []byte("logout-fields")},
+	} {
+		t.Run(tc.connectorID, func(t *testing.T) {
+			authReqID := "login-" + tc.connectorID
+			require.NoError(t, server.storage.CreateAuthRequest(ctx, storage.AuthRequest{
+				ID:            authReqID,
+				ConnectorID:   tc.connectorID,
+				ClientID:      "test",
+				RedirectURI:   "cb",
+				Expiry:        time.Now().Add(time.Minute),
+				ResponseTypes: []string{oauth2.ResponseTypeCode},
+				Scopes:        []string{"openid"},
+			}))
+
+			rr := httptest.NewRecorder()
+			server.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/callback/"+tc.connectorID+"?state="+authReqID, nil))
+			require.Equal(t, http.StatusSeeOther, rr.Code, rr.Body.String())
+
+			sessions, err := server.storage.ListAuthSessions(ctx)
+			require.NoError(t, err)
+			var found bool
+			for _, sess := range sessions {
+				if sess.ConnectorID != tc.connectorID {
+					continue
+				}
+				found = true
+				require.Equal(t, tc.want, sess.ConnectorData)
+			}
+			require.True(t, found, "the login must create a browser session")
+		})
+	}
 }
