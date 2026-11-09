@@ -459,6 +459,11 @@ func TestParseAuthorizationRequestDeviceCallbackNonRootIssuer(t *testing.T) {
 			client: storage.Client{ID: "dev", Public: true, RedirectURIs: []string{"/dex/device/callback"}},
 		},
 		{
+			name:    "confidential client with bare device callback",
+			client:  storage.Client{ID: "dev", Secret: "secret", RedirectURIs: []string{"/device/callback"}},
+			wantErr: true,
+		},
+		{
 			name:    "public client with other redirect URIs",
 			client:  storage.Client{ID: "dev", Public: true, RedirectURIs: []string{"http://foo.com/bar"}},
 			wantErr: true,
