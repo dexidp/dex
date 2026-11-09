@@ -119,7 +119,7 @@ func (h *Handler) Keys(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) serveDocument(w http.ResponseWriter, r *http.Request) {
 	data, err := h.document(r.Context())
 	if err != nil {
-		h.Logger.ErrorContext(r.Context(), "failed to marshal discovery data", "err", err)
+		h.Logger.ErrorContext(r.Context(), "failed to build discovery document", "err", err)
 		h.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
 		return
 	}
@@ -130,29 +130,33 @@ func (h *Handler) serveDocument(w http.ResponseWriter, r *http.Request) {
 }
 
 // document returns the marshaled discovery document, from the cache when it
-// has been built successfully before.
+// has been built successfully before. It fails rather than advertise the RS256
+// fallback when the signing algorithm cannot be determined, so clients do not
+// cache a wrong algorithm on their side.
 func (h *Handler) document(ctx context.Context) ([]byte, error) {
 	if data := h.doc.Load(); data != nil {
 		return *data, nil
 	}
 
-	doc, algErr := h.construct(ctx)
+	doc, err := h.construct(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get signing algorithm: %v", err)
+	}
 	data, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("marshal discovery document: %v", err)
 	}
-	// A document built after a failed signing algorithm lookup carries the RS256
-	// fallback, which is wrong for an ES256 signer. Serve it for this request but
-	// do not cache it.
-	if algErr == nil {
-		h.doc.Store(&data)
-	}
+	h.doc.Store(&data)
 	return data, nil
 }
 
-// Construct builds the discovery document from the current configuration.
+// Construct builds the discovery document from the current configuration. If
+// the signing algorithm cannot be determined, the document advertises RS256.
 func (h *Handler) Construct(ctx context.Context) Document {
-	d, _ := h.construct(ctx)
+	d, err := h.construct(ctx)
+	if err != nil {
+		h.Logger.ErrorContext(ctx, "failed to get signing algorithm", "err", err)
+	}
 	return d
 }
 
@@ -181,9 +185,7 @@ func (h *Handler) construct(ctx context.Context) (Document, error) {
 
 	// Determine signing algorithm from signer.
 	signingAlg, err := h.Signer.Algorithm(ctx)
-	if err != nil {
-		h.Logger.Error("failed to get signing algorithm", "err", err)
-	} else {
+	if err == nil {
 		d.IDTokenAlgs = []string{string(signingAlg)}
 	}
 

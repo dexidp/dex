@@ -133,7 +133,7 @@ func TestLocalSignerSignAndValidate(t *testing.T) {
 			ls := newTestLocalSigner(t, tt.cfg, nil, nil)
 			ctx := context.Background()
 
-			require.NoError(t, ls.rotator.rotate())
+			require.NoError(t, ls.rotator.rotate(false))
 
 			payload := []byte(`{"sub":"test-user"}`)
 			signed, err := ls.Sign(ctx, payload)
@@ -154,7 +154,7 @@ func TestLocalSignerSignAndValidate(t *testing.T) {
 	}
 }
 
-func TestLocalSignerAppliesConfiguredAlgorithmOnNextRotation(t *testing.T) {
+func TestLocalSignerRotatesOnStartWhenAlgorithmChanges(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -187,18 +187,13 @@ func TestLocalSignerAppliesConfiguredAlgorithmOnNextRotation(t *testing.T) {
 	beforeToken, err := ls.Sign(ctx, beforePayload)
 	require.NoError(t, err)
 
+	// The stored RS256 key has not expired, but Start rotates it because the
+	// configured algorithm is ES256.
 	ls.Start(ctx)
 
 	afterStartAlg, err := ls.Algorithm(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, jose.RS256, afterStartAlg)
-
-	currentTime = currentTime.Add(time.Hour + time.Second)
-	require.NoError(t, ls.rotator.rotate())
-
-	afterRotationAlg, err := ls.Algorithm(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, jose.ES256, afterRotationAlg)
+	assert.Equal(t, jose.ES256, afterStartAlg)
 
 	afterPayload := []byte(`{"sub":"after-rotation"}`)
 	afterToken, err := ls.Sign(ctx, afterPayload)
@@ -239,7 +234,7 @@ func TestLocalSignerDoesNotRevertSharedKeyAlgorithmBeforeNextRotation(t *testing
 		func() time.Time { return currentTime },
 	)
 
-	require.NoError(t, ls.rotator.rotate())
+	require.NoError(t, ls.rotator.rotate(false))
 
 	alg, err := ls.Algorithm(ctx)
 	require.NoError(t, err)

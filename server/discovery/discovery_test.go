@@ -17,6 +17,8 @@ import (
 
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
+	"github.com/dexidp/dex/server/templates"
+	dexweb "github.com/dexidp/dex/web"
 )
 
 func testHandler(t *testing.T, sessionsEnabled bool) *Handler {
@@ -82,10 +84,23 @@ func TestServeDocumentRetriesFailedSigningAlgorithm(t *testing.T) {
 	sig := &flakySigner{Signer: h.Signer}
 	h.Signer = sig
 
-	idTokenAlgs := func() []string {
+	//nolint:dogsled // only the templates are needed here
+	_, _, _, tmpls, err := templates.LoadWebConfig(templates.Config{
+		WebFS:     dexweb.FS(),
+		IssuerURL: h.IssuerURL.String(),
+	})
+	require.NoError(t, err)
+	h.Templates = tmpls
+
+	serve := func() *httptest.ResponseRecorder {
 		t.Helper()
 		rr := httptest.NewRecorder()
 		h.serveDocument(rr, httptest.NewRequest(http.MethodGet, "/.well-known/openid-configuration", nil))
+		return rr
+	}
+	idTokenAlgs := func() []string {
+		t.Helper()
+		rr := serve()
 		require.Equal(t, http.StatusOK, rr.Code)
 
 		var doc Document
@@ -93,8 +108,9 @@ func TestServeDocumentRetriesFailedSigningAlgorithm(t *testing.T) {
 		return doc.IDTokenAlgs
 	}
 
-	// The failed lookup falls back to RS256 for this response only.
-	require.Equal(t, []string{string(jose.RS256)}, idTokenAlgs())
+	// The failed lookup is an error rather than an RS256 document that clients
+	// would cache.
+	require.Equal(t, http.StatusInternalServerError, serve().Code)
 	// The next request resolves the real algorithm, and that document is cached.
 	require.Equal(t, []string{string(jose.ES256)}, idTokenAlgs())
 	require.Equal(t, []string{string(jose.ES256)}, idTokenAlgs())
