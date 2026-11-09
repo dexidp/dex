@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/go-jose/go-jose/v4"
@@ -18,6 +19,7 @@ import (
 	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/server"
 	"github.com/dexidp/dex/server/connectors"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent"
@@ -58,7 +60,7 @@ type Config struct {
 
 	// StaticClients cause the server to use this list of clients rather than
 	// querying the storage. Write operations, like creating a client, will fail.
-	StaticClients []storage.Client `json:"staticClients"`
+	StaticClients []staticClient `json:"staticClients"`
 
 	// If enabled, the server will maintain a list of passwords which can be used
 	// to identify a user.
@@ -143,6 +145,20 @@ func (c Config) Validate() error {
 		if err := storage.ValidateRefreshTokenLifetime(client.RefreshTokenLifetime); err != nil {
 			return fmt.Errorf("staticClients: client %q: %w", client.ID, err)
 		}
+		if client.IDJAGPolicy != nil && !c.OAuth2.TokenExchange.idJAGEnabled() {
+			return fmt.Errorf("staticClients: client %q has idJAGPolicies but %s is not listed in oauth2.tokenExchange.tokenTypes", client.ID, oauth2.TokenTypeIDJAG)
+		}
+		if client.IDJAGPolicy != nil && client.Public {
+			return fmt.Errorf("staticClients: client %q is public and cannot have idJAGPolicies", client.ID)
+		}
+	}
+
+	for _, t := range c.OAuth2.TokenExchange.TokenTypes {
+		switch t {
+		case oauth2.TokenTypeID, oauth2.TokenTypeAccess, oauth2.TokenTypeIDJAG:
+		default:
+			return fmt.Errorf("oauth2.tokenExchange.tokenTypes: unsupported token type %q", t)
+		}
 	}
 
 	return nil
@@ -190,6 +206,20 @@ func (c Config) validateMFA() error {
 	}
 
 	return nil
+}
+
+// staticClient is a storage.Client with config-only settings.
+type staticClient struct {
+	storage.Client
+	// IDJAGPolicy lists the audiences and scopes the client may request in an
+	// ID-JAG. A client without it cannot obtain one.
+	IDJAGPolicy *IDJAGPolicy `json:"idJAGPolicies,omitempty"`
+}
+
+// IDJAGPolicy is a client's ID-JAG policy.
+type IDJAGPolicy struct {
+	AllowedAudiences []string `json:"allowedAudiences"`
+	AllowedScopes    []string `json:"allowedScopes"`
 }
 
 type password storage.Password
@@ -260,6 +290,20 @@ type OAuth2 struct {
 	PasswordConnector string `json:"passwordConnector"`
 	// PKCE configuration
 	PKCE PKCE `json:"pkce"`
+	// TokenExchange configuration
+	TokenExchange TokenExchange `json:"tokenExchange"`
+}
+
+// TokenExchange holds the token exchange (RFC 8693) configuration.
+type TokenExchange struct {
+	// TokenTypes lists the token types enabled for exchange. Only
+	// urn:ietf:params:oauth:token-type:id-jag has an effect: listing it enables
+	// ID-JAG issuance. ID and access tokens are always exchangeable.
+	TokenTypes []string `json:"tokenTypes"`
+}
+
+func (t TokenExchange) idJAGEnabled() bool {
+	return slices.Contains(t.TokenTypes, oauth2.TokenTypeIDJAG)
 }
 
 // PKCE holds the PKCE (Proof Key for Code Exchange) configuration.
@@ -675,6 +719,9 @@ type Expiry struct {
 
 	// IdTokens defines the duration of time for which the IdTokens will be valid.
 	IDTokens string `json:"idTokens"`
+
+	// IDJAGTokens defines the duration of time for which ID-JAGs will be valid.
+	IDJAGTokens string `json:"idJAGTokens"`
 
 	// AuthRequests defines the duration of time for which the AuthRequests will be valid.
 	AuthRequests string `json:"authRequests"`

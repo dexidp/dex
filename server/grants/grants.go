@@ -47,6 +47,8 @@ type Request struct {
 	SubjectToken       string
 	SubjectTokenType   string
 	RequestedTokenType string
+	Audience           []string
+	Resource           []string
 
 	// refresh holds the refresh token the refresh grant looks up while resolving
 	// the connector, so it is fetched and decoded once and reused in Authorize.
@@ -75,6 +77,8 @@ func parseRequest(r *http.Request) (*Request, *oauth2.Error) {
 		SubjectToken:       r.PostFormValue("subject_token"),
 		SubjectTokenType:   r.PostFormValue("subject_token_type"),
 		RequestedTokenType: r.PostFormValue("requested_token_type"),
+		Audience:           r.PostForm["audience"],
+		Resource:           r.PostForm["resource"],
 	}
 
 	var oerr *oauth2.Error
@@ -151,6 +155,8 @@ type Handler struct {
 	Sessions            *session.Manager
 	SessionsEnabled     bool
 	SupportedGrantTypes []string
+	IDJAG               *IDJAGConfig
+	IDJAGMetrics        *IDJAGMetrics
 
 	grants map[string]Grant
 }
@@ -171,7 +177,7 @@ func (h *Handler) Mount(m router.Mux) {
 	h.register(h.SupportedGrantTypes,
 		&clientCredentials{issuer: h.Issuer, logger: h.Logger},
 		&password{issuer: h.Issuer, logger: h.Logger, connectorID: h.PasswordConnector},
-		&tokenExchange{issuer: h.Issuer, logger: h.Logger},
+		&tokenExchange{issuer: h.Issuer, logger: h.Logger, idJAG: newIDJAG(h.IDJAG, h.Issuer, h.Sessions, h.IDJAGMetrics, h.Logger)},
 		&authorizationCode{issuer: h.Issuer, storage: h.Storage, connectors: h.Connectors, now: h.Now, logger: h.Logger},
 		&refresh{storage: h.Storage, issuer: h.Issuer, policy: h.RefreshPolicy, sessions: h.Sessions, sessionsEnabled: h.SessionsEnabled, now: h.Now, logger: h.Logger},
 		&deviceCode{storage: h.Storage, now: h.Now, logger: h.Logger},

@@ -21,6 +21,7 @@ import (
 type tokenExchange struct {
 	issuer *tokens.Issuer
 	logger *slog.Logger
+	idJAG  *idJAG // nil when ID-JAG issuance is disabled
 }
 
 func (g *tokenExchange) GrantType() string {
@@ -43,6 +44,10 @@ func (g *tokenExchange) ConnectorID(ctx context.Context, req *Request, client st
 }
 
 func (g *tokenExchange) Authorize(ctx context.Context, req *Request, client storage.Client, conn connectors.Connector) (Responder, error) {
+	if g.idJAG != nil && req.RequestedTokenType == oauth2.TokenTypeIDJAG {
+		return g.idJAG.Authorize(ctx, req, client)
+	}
+
 	switch req.SubjectTokenType {
 	case oauth2.TokenTypeID, oauth2.TokenTypeAccess: // ok, continue
 	default:

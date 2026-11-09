@@ -31,6 +31,7 @@ type Handler struct {
 	GrantTypes      []string
 	PKCEMethods     []string
 	SessionsEnabled bool
+	IDJAGEnabled    bool
 
 	docOnce sync.Once
 	docData []byte
@@ -71,6 +72,9 @@ type Document struct {
 	Scopes                   []string `json:"scopes_supported"`
 	AuthMethods              []string `json:"token_endpoint_auth_methods_supported"`
 	Claims                   []string `json:"claims_supported"`
+	// IdentityChainingTokenTypes advertises ID-JAG issuance
+	// (draft-ietf-oauth-identity-assertion-authz-grant §7.1).
+	IdentityChainingTokenTypes []string `json:"identity_chaining_requested_token_types_supported,omitempty"`
 }
 
 // Keys serves the JSON Web Key Set.
@@ -174,6 +178,10 @@ func (h *Handler) Construct(ctx context.Context) Document {
 		// backchannel_logout_session_required to get one.
 		d.BackchannelLogoutSession = true
 		d.Claims = append(d.Claims, "sid")
+	}
+
+	if h.IDJAGEnabled {
+		d.IdentityChainingTokenTypes = []string{oauth2.TokenTypeIDJAG}
 	}
 
 	return d
