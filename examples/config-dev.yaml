@@ -310,7 +310,7 @@ signer:
   type: local
   config:
     keysRotationPeriod: "6h"
-    algorithm: "RS256" # changes apply on the next key rotation
+    algorithm: "RS256" # a change rotates the signing key on the next restart
 # signer
 #   type: vault
 #   config:
