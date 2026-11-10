@@ -48,7 +48,8 @@ type Introspection struct {
 
 	// Integer timestamp, measured in the number of seconds
 	// since January 1 1970 UTC, indicating when this token will expire.
-	Expiry int64 `json:"exp"`
+	// Omitted for refresh tokens that have no absolute lifetime.
+	Expiry int64 `json:"exp,omitempty"`
 
 	// Integer timestamp, measured in the number of seconds
 	// since January 1 1970 UTC, indicating when this token was
@@ -260,12 +261,19 @@ func (h *Handler) introspectRefreshToken(ctx context.Context, token string) (*In
 		return nil, newIntrospectInternalServerError()
 	}
 
+	// Without an absolute lifetime a refresh token never expires on a fixed date,
+	// so exp is left out rather than reported as the issue time.
+	var expiry int64
+	if lifetime := h.RefreshPolicy.AbsoluteLifetime(); lifetime > 0 {
+		expiry = refresh.CreatedAt.Add(lifetime).Unix()
+	}
+
 	return &Introspection{
 		Active:    true,
 		ClientID:  refresh.ClientID,
 		IssuedAt:  refresh.CreatedAt.Unix(),
 		NotBefore: refresh.CreatedAt.Unix(),
-		Expiry:    refresh.CreatedAt.Add(h.RefreshPolicy.AbsoluteLifetime()).Unix(),
+		Expiry:    expiry,
 		Subject:   subjectString,
 		Username:  refresh.Claims.PreferredUsername,
 		// Refresh-token introspection does not resolve scopes, so the audience is
