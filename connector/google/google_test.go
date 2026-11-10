@@ -13,6 +13,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 	admin "google.golang.org/api/admin/directory/v1"
 	"google.golang.org/api/option"
 
@@ -448,4 +450,36 @@ func TestPromptTypeConfig(t *testing.T) {
 			assert.Equal(t, test.expectedPromptTypeValue, urlp.Query().Get("prompt"))
 		})
 	}
+}
+
+// TestRefreshUpstreamRejection verifies that a refresh Google refuses, as it
+// does for a suspended or deleted user, keeps Google's OAuth2 error, so the
+// server can tell a rejected refresh token apart from other failures.
+func TestRefreshUpstreamRejection(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error":             "invalid_grant",
+			"error_description": "Bad Request",
+		})
+	}))
+	defer ts.Close()
+
+	conn := &googleConnector{
+		oauth2Config: &oauth2.Config{
+			ClientID:     "testClient",
+			ClientSecret: "testSecret",
+			Endpoint:     oauth2.Endpoint{TokenURL: ts.URL + "/token"},
+		},
+		logger: slog.New(slog.DiscardHandler),
+	}
+
+	_, err := conn.Refresh(t.Context(), connector.Scopes{OfflineAccess: true}, connector.Identity{
+		ConnectorData: []byte("refresh-token"),
+	})
+
+	var retrieveErr *oauth2.RetrieveError
+	require.ErrorAs(t, err, &retrieveErr)
+	require.Equal(t, "invalid_grant", retrieveErr.ErrorCode)
 }
