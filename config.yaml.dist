@@ -99,7 +99,7 @@ web:
 #   type: local
 #   config:
 #     keysRotationPeriod: "6h"
-#     algorithm: "RS256" # supported values: "RS256" (default) and "ES256"; changes apply on the next key rotation
+#     algorithm: "RS256" # supported values: "RS256" (default) and "ES256"; a change rotates the signing key on the next restart
 
 # Authentication sessions configuration.
 # Requires DEX_SESSIONS_ENABLED=true feature flag.
