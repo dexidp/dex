@@ -2,12 +2,14 @@ package grants
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/oauth2"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -86,21 +88,16 @@ func (g *deviceCode) Authorize(ctx context.Context, req *Request, client storage
 		if oerr := verifyPKCE(req.CodeVerifier, deviceToken.PKCE); oerr != nil {
 			return nil, oerr
 		}
-		// The token was minted and stored by the browser callback; relay it verbatim.
-		return storedResponse(deviceToken.Token), nil
+		// The token was minted by the browser callback and stored as a serialized
+		// tokens.Response. Decode it so it is written like every other grant's response.
+		var resp tokens.Response
+		if err := json.Unmarshal([]byte(deviceToken.Token), &resp); err != nil {
+			g.logger.ErrorContext(ctx, "failed to decode stored device token response", "err", err)
+			return nil, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
+		}
+		return resp, nil
 
 	default:
 		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Invalid Device code.", Status: http.StatusBadRequest}
 	}
-}
-
-// storedResponse writes an already-serialized token response verbatim.
-type storedResponse string
-
-func (s storedResponse) Write(w http.ResponseWriter) error {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Pragma", "no-cache")
-	_, err := w.Write([]byte(s))
-	return err
 }
