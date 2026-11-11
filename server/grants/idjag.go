@@ -127,7 +127,7 @@ func (g *idJAG) Authorize(ctx context.Context, req *Request, client storage.Clie
 		return nil, reject("invalid_resource", &oauth2.Error{Type: oauth2.InvalidTarget, Description: "resource must be an absolute URI without a fragment.", Status: http.StatusBadRequest})
 	}
 	if req.SubjectTokenType != oauth2.TokenTypeID {
-		return nil, reject("invalid_subject_token_type", &oauth2.Error{Type: oauth2.RequestNotSupported, Description: "Invalid subject_token_type.", Status: http.StatusBadRequest})
+		return nil, reject("invalid_subject_token_type", &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Invalid subject_token_type.", Status: http.StatusBadRequest})
 	}
 
 	idToken, err := g.issuer.VerifyIDToken(ctx, req.SubjectToken, client.ID)
