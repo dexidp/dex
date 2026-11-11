@@ -419,7 +419,7 @@ func (h *Handler) completeDeviceAuthorization(w http.ResponseWriter, r *http.Req
 		if old.Status == oauth2.DeviceTokenComplete {
 			return old, errors.New("device token already complete")
 		}
-		respStr, err := json.MarshalIndent(resp, "", "  ")
+		respStr, err := json.Marshal(resp)
 		if err != nil {
 			h.Logger.ErrorContext(ctx, "failed to marshal device token response", "err", err)
 			h.renderError(r, w, http.StatusInternalServerError, "")

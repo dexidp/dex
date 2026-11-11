@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path"
+	"strconv"
 	"testing"
 	"time"
 
@@ -34,6 +35,9 @@ func TestDeviceTokenResponse(t *testing.T) {
 		Scopes:     []string{"openid", "profile", "offline_access"},
 		Expiry:     now().Add(5 * time.Minute),
 	}
+
+	// Older Dex versions stored the token response indented, and poll still has to decode it.
+	storedTokenResponse := "{\n  \"access_token\": \"foobar\",\n  \"token_type\": \"bearer\",\n  \"expires_in\": 300,\n  \"id_token\": \"idtoken\"\n}"
 
 	tests := []struct {
 		testName               string
@@ -125,13 +129,13 @@ func TestDeviceTokenResponse(t *testing.T) {
 			testDeviceToken: storage.DeviceToken{
 				DeviceCode:          "foo",
 				Status:              oauth2.DeviceTokenComplete,
-				Token:               "{\"access_token\": \"foobar\"}",
+				Token:               storedTokenResponse,
 				Expiry:              now().Add(5 * time.Minute),
 				LastRequestTime:     time.Time{},
 				PollIntervalSeconds: 0,
 			},
 			testDeviceCode:         "foo",
-			expectedServerResponse: "{\"access_token\": \"foobar\"}",
+			expectedServerResponse: `{"access_token":"foobar","token_type":"bearer","expires_in":300,"id_token":"idtoken"}`,
 			expectedResponseCode:   http.StatusOK,
 		},
 		{
@@ -139,7 +143,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 			testDeviceToken: storage.DeviceToken{
 				DeviceCode:          "foo",
 				Status:              oauth2.DeviceTokenComplete,
-				Token:               "{\"access_token\": \"foobar\"}",
+				Token:               storedTokenResponse,
 				Expiry:              now().Add(5 * time.Minute),
 				LastRequestTime:     time.Time{},
 				PollIntervalSeconds: 0,
@@ -151,7 +155,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 			testDeviceCode:         "foo",
 			testCodeVerifier:       codeVerifier,
 			testDeviceRequest:      baseDeviceRequest,
-			expectedServerResponse: "{\"access_token\": \"foobar\"}",
+			expectedServerResponse: `{"access_token":"foobar","token_type":"bearer","expires_in":300,"id_token":"idtoken"}`,
 			expectedResponseCode:   http.StatusOK,
 		},
 		{
@@ -159,7 +163,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 			testDeviceToken: storage.DeviceToken{
 				DeviceCode:          "foo",
 				Status:              oauth2.DeviceTokenComplete,
-				Token:               "{\"access_token\": \"foobar\"}",
+				Token:               storedTokenResponse,
 				Expiry:              now().Add(5 * time.Minute),
 				LastRequestTime:     time.Time{},
 				PollIntervalSeconds: 0,
@@ -178,7 +182,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 			testDeviceToken: storage.DeviceToken{
 				DeviceCode:          "foo",
 				Status:              oauth2.DeviceTokenComplete,
-				Token:               "{\"access_token\": \"foobar\"}",
+				Token:               storedTokenResponse,
 				Expiry:              now().Add(5 * time.Minute),
 				LastRequestTime:     time.Time{},
 				PollIntervalSeconds: 0,
@@ -194,7 +198,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 			testDeviceToken: storage.DeviceToken{
 				DeviceCode:          "foo",
 				Status:              oauth2.DeviceTokenComplete,
-				Token:               "{\"access_token\": \"foobar\"}",
+				Token:               storedTokenResponse,
 				Expiry:              now().Add(5 * time.Minute),
 				LastRequestTime:     time.Time{},
 				PollIntervalSeconds: 0,
@@ -214,7 +218,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 			testDeviceToken: storage.DeviceToken{
 				DeviceCode:          "foo",
 				Status:              oauth2.DeviceTokenComplete,
-				Token:               "{\"access_token\": \"foobar\"}",
+				Token:               storedTokenResponse,
 				Expiry:              now().Add(5 * time.Minute),
 				LastRequestTime:     time.Time{},
 				PollIntervalSeconds: 0,
@@ -228,6 +232,21 @@ func TestDeviceTokenResponse(t *testing.T) {
 			testDeviceRequest:      baseDeviceRequest,
 			expectedServerResponse: oauth2.InvalidGrant,
 			expectedResponseCode:   http.StatusBadRequest,
+		},
+		{
+			testName:          "Test corrupt stored token response",
+			testDeviceRequest: baseDeviceRequest,
+			testDeviceToken: storage.DeviceToken{
+				DeviceCode:          "foo",
+				Status:              oauth2.DeviceTokenComplete,
+				Token:               "not json",
+				Expiry:              now().Add(5 * time.Minute),
+				LastRequestTime:     time.Time{},
+				PollIntervalSeconds: 0,
+			},
+			testDeviceCode:         "foo",
+			expectedServerResponse: oauth2.ServerError,
+			expectedResponseCode:   http.StatusInternalServerError,
 		},
 	}
 	for _, tc := range tests {
@@ -277,13 +296,17 @@ func TestDeviceTokenResponse(t *testing.T) {
 				if rr.Header().Get("Pragma") != "no-cache" {
 					t.Errorf("expected Pragma: no-cache, got %q", rr.Header().Get("Pragma"))
 				}
+				// written by tokens.Response.Write like every other grant
+				if got, want := rr.Header().Get("Content-Length"), strconv.Itoa(rr.Body.Len()); got != want {
+					t.Errorf("expected Content-Length %s, got %q", want, got)
+				}
 			}
 
 			body, err := io.ReadAll(rr.Body)
 			if err != nil {
 				t.Errorf("Could read token response %v", err)
 			}
-			if tc.expectedResponseCode == http.StatusBadRequest || tc.expectedResponseCode == http.StatusUnauthorized {
+			if tc.expectedResponseCode != http.StatusOK {
 				expectJSONErrorResponse(tc.testName, body, tc.expectedServerResponse, t)
 			} else if string(body) != tc.expectedServerResponse {
 				t.Errorf("Unexpected Server Response.  Expected %v got %v", tc.expectedServerResponse, string(body))
