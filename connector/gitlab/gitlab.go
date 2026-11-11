@@ -268,7 +268,7 @@ func (c *gitlabConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 			}
 			token, err := oauth2Config.TokenSource(ctx, t).Token()
 			if err != nil {
-				return ident, fmt.Errorf("gitlab: failed to get refresh token: %v", err)
+				return ident, fmt.Errorf("gitlab: failed to get refresh token: %w", err)
 			}
 			return c.identity(ctx, s, token)
 		}

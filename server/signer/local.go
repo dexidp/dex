@@ -17,8 +17,8 @@ type LocalConfig struct {
 	// KeysRotationPeriod defines the duration of time after which the signing keys will be rotated.
 	KeysRotationPeriod string `json:"keysRotationPeriod"`
 	// Algorithm defines the signing algorithm used for newly generated local keys.
-	// Changing it does not replace the current signing key immediately. The new
-	// algorithm is applied when Dex generates the next signing key during rotation.
+	// If the stored signing key uses a different algorithm when Dex starts, it is
+	// rotated right away so that the new algorithm takes effect on restart.
 	// Supported values are RS256 and ES256.
 	Algorithm jose.SignatureAlgorithm `json:"algorithm"`
 }
@@ -70,8 +70,9 @@ type localSigner struct {
 // The method blocks until after the first attempt to rotate keys has completed. That way
 // healthy storages will return from this call with valid keys.
 func (l *localSigner) Start(ctx context.Context) {
-	// Try to rotate immediately so properly configured storages will have keys.
-	if err := l.rotator.rotate(); err != nil {
+	// Try to rotate immediately so properly configured storages will have a
+	// signing key for the configured algorithm.
+	if err := l.rotator.rotate(true); err != nil {
 		l.logRotateError(err)
 	}
 
@@ -81,7 +82,7 @@ func (l *localSigner) Start(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-time.After(time.Second * 30):
-				if err := l.rotator.rotate(); err != nil {
+				if err := l.rotator.rotate(false); err != nil {
 					l.logRotateError(err)
 				}
 			}

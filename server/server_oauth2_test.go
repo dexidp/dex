@@ -171,8 +171,8 @@ func TestNewIDTokenUsesStoredAlgorithmUntilNextRotation(t *testing.T) {
 	sig, err := localConfig.Open(ctx, store, time.Hour, func() time.Time { return now }, logger)
 	require.NoError(t, err)
 
-	sig.Start(ctx)
-
+	// The signer is not started: Start would rotate the RS256 key right away
+	// because the configured algorithm is ES256.
 	alg, err := sig.Algorithm(ctx)
 	require.NoError(t, err)
 	require.Equal(t, jose.RS256, alg)
