@@ -89,6 +89,7 @@ web:
 #   deviceRequests: "5m"
 #   signingKeys: "6h" # deprecated, use signer.config.keysRotationPeriod
 #   idTokens: "24h"
+#   idJAGTokens: "5m"
 #   refreshTokens:
 #     disableRotation: false
 #     reuseInterval: "3s"
@@ -138,6 +139,14 @@ web:
 #     enforce: false
 #     # Supported code challenge methods. Defaults to ["S256", "plain"].
 #     codeChallengeMethodsSupported: ["S256", "plain"]
+#
+#   # Token exchange (RFC 8693) configuration
+#   tokenExchange:
+#     # Listing id-jag enables issuing Identity Assertion JWT Authorization Grants.
+#     # ID and access tokens are always exchangeable.
+#     tokenTypes:
+#       - urn:ietf:params:oauth:token-type:id_token
+#       - urn:ietf:params:oauth:token-type:id-jag
 
 # Static clients registered in Dex by default.
 #
@@ -186,6 +195,19 @@ web:
 #     ssoSharedWith:
 #       - "dashboard-app"
 #       - "admin-app"
+#
+#   # Example of a client that may obtain ID-JAGs.
+#   # Clients without idJAGPolicies cannot obtain one.
+#   - id: wiki-app
+#     secret: wiki-secret
+#     redirectURIs:
+#       - 'https://wiki.example/callback'
+#     name: 'Wiki Application'
+#     idJAGPolicies:
+#       allowedAudiences:
+#         - "https://chat.example/"
+#       allowedScopes:
+#         - "chat.read"
 
 # Connectors are used to authenticate users against upstream identity providers.
 #

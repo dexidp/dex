@@ -154,6 +154,29 @@ func TestLocalSignerSignAndValidate(t *testing.T) {
 	}
 }
 
+func TestLocalSignerSignWithType(t *testing.T) {
+	ls := newTestLocalSigner(t, LocalConfig{}, nil, nil)
+	ctx := context.Background()
+	require.NoError(t, ls.rotator.rotate(false))
+
+	keys, err := ls.ValidationKeys(ctx)
+	require.NoError(t, err)
+
+	payload := []byte(`{"sub":"test-user"}`)
+	signed, err := ls.SignWithType(ctx, payload, "oauth-id-jag+jwt")
+	require.NoError(t, err)
+	jws, err := jose.ParseSigned(signed, []jose.SignatureAlgorithm{jose.RS256})
+	require.NoError(t, err)
+	assert.Equal(t, "oauth-id-jag+jwt", jws.Signatures[0].Protected.ExtraHeaders[jose.HeaderType])
+	requireVerifiedByAnyKey(t, signed, jose.RS256, keys, payload)
+
+	signed, err = ls.Sign(ctx, payload)
+	require.NoError(t, err)
+	jws, err = jose.ParseSigned(signed, []jose.SignatureAlgorithm{jose.RS256})
+	require.NoError(t, err)
+	assert.NotContains(t, jws.Signatures[0].Protected.ExtraHeaders, jose.HeaderType)
+}
+
 func TestLocalSignerRotatesOnStartWhenAlgorithmChanges(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

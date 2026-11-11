@@ -43,6 +43,7 @@ import (
 	"github.com/dexidp/dex/server/apiserver"
 	"github.com/dexidp/dex/server/authflow"
 	"github.com/dexidp/dex/server/connectors"
+	"github.com/dexidp/dex/server/grants"
 	"github.com/dexidp/dex/server/mfa"
 	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/signer"
@@ -221,8 +222,11 @@ func runServe(options serveOptions) error {
 
 	logger.Info("config storage", "storage_type", c.Storage.Type)
 
+	idJAGPolicies := make(map[string]grants.IDJAGPolicy)
 	if len(c.StaticClients) > 0 {
-		for i, client := range c.StaticClients {
+		clients := make([]storage.Client, len(c.StaticClients))
+		for i, sc := range c.StaticClients {
+			client := sc.Client
 			if client.Name == "" {
 				return fmt.Errorf("invalid config: Name field is required for a client")
 			}
@@ -233,7 +237,7 @@ func runServe(options serveOptions) error {
 				if client.ID != "" {
 					return fmt.Errorf("invalid config: ID and IDEnv fields are exclusive for client %q", client.ID)
 				}
-				c.StaticClients[i].ID = os.Getenv(client.IDEnv)
+				client.ID = os.Getenv(client.IDEnv)
 			}
 			if client.Secret == "" && client.SecretEnv == "" && !client.Public {
 				return fmt.Errorf("invalid config: Secret or SecretEnv field is required for client %q", client.ID)
@@ -242,11 +246,18 @@ func runServe(options serveOptions) error {
 				if client.Secret != "" {
 					return fmt.Errorf("invalid config: Secret and SecretEnv fields are exclusive for client %q", client.ID)
 				}
-				c.StaticClients[i].Secret = os.Getenv(client.SecretEnv)
+				client.Secret = os.Getenv(client.SecretEnv)
+			}
+			if sc.IDJAGPolicy != nil {
+				idJAGPolicies[client.ID] = grants.IDJAGPolicy{
+					AllowedAudiences: sc.IDJAGPolicy.AllowedAudiences,
+					AllowedScopes:    sc.IDJAGPolicy.AllowedScopes,
+				}
 			}
 			logger.Info("config static client", "client_name", client.Name)
+			clients[i] = client
 		}
-		s = storage.WithStaticClients(s, c.StaticClients)
+		s = storage.WithStaticClients(s, clients)
 	}
 	if len(c.StaticPasswords) > 0 {
 		passwords := make([]storage.Password, len(c.StaticPasswords))
@@ -412,6 +423,17 @@ func runServe(options serveOptions) error {
 		}
 		logger.Info("config device requests", "valid_for", deviceRequests)
 		serverConfig.DeviceRequestsValidFor = deviceRequests
+	}
+	if c.OAuth2.TokenExchange.idJAGEnabled() {
+		serverConfig.IDJAG = &grants.IDJAGConfig{Policies: idJAGPolicies}
+		if c.Expiry.IDJAGTokens != "" {
+			idJAGTokens, err := time.ParseDuration(c.Expiry.IDJAGTokens)
+			if err != nil {
+				return fmt.Errorf("invalid config value %q for ID-JAG expiry: %v", c.Expiry.IDJAGTokens, err)
+			}
+			logger.Info("config ID-JAG tokens", "valid_for", idJAGTokens)
+			serverConfig.IDJAG.ValidFor = idJAGTokens
+		}
 	}
 	refreshTokenPolicy, err := tokens.NewRefreshTokenPolicy(
 		logger,

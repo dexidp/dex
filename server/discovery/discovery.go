@@ -31,6 +31,7 @@ type Handler struct {
 	GrantTypes      []string
 	PKCEMethods     []string
 	SessionsEnabled bool
+	IDJAGEnabled    bool
 
 	// doc caches the marshaled discovery document. It is only filled once the
 	// signing algorithm has been resolved, so a failed lookup is retried by the
@@ -72,6 +73,9 @@ type Document struct {
 	Scopes                   []string `json:"scopes_supported"`
 	AuthMethods              []string `json:"token_endpoint_auth_methods_supported"`
 	Claims                   []string `json:"claims_supported"`
+	// IdentityChainingTokenTypes advertises ID-JAG issuance
+	// (draft-ietf-oauth-identity-assertion-authz-grant §7.1).
+	IdentityChainingTokenTypes []string `json:"identity_chaining_requested_token_types_supported,omitempty"`
 }
 
 // Keys serves the JSON Web Key Set.
@@ -203,6 +207,10 @@ func (h *Handler) construct(ctx context.Context) (Document, error) {
 		// backchannel_logout_session_required to get one.
 		d.BackchannelLogoutSession = true
 		d.Claims = append(d.Claims, "sid")
+	}
+
+	if h.IDJAGEnabled {
+		d.IdentityChainingTokenTypes = []string{oauth2.TokenTypeIDJAG}
 	}
 
 	return d, err
