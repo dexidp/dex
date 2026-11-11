@@ -405,6 +405,46 @@ func TestTokenExchangeIDJAGDisabled(t *testing.T) {
 	require.Contains(t, rr.Body.String(), "Invalid requested_token_type.")
 }
 
+func TestTokenExchangeIDJAGEnabledPlainExchange(t *testing.T) {
+	httpServer, s := newIDJAGTestServer(t, map[string]grants.IDJAGPolicy{
+		"client_1": {AllowedAudiences: []string{idJAGAudience}},
+	}, nil)
+	defer httpServer.Close()
+
+	vals := idJAGRequest("foobar")
+	vals.Set("requested_token_type", oauth2.TokenTypeID)
+	vals.Del("audience")
+
+	rr := postToken(t, s, httpServer, vals)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	var res tokens.Response
+	require.NoError(t, json.NewDecoder(rr.Body).Decode(&res))
+	require.Equal(t, oauth2.TokenTypeID, res.IssuedTokenType)
+	require.Equal(t, "bearer", res.TokenType)
+
+	jws, err := jose.ParseSignedCompact(res.AccessToken, []jose.SignatureAlgorithm{jose.RS256})
+	require.NoError(t, err)
+	require.NotContains(t, jws.Signatures[0].Protected.ExtraHeaders, jose.HeaderType)
+}
+
+func TestTokenExchangeIDJAGExpiredSubject(t *testing.T) {
+	now := time.Now()
+	httpServer, s := newIDJAGTestServer(t, map[string]grants.IDJAGPolicy{
+		"client_1": {AllowedAudiences: []string{idJAGAudience}},
+	}, func(c *Config) {
+		c.Now = func() time.Time { return now }
+	})
+	defer httpServer.Close()
+
+	subjectToken := signSubjectToken(t, s, "client_1", "mock", true)
+	now = now.Add(25 * time.Hour)
+
+	rr := postToken(t, s, httpServer, idJAGRequest(subjectToken))
+	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+	require.Contains(t, rr.Body.String(), oauth2.InvalidRequest)
+}
+
 func TestDiscoveryIDJAG(t *testing.T) {
 	for _, enabled := range []bool{true, false} {
 		httpServer, s := newTestServer(t, func(c *Config) {
