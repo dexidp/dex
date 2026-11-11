@@ -36,7 +36,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 		Expiry:     now().Add(5 * time.Minute),
 	}
 
-	// The browser callback stores the token response indented (see device.go).
+	// Older Dex versions stored the token response indented, and poll still has to decode it.
 	storedTokenResponse := "{\n  \"access_token\": \"foobar\",\n  \"token_type\": \"bearer\",\n  \"expires_in\": 300,\n  \"id_token\": \"idtoken\"\n}"
 
 	tests := []struct {
