@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -348,6 +349,9 @@ func (h *Handler) writeError(ctx context.Context, w http.ResponseWriter, err err
 	if !errors.As(err, &oerr) || oerr == nil {
 		h.Logger.ErrorContext(ctx, "token request failed", "err", err)
 		oerr = &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
+	}
+	if oerr.RetryAfter > 0 {
+		w.Header().Set("Retry-After", strconv.Itoa(int(oerr.RetryAfter.Seconds())))
 	}
 	oauth2.WriteErrorResponse(h.Logger, w, oerr.Type, oerr.Description, oerr.Status)
 }

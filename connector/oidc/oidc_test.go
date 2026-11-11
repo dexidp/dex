@@ -1404,3 +1404,43 @@ func TestTokenIdentityKeysUnavailable(t *testing.T) {
 	require.Error(t, err)
 	require.False(t, errors.As(err, &unavailableErr), "a token that does not verify is not an upstream outage: %v", err)
 }
+
+func TestTokenIdentityAlgFetchingKeys(t *testing.T) {
+	backend, err := setupServer(map[string]any{"sub": "subvalue"}, true)
+	require.NoError(t, err)
+	defer backend.Close()
+	conn, err := newConnector(Config{Issuer: backend.URL, Scopes: []string{"openid"}})
+	require.NoError(t, err)
+
+	// go-jose puts the header's alg into its parse error, so the token
+	// controls this text. It must not turn into an upstream outage.
+	enc := base64.RawURLEncoding.EncodeToString
+	token := enc([]byte(`{"alg":"fetching keys","kid":"keyId"}`)) + "." + enc([]byte(`{"sub":"subvalue"}`)) + "." + enc([]byte("sig"))
+
+	_, err = conn.TokenIdentity(context.Background(), "urn:ietf:params:oauth:token-type:id_token", token)
+
+	require.Error(t, err)
+	var unavailableErr *connector.UpstreamUnavailableError
+	require.False(t, errors.As(err, &unavailableErr), "a malformed token is not an upstream outage: %v", err)
+}
+
+func TestTokenIdentityCanceled(t *testing.T) {
+	backend, err := setupServer(map[string]any{"sub": "subvalue"}, true)
+	require.NoError(t, err)
+	defer backend.Close()
+	conn, err := newConnector(Config{Issuer: backend.URL, Scopes: []string{"openid"}})
+	require.NoError(t, err)
+	res, err := http.Get(backend.URL + "/token")
+	require.NoError(t, err)
+	defer res.Body.Close()
+	var tokenResponse map[string]any
+	require.NoError(t, json.NewDecoder(res.Body).Decode(&tokenResponse))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err = conn.TokenIdentity(ctx, "urn:ietf:params:oauth:token-type:id_token", tokenResponse["id_token"].(string))
+
+	require.Error(t, err)
+	var unavailableErr *connector.UpstreamUnavailableError
+	require.False(t, errors.As(err, &unavailableErr), "a canceled request is not an upstream outage: %v", err)
+}

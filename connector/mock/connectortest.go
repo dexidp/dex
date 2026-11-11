@@ -39,6 +39,8 @@ type Callback struct {
 	// The returned identity.
 	Identity connector.Identity
 	Logger   *slog.Logger
+	// TokenIdentityErr, if set, is returned by TokenIdentity instead of Identity.
+	TokenIdentityErr error
 }
 
 // LoginURL returns the URL to redirect the user to login with.
@@ -65,15 +67,9 @@ func (m *Callback) Refresh(ctx context.Context, s connector.Scopes, identity con
 	return m.Identity, nil
 }
 
-// TokenIdentity returns the mock identity. The subject tokens "invalid" and
-// "upstream-unavailable" fail the way a connector fails for a token that does
-// not verify and for an upstream it cannot reach.
 func (m *Callback) TokenIdentity(ctx context.Context, subjectTokenType, subjectToken string) (connector.Identity, error) {
-	switch subjectToken {
-	case "invalid":
-		return connector.Identity{}, errors.New("mock: subject token does not verify")
-	case "upstream-unavailable":
-		return connector.Identity{}, &connector.UpstreamUnavailableError{Err: errors.New("mock: upstream unreachable")}
+	if m.TokenIdentityErr != nil {
+		return connector.Identity{}, m.TokenIdentityErr
 	}
 	return m.Identity, nil
 }

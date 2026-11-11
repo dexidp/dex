@@ -41,9 +41,10 @@ func (e *UpstreamLogoutStatusError) Error() string {
 
 // UpstreamUnavailableError is returned by a connector when it cannot reach
 // its upstream identity provider, for example when fetching the issuer's
-// signing keys fails. It says nothing about whether the credentials being
-// checked are valid. For token exchange the server responds with HTTP 503
-// Service Unavailable instead of 401.
+// signing keys fails. Login, refresh and token exchange can all return it.
+// It says nothing about whether the credentials being checked are valid. A
+// token that does not verify can also cause it while the keys are unreachable,
+// because the connector fetches the keys again for a key ID it doesn't know.
 type UpstreamUnavailableError struct {
 	Err error
 }

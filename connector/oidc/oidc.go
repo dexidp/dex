@@ -572,12 +572,15 @@ func (c *oidcConnector) TokenIdentity(ctx context.Context, subjectTokenType, sub
 }
 
 // verifyError wraps err from a token verification with msg. A failure to fetch
-// the issuer's signing keys becomes a connector.UpstreamUnavailableError.
+// the issuer's signing keys becomes a connector.UpstreamUnavailableError,
+// unless ctx was canceled, because then the request ended and not the upstream.
 // go-oidc formats that failure into the verification error with %v, so it can
-// only be recognized by go-oidc's "fetching keys" wording.
-func verifyError(msg string, err error) error {
+// only be recognized by go-oidc's wording. The whole prefix is matched because
+// other parse errors quote the token's header, which the caller controls.
+func verifyError(ctx context.Context, msg string, err error) error {
+	unavailable := strings.HasPrefix(err.Error(), "failed to verify signature: fetching keys") && ctx.Err() == nil
 	err = fmt.Errorf("%s: %v", msg, err)
-	if strings.Contains(err.Error(), "fetching keys") {
+	if unavailable {
 		return &connector.UpstreamUnavailableError{Err: err}
 	}
 	return err
@@ -589,7 +592,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 	if rawIDToken, ok := token.Extra("id_token").(string); ok {
 		idToken, err := c.verifier.Verify(ctx, rawIDToken)
 		if err != nil {
-			return identity, verifyError("oidc: failed to verify ID Token", err)
+			return identity, verifyError(ctx, "oidc: failed to verify ID Token", err)
 		}
 
 		if err := idToken.Claims(&claims); err != nil {
@@ -601,7 +604,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 			// Verify only works on ID tokens
 			idToken, err := c.provider.Verifier(&oidc.Config{SkipClientIDCheck: true}).Verify(ctx, token.AccessToken)
 			if err != nil {
-				return identity, verifyError("oidc: failed to verify token", err)
+				return identity, verifyError(ctx, "oidc: failed to verify token", err)
 			}
 			if err := idToken.Claims(&claims); err != nil {
 				return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
