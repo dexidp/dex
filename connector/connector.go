@@ -39,6 +39,24 @@ func (e *UpstreamLogoutStatusError) Error() string {
 	return fmt.Sprintf("upstream logout failed with status %q", e.Status)
 }
 
+// UpstreamUnavailableError is returned by a connector when it cannot reach
+// its upstream identity provider, for example when fetching the issuer's
+// signing keys fails. Login, refresh and token exchange can all return it.
+// It says nothing about whether the credentials being checked are valid. A
+// token that does not verify can also cause it while the keys are unreachable,
+// because the connector fetches the keys again for a key ID it doesn't know.
+type UpstreamUnavailableError struct {
+	Err error
+}
+
+func (e *UpstreamUnavailableError) Error() string {
+	return fmt.Sprintf("upstream identity provider unavailable: %v", e.Err)
+}
+
+func (e *UpstreamUnavailableError) Unwrap() error {
+	return e.Err
+}
+
 // Connector is a mechanism for federating login to a remote identity service.
 //
 // Implementations are expected to implement either the PasswordConnector or

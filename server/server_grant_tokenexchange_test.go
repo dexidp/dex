@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -12,10 +13,73 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/connector/mock"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
+
+func TestHandleTokenExchangeConnectorError(t *testing.T) {
+	tests := []struct {
+		name               string
+		connectorErr       error
+		expectedCode       int
+		expectedError      string
+		expectedRetryAfter string
+	}{
+		{
+			name:          "subject-token-does-not-verify",
+			connectorErr:  errors.New("mock: subject token does not verify"),
+			expectedCode:  http.StatusUnauthorized,
+			expectedError: oauth2.AccessDenied,
+		},
+		{
+			name:               "upstream-unavailable",
+			connectorErr:       &connector.UpstreamUnavailableError{Err: errors.New("mock: upstream unreachable")},
+			expectedCode:       http.StatusServiceUnavailable,
+			expectedError:      oauth2.ServerError,
+			expectedRetryAfter: "30",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			httpServer, s := newTestServer(t, func(c *Config) {
+				c.Storage.CreateClient(ctx, storage.Client{
+					ID:     "client_1",
+					Secret: "secret_1",
+				})
+			})
+			defer httpServer.Close()
+			mockConn, ok := s.connectors.Cached("mock")
+			require.True(t, ok)
+			mockConn.Connector.(*mock.Callback).TokenIdentityErr = tc.connectorErr
+			vals := make(url.Values)
+			vals.Set("grant_type", oauth2.GrantTypeTokenExchange)
+			vals.Set("connector_id", "mock")
+			vals.Set("scope", "openid")
+			vals.Set("requested_token_type", oauth2.TokenTypeAccess)
+			vals.Set("subject_token_type", oauth2.TokenTypeID)
+			vals.Set("subject_token", "foobar")
+			vals.Set("client_id", "client_1")
+			vals.Set("client_secret", "secret_1")
+			rr := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
+			req.Header.Set("content-type", "application/x-www-form-urlencoded")
+
+			s.ServeHTTP(rr, req)
+
+			require.Equal(t, tc.expectedCode, rr.Code, rr.Body.String())
+			var res struct {
+				Error string `json:"error"`
+			}
+			require.NoError(t, json.NewDecoder(rr.Result().Body).Decode(&res))
+			require.Equal(t, tc.expectedError, res.Error)
+			require.Equal(t, tc.expectedRetryAfter, rr.Result().Header.Get("Retry-After"))
+		})
+	}
+}
 
 func TestHandleTokenExchange(t *testing.T) {
 	tests := []struct {

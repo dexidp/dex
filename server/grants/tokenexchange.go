@@ -2,6 +2,7 @@ package grants
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -63,6 +64,11 @@ func (g *tokenExchange) Authorize(ctx context.Context, req *Request, client stor
 		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Requested connector does not exist.", Status: http.StatusBadRequest}
 	}
 	identity, err := teConn.TokenIdentity(ctx, req.SubjectTokenType, req.SubjectToken)
+	var unavailableErr *connector.UpstreamUnavailableError
+	if errors.As(err, &unavailableErr) {
+		g.logger.ErrorContext(ctx, "failed to verify subject token: upstream unavailable", "connector_id", req.ConnectorID, "err", err)
+		return nil, &oauth2.Error{Type: oauth2.ServerError, Description: "The connector's upstream identity provider is unavailable.", Status: http.StatusServiceUnavailable, RetryAfter: 30 * time.Second}
+	}
 	if err != nil {
 		g.logger.ErrorContext(ctx, "failed to verify subject token", "err", err)
 		return nil, &oauth2.Error{Type: oauth2.AccessDenied, Status: http.StatusUnauthorized}
