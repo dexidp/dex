@@ -866,6 +866,81 @@ func TestTokenIdentityRootCAsWithOverride(t *testing.T) {
 	expectEquals(t, identity.Username, "namevalue")
 }
 
+func TestTokenIdentityKeysFetchTimeout(t *testing.T) {
+	defer func(timeout time.Duration) { jwksFetchTimeout = timeout }(jwksFetchTimeout)
+	jwksFetchTimeout = 200 * time.Millisecond
+
+	backend, err := setupServer(map[string]any{
+		"sub":  "subvalue",
+		"name": "namevalue",
+	}, true)
+	require.NoError(t, err)
+	defer backend.Close()
+	backendURL, err := url.Parse(backend.URL)
+	require.NoError(t, err)
+	proxy := httputil.NewSingleHostReverseProxy(backendURL)
+
+	// While keysDown is set, the keys endpoint accepts the connection and
+	// never answers. stop releases a hanging request when the test ends.
+	var keysDown atomic.Bool
+	keysDown.Store(true)
+	stop := make(chan struct{})
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/keys" && keysDown.Load() {
+			select {
+			case <-r.Context().Done():
+			case <-stop:
+			}
+			return
+		}
+		proxy.ServeHTTP(w, r)
+	}))
+	defer testServer.Close()
+	defer close(stop)
+
+	conn, err := newConnector(Config{
+		Issuer: testServer.URL,
+		Scopes: []string{"openid", "groups"},
+	})
+	require.NoError(t, err)
+
+	res, err := http.Get(testServer.URL + "/token")
+	require.NoError(t, err)
+	defer res.Body.Close()
+	var tokenResponse map[string]any
+	require.NoError(t, json.NewDecoder(res.Body).Decode(&tokenResponse))
+	idToken := tokenResponse["id_token"].(string)
+
+	const tokenTypeID = "urn:ietf:params:oauth:token-type:id_token"
+	ctx := context.Background()
+
+	// Run the exchange in the background so the test fails instead of hanging
+	// when the key fetch has no limit.
+	errc := make(chan error, 1)
+	go func() {
+		_, err := conn.TokenIdentity(ctx, tokenTypeID, idToken)
+		errc <- err
+	}()
+	select {
+	case err := <-errc:
+		require.Error(t, err)
+	case <-time.After(jwksFetchTimeout + 2*time.Second):
+		t.Fatal("token exchange hung, the key fetch is not bounded")
+	}
+
+	// The failed fetch does not stick: once the keys endpoint answers, the
+	// next exchange verifies. go-oidc signals the failed fetch before it clears
+	// it, so a call right after can still get the old error: retry briefly.
+	keysDown.Store(false)
+	var identity connector.Identity
+	require.Eventually(t, func() bool {
+		var err error
+		identity, err = conn.TokenIdentity(ctx, tokenTypeID, idToken)
+		return err == nil
+	}, 5*time.Second, 10*time.Millisecond)
+	expectEquals(t, identity.UserID, "subvalue")
+}
+
 func TestPromptType(t *testing.T) {
 	pointer := func(s string) *string {
 		return &s
