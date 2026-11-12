@@ -52,7 +52,7 @@ func (g *tokenExchange) Authorize(ctx context.Context, req *Request, client stor
 	switch req.SubjectTokenType {
 	case oauth2.TokenTypeID, oauth2.TokenTypeAccess: // ok, continue
 	default:
-		return nil, &oauth2.Error{Type: oauth2.RequestNotSupported, Description: "Invalid subject_token_type.", Status: http.StatusBadRequest}
+		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Invalid subject_token_type.", Status: http.StatusBadRequest}
 	}
 	if req.SubjectToken == "" {
 		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Missing subject_token", Status: http.StatusBadRequest}

@@ -304,7 +304,7 @@ func TestTokenExchangeIDJAGRejected(t *testing.T) {
 				vals.Set("subject_token_type", oauth2.TokenTypeAccess)
 			},
 			wantCode:  http.StatusBadRequest,
-			wantError: oauth2.RequestNotSupported,
+			wantError: oauth2.InvalidRequest,
 		},
 		{
 			name:      "subject_token not signed by dex",
