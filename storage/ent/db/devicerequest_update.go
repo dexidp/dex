@@ -166,11 +166,6 @@ func (_u *DeviceRequestUpdate) check() error {
 			return &ValidationError{Name: "client_id", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.client_id": %w`, err)}
 		}
 	}
-	if v, ok := _u.mutation.ClientSecret(); ok {
-		if err := devicerequest.ClientSecretValidator(v); err != nil {
-			return &ValidationError{Name: "client_secret", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.client_secret": %w`, err)}
-		}
-	}
 	return nil
 }
 
@@ -380,11 +375,6 @@ func (_u *DeviceRequestUpdateOne) check() error {
 	if v, ok := _u.mutation.ClientID(); ok {
 		if err := devicerequest.ClientIDValidator(v); err != nil {
 			return &ValidationError{Name: "client_id", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.client_id": %w`, err)}
-		}
-	}
-	if v, ok := _u.mutation.ClientSecret(); ok {
-		if err := devicerequest.ClientSecretValidator(v); err != nil {
-			return &ValidationError{Name: "client_secret", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.client_secret": %w`, err)}
 		}
 	}
 	return nil

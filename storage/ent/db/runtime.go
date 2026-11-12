@@ -160,10 +160,6 @@ func init() {
 	devicerequestDescClientID := devicerequestFields[2].Descriptor()
 	// devicerequest.ClientIDValidator is a validator for the "client_id" field. It is called by the builders before save.
 	devicerequest.ClientIDValidator = devicerequestDescClientID.Validators[0].(func(string) error)
-	// devicerequestDescClientSecret is the schema descriptor for client_secret field.
-	devicerequestDescClientSecret := devicerequestFields[3].Descriptor()
-	// devicerequest.ClientSecretValidator is a validator for the "client_secret" field. It is called by the builders before save.
-	devicerequest.ClientSecretValidator = devicerequestDescClientSecret.Validators[0].(func(string) error)
 	devicetokenFields := schema.DeviceToken{}.Fields()
 	_ = devicetokenFields
 	// devicetokenDescDeviceCode is the schema descriptor for device_code field.
@@ -258,22 +254,10 @@ func init() {
 	refreshtokenDescClientID := refreshtokenFields[1].Descriptor()
 	// refreshtoken.ClientIDValidator is a validator for the "client_id" field. It is called by the builders before save.
 	refreshtoken.ClientIDValidator = refreshtokenDescClientID.Validators[0].(func(string) error)
-	// refreshtokenDescNonce is the schema descriptor for nonce field.
-	refreshtokenDescNonce := refreshtokenFields[3].Descriptor()
-	// refreshtoken.NonceValidator is a validator for the "nonce" field. It is called by the builders before save.
-	refreshtoken.NonceValidator = refreshtokenDescNonce.Validators[0].(func(string) error)
 	// refreshtokenDescClaimsUserID is the schema descriptor for claims_user_id field.
 	refreshtokenDescClaimsUserID := refreshtokenFields[4].Descriptor()
 	// refreshtoken.ClaimsUserIDValidator is a validator for the "claims_user_id" field. It is called by the builders before save.
 	refreshtoken.ClaimsUserIDValidator = refreshtokenDescClaimsUserID.Validators[0].(func(string) error)
-	// refreshtokenDescClaimsUsername is the schema descriptor for claims_username field.
-	refreshtokenDescClaimsUsername := refreshtokenFields[5].Descriptor()
-	// refreshtoken.ClaimsUsernameValidator is a validator for the "claims_username" field. It is called by the builders before save.
-	refreshtoken.ClaimsUsernameValidator = refreshtokenDescClaimsUsername.Validators[0].(func(string) error)
-	// refreshtokenDescClaimsEmail is the schema descriptor for claims_email field.
-	refreshtokenDescClaimsEmail := refreshtokenFields[6].Descriptor()
-	// refreshtoken.ClaimsEmailValidator is a validator for the "claims_email" field. It is called by the builders before save.
-	refreshtoken.ClaimsEmailValidator = refreshtokenDescClaimsEmail.Validators[0].(func(string) error)
 	// refreshtokenDescClaimsPreferredUsername is the schema descriptor for claims_preferred_username field.
 	refreshtokenDescClaimsPreferredUsername := refreshtokenFields[9].Descriptor()
 	// refreshtoken.DefaultClaimsPreferredUsername holds the default value on creation for the claims_preferred_username field.

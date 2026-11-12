@@ -108,3 +108,62 @@ func TestOptionalClientFields(t *testing.T) {
 		})
 	}
 }
+
+// A refresh token copies the nonce and claims from the auth code, so it must
+// accept the same empty values, or offline_access fails at /token.
+func TestOptionalRefreshTokenFields(t *testing.T) {
+	cases := []struct {
+		name   string
+		mutate func(*storage.RefreshToken)
+	}{
+		{"nonce", func(r *storage.RefreshToken) { r.Nonce = "" }},
+		{"claims_username", func(r *storage.RefreshToken) { r.Claims.Username = "" }},
+		{"claims_email", func(r *storage.RefreshToken) { r.Claims.Email = "" }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sqlS, entS := openBoth(t)
+			ctx := context.Background()
+			now := time.Now().UTC()
+			r := storage.RefreshToken{
+				ID:          "refresh-" + tc.name,
+				Token:       "token",
+				CreatedAt:   now,
+				LastUsed:    now,
+				ClientID:    "client",
+				ConnectorID: "mock",
+				Claims:      storage.Claims{UserID: "u1", Username: "name", Email: "a@b.c", EmailVerified: true},
+				Scopes:      []string{"openid", "offline_access"},
+				Nonce:       "nonce",
+			}
+			tc.mutate(&r)
+			require.NoError(t, sqlS.CreateRefresh(ctx, r), "sql backend error")
+			require.NoError(t, entS.CreateRefresh(ctx, r), "ent backend error")
+
+			got, err := entS.GetRefresh(ctx, r.ID)
+			require.NoError(t, err)
+			require.Equal(t, r.Nonce, got.Nonce)
+			require.Equal(t, r.Claims.Username, got.Claims.Username)
+			require.Equal(t, r.Claims.Email, got.Claims.Email)
+		})
+	}
+}
+
+// A public client starts the device flow without a client secret.
+func TestOptionalDeviceRequestSecret(t *testing.T) {
+	sqlS, entS := openBoth(t)
+	ctx := context.Background()
+	d := storage.DeviceRequest{
+		UserCode:   "ABCD-EFGH",
+		DeviceCode: "device-code",
+		ClientID:   "client",
+		Scopes:     []string{"openid"},
+		Expiry:     time.Now().Add(time.Hour).UTC(),
+	}
+	require.NoError(t, sqlS.CreateDeviceRequest(ctx, d), "sql backend error")
+	require.NoError(t, entS.CreateDeviceRequest(ctx, d), "ent backend error")
+
+	got, err := entS.GetDeviceRequest(ctx, d.UserCode)
+	require.NoError(t, err)
+	require.Empty(t, got.ClientSecret)
+}
