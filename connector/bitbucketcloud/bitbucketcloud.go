@@ -254,7 +254,7 @@ func (b *bitbucketConnector) Refresh(ctx context.Context, s connector.Scopes, id
 
 	user, err := b.user(ctx, client)
 	if err != nil {
-		return identity, fmt.Errorf("bitbucket: get user: %v", err)
+		return identity, fmt.Errorf("bitbucket: get user: %w", err)
 	}
 
 	identity.Username = user.Username
@@ -449,7 +449,7 @@ func get(ctx context.Context, client *http.Client, apiURL string, v interface{})
 	req = req.WithContext(ctx)
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("bitbucket: get URL %v", err)
+		return fmt.Errorf("bitbucket: get URL %w", err)
 	}
 	defer resp.Body.Close()
 

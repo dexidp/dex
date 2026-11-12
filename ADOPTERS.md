@@ -11,6 +11,8 @@ This is a list of production adopters of Dex (in alphabetical order).
 - [JuliaBox](https://juliabox.com/) is leveraging federated OIDC provided by Dex for authenticating users to their compute infrastructure based on Kubernetes.
 - [Pusher](https://pusher.com) uses Dex for authenticating users across their Kubernetes infrastructure (using Kubernetes OIDC support) in conjunction with the [OAuth2 Proxy](https://github.com/pusher/oauth2_proxy) for protecting web UIs.
 
+- [Wordfully](https://wordfully.ai) uses Dex to provide OpenID Connect authentication for internal engineering tools.
+
 # Projects
 
 - [Argo CD](https://argoproj.github.io/cd) integrates Dex to provide convenient Single Sign On capabilities to its web UI and CLI

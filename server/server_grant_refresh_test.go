@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -16,6 +18,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
+	xoauth2 "golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/connectors"
@@ -23,6 +27,7 @@ import (
 	"github.com/dexidp/dex/server/session"
 	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/memory"
 )
 
 func mockRefreshTokenTestStorage(t *testing.T, s storage.Storage, useObsolete bool) {
@@ -340,6 +345,8 @@ func TestRefreshTokenAuthTime(t *testing.T) {
 // but always returns an error on Refresh, proving that the upstream is not contacted.
 type failingRefreshConnector struct {
 	identity connector.Identity
+	// err is returned by Refresh. When nil, a generic upstream error is returned.
+	err error
 }
 
 func (f *failingRefreshConnector) LoginURL(_ connector.Scopes, callbackURL, state string) (string, []byte, error) {
@@ -355,7 +362,104 @@ func (f *failingRefreshConnector) HandleCallback(_ connector.Scopes, _ []byte, _
 }
 
 func (f *failingRefreshConnector) Refresh(_ context.Context, _ connector.Scopes, _ connector.Identity) (connector.Identity, error) {
+	if f.err != nil {
+		return connector.Identity{}, f.err
+	}
 	return connector.Identity{}, errors.New("upstream: refresh token expired")
+}
+
+// failingUpdateStorage fails every refresh token update, as a storage outage
+// would during rotation.
+type failingUpdateStorage struct {
+	storage.Storage
+}
+
+func (failingUpdateStorage) UpdateRefreshToken(context.Context, string, func(storage.RefreshToken) (storage.RefreshToken, error)) error {
+	return errors.New("storage unavailable")
+}
+
+// TestRefreshUpstreamRejection verifies that an upstream refusing the refresh
+// with invalid_grant is passed on to the client as invalid_grant and logged at
+// info, while any other failure stays a server error logged at error.
+func TestRefreshUpstreamRejection(t *testing.T) {
+	rejected := &xoauth2.RetrieveError{
+		ErrorCode:        "invalid_grant",
+		ErrorDescription: "The refresh token is invalid or expired.",
+	}
+
+	tests := []struct {
+		name        string
+		err         error // returned by the connector's Refresh; nil keeps the mock connector
+		failStorage bool
+		wantStatus  int
+		wantError   string
+	}{
+		{
+			name:       "upstream rejects the refresh token",
+			err:        fmt.Errorf("oidc: failed to get refresh token: %w", rejected),
+			wantStatus: http.StatusBadRequest,
+			wantError:  "invalid_grant",
+		},
+		{
+			// The shape a connector gets when its HTTP client refreshes the token.
+			name:       "upstream rejects the refresh token behind an HTTP client",
+			err:        fmt.Errorf("get user: %w", &url.Error{Op: "Get", URL: "https://upstream.example.com/user", Err: rejected}),
+			wantStatus: http.StatusBadRequest,
+			wantError:  "invalid_grant",
+		},
+		{
+			name:       "upstream rejects the client",
+			err:        fmt.Errorf("oidc: failed to get refresh token: %w", &xoauth2.RetrieveError{ErrorCode: "invalid_client"}),
+			wantStatus: http.StatusInternalServerError,
+			wantError:  "invalid_request",
+		},
+		{
+			name:        "storage fails during rotation",
+			failStorage: true,
+			wantStatus:  http.StatusInternalServerError,
+			wantError:   "invalid_request",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var logBuf bytes.Buffer
+			httpServer, s := newTestServer(t, func(c *Config) {
+				c.Logger = slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+				if tc.failStorage {
+					c.Storage = failingUpdateStorage{Storage: memory.New(newLogger(t))}
+				}
+			})
+			defer httpServer.Close()
+
+			mockRefreshTokenTestStorage(t, s.storage, false)
+			if tc.err != nil {
+				s.connectors.Set("test", connectors.Connector{
+					Connector: &failingRefreshConnector{err: tc.err},
+				})
+			}
+
+			tokenData, err := internal.Marshal(&internal.RefreshToken{RefreshId: "test", Token: "bar"})
+			require.NoError(t, err)
+
+			rr := doRefreshGrant(t, s, tokenData, 0)
+			require.Equal(t, tc.wantStatus, rr.Code, "body: %s", rr.Body.String())
+
+			var resp struct {
+				Error string `json:"error"`
+			}
+			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+			assert.Equal(t, tc.wantError, resp.Error)
+
+			logs := logBuf.String()
+			if tc.wantStatus == http.StatusBadRequest {
+				assert.Contains(t, logs, `level=INFO msg="failed to rotate refresh token"`)
+				assert.NotContains(t, logs, "level=ERROR")
+			} else {
+				assert.Contains(t, logs, `level=ERROR msg="failed to rotate refresh token"`)
+			}
+		})
+	}
 }
 
 func TestRefreshDisconnectsUpstreamWhenSessionsEnabled(t *testing.T) {
@@ -687,4 +791,212 @@ func TestRefreshTokenSID(t *testing.T) {
 			assert.Equal(t, tc.wantSID, decodeJWTClaims(t, resp.IDToken)["sid"])
 		})
 	}
+}
+
+// reentrancyGuard fails the storage reads the refresh grant can reach from
+// inside an UpdateRefreshToken updater. A deadlock on SQLite or memory is a
+// hang; the guard turns the same code path into an error, so a regression
+// fails the test instead of timing out. Single-request use only.
+type reentrancyGuard struct {
+	storage.Storage
+	inUpdate bool
+}
+
+func (g *reentrancyGuard) UpdateRefreshToken(ctx context.Context, id string, updater func(r storage.RefreshToken) (storage.RefreshToken, error)) error {
+	g.inUpdate = true
+	defer func() { g.inUpdate = false }()
+	return g.Storage.UpdateRefreshToken(ctx, id, updater)
+}
+
+func (g *reentrancyGuard) GetPassword(ctx context.Context, email string) (storage.Password, error) {
+	if g.inUpdate {
+		return storage.Password{}, fmt.Errorf("GetPassword: re-entrant read from inside the UpdateRefreshToken updater")
+	}
+	return g.Storage.GetPassword(ctx, email)
+}
+
+func (g *reentrancyGuard) GetOfflineSessions(ctx context.Context, userID string, connID string) (storage.OfflineSessions, error) {
+	if g.inUpdate {
+		return storage.OfflineSessions{}, fmt.Errorf("GetOfflineSessions: re-entrant read from inside the UpdateRefreshToken updater")
+	}
+	return g.Storage.GetOfflineSessions(ctx, userID, connID)
+}
+
+// seedLocalPasswordDB opens the local password connector with one
+// storage-backed password user (as gRPC CreatePassword / SCIM provisioning
+// create) and a confidential client.
+func seedLocalPasswordDB(t *testing.T, s *Server) {
+	t.Helper()
+	ctx := t.Context()
+
+	err := s.storage.CreateClient(ctx, storage.Client{
+		ID:           "test",
+		Secret:       "barfoo",
+		RedirectURIs: []string{"foo://bar.com/", "https://auth.example.com"},
+		Name:         "dex client",
+	})
+	require.NoError(t, err)
+
+	localConn := storage.Connector{ID: "local", Type: connectors.LocalConnector, Name: "Email", ResourceVersion: "1"}
+	require.NoError(t, s.storage.CreateConnector(ctx, localConn))
+	_, err = s.connectors.Open(localConn)
+	require.NoError(t, err)
+
+	hash, err := bcrypt.GenerateFromPassword([]byte("secret"), bcrypt.DefaultCost)
+	require.NoError(t, err)
+	require.NoError(t, s.storage.CreatePassword(ctx, storage.Password{
+		Email:         "user@example.com",
+		Username:      "user-login",
+		Name:          "User Full Name",
+		EmailVerified: boolPtr(false),
+		UserID:        "user-id",
+		Groups:        []string{"team-a"},
+		Hash:          hash,
+	}))
+}
+
+type tokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	IDToken      string `json:"id_token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+// doPasswordGrant exchanges the seeded user's credentials for a refresh token.
+func doPasswordGrant(t *testing.T, s *Server) string {
+	t.Helper()
+
+	u, err := url.Parse(s.issuerURL.String())
+	require.NoError(t, err)
+	u.Path = path.Join(u.Path, "/token")
+
+	v := url.Values{}
+	v.Add("scope", "openid profile email offline_access")
+	v.Add("grant_type", "password")
+	v.Add("username", "user@example.com")
+	v.Add("password", "secret")
+
+	req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(v.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth("test", "barfoo")
+
+	rr := httptest.NewRecorder()
+	s.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, "password grant failed: %s", rr.Body.String())
+
+	var resp tokenResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	require.NotEmpty(t, resp.RefreshToken, "no refresh token in password grant response")
+	return resp.RefreshToken
+}
+
+// doRefreshGrant redeems a refresh token and reports the response recorder. A
+// non-zero timeout bounds the request both ways: the request context, so a
+// deadlock surfaces as a context error where database/sql honors it, and a
+// watchdog around the call, because a wedged single-connection pool can block
+// past any context. Either way a regression fails in bounded time.
+func doRefreshGrant(t *testing.T, s *Server, refreshToken string, timeout time.Duration) *httptest.ResponseRecorder {
+	t.Helper()
+
+	u, err := url.Parse(s.issuerURL.String())
+	require.NoError(t, err)
+	u.Path = path.Join(u.Path, "/token")
+
+	v := url.Values{}
+	v.Add("grant_type", "refresh_token")
+	v.Add("refresh_token", refreshToken)
+
+	req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(v.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth("test", "barfoo")
+	if timeout > 0 {
+		ctx, cancel := context.WithTimeout(req.Context(), timeout)
+		defer cancel()
+		req = req.WithContext(ctx)
+	}
+
+	rr := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		s.ServeHTTP(rr, req)
+		close(done)
+	}()
+	if timeout > 0 {
+		select {
+		case <-done:
+		case <-time.After(timeout + 5*time.Second):
+			t.Fatalf("refresh grant did not complete within %s: the rotation transaction is deadlocked on its own storage read", timeout)
+		}
+	} else {
+		<-done
+	}
+	return rr
+}
+
+// TestRefreshGrantStorageBackedPasswordDB refreshes a token issued to a user
+// created through the password store, end to end on memory storage. The guard
+// fails any storage read from inside the rotation transactions, so this passes
+// only when the identity is resolved between them (#5017).
+func TestRefreshGrantStorageBackedPasswordDB(t *testing.T) {
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.PasswordConnector = "local"
+		c.Storage = &reentrancyGuard{Storage: memory.New(newLogger(t))}
+	})
+	defer httpServer.Close()
+	seedLocalPasswordDB(t, s)
+
+	first := doPasswordGrant(t, s)
+
+	rr := doRefreshGrant(t, s, first, 0)
+	require.Equal(t, http.StatusOK, rr.Code, "refresh grant failed: %s", rr.Body.String())
+	var second tokenResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &second))
+	require.NotEqual(t, first, second.RefreshToken, "refresh token was not rotated")
+
+	// The rotated token refreshes too: not a one-off surviving the transaction.
+	rr = doRefreshGrant(t, s, second.RefreshToken, 0)
+	require.Equal(t, http.StatusOK, rr.Code, "chained refresh failed: %s", rr.Body.String())
+	var third tokenResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &third))
+	require.NotEqual(t, second.RefreshToken, third.RefreshToken, "chained refresh did not rotate")
+}
+
+func TestRefreshDoesNotLogConnectorData(t *testing.T) {
+	const upstreamToken = "upstream-refresh-token-must-not-be-logged"
+
+	var logBuf bytes.Buffer
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.Logger = slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	})
+	defer httpServer.Close()
+
+	mockRefreshTokenTestStorage(t, s.storage, false)
+	// Connectors keep upstream credentials in the connector data, for example the
+	// upstream refresh token, so it must stay out of the logs at every level.
+	err := s.storage.UpdateRefreshToken(t.Context(), "test", func(r storage.RefreshToken) (storage.RefreshToken, error) {
+		r.ConnectorData = []byte(`{"refreshToken":"` + upstreamToken + `"}`)
+		return r, nil
+	})
+	require.NoError(t, err)
+
+	tokenData, err := internal.Marshal(&internal.RefreshToken{RefreshId: "test", Token: "bar"})
+	require.NoError(t, err)
+
+	v := url.Values{}
+	v.Add("grant_type", "refresh_token")
+	v.Add("refresh_token", tokenData)
+	req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(v.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth("test", "barfoo")
+
+	rr := httptest.NewRecorder()
+	s.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	logs := logBuf.String()
+	require.Contains(t, logs, "connector data before refresh", "the refresh debug logs were not written")
+	require.Contains(t, logs, "saved connector data", "the refresh debug logs were not written")
+	require.NotContains(t, logs, upstreamToken)
+	// The mock connector returns its own connector data on refresh, so also check that
+	// no log line carries the connector data itself.
+	require.NotContains(t, logs, "connector_data=")
 }

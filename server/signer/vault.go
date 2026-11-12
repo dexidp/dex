@@ -95,6 +95,10 @@ func (v *vaultSigner) Start(_ context.Context) {
 }
 
 func (v *vaultSigner) Sign(ctx context.Context, payload []byte) (string, error) {
+	return v.SignWithType(ctx, payload, "")
+}
+
+func (v *vaultSigner) SignWithType(ctx context.Context, payload []byte, typ string) (string, error) {
 	// 1. Fetch keys to determine the key to use (latest version) and its ID.
 	keysMap, latestVersion, err := v.getTransitKeysMap(ctx)
 	if err != nil {
@@ -112,6 +116,9 @@ func (v *vaultSigner) Sign(ctx context.Context, payload []byte) (string, error) 
 	header := map[string]interface{}{
 		"alg": signingJWK.Algorithm,
 		"kid": signingJWK.KeyID,
+	}
+	if typ != "" {
+		header["typ"] = typ
 	}
 
 	headerBytes, err := json.Marshal(header)

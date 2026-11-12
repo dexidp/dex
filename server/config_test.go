@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/grants"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/storage/memory"
 )
@@ -102,6 +103,14 @@ func TestNormalizeConfigRejects(t *testing.T) {
 				c.PKCE.CodeChallengeMethodsSupported = []string{"S512"}
 			},
 			errMsg: `unsupported PKCE challenge method "S512"`,
+		},
+		{
+			name: "ID-JAG without token exchange",
+			mutate: func(c *Config) {
+				c.AllowedGrantTypes = []string{oauth2.GrantTypeAuthorizationCode}
+				c.IDJAG = &grants.IDJAGConfig{}
+			},
+			errMsg: "ID-JAG requires the token exchange grant",
 		},
 	}
 

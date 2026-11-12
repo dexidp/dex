@@ -417,7 +417,7 @@ func (c *microsoftConnector) Refresh(ctx context.Context, s connector.Scopes, id
 	})
 	user, err := c.user(ctx, client)
 	if err != nil {
-		return identity, fmt.Errorf("microsoft: get user: %v", err)
+		return identity, fmt.Errorf("microsoft: get user: %w", err)
 	}
 
 	identity.Username = user.Name
@@ -505,7 +505,7 @@ func (c *microsoftConnector) user(ctx context.Context, client *http.Client) (u u
 
 	resp, err := client.Do(req.WithContext(ctx))
 	if err != nil {
-		return u, fmt.Errorf("get URL %v", err)
+		return u, fmt.Errorf("get URL %w", err)
 	}
 	defer resp.Body.Close()
 

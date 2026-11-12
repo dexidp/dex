@@ -39,6 +39,8 @@ type Callback struct {
 	// The returned identity.
 	Identity connector.Identity
 	Logger   *slog.Logger
+	// TokenIdentityErr, if set, is returned by TokenIdentity instead of Identity.
+	TokenIdentityErr error
 }
 
 // LoginURL returns the URL to redirect the user to login with.
@@ -66,6 +68,9 @@ func (m *Callback) Refresh(ctx context.Context, s connector.Scopes, identity con
 }
 
 func (m *Callback) TokenIdentity(ctx context.Context, subjectTokenType, subjectToken string) (connector.Identity, error) {
+	if m.TokenIdentityErr != nil {
+		return connector.Identity{}, m.TokenIdentityErr
+	}
 	return m.Identity, nil
 }
 
