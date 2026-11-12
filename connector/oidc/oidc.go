@@ -151,6 +151,9 @@ func (o *ProviderDiscoveryOverrides) Empty() bool {
 	return o.TokenURL == "" && o.AuthURL == "" && o.JWKSURL == "" && o.UserInfoURL == "" && o.DeviceAuthURL == "" && o.EndSessionURL == ""
 }
 
+// jwksFetchTimeout bounds a fetch of the issuer's signing keys.
+var jwksFetchTimeout = 5 * time.Second
+
 func getProvider(ctx context.Context, issuer string, overrides ProviderDiscoveryOverrides) (*oidc.Provider, error) {
 	provider, err := oidc.NewProvider(ctx, issuer)
 	if err != nil {
@@ -375,6 +378,17 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		}
 	}
 
+	// go-oidc fetches the issuer's signing keys in the background, on a context
+	// detached from the request, and every verification that needs the keys
+	// waits on that one fetch. httpClient has no overall timeout, so a keys
+	// endpoint that accepts the connection and never answers would stall every
+	// verification. Bound the key fetch, keeping the transport so rootCAs and
+	// proxy settings still apply.
+	keysCtx := context.WithValue(ctx, oauth2.HTTPClient, &http.Client{
+		Transport: httpClient.Transport,
+		Timeout:   jwksFetchTimeout,
+	})
+
 	clientID := c.ClientID
 	return &oidcConnector{
 		provider:    provider,
@@ -386,10 +400,8 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 			Scopes:       scopes,
 			RedirectURL:  c.RedirectURI,
 		},
-		verifier: provider.VerifierContext(
-			ctx, // Pass our ctx with customized http.Client
-			&oidc.Config{ClientID: clientID},
-		),
+		verifier:                  provider.VerifierContext(keysCtx, &oidc.Config{ClientID: clientID}),
+		exchangeVerifier:          provider.VerifierContext(keysCtx, &oidc.Config{SkipClientIDCheck: true}),
 		logger:                    logger.With(slog.Group("connector", "type", "oidc", "id", id)),
 		cancel:                    cancel,
 		httpClient:                httpClient,
@@ -426,6 +438,7 @@ type oidcConnector struct {
 	redirectURI               string
 	oauth2Config              *oauth2.Config
 	verifier                  *oidc.IDTokenVerifier
+	exchangeVerifier          *oidc.IDTokenVerifier
 	cancel                    context.CancelFunc
 	logger                    *slog.Logger
 	httpClient                *http.Client
@@ -554,7 +567,7 @@ func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identit
 	}
 	token, err := c.oauth2Config.TokenSource(ctx, t).Token()
 	if err != nil {
-		return identity, fmt.Errorf("oidc: failed to get refresh token: %v", err)
+		return identity, fmt.Errorf("oidc: failed to get refresh token: %w", err)
 	}
 	return c.createIdentity(ctx, identity, token, refreshCaller)
 }
@@ -571,13 +584,28 @@ func (c *oidcConnector) TokenIdentity(ctx context.Context, subjectTokenType, sub
 	return c.createIdentity(ctx, identity, token, exchangeCaller)
 }
 
+// verifyError wraps err from a token verification with msg. A failure to fetch
+// the issuer's signing keys becomes a connector.UpstreamUnavailableError,
+// unless ctx was canceled, because then the request ended and not the upstream.
+// go-oidc formats that failure into the verification error with %v, so it can
+// only be recognized by go-oidc's wording. The whole prefix is matched because
+// other parse errors quote the token's header, which the caller controls.
+func verifyError(ctx context.Context, msg string, err error) error {
+	unavailable := strings.HasPrefix(err.Error(), "failed to verify signature: fetching keys") && ctx.Err() == nil
+	err = fmt.Errorf("%s: %v", msg, err)
+	if unavailable {
+		return &connector.UpstreamUnavailableError{Err: err}
+	}
+	return err
+}
+
 func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.Identity, token *oauth2.Token, caller caller) (connector.Identity, error) {
 	var claims map[string]interface{}
 
 	if rawIDToken, ok := token.Extra("id_token").(string); ok {
 		idToken, err := c.verifier.Verify(ctx, rawIDToken)
 		if err != nil {
-			return identity, fmt.Errorf("oidc: failed to verify ID Token: %v", err)
+			return identity, verifyError(ctx, "oidc: failed to verify ID Token", err)
 		}
 
 		if err := idToken.Claims(&claims); err != nil {
@@ -587,9 +615,9 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		switch token.TokenType {
 		case "urn:ietf:params:oauth:token-type:id_token":
 			// Verify only works on ID tokens
-			idToken, err := c.provider.Verifier(&oidc.Config{SkipClientIDCheck: true}).Verify(ctx, token.AccessToken)
+			idToken, err := c.exchangeVerifier.Verify(ctx, token.AccessToken)
 			if err != nil {
-				return identity, fmt.Errorf("oidc: failed to verify token: %v", err)
+				return identity, verifyError(ctx, "oidc: failed to verify token", err)
 			}
 			if err := idToken.Claims(&claims); err != nil {
 				return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
@@ -606,6 +634,9 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		return identity, errors.New("oidc: no id_token in token response")
 	}
 
+	// Keep the verified ID Token subject to compare against the userinfo response below.
+	idTokenSubject, _ := claims["sub"].(string)
+
 	// We immediately want to run getUserInfo if configured before we validate the claims.
 	// For token exchanges with access tokens, this is how we verify the token.
 	if c.getUserInfo {
@@ -618,6 +649,11 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		}
 		if err := userInfo.Claims(&claims); err != nil {
 			return identity, fmt.Errorf("oidc: failed to decode userinfo claims: %v", err)
+		}
+
+		// The userinfo sub must match the ID Token sub (OpenID Connect Core 5.3.2).
+		if userInfoSubject, _ := claims["sub"].(string); idTokenSubject != "" && userInfoSubject != idTokenSubject {
+			return identity, fmt.Errorf("oidc: userinfo sub %q does not match id_token sub %q", userInfoSubject, idTokenSubject)
 		}
 	}
 
@@ -679,9 +715,12 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 			vs, found = claims[groupsKey].([]interface{})
 		}
 
-		// Fallback when claims[groupsKey] is a string instead of an array of strings.
+		// Fallback when claims[groupsKey] is a string instead of an array of
+		// strings. Fold it into the array path so groupsFilter (and the other
+		// per-group handling below) applies uniformly.
 		if g, b := claims[groupsKey].(string); b {
-			groups = []string{g}
+			vs = []interface{}{g}
+			found = true
 		}
 
 		if found {

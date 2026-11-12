@@ -2,8 +2,11 @@ package authflow
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -98,4 +101,52 @@ func TestFinalizeLoginLogsClientID(t *testing.T) {
 		require.Equal(t, "example-app", record["client_id"])
 	}
 	require.True(t, logged, "finalizeLogin did not log a successful login")
+}
+
+// statefulLogoutConnector stands for a connector whose login data holds claims in front of
+// the fields its logout needs; it keeps only the latter.
+type statefulLogoutConnector struct{}
+
+func (statefulLogoutConnector) LogoutSessionData(connectorData []byte) ([]byte, error) {
+	if bytes.HasPrefix(connectorData, []byte("fail")) {
+		return nil, errors.New("unusable connector data")
+	}
+	return bytes.TrimPrefix(connectorData, []byte("login-claims+")), nil
+}
+
+func (statefulLogoutConnector) LogoutURLWithState(context.Context, []byte, string) (string, []byte, error) {
+	return "", nil, nil
+}
+
+func (statefulLogoutConnector) HandleLogoutCallbackWithState(context.Context, *http.Request, []byte) error {
+	return nil
+}
+
+// plainConnector implements no logout capability, like the OIDC and OAuth2 connectors.
+type plainConnector struct{}
+
+func TestSessionAuthRequestConnectorData(t *testing.T) {
+	httpServer, server := newTestHandler(t, nil)
+	defer httpServer.Close()
+
+	ctx := t.Context()
+	authReq := storage.AuthRequest{ID: "req", ConnectorData: []byte("login-claims+logout-fields")}
+
+	t.Run("StatefulLogoutConnectorKeepsWhatItAsksFor", func(t *testing.T) {
+		got := server.sessionAuthRequest(ctx, authReq, statefulLogoutConnector{})
+		require.Equal(t, []byte("logout-fields"), got.ConnectorData)
+		require.Equal(t, authReq.ID, got.ID)
+		require.Equal(t, []byte("login-claims+logout-fields"), authReq.ConnectorData, "the login's own request must keep its data")
+	})
+
+	t.Run("OtherConnectorsDropData", func(t *testing.T) {
+		got := server.sessionAuthRequest(ctx, authReq, plainConnector{})
+		require.Nil(t, got.ConnectorData)
+		require.Equal(t, authReq.ID, got.ID)
+	})
+
+	t.Run("UnusableDataIsDropped", func(t *testing.T) {
+		got := server.sessionAuthRequest(ctx, storage.AuthRequest{ID: "req", ConnectorData: []byte("fail")}, statefulLogoutConnector{})
+		require.Nil(t, got.ConnectorData)
+	})
 }

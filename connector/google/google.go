@@ -221,7 +221,7 @@ func (c *googleConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 	}
 	token, err := c.oauth2Config.TokenSource(ctx, t).Token()
 	if err != nil {
-		return identity, fmt.Errorf("google: failed to get token: %v", err)
+		return identity, fmt.Errorf("google: failed to get token: %w", err)
 	}
 
 	return c.createIdentity(ctx, identity, s, token)

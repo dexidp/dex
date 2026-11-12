@@ -240,6 +240,22 @@ func TestVaultSignerConformance_SigningAndVerification(t *testing.T) {
 							t.Fatalf("verify attempt %d failed: %v", i+1, err)
 						}
 					}
+
+					// Test 5: typ header
+					jwtString, err = signer.SignWithType(ctx, payloadBytes, "oauth-id-jag+jwt")
+					if err != nil {
+						t.Fatalf("failed to sign payload with type: %v", err)
+					}
+					jws, err = jose.ParseSigned(jwtString, []jose.SignatureAlgorithm{jose.SignatureAlgorithm(tc.alg)})
+					if err != nil {
+						t.Fatalf("failed to parse signed JWT: %v", err)
+					}
+					if typ := jws.Signatures[0].Protected.ExtraHeaders[jose.HeaderType]; typ != "oauth-id-jag+jwt" {
+						t.Errorf("expected typ oauth-id-jag+jwt, got %v", typ)
+					}
+					if _, err := jws.Verify(keys[0]); err != nil {
+						t.Fatalf("failed to verify JWT signature: %v", err)
+					}
 				})
 			}
 		})

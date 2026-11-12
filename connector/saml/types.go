@@ -27,7 +27,9 @@ func (t *xmlTime) UnmarshalXMLAttr(attr xml.Attr) error {
 	return nil
 }
 
-type samlVersion struct{}
+type samlVersion struct {
+	present bool
+}
 
 func (s samlVersion) MarshalXMLAttr(name xml.Name) (xml.Attr, error) {
 	return xml.Attr{
@@ -40,6 +42,7 @@ func (s *samlVersion) UnmarshalXMLAttr(attr xml.Attr) error {
 	if attr.Value != "2.0" {
 		return fmt.Errorf(`saml version expected "2.0" got %q`, attr.Value)
 	}
+	s.present = true
 	return nil
 }
 
@@ -80,7 +83,7 @@ type subject struct {
 type nameID struct {
 	XMLName xml.Name `xml:"urn:oasis:names:tc:SAML:2.0:assertion NameID"`
 
-	Format string `xml:"Format,omitempty"`
+	Format string `xml:"Format,attr,omitempty"`
 	Value  string `xml:",chardata"`
 }
 
@@ -191,7 +194,13 @@ type assertion struct {
 
 	Conditions *conditions `xml:"Conditions"`
 
+	AuthnStatements    []authnStatement    `xml:"AuthnStatement,omitempty"`
 	AttributeStatement *attributeStatement `xml:"AttributeStatement,omitempty"`
+}
+
+type authnStatement struct {
+	XMLName      xml.Name `xml:"urn:oasis:names:tc:SAML:2.0:assertion AuthnStatement"`
+	SessionIndex string   `xml:"SessionIndex,attr,omitempty"`
 }
 
 type attributeStatement struct {
@@ -274,4 +283,35 @@ func (a attribute) String() string {
 
 	// "groups" = ["engineering", "docs"]
 	return fmt.Sprintf("%q = %q", a.Name, values)
+}
+
+type logoutRequest struct {
+	XMLName xml.Name `xml:"urn:oasis:names:tc:SAML:2.0:protocol LogoutRequest"`
+
+	ID           string      `xml:"ID,attr"`
+	Version      samlVersion `xml:"Version,attr"`
+	IssueInstant xmlTime     `xml:"IssueInstant,attr"`
+	Destination  string      `xml:"Destination,attr,omitempty"`
+
+	Issuer       *issuer        `xml:"Issuer,omitempty"`
+	NameID       nameID         `xml:"NameID"`
+	SessionIndex []sessionIndex `xml:"SessionIndex,omitempty"`
+}
+
+type sessionIndex struct {
+	XMLName xml.Name `xml:"urn:oasis:names:tc:SAML:2.0:protocol SessionIndex"`
+	Value   string   `xml:",chardata"`
+}
+
+type logoutResponse struct {
+	XMLName xml.Name `xml:"urn:oasis:names:tc:SAML:2.0:protocol LogoutResponse"`
+
+	ID           string      `xml:"ID,attr"`
+	InResponseTo string      `xml:"InResponseTo,attr,omitempty"`
+	Version      samlVersion `xml:"Version,attr"`
+	IssueInstant xmlTime     `xml:"IssueInstant,attr,omitempty"`
+	Destination  string      `xml:"Destination,attr,omitempty"`
+
+	Issuer *issuer `xml:"Issuer,omitempty"`
+	Status *status `xml:"Status"`
 }

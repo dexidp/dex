@@ -123,6 +123,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		GrantTypes:      rc.grantTypes,
 		PKCEMethods:     c.PKCE.CodeChallengeMethodsSupported,
 		SessionsEnabled: c.SessionConfig != nil,
+		IDJAGEnabled:    c.IDJAG != nil,
 	}
 
 	if err := s.openConnectors(ctx, c); err != nil {
@@ -222,6 +223,15 @@ func instrumentHandler(registry *prometheus.Registry) func(string, http.Handler)
 	}
 }
 
+// idJAGMetrics registers the ID-JAG counters only when ID-JAG is enabled, so a
+// server without it exports no metrics that never move.
+func idJAGMetrics(c Config) *grants.IDJAGMetrics {
+	if c.IDJAG == nil || c.PrometheusRegistry == nil {
+		return nil
+	}
+	return grants.NewIDJAGMetrics(c.PrometheusRegistry)
+}
+
 // mount wires every domain onto routes. Self-contained domains mount their own
 // routes through the router.Mux abstraction; this is the only place they are
 // wired in.
@@ -246,6 +256,8 @@ func (s *Server) mount(routes router.Mux, c Config, rc resolvedConfig) {
 			Sessions:            sessions,
 			SessionsEnabled:     c.SessionConfig != nil,
 			SupportedGrantTypes: rc.grantTypes,
+			IDJAG:               c.IDJAG,
+			IDJAGMetrics:        idJAGMetrics(c),
 		},
 		&userinfo.Handler{
 			Issuer: s.issuerURL.String(),
