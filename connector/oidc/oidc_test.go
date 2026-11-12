@@ -474,6 +474,25 @@ func TestHandleCallback(t *testing.T) {
 			},
 		},
 		{
+			// A groups claim delivered as a single string must still be run
+			// through the configured groupsFilter, like the array form.
+			name:               "filterGroupClaimsString",
+			userIDKey:          "", // not configured
+			userNameKey:        "", // not configured
+			groupsRegex:        `^.*\d$`,
+			expectUserID:       "subvalue",
+			expectUserName:     "namevalue",
+			expectGroups:       nil,
+			expectedEmailField: "emailvalue",
+			token: map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"groups":         "groupA",
+				"email":          "emailvalue",
+				"email_verified": true,
+			},
+		},
+		{
 			name:               "filterGroupClaimsMap",
 			userIDKey:          "", // not configured
 			userNameKey:        "", // not configured
@@ -672,6 +691,45 @@ func TestRefresh(t *testing.T) {
 			expectEquals(t, refreshIdentity.Username, tc.expectUserName)
 		})
 	}
+}
+
+// TestRefreshUpstreamRejection verifies that a refresh the upstream refuses keeps
+// the upstream's OAuth2 error, so the server can tell a rejected refresh token
+// apart from other failures.
+func TestRefreshUpstreamRejection(t *testing.T) {
+	mux, err := oidcTestMux(map[string]interface{}{"sub": "subvalue"}, true)
+	require.NoError(t, err)
+
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/token" {
+			mux.ServeHTTP(w, r)
+			return
+		}
+		w.Header().Add("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(&map[string]string{
+			"error":             "invalid_grant",
+			"error_description": "The refresh token is invalid or expired.",
+		})
+	}))
+	defer testServer.Close()
+
+	conn, err := newConnector(Config{
+		Issuer:       testServer.URL,
+		ClientID:     "clientID",
+		ClientSecret: "clientSecret",
+		Scopes:       []string{"openid", "offline_access"},
+		RedirectURI:  fmt.Sprintf("%s/callback", testServer.URL),
+	})
+	require.NoError(t, err)
+
+	_, err = conn.Refresh(t.Context(), connector.Scopes{OfflineAccess: true}, connector.Identity{
+		ConnectorData: []byte(`{"RefreshToken":"asdf"}`),
+	})
+
+	var retrieveErr *oauth2.RetrieveError
+	require.ErrorAs(t, err, &retrieveErr)
+	require.Equal(t, "invalid_grant", retrieveErr.ErrorCode)
 }
 
 func TestTokenIdentity(t *testing.T) {
@@ -1014,7 +1072,7 @@ func issuerURL(r *http.Request) string {
 	return fmt.Sprintf("%s://%s", scheme, r.Host)
 }
 
-func oidcTestMux(tok map[string]interface{}, idTokenDesired bool) (*http.ServeMux, error) {
+func oidcTestMux(tok map[string]interface{}, idTokenDesired bool, userInfoOverride ...map[string]interface{}) (*http.ServeMux, error) {
 	key, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate rsa key: %v", err)
@@ -1065,9 +1123,14 @@ func oidcTestMux(tok map[string]interface{}, idTokenDesired bool) (*http.ServeMu
 		}
 	})
 
+	userInfo := tok
+	if len(userInfoOverride) > 0 {
+		userInfo = userInfoOverride[0]
+	}
+
 	mux.HandleFunc("/userinfo", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(tok)
+		json.NewEncoder(w).Encode(userInfo)
 	})
 
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
@@ -1085,8 +1148,8 @@ func oidcTestMux(tok map[string]interface{}, idTokenDesired bool) (*http.ServeMu
 	return mux, nil
 }
 
-func setupServer(tok map[string]interface{}, idTokenDesired bool) (*httptest.Server, error) {
-	mux, err := oidcTestMux(tok, idTokenDesired)
+func setupServer(tok map[string]interface{}, idTokenDesired bool, userInfoOverride ...map[string]interface{}) (*httptest.Server, error) {
+	mux, err := oidcTestMux(tok, idTokenDesired, userInfoOverride...)
 	if err != nil {
 		return nil, err
 	}
@@ -1283,4 +1346,176 @@ func TestEndSessionURLOverride(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, "https://custom.example.com/logout", conn.endSessionURL)
+}
+
+func TestHandleCallbackUserInfoSubMatch(t *testing.T) {
+	tests := []struct {
+		name string
+		// When set, the userinfo endpoint returns this sub instead of the ID Token's.
+		userInfoSub string
+		expectError bool
+	}{
+		{
+			name: "userinfo sub matches id_token sub",
+		},
+		{
+			name:        "userinfo sub differs from id_token sub",
+			userInfoSub: "other-subvalue",
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var userInfoOverride []map[string]interface{}
+			if tc.userInfoSub != "" {
+				userInfoOverride = append(userInfoOverride, map[string]interface{}{"sub": tc.userInfoSub})
+			}
+
+			testServer, err := setupServer(map[string]interface{}{
+				"sub":            "subvalue",
+				"name":           "namevalue",
+				"email":          "emailvalue",
+				"email_verified": true,
+			}, true, userInfoOverride...)
+			if err != nil {
+				t.Fatal("failed to setup test server", err)
+			}
+			defer testServer.Close()
+
+			basicAuth := true
+			conn, err := newConnector(Config{
+				Issuer:               testServer.URL,
+				ClientID:             "clientID",
+				ClientSecret:         "clientSecret",
+				RedirectURI:          fmt.Sprintf("%s/callback", testServer.URL),
+				GetUserInfo:          true,
+				BasicAuthUnsupported: &basicAuth,
+			})
+			if err != nil {
+				t.Fatal("failed to create new connector", err)
+			}
+
+			req, err := newRequestWithAuthCode(testServer.URL, "someCode")
+			if err != nil {
+				t.Fatal("failed to create request", err)
+			}
+
+			connectorData := []byte(`{"codeChallenge":"","codeChallengeMethod":""}`)
+			identity, err := conn.HandleCallback(connector.Scopes{}, connectorData, req)
+			if tc.expectError {
+				if err == nil {
+					t.Fatalf("expected the userinfo sub mismatch to be rejected, got identity %+v", identity)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal("handle callback failed", err)
+			}
+			expectEquals(t, identity.UserID, "subvalue")
+		})
+	}
+}
+
+func TestTokenIdentityKeysUnavailable(t *testing.T) {
+	backend, err := setupServer(map[string]any{
+		"sub":  "subvalue",
+		"name": "namevalue",
+	}, true)
+	require.NoError(t, err)
+	defer backend.Close()
+	backendURL, err := url.Parse(backend.URL)
+	require.NoError(t, err)
+	proxy := httputil.NewSingleHostReverseProxy(backendURL)
+
+	// While keysDown is set, the keys endpoint fails.
+	var keysDown atomic.Bool
+	keysDown.Store(true)
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/keys" && keysDown.Load() {
+			http.Error(w, "unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		proxy.ServeHTTP(w, r)
+	}))
+	defer testServer.Close()
+
+	conn, err := newConnector(Config{
+		Issuer: testServer.URL,
+		Scopes: []string{"openid", "groups"},
+	})
+	require.NoError(t, err)
+
+	res, err := http.Get(testServer.URL + "/token")
+	require.NoError(t, err)
+	defer res.Body.Close()
+	var tokenResponse map[string]any
+	require.NoError(t, json.NewDecoder(res.Body).Decode(&tokenResponse))
+	idToken := tokenResponse["id_token"].(string)
+
+	const tokenTypeID = "urn:ietf:params:oauth:token-type:id_token"
+	ctx := context.Background()
+
+	var unavailableErr *connector.UpstreamUnavailableError
+	_, err = conn.TokenIdentity(ctx, tokenTypeID, idToken)
+	require.ErrorAs(t, err, &unavailableErr)
+
+	keysDown.Store(false)
+	identity, err := conn.TokenIdentity(ctx, tokenTypeID, idToken)
+	require.NoError(t, err)
+	expectEquals(t, identity.UserID, "subvalue")
+
+	// A token signed with another key does not verify. That is not an outage.
+	otherKey, err := rsa.GenerateKey(rand.Reader, 1024)
+	require.NoError(t, err)
+	forged, err := newToken(&jose.JSONWebKey{Key: otherKey, KeyID: "keyId", Algorithm: "RSA"}, map[string]any{
+		"iss": testServer.URL,
+		"sub": "subvalue",
+		"aud": "clientID",
+		"exp": time.Now().Add(time.Hour).Unix(),
+	})
+	require.NoError(t, err)
+	_, err = conn.TokenIdentity(ctx, tokenTypeID, forged)
+	require.Error(t, err)
+	require.False(t, errors.As(err, &unavailableErr), "a token that does not verify is not an upstream outage: %v", err)
+}
+
+func TestTokenIdentityAlgFetchingKeys(t *testing.T) {
+	backend, err := setupServer(map[string]any{"sub": "subvalue"}, true)
+	require.NoError(t, err)
+	defer backend.Close()
+	conn, err := newConnector(Config{Issuer: backend.URL, Scopes: []string{"openid"}})
+	require.NoError(t, err)
+
+	// go-jose puts the header's alg into its parse error, so the token
+	// controls this text. It must not turn into an upstream outage.
+	enc := base64.RawURLEncoding.EncodeToString
+	token := enc([]byte(`{"alg":"fetching keys","kid":"keyId"}`)) + "." + enc([]byte(`{"sub":"subvalue"}`)) + "." + enc([]byte("sig"))
+
+	_, err = conn.TokenIdentity(context.Background(), "urn:ietf:params:oauth:token-type:id_token", token)
+
+	require.Error(t, err)
+	var unavailableErr *connector.UpstreamUnavailableError
+	require.False(t, errors.As(err, &unavailableErr), "a malformed token is not an upstream outage: %v", err)
+}
+
+func TestTokenIdentityCanceled(t *testing.T) {
+	backend, err := setupServer(map[string]any{"sub": "subvalue"}, true)
+	require.NoError(t, err)
+	defer backend.Close()
+	conn, err := newConnector(Config{Issuer: backend.URL, Scopes: []string{"openid"}})
+	require.NoError(t, err)
+	res, err := http.Get(backend.URL + "/token")
+	require.NoError(t, err)
+	defer res.Body.Close()
+	var tokenResponse map[string]any
+	require.NoError(t, json.NewDecoder(res.Body).Decode(&tokenResponse))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err = conn.TokenIdentity(ctx, "urn:ietf:params:oauth:token-type:id_token", tokenResponse["id_token"].(string))
+
+	require.Error(t, err)
+	var unavailableErr *connector.UpstreamUnavailableError
+	require.False(t, errors.As(err, &unavailableErr), "a canceled request is not an upstream outage: %v", err)
 }

@@ -2,12 +2,11 @@ package grants
 
 import (
 	"context"
-	"crypto/subtle"
 	"errors"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -49,6 +48,8 @@ type Request struct {
 	SubjectToken       string
 	SubjectTokenType   string
 	RequestedTokenType string
+	Audience           []string
+	Resource           []string
 
 	// refresh holds the refresh token the refresh grant looks up while resolving
 	// the connector, so it is fetched and decoded once and reused in Authorize.
@@ -77,19 +78,13 @@ func parseRequest(r *http.Request) (*Request, *oauth2.Error) {
 		SubjectToken:       r.PostFormValue("subject_token"),
 		SubjectTokenType:   r.PostFormValue("subject_token_type"),
 		RequestedTokenType: r.PostFormValue("requested_token_type"),
+		Audience:           r.PostForm["audience"],
+		Resource:           r.PostForm["resource"],
 	}
 
-	if id, secret, ok := r.BasicAuth(); ok {
-		var err error
-		if req.ClientID, err = url.QueryUnescape(id); err != nil {
-			return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "client_id improperly encoded", Status: http.StatusBadRequest}
-		}
-		if req.ClientSecret, err = url.QueryUnescape(secret); err != nil {
-			return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "client_secret improperly encoded", Status: http.StatusBadRequest}
-		}
-	} else {
-		req.ClientID = r.PostFormValue("client_id")
-		req.ClientSecret = r.PostFormValue("client_secret")
+	var oerr *oauth2.Error
+	if req.ClientID, req.ClientSecret, oerr = ClientCredentials(r, r.PostForm); oerr != nil {
+		return nil, oerr
 	}
 
 	return req, nil
@@ -161,6 +156,8 @@ type Handler struct {
 	Sessions            *session.Manager
 	SessionsEnabled     bool
 	SupportedGrantTypes []string
+	IDJAG               *IDJAGConfig
+	IDJAGMetrics        *IDJAGMetrics
 
 	grants map[string]Grant
 }
@@ -181,7 +178,7 @@ func (h *Handler) Mount(m router.Mux) {
 	h.register(h.SupportedGrantTypes,
 		&clientCredentials{issuer: h.Issuer, logger: h.Logger},
 		&password{issuer: h.Issuer, logger: h.Logger, connectorID: h.PasswordConnector},
-		&tokenExchange{issuer: h.Issuer, logger: h.Logger},
+		&tokenExchange{issuer: h.Issuer, logger: h.Logger, idJAG: newIDJAG(h.IDJAG, h.Issuer, h.Sessions, h.IDJAGMetrics, h.Logger)},
 		&authorizationCode{issuer: h.Issuer, storage: h.Storage, connectors: h.Connectors, now: h.Now, logger: h.Logger},
 		&refresh{storage: h.Storage, issuer: h.Issuer, policy: h.RefreshPolicy, sessions: h.Sessions, sessionsEnabled: h.SessionsEnabled, now: h.Now, logger: h.Logger},
 		&deviceCode{storage: h.Storage, now: h.Now, logger: h.Logger},
@@ -343,27 +340,11 @@ func (h *Handler) resolveConnector(ctx context.Context, connID string, client st
 // authenticateClient resolves the client from the parsed credentials. On failure
 // it writes the error response and returns ok=false.
 func (h *Handler) authenticateClient(ctx context.Context, w http.ResponseWriter, req *Request) (storage.Client, bool) {
-	client, err := h.Storage.GetClient(ctx, req.ClientID)
-	if err != nil {
-		if err != storage.ErrNotFound {
-			h.Logger.ErrorContext(ctx, "failed to get client", "err", err)
-			h.writeError(ctx, w, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError})
-		} else {
-			h.writeError(ctx, w, &oauth2.Error{Type: oauth2.InvalidClient, Description: "Invalid client credentials.", Status: http.StatusUnauthorized})
-		}
+	client, oerr := AuthenticateClient(ctx, h.Storage, h.Logger, req.ClientID, req.ClientSecret)
+	if oerr != nil {
+		h.writeError(ctx, w, oerr)
 		return storage.Client{}, false
 	}
-
-	if subtle.ConstantTimeCompare([]byte(client.Secret), []byte(req.ClientSecret)) != 1 {
-		if req.ClientSecret == "" {
-			h.Logger.InfoContext(ctx, "missing client_secret on token request", "client_id", client.ID)
-		} else {
-			h.Logger.InfoContext(ctx, "invalid client_secret on token request", "client_id", client.ID)
-		}
-		h.writeError(ctx, w, &oauth2.Error{Type: oauth2.InvalidClient, Description: "Invalid client credentials.", Status: http.StatusUnauthorized})
-		return storage.Client{}, false
-	}
-
 	return client, true
 }
 
@@ -374,6 +355,9 @@ func (h *Handler) writeError(ctx context.Context, w http.ResponseWriter, err err
 	if !errors.As(err, &oerr) || oerr == nil {
 		h.Logger.ErrorContext(ctx, "token request failed", "err", err)
 		oerr = &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
+	}
+	if oerr.RetryAfter > 0 {
+		w.Header().Set("Retry-After", strconv.Itoa(int(oerr.RetryAfter.Seconds())))
 	}
 	oauth2.WriteErrorResponse(h.Logger, w, oerr.Type, oerr.Description, oerr.Status)
 }

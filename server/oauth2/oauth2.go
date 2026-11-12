@@ -14,6 +14,7 @@ const (
 	UnsupportedGrantType    = "unsupported_grant_type"
 	InvalidGrant            = "invalid_grant"
 	InvalidClient           = "invalid_client"
+	InvalidTarget           = "invalid_target"
 	InactiveToken           = "inactive_token"
 	LoginRequired           = "login_required"
 	InteractionRequired     = "interaction_required"
@@ -39,7 +40,13 @@ const (
 	TokenTypeSAML1   = "urn:ietf:params:oauth:token-type:saml1"
 	TokenTypeSAML2   = "urn:ietf:params:oauth:token-type:saml2"
 	TokenTypeJWT     = "urn:ietf:params:oauth:token-type:jwt"
+	// TokenTypeIDJAG is the Identity Assertion JWT Authorization Grant
+	// (draft-ietf-oauth-identity-assertion-authz-grant).
+	TokenTypeIDJAG = "urn:ietf:params:oauth:token-type:id-jag"
 )
+
+// JWTTypeIDJAG is the JWT "typ" header of an ID-JAG.
+const JWTTypeIDJAG = "oauth-id-jag+jwt"
 
 // Response types for the authorization endpoint.
 const (

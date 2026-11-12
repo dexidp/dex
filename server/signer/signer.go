@@ -10,6 +10,9 @@ import (
 type Signer interface {
 	// Sign signs the provided payload.
 	Sign(ctx context.Context, payload []byte) (string, error)
+	// SignWithType signs the provided payload with the given JWT "typ" header,
+	// omitted when typ is empty.
+	SignWithType(ctx context.Context, payload []byte, typ string) (string, error)
 	// ValidationKeys returns the current public keys used for signature validation.
 	ValidationKeys(ctx context.Context) ([]*jose.JSONWebKey, error)
 	// Algorithm returns the signing algorithm used by this signer.

@@ -377,7 +377,7 @@ func (c *githubConnector) Refresh(ctx context.Context, s connector.Scopes, ident
 	})
 	user, err := c.user(ctx, client)
 	if err != nil {
-		return identity, fmt.Errorf("github: get user: %v", err)
+		return identity, fmt.Errorf("github: get user: %w", err)
 	}
 
 	username := user.Name
@@ -552,7 +552,7 @@ func get(ctx context.Context, client *http.Client, apiURL string, v interface{})
 	req.Header.Set("X-GitHub-Api-Version", githubAPIVersion)
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("github: get URL %v", err)
+		return "", fmt.Errorf("github: get URL %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -784,8 +784,8 @@ type org struct {
 // which inserts a bearer token as part of the request.
 func (c *githubConnector) teamsForOrg(ctx context.Context, client *http.Client, orgName string) ([]string, error) {
 	apiURL, groups := c.apiURL+"/user/teams", []string{}
+	warnedCaseMismatch := false
 	for {
-		// https://developer.github.com/v3/orgs/teams/#list-user-teams
 		var (
 			teams []team
 			err   error
@@ -795,7 +795,18 @@ func (c *githubConnector) teamsForOrg(ctx context.Context, client *http.Client, 
 		}
 
 		for _, t := range teams {
-			if t.Org.Login == orgName {
+			// GitHub org names are case-insensitive. Groups are built from the name in the
+			// config, so warn if it differs from the canonical login returned by the API.
+			// https://docs.github.com/en/rest/teams/teams?apiVersion=2026-03-10#list-teams-for-the-authenticated-user
+			if strings.EqualFold(t.Org.Login, orgName) {
+				if !warnedCaseMismatch && t.Org.Login != orgName {
+					c.logger.Warn(
+						"org name in config differs in case from GitHub; use the canonical name to keep group claims consistent",
+						"org", orgName,
+						"canonical", t.Org.Login,
+					)
+					warnedCaseMismatch = true
+				}
 				groups = append(groups, c.teamGroupClaims(t)...)
 			}
 		}

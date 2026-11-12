@@ -2,7 +2,6 @@ package device
 
 import (
 	"context"
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -70,6 +69,11 @@ type deviceFlowError struct {
 	status  int
 	code    string
 	message string
+}
+
+// oauth2FlowError turns an OAuth2 error into a flow error written as JSON.
+func oauth2FlowError(e *oauth2.Error) *deviceFlowError {
+	return &deviceFlowError{status: e.Status, code: e.Type, message: e.Description}
 }
 
 func (h *Handler) writeFlowError(r *http.Request, w http.ResponseWriter, e *deviceFlowError) {
@@ -147,9 +151,14 @@ func (h *Handler) parseDeviceCodeRequest(r *http.Request) (deviceCodeRequest, *d
 		scopes = []string{"openid"}
 	}
 
+	clientID, clientSecret, oerr := grants.ClientCredentials(r, r.Form)
+	if oerr != nil {
+		return deviceCodeRequest{}, oauth2FlowError(oerr)
+	}
+
 	return deviceCodeRequest{
-		clientID:     r.Form.Get("client_id"),
-		clientSecret: r.Form.Get("client_secret"),
+		clientID:     clientID,
+		clientSecret: clientSecret,
 		scopes:       scopes,
 		pkce: storage.PKCE{
 			CodeChallenge:       r.Form.Get("code_challenge"),
@@ -220,6 +229,12 @@ func (h *Handler) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 	req, ferr := h.parseDeviceCodeRequest(r)
 	if ferr != nil {
 		h.writeFlowError(r, w, ferr)
+		return
+	}
+
+	// Issue a code only to a client that can complete the flow.
+	if _, oerr := grants.AuthenticateClient(r.Context(), h.Storage, h.Logger, req.clientID, req.clientSecret); oerr != nil {
+		h.writeFlowError(r, w, oauth2FlowError(oerr))
 		return
 	}
 
@@ -371,18 +386,9 @@ func (h *Handler) completeDeviceAuthorization(w http.ResponseWriter, r *http.Req
 		return "", &deviceFlowError{status: http.StatusBadRequest, message: "Invalid or expired auth code."}
 	}
 
-	client, err := h.Storage.GetClient(ctx, deviceReq.ClientID)
-	if err != nil {
-		if err != storage.ErrNotFound {
-			h.Logger.ErrorContext(ctx, "failed to get client", "err", err)
-			return "", &deviceFlowError{status: http.StatusInternalServerError, code: oauth2.ServerError}
-		}
-		return "", &deviceFlowError{status: http.StatusUnauthorized, code: oauth2.InvalidClient, message: "Invalid client credentials."}
-	}
-	// Constant-time comparison of the client secret, matching grants.go's client
-	// authentication, so the compare does not leak the secret via timing.
-	if subtle.ConstantTimeCompare([]byte(client.Secret), []byte(deviceReq.ClientSecret)) != 1 {
-		return "", &deviceFlowError{status: http.StatusUnauthorized, code: oauth2.InvalidClient, message: "Invalid client credentials."}
+	client, oerr := grants.AuthenticateClient(ctx, h.Storage, h.Logger, deviceReq.ClientID, deviceReq.ClientSecret)
+	if oerr != nil {
+		return "", oauth2FlowError(oerr)
 	}
 
 	// ExchangeAuthCode consumes the code (its atomic single-use gate) and returns
@@ -413,7 +419,7 @@ func (h *Handler) completeDeviceAuthorization(w http.ResponseWriter, r *http.Req
 		if old.Status == oauth2.DeviceTokenComplete {
 			return old, errors.New("device token already complete")
 		}
-		respStr, err := json.MarshalIndent(resp, "", "  ")
+		respStr, err := json.Marshal(resp)
 		if err != nil {
 			h.Logger.ErrorContext(ctx, "failed to marshal device token response", "err", err)
 			h.renderError(r, w, http.StatusInternalServerError, "")
