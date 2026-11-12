@@ -55,8 +55,6 @@ var (
 	DeviceCodeValidator func(string) error
 	// ClientIDValidator is a validator for the "client_id" field. It is called by the builders before save.
 	ClientIDValidator func(string) error
-	// ClientSecretValidator is a validator for the "client_secret" field. It is called by the builders before save.
-	ClientSecretValidator func(string) error
 )
 
 // OrderOption defines the ordering options for the DeviceRequest queries.

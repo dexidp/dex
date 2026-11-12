@@ -226,11 +226,6 @@ func (_c *RefreshTokenCreate) check() error {
 	if _, ok := _c.mutation.Nonce(); !ok {
 		return &ValidationError{Name: "nonce", err: errors.New(`db: missing required field "RefreshToken.nonce"`)}
 	}
-	if v, ok := _c.mutation.Nonce(); ok {
-		if err := refreshtoken.NonceValidator(v); err != nil {
-			return &ValidationError{Name: "nonce", err: fmt.Errorf(`db: validator failed for field "RefreshToken.nonce": %w`, err)}
-		}
-	}
 	if _, ok := _c.mutation.ClaimsUserID(); !ok {
 		return &ValidationError{Name: "claims_user_id", err: errors.New(`db: missing required field "RefreshToken.claims_user_id"`)}
 	}
@@ -242,18 +237,8 @@ func (_c *RefreshTokenCreate) check() error {
 	if _, ok := _c.mutation.ClaimsUsername(); !ok {
 		return &ValidationError{Name: "claims_username", err: errors.New(`db: missing required field "RefreshToken.claims_username"`)}
 	}
-	if v, ok := _c.mutation.ClaimsUsername(); ok {
-		if err := refreshtoken.ClaimsUsernameValidator(v); err != nil {
-			return &ValidationError{Name: "claims_username", err: fmt.Errorf(`db: validator failed for field "RefreshToken.claims_username": %w`, err)}
-		}
-	}
 	if _, ok := _c.mutation.ClaimsEmail(); !ok {
 		return &ValidationError{Name: "claims_email", err: errors.New(`db: missing required field "RefreshToken.claims_email"`)}
-	}
-	if v, ok := _c.mutation.ClaimsEmail(); ok {
-		if err := refreshtoken.ClaimsEmailValidator(v); err != nil {
-			return &ValidationError{Name: "claims_email", err: fmt.Errorf(`db: validator failed for field "RefreshToken.claims_email": %w`, err)}
-		}
 	}
 	if _, ok := _c.mutation.ClaimsEmailVerified(); !ok {
 		return &ValidationError{Name: "claims_email_verified", err: errors.New(`db: missing required field "RefreshToken.claims_email_verified"`)}
