@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
+	"slices"
 	"sort"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/dexidp/dex/server/authflow"
+	"github.com/dexidp/dex/server/grants"
 	"github.com/dexidp/dex/server/mfa"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/session"
@@ -104,6 +106,9 @@ type Config struct {
 
 	// DefaultMFAChain is applied to clients that don't specify their own mfaChain.
 	DefaultMFAChain []string
+
+	// IDJAG enables issuing ID-JAGs through token exchange. Nil disables it.
+	IDJAG *grants.IDJAGConfig
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
@@ -197,6 +202,9 @@ func normalizeConfig(c *Config) (resolvedConfig, error) {
 	responseTypes, grantTypes, err := supportedTypes(c)
 	if err != nil {
 		return resolvedConfig{}, err
+	}
+	if c.IDJAG != nil && !slices.Contains(grantTypes, oauth2.GrantTypeTokenExchange) {
+		return resolvedConfig{}, errors.New("server: ID-JAG requires the token exchange grant")
 	}
 
 	static, theme, robots, tmpls, err := templates.LoadWebConfig(webConfig(c))

@@ -621,7 +621,7 @@ func (c *oidcConnector) Refresh(ctx context.Context, s connector.Scopes, identit
 	}
 	token, err := c.oauth2Config.TokenSource(ctx, t).Token()
 	if err != nil {
-		return identity, fmt.Errorf("oidc: failed to get refresh token: %v", err)
+		return identity, fmt.Errorf("oidc: failed to get refresh token: %w", err)
 	}
 	return c.createIdentity(ctx, identity, token, refreshCaller)
 }
@@ -638,13 +638,28 @@ func (c *oidcConnector) TokenIdentity(ctx context.Context, subjectTokenType, sub
 	return c.createIdentity(ctx, identity, token, exchangeCaller)
 }
 
+// verifyError wraps err from a token verification with msg. A failure to fetch
+// the issuer's signing keys becomes a connector.UpstreamUnavailableError,
+// unless ctx was canceled, because then the request ended and not the upstream.
+// go-oidc formats that failure into the verification error with %v, so it can
+// only be recognized by go-oidc's wording. The whole prefix is matched because
+// other parse errors quote the token's header, which the caller controls.
+func verifyError(ctx context.Context, msg string, err error) error {
+	unavailable := strings.HasPrefix(err.Error(), "failed to verify signature: fetching keys") && ctx.Err() == nil
+	err = fmt.Errorf("%s: %v", msg, err)
+	if unavailable {
+		return &connector.UpstreamUnavailableError{Err: err}
+	}
+	return err
+}
+
 func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.Identity, token *oauth2.Token, caller caller) (connector.Identity, error) {
 	var claims map[string]interface{}
 
 	if rawIDToken, ok := token.Extra("id_token").(string); ok {
 		idToken, err := c.verifier.Verify(ctx, rawIDToken)
 		if err != nil {
-			return identity, fmt.Errorf("oidc: failed to verify ID Token: %v", err)
+			return identity, verifyError(ctx, "oidc: failed to verify ID Token", err)
 		}
 
 		if err := idToken.Claims(&claims); err != nil {
@@ -656,7 +671,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 			// Verify only works on ID tokens
 			idToken, err := c.provider.Verifier(&oidc.Config{SkipClientIDCheck: true}).Verify(ctx, token.AccessToken)
 			if err != nil {
-				return identity, fmt.Errorf("oidc: failed to verify token: %v", err)
+				return identity, verifyError(ctx, "oidc: failed to verify token", err)
 			}
 			if err := idToken.Claims(&claims); err != nil {
 				return identity, fmt.Errorf("oidc: failed to decode claims: %v", err)
@@ -747,9 +762,12 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 			vs, found = claims[groupsKey].([]interface{})
 		}
 
-		// Fallback when claims[groupsKey] is a string instead of an array of strings.
+		// Fallback when claims[groupsKey] is a string instead of an array of
+		// strings. Fold it into the array path so groupsFilter (and the other
+		// per-group handling below) applies uniformly.
 		if g, b := claims[groupsKey].(string); b {
-			groups = []string{g}
+			vs = []interface{}{g}
+			found = true
 		}
 
 		if found {

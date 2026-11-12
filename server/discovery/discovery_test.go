@@ -4,7 +4,11 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/json"
+	"errors"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 
@@ -13,6 +17,8 @@ import (
 
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
+	"github.com/dexidp/dex/server/templates"
+	dexweb "github.com/dexidp/dex/web"
 )
 
 func testHandler(t *testing.T, sessionsEnabled bool) *Handler {
@@ -56,4 +62,57 @@ func TestConstruct(t *testing.T) {
 func TestConstructNoSessions(t *testing.T) {
 	doc := testHandler(t, false).Construct(context.Background())
 	require.Empty(t, doc.EndSession)
+}
+
+// flakySigner fails its first Algorithm lookup, as a signer backed by storage or
+// Vault does on a transient error, and reports ES256 afterwards.
+type flakySigner struct {
+	signer.Signer
+	calls int
+}
+
+func (s *flakySigner) Algorithm(context.Context) (jose.SignatureAlgorithm, error) {
+	s.calls++
+	if s.calls == 1 {
+		return "", errors.New("storage unavailable")
+	}
+	return jose.ES256, nil
+}
+
+func TestServeDocumentRetriesFailedSigningAlgorithm(t *testing.T) {
+	h := testHandler(t, false)
+	sig := &flakySigner{Signer: h.Signer}
+	h.Signer = sig
+
+	//nolint:dogsled // only the templates are needed here
+	_, _, _, tmpls, err := templates.LoadWebConfig(templates.Config{
+		WebFS:     dexweb.FS(),
+		IssuerURL: h.IssuerURL.String(),
+	})
+	require.NoError(t, err)
+	h.Templates = tmpls
+
+	serve := func() *httptest.ResponseRecorder {
+		t.Helper()
+		rr := httptest.NewRecorder()
+		h.serveDocument(rr, httptest.NewRequest(http.MethodGet, "/.well-known/openid-configuration", nil))
+		return rr
+	}
+	idTokenAlgs := func() []string {
+		t.Helper()
+		rr := serve()
+		require.Equal(t, http.StatusOK, rr.Code)
+
+		var doc Document
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &doc))
+		return doc.IDTokenAlgs
+	}
+
+	// The failed lookup is an error rather than an RS256 document that clients
+	// would cache.
+	require.Equal(t, http.StatusInternalServerError, serve().Code)
+	// The next request resolves the real algorithm, and that document is cached.
+	require.Equal(t, []string{string(jose.ES256)}, idTokenAlgs())
+	require.Equal(t, []string{string(jose.ES256)}, idTokenAlgs())
+	require.Equal(t, 2, sig.calls)
 }

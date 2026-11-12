@@ -197,6 +197,26 @@ func (f *failingFinalizeStorage) UpdateRefreshToken(ctx context.Context, id stri
 	return f.Storage.UpdateRefreshToken(ctx, id, updater)
 }
 
+// failingOfflineSessionStorage fails the next UpdateOfflineSessions call once
+// and counts UpdateRefreshToken calls.
+type failingOfflineSessionStorage struct {
+	storage.Storage
+	failNow atomic.Bool
+	updates atomic.Int32
+}
+
+func (f *failingOfflineSessionStorage) UpdateRefreshToken(ctx context.Context, id string, updater func(r storage.RefreshToken) (storage.RefreshToken, error)) error {
+	f.updates.Add(1)
+	return f.Storage.UpdateRefreshToken(ctx, id, updater)
+}
+
+func (f *failingOfflineSessionStorage) UpdateOfflineSessions(ctx context.Context, userID, connID string, updater func(s storage.OfflineSessions) (storage.OfflineSessions, error)) error {
+	if f.failNow.CompareAndSwap(true, false) {
+		return errors.New("injected offline session failure")
+	}
+	return f.Storage.UpdateOfflineSessions(ctx, userID, connID, updater)
+}
+
 func TestRefreshStoreRotateConcurrentRefreshReusesClaimedToken(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UTC()
@@ -393,6 +413,89 @@ func TestRefreshStoreRotateFinalizeFailureUndoesClaim(t *testing.T) {
 	require.Equal(t, int32(2), resolves.Load())
 }
 
+func TestRefreshStoreRotateOfflineSessionFailureUndoesClaim(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now().UTC()
+	clock := func() time.Time { return now }
+
+	failing := &failingOfflineSessionStorage{Storage: memory.New(slog.New(slog.DiscardHandler))}
+	failing.failNow.Store(true)
+	rt := NewRefreshStore(failing, clock, slog.New(slog.DiscardHandler))
+	aged := now.Add(-31 * time.Second)
+	seedRefreshToken(t, failing.Storage, aged)
+	strategy := NewRefreshStrategy(true, 0, 0, 0, clock)
+
+	fresh := func(context.Context) (connector.Identity, error) {
+		return connector.Identity{UserID: "u1", Username: "bob"}, nil
+	}
+
+	stored, err := failing.GetRefresh(ctx, "r1")
+	require.NoError(t, err)
+	req := &internal.RefreshToken{RefreshId: "r1", Token: "t1"}
+
+	raw, _, err := rt.Rotate(ctx, &stored, req, strategy, fresh)
+	require.Error(t, err, "the injected offline session failure must fail the grant")
+	require.Empty(t, raw)
+
+	after, err := failing.GetRefresh(ctx, "r1")
+	require.NoError(t, err)
+	require.Equal(t, "t1", after.Token, "a failed offline session update must restore the token")
+	require.Equal(t, "t0", after.ObsoleteToken, "a failed offline session update must restore the obsolete token")
+	require.Equal(t, aged, after.LastUsed, "a failed offline session update must restore last-used")
+
+	// With reuse disabled the retry only succeeds if the claim was undone.
+	raw, _, err = rt.Rotate(ctx, &stored, req, strategy, fresh)
+	require.NoError(t, err, "retry with the original token must succeed")
+	var tok internal.RefreshToken
+	require.NoError(t, internal.Unmarshal(raw, &tok))
+	require.NotEqual(t, "t1", tok.Token)
+}
+
+func TestRefreshStoreRotateOfflineSessionFailureOnReusePathLeavesRow(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now().UTC()
+	clock := func() time.Time { return now }
+
+	failing := &failingOfflineSessionStorage{Storage: memory.New(slog.New(slog.DiscardHandler))}
+	rt := NewRefreshStore(failing, clock, slog.New(slog.DiscardHandler))
+	seedRefreshToken(t, failing.Storage, now.Add(-31*time.Second))
+	strategy := NewRefreshStrategy(true, 0, 0, 30*time.Second, clock)
+
+	fresh := func(context.Context) (connector.Identity, error) {
+		return connector.Identity{UserID: "u1", Username: "bob"}, nil
+	}
+
+	stored, err := failing.GetRefresh(ctx, "r1")
+	require.NoError(t, err)
+	req := &internal.RefreshToken{RefreshId: "r1", Token: "t1"}
+
+	raw, _, err := rt.Rotate(ctx, &stored, req, strategy, fresh)
+	require.NoError(t, err)
+	var rotated internal.RefreshToken
+	require.NoError(t, internal.Unmarshal(raw, &rotated))
+
+	before, err := failing.GetRefresh(ctx, "r1")
+	require.NoError(t, err)
+	require.Equal(t, rotated.Token, before.Token)
+	require.Equal(t, "t1", before.ObsoleteToken)
+
+	// Within the window the obsolete token takes the reuse path, which mints
+	// nothing. A failed offline session update there must not roll back the
+	// rotated token the client already holds.
+	failing.failNow.Store(true)
+	failing.updates.Store(0)
+	now = now.Add(time.Second)
+	_, _, err = rt.Rotate(ctx, &stored, req, strategy, fresh)
+	require.Error(t, err, "the injected offline session failure must fail the grant")
+
+	after, err := failing.GetRefresh(ctx, "r1")
+	require.NoError(t, err)
+	require.Equal(t, before.Token, after.Token, "reuse path must leave the rotated token in place")
+	require.Equal(t, before.ObsoleteToken, after.ObsoleteToken, "reuse path must leave the obsolete token in place")
+	require.Equal(t, before.LastUsed, after.LastUsed, "reuse path must leave last-used in place")
+	require.Equal(t, int32(1), failing.updates.Load(), "reuse path must write the claim only, no undo")
+}
+
 func TestRefreshStoreRotateReuseWindowSkipsConnector(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UTC()
@@ -483,4 +586,28 @@ func TestRefreshStoreRotateDisabledRotationRefreshesClaims(t *testing.T) {
 	require.Equal(t, "t1", after.Token)
 	require.Equal(t, "bob", after.Claims.Username)
 	require.Equal(t, int32(2), resolves.Load())
+}
+
+func TestRefreshStoreUpdateOfflineSessionAfterRevoke(t *testing.T) {
+	ctx := context.Background()
+	rt, store := newTestStore(t)
+
+	stored := storage.RefreshToken{
+		ID: "r1", Token: "t1", ClientID: "client-1", ConnectorID: "mock",
+		Claims: storage.Claims{UserID: "u1", Username: "alice"}, CreatedAt: time.Now(), LastUsed: time.Now(),
+	}
+	require.NoError(t, store.CreateRefresh(ctx, stored))
+	require.NoError(t, store.CreateOfflineSessions(ctx, storage.OfflineSessions{
+		UserID: "u1", ConnID: "mock",
+		Refresh: map[string]*storage.RefreshTokenRef{"client-1": {ID: "r1", ClientID: "client-1"}},
+	}))
+
+	// The token is revoked after the caller loaded it, e.g. while a rotation is in flight.
+	rt.RevokeClients(ctx, "u1", "mock", []string{"client-1"})
+
+	var err error
+	require.NotPanics(t, func() {
+		err = rt.updateOfflineSession(ctx, &stored, connector.Identity{UserID: "u1"}, time.Now())
+	})
+	require.Error(t, err)
 }
