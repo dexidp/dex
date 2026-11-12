@@ -871,10 +871,15 @@ func TestTokenIdentityKeysFetchTimeout(t *testing.T) {
 	}
 
 	// The failed fetch does not stick: once the keys endpoint answers, the
-	// next exchange verifies.
+	// next exchange verifies. go-oidc signals the failed fetch before it clears
+	// it, so a call right after can still get the old error: retry briefly.
 	keysDown.Store(false)
-	identity, err := conn.TokenIdentity(ctx, tokenTypeID, idToken)
-	require.NoError(t, err)
+	var identity connector.Identity
+	require.Eventually(t, func() bool {
+		var err error
+		identity, err = conn.TokenIdentity(ctx, tokenTypeID, idToken)
+		return err == nil
+	}, 5*time.Second, 10*time.Millisecond)
 	expectEquals(t, identity.UserID, "subvalue")
 }
 
