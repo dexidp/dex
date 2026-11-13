@@ -334,8 +334,9 @@ type TokenExchange struct {
 	// TokenTypes lists the token types enabled for exchange. Only
 	// urn:ietf:params:oauth:token-type:id-jag has an effect: listing it enables
 	// ID-JAG issuance. ID and access tokens are always exchangeable.
+	TokenTypes []string `json:"tokenTypes"`
+	// Delegation lists the clients allowed to present actor credentials.
 	Delegation []DelegationPolicy `json:"delegation"`
-	TokenTypes []string           `json:"tokenTypes"`
 }
 
 func (t TokenExchange) idJAGEnabled() bool {

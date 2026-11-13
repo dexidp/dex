@@ -1,12 +1,20 @@
 package grants
 
 import (
+	"context"
+	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/connector/mock"
+	"github.com/dexidp/dex/server/connectors"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
+	"github.com/dexidp/dex/storage"
 )
 
 func TestAudienceContains(t *testing.T) {
@@ -92,4 +100,25 @@ func TestDelegatedScopes(t *testing.T) {
 	require.Equal(t, []string{"tools:read"}, delegatedScopes(requested, "tools:read tools:write", true))
 	require.Equal(t, []string{"openid", "tools:read"}, delegatedScopes(requested, "openid tools:read", false))
 	require.Empty(t, delegatedScopes(requested, "other", true))
+}
+
+// claimsErrorConnector verifies identity but cannot verify the token's claims.
+type claimsErrorConnector struct {
+	connector.TokenIdentityConnector
+}
+
+func (claimsErrorConnector) TokenClaims(context.Context, string, string) (map[string]any, error) {
+	return nil, errors.New("claims verification failed")
+}
+
+func TestSubjectClaimsVerificationFailsClosed(t *testing.T) {
+	grant := tokenExchange{logger: slog.Default()}
+	for _, delegating := range []bool{false, true} {
+		subject, err := grant.connectorSubject(t.Context(), &Request{ConnectorID: "subject", SubjectTokenType: oauth2.TokenTypeID}, storage.Client{}, connectors.Connector{Connector: claimsErrorConnector{TokenIdentityConnector: &mock.Callback{}}}, delegating)
+		require.Error(t, err)
+		require.Nil(t, subject)
+		var failure *oauth2.Error
+		require.ErrorAs(t, err, &failure)
+		require.Equal(t, oauth2.InvalidRequest, failure.Type)
+	}
 }

@@ -1550,7 +1550,7 @@ func TestTokenClaims(t *testing.T) {
 	token := tokenResponse["id_token"].(string)
 
 	for _, tokenType := range []string{tokenTypeJWT, tokenTypeID} {
-		claims, err := conn.TokenClaims(context.Background(), tokenType, token)
+		claims, err := conn.TokenClaims(t.Context(), tokenType, token)
 		if err != nil {
 			t.Fatalf("%s: unexpected error: %v", tokenType, err)
 		}
@@ -1563,10 +1563,10 @@ func TestTokenClaims(t *testing.T) {
 		}
 	}
 
-	if _, err := conn.TokenClaims(context.Background(), tokenTypeAccess, token); err == nil {
+	if _, err := conn.TokenClaims(t.Context(), tokenTypeAccess, token); err == nil {
 		t.Error("access_token type: expected an error")
 	}
-	if _, err := conn.TokenClaims(context.Background(), tokenTypeJWT, token+"x"); err == nil {
+	if _, err := conn.TokenClaims(t.Context(), tokenTypeJWT, token+"x"); err == nil {
 		t.Error("tampered token: expected an error")
 	}
 }

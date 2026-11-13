@@ -64,7 +64,7 @@ func (g *tokenExchange) Authorize(ctx context.Context, req *Request, client stor
 		return nil, invalidRequest("actor_token and actor_token_type must be sent together")
 	}
 	if g.idJAG != nil && req.RequestedTokenType == oauth2.TokenTypeIDJAG {
-		return g.idJAG.Authorize(ctx, req, client, g)
+		return g.authorizeIDJAG(ctx, req, client)
 	}
 
 	switch requestedTokenType(req) {
@@ -84,52 +84,82 @@ func (g *tokenExchange) Authorize(ctx context.Context, req *Request, client stor
 		return nil, invalidRequest("connector only verifies actor tokens")
 	}
 
-	// actor_token is optional (RFC 8693 §2.1): without one, any client
-	// impersonates the subject.
-	if req.ActorToken == "" {
-		subject, err := g.verifySubject(ctx, req, client, conn, false)
-		if err != nil {
-			return nil, err
+	delegating := req.ActorToken != ""
+	if delegating {
+		policy, enabled := g.delegation.byClient[client.ID]
+		if !enabled || client.Public {
+			return nil, invalidRequest("delegation is not enabled for this client")
 		}
-		return g.impersonate(ctx, req, client, subject)
-	}
-	policy, delegating := g.delegation.byClient[client.ID]
-	if !delegating || client.Public {
-		return nil, invalidRequest("delegation is not enabled for this client")
-	}
-	if len(req.Resource) > 0 {
-		return nil, invalidTarget("resource is not supported, use audience")
-	}
-	for _, aud := range req.Audience {
-		if aud == client.ID {
-			continue
+		if len(req.Resource) > 0 {
+			return nil, invalidTarget("resource is not supported, use audience")
 		}
-		if !slices.Contains(policy.AllowedAudiences, aud) {
-			return nil, invalidTarget("audience not allowed for delegation")
+		for _, aud := range req.Audience {
+			if aud == client.ID {
+				continue
+			}
+			if !slices.Contains(policy.AllowedAudiences, aud) {
+				return nil, invalidTarget("audience not allowed for delegation")
+			}
+			trusted, err := tokens.CrossClientTrusted(ctx, g.storage, client.ID, aud)
+			if err != nil {
+				g.logger.ErrorContext(ctx, "error validating cross client trust", "client_id", client.ID, "peer_id", aud, "err", err)
+				return nil, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
+			}
+			if !trusted {
+				return nil, invalidTarget("audience not allowed for delegation")
+			}
 		}
-		trusted, err := tokens.CrossClientTrusted(ctx, g.storage, client.ID, aud)
-		if err != nil {
-			g.logger.ErrorContext(ctx, "error validating cross client trust", "client_id", client.ID, "peer_id", aud, "err", err)
-			return nil, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
-		}
-		if !trusted {
-			return nil, invalidTarget("audience not allowed for delegation")
-		}
-	}
-	for _, scope := range req.Scopes {
-		if _, crossClient := tokens.ParseCrossClientScope(scope); crossClient {
-			return nil, invalidScope("use the audience parameter for delegation")
-		}
-		if !standardScopes[scope] && !slices.Contains(policy.AllowedScopes, scope) {
-			return nil, invalidScope("scope not allowed for delegation")
+		for _, scope := range req.Scopes {
+			if _, crossClient := tokens.ParseCrossClientScope(scope); crossClient {
+				return nil, invalidScope("use the audience parameter for delegation")
+			}
+			if !standardScopes[scope] && !slices.Contains(policy.AllowedScopes, scope) {
+				return nil, invalidScope("scope not allowed for delegation")
+			}
 		}
 	}
-
-	subject, err := g.verifySubject(ctx, req, client, conn, true)
+	subject, err := g.verifySubject(ctx, req, client, conn, delegating)
 	if err != nil {
 		return nil, err
 	}
-	return g.delegate(ctx, req, client, subject)
+	actor, expiresAt, err := g.authorizeActor(ctx, req, client, subject.claims)
+	if err != nil {
+		return nil, err
+	}
+	scopes := req.Scopes
+	var audience []string
+	var granted string
+	if actor != nil {
+		scopes = delegatedScopes(scopes, subject.claims["scope"], subject.claims["act"] != nil)
+		if len(req.Scopes) > 0 && len(scopes) == 0 {
+			return nil, invalidScope("subject token does not carry the requested scopes")
+		}
+		audience = req.Audience
+		granted = strings.Join(scopes, " ")
+	}
+	response, err := g.respond(ctx, tokens.Authorization{
+		Client:      client,
+		Claims:      tokens.ClaimsFromIdentity(subject.identity),
+		Scopes:      scopes,
+		ConnectorID: subject.connectorID,
+		SessionID:   subject.sessionID,
+		Act:         actor,
+		ScopeClaim:  granted,
+		Audience:    audience,
+		ExpiresAt:   expiresAt,
+	}, requestedTokenType(req), granted)
+	if err != nil {
+		return nil, err
+	}
+	attrs := append(identityLogAttrs(subject, client), "subject_token_type", req.SubjectTokenType, "requested_token_type", requestedTokenType(req))
+	if actor != nil {
+		attrs = append(attrs, "actor_iss", actor.Issuer, "actor_sub", actor.Subject)
+		if actor.Act != nil {
+			attrs = append(attrs, "prior_actor_sub", actor.Act.Subject, "prior_client_id", claimString(subject.claims, "client_id"))
+		}
+	}
+	g.logger.InfoContext(ctx, "token exchange successful", attrs...)
+	return response, nil
 }
 
 // subject is the verified subject token: the identity to issue for, the
@@ -226,14 +256,11 @@ func (g *tokenExchange) connectorSubject(ctx context.Context, req *Request, clie
 		return s, nil
 	}
 	claims, err := claimsConn.TokenClaims(ctx, req.SubjectTokenType, req.SubjectToken)
-	switch {
-	case err != nil && delegating:
-		g.logger.InfoContext(ctx, "failed to verify subject token", "connector_id", req.ConnectorID, "err", err)
+	if err != nil {
+		g.logger.InfoContext(ctx, "failed to verify subject token claims", "connector_id", req.ConnectorID, "err", err)
 		return nil, invalidRequest("invalid subject_token")
-	case err != nil:
-		// The token verified through TokenIdentity; without its claims
-		// impersonation proceeds as for a connector that returns none.
-		g.logger.DebugContext(ctx, "subject token claims unavailable", "connector_id", req.ConnectorID, "err", err)
+	}
+	switch {
 	case delegating:
 		if !audienceContains(claims["aud"], client.ID) {
 			return nil, invalidRequest("subject token audience does not include this client")
@@ -248,57 +275,6 @@ func (g *tokenExchange) connectorSubject(ctx context.Context, req *Request, clie
 		}
 	}
 	return s, nil
-}
-
-// impersonate is the exchange without an actor: the issued token says nothing
-// about who presented the subject token. A subject that names an actor or
-// restricts who may act for it is checked where its claims are available.
-func (g *tokenExchange) impersonate(ctx context.Context, req *Request, client storage.Client, subject *subject) (Responder, error) {
-	if _, _, err := g.authorizeActor(ctx, req, client, subject.claims); err != nil {
-		return nil, err
-	}
-	reqType := requestedTokenType(req)
-	g.logger.InfoContext(ctx, "token exchange successful", append(identityLogAttrs(subject, client),
-		"subject_token_type", req.SubjectTokenType, "requested_token_type", reqType)...)
-
-	return g.respond(ctx, tokens.Authorization{
-		Client:      client,
-		Claims:      tokens.ClaimsFromIdentity(subject.identity),
-		Scopes:      req.Scopes,
-		ConnectorID: subject.connectorID,
-		SessionID:   subject.sessionID,
-		ExpiresAt:   earliestExpiry(subject.claims),
-	}, reqType, "")
-}
-
-// delegate is the exchange with an actor (RFC 8693 §1.1 delegation). The
-// actor token must be a signed token whose claims its connector returns, so
-// the grant can check its audience, the subject's may_act, and bound the
-// issued token's lifetime by both tokens.
-func (g *tokenExchange) delegate(ctx context.Context, req *Request, client storage.Client, subject *subject) (Responder, error) {
-	actor, expiresAt, err := g.authorizeActor(ctx, req, client, subject.claims)
-	if err != nil {
-		return nil, err
-	}
-	scopes := delegatedScopes(req.Scopes, subject.claims["scope"], subject.claims["act"] != nil)
-	if len(req.Scopes) > 0 && len(scopes) == 0 {
-		return nil, invalidScope("subject token does not carry the requested scopes")
-	}
-
-	reqType := requestedTokenType(req)
-
-	granted := strings.Join(scopes, " ")
-	return g.respond(ctx, tokens.Authorization{
-		Client:      client,
-		Claims:      tokens.ClaimsFromIdentity(subject.identity),
-		Scopes:      scopes,
-		ConnectorID: subject.connectorID,
-		SessionID:   subject.sessionID,
-		Act:         actor,
-		ScopeClaim:  granted,
-		Audience:    req.Audience,
-		ExpiresAt:   expiresAt,
-	}, reqType, granted)
 }
 
 // verifyActor verifies the actor token with the client's actor connectors, in
@@ -320,7 +296,7 @@ func (g *tokenExchange) verifyActor(ctx context.Context, req *Request, client st
 			continue
 		}
 		claims, err := claimsConn.TokenClaims(ctx, req.ActorTokenType, req.ActorToken)
-		if err != nil {
+		if err != nil || claims == nil {
 			g.logger.DebugContext(ctx, "actor token not verified by connector", "actor_connector_id", id, "err", err)
 			continue
 		}
@@ -418,7 +394,7 @@ func (g *tokenExchange) authorizeActor(ctx context.Context, req *Request, client
 		if mayAct, ok := subjectClaims["may_act"]; ok && !mayActAllows(mayAct, nil, client.ID, false) {
 			return nil, time.Time{}, invalidRequest("actor is not authorized by the subject token's may_act claim")
 		}
-		return nil, time.Time{}, nil
+		return nil, earliestExpiry(subjectClaims), nil
 	}
 	policy, enabled := g.delegation.byClient[client.ID]
 	if !enabled || client.Public {

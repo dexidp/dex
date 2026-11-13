@@ -57,8 +57,13 @@ func (i *Issuer) SignIDJAG(ctx context.Context, claims IDJAGClaims, validFor tim
 // VerifyIDToken verifies an ID token this issuer signed and issued to clientID.
 // Dex access tokens are ID tokens with a random at_hash, so they pass here too.
 func (i *Issuer) VerifyIDToken(ctx context.Context, rawIDToken, clientID string) (*oidc.IDToken, error) {
+	return i.verifyToken(ctx, rawIDToken, clientID)
+}
+
+func (i *Issuer) verifyToken(ctx context.Context, rawIDToken, clientID string) (*oidc.IDToken, error) {
 	verifier := oidc.NewVerifier(i.issuerURL.String(), &signer.KeySet{Signer: i.signer}, &oidc.Config{
 		ClientID:             clientID,
+		SkipClientIDCheck:    clientID == "",
 		Now:                  i.now,
 		SupportedSigningAlgs: []string{oidc.RS256, oidc.RS384, oidc.RS512, oidc.ES256, oidc.ES384, oidc.ES512},
 	})
@@ -77,7 +82,7 @@ func (i *Issuer) VerifyIDToken(ctx context.Context, rawIDToken, clientID string)
 		return nil, fmt.Errorf("token is a logout token")
 	}
 	// A token with several audiences was issued to its azp, not to every audience.
-	if issuedTo, _ := GetClientID(idToken.Audience, claims.AuthorizingParty); issuedTo != clientID {
+	if issuedTo, _ := GetClientID(idToken.Audience, claims.AuthorizingParty); clientID != "" && issuedTo != clientID {
 		return nil, fmt.Errorf("id token was issued to %q", issuedTo)
 	}
 	return idToken, nil

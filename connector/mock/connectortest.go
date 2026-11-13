@@ -77,9 +77,6 @@ func (m *Callback) TokenIdentity(ctx context.Context, subjectTokenType, subjectT
 }
 
 func (m *Callback) TokenClaims(ctx context.Context, tokenType, token string) (map[string]any, error) {
-	if m.Claims == nil {
-		return nil, errors.New("mock: token does not verify")
-	}
 	return m.Claims, nil
 }
 

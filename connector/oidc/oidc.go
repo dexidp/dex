@@ -611,7 +611,7 @@ func (c *oidcConnector) TokenClaims(ctx context.Context, tokenType, token string
 	}
 
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, c.httpClient)
-	idToken, err := c.provider.Verifier(&oidc.Config{SkipClientIDCheck: true}).Verify(ctx, token)
+	idToken, err := c.exchangeVerifier.Verify(ctx, token)
 	if err != nil {
 		return nil, verifyError(ctx, "oidc: failed to verify token", err)
 	}

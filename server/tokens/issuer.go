@@ -274,8 +274,7 @@ type VerifiedToken struct {
 // (RFC 7662 §4 reports such a token inactive). It returns ErrInvalidToken or
 // ErrSessionEnded for those refusals and other errors for storage failures.
 func (i *Issuer) VerifyToken(ctx context.Context, raw string) (*VerifiedToken, error) {
-	verifier := oidc.NewVerifier(i.issuerURL.String(), &signer.KeySet{Signer: i.signer}, &oidc.Config{SkipClientIDCheck: true, Now: i.now})
-	token, err := verifier.Verify(ctx, raw)
+	token, err := i.verifyToken(ctx, raw, "")
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidToken, err)
 	}

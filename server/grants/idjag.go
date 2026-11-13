@@ -91,9 +91,10 @@ func newIDJAG(config *IDJAGConfig, issuer *tokens.Issuer, sessions *session.Mana
 	return g
 }
 
-// Authorize verifies the subject token, an ID token this server issued to the
+// authorizeIDJAG verifies the subject token, an ID token this server issued to the
 // client, applies the client's policy and issues the ID-JAG.
-func (g *idJAG) Authorize(ctx context.Context, req *Request, client storage.Client, exchange *tokenExchange) (Responder, error) {
+func (exchange *tokenExchange) authorizeIDJAG(ctx context.Context, req *Request, client storage.Client) (Responder, error) {
+	g := exchange.idJAG
 	logAttrs := []any{
 		"client_id", client.ID, "connector_id", req.ConnectorID,
 		"audience", req.Audience, "resource", req.Resource, "requested_scope", req.Scopes,

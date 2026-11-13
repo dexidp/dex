@@ -154,6 +154,10 @@ func TestTokenExchangeIDJAGES256(t *testing.T) {
 	jws, err := jose.ParseSignedCompact(res.AccessToken, []jose.SignatureAlgorithm{jose.ES256})
 	require.NoError(t, err)
 	require.Equal(t, "oauth-id-jag+jwt", jws.Signatures[0].Protected.ExtraHeaders[jose.HeaderType])
+	values := exchangeValues("client_1", "", signSubjectToken(t, s, "client_1", "mock", true), oauth2.TokenTypeID, false)
+	values.Set("client_secret", "secret_1")
+	response := postToken(t, s, httpServer, values)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 }
 
 func TestTokenExchangeIDJAGMetrics(t *testing.T) {
@@ -532,6 +536,13 @@ func TestTokenExchangeIDJAGNotADexToken(t *testing.T) {
 	require.NoError(t, err)
 	rr = postToken(t, s, httpServer, idJAGRequest(signed))
 	require.Equal(t, http.StatusBadRequest, rr.Code, "a logout token is not a subject token: %s", rr.Body.String())
+	for _, subjectToken := range []string{signed, idJAG} {
+		values := exchangeValues("client_1", "", subjectToken, oauth2.TokenTypeID, false)
+		values.Set("client_secret", "secret_1")
+		response := postToken(t, s, httpServer, values)
+		require.Equal(t, http.StatusBadRequest, response.Code, response.Body.String())
+		require.Contains(t, response.Body.String(), oauth2.InvalidRequest)
+	}
 }
 
 func TestTokenExchangeIDJAGEndedSession(t *testing.T) {
