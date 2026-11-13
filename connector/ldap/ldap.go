@@ -693,7 +693,7 @@ func (c *ldapConnector) Refresh(ctx context.Context, s connector.Scopes, ident c
 			return err
 		}
 		if !found {
-			return fmt.Errorf("ldap: user not found %q", data.Username)
+			return fmt.Errorf("ldap: user not found %q: %w", data.Username, connector.ErrUserRevoked)
 		}
 		user = entry
 		return nil
@@ -702,7 +702,7 @@ func (c *ldapConnector) Refresh(ctx context.Context, s connector.Scopes, ident c
 		return ident, err
 	}
 	if user.DN != data.Entry.DN {
-		return ident, fmt.Errorf("ldap: refresh for username %q expected DN %q got %q", data.Username, data.Entry.DN, user.DN)
+		return ident, fmt.Errorf("ldap: refresh for username %q expected DN %q got %q: %w", data.Username, data.Entry.DN, user.DN, connector.ErrUserRevoked)
 	}
 
 	newIdent, err := c.identityFromEntry(user)

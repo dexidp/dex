@@ -408,6 +408,12 @@ func TestRefreshUpstreamRejection(t *testing.T) {
 			wantError:  "invalid_grant",
 		},
 		{
+			name:       "connector finds the user deleted upstream",
+			err:        fmt.Errorf("ldap: user not found %q: %w", "jane", connector.ErrUserRevoked),
+			wantStatus: http.StatusBadRequest,
+			wantError:  "invalid_grant",
+		},
+		{
 			name:       "upstream rejects the client",
 			err:        fmt.Errorf("oidc: failed to get refresh token: %w", &xoauth2.RetrieveError{ErrorCode: "invalid_client"}),
 			wantStatus: http.StatusInternalServerError,

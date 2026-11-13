@@ -3,6 +3,7 @@ package connector
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 )
@@ -56,6 +57,11 @@ func (e *UpstreamUnavailableError) Error() string {
 func (e *UpstreamUnavailableError) Unwrap() error {
 	return e.Err
 }
+
+// ErrUserRevoked is returned by a RefreshConnector when the upstream reports
+// that the user was deleted or disabled. The refresh grant answers it with
+// invalid_grant, so the client starts a new login instead of retrying.
+var ErrUserRevoked = errors.New("user was deleted or disabled upstream")
 
 // Connector is a mechanism for federating login to a remote identity service.
 //
