@@ -17,14 +17,16 @@ export GOBIN=$(PWD)/bin
 LD_FLAGS="-w -X main.version=$(VERSION)"
 
 # Dependency versions
+# Keep in sync with the devenv shell (devenv.nix, devenv.lock): CI runs inside it
+# and `make verify-tool-versions` fails when they drift.
 GOLANGCI_VERSION   = 2.15.0
 GOTESTSUM_VERSION ?= 1.13.0
 
-PROTOC_VERSION             = 29.3
-PROTOC_GEN_GO_VERSION      = 1.36.5
-PROTOC_GEN_GO_GRPC_VERSION = 1.5.1
+PROTOC_VERSION             = 36.2
+PROTOC_GEN_GO_VERSION      = 1.36.12
+PROTOC_GEN_GO_GRPC_VERSION = 1.6.2
 
-KIND_VERSION    = 0.22.0
+KIND_VERSION    = 0.33.0
 KIND_NODE_IMAGE = "kindest/node:v1.25.3@sha256:cd248d1438192f7814fbca8fede13cfe5b9918746dfa12583976158a834fd5c5"
 KIND_TMP_DIR    = "$(PWD)/bin/test/dex-kind-kubeconfig"
 
@@ -118,6 +120,20 @@ verify-ent: generate-ent ## Verify code for database ORM was generated.
 .PHONY: verify-go-mod
 verify-go-mod: go-mod-tidy ## Check that go.mod and go.sum formatted according to the changes.
 	@git diff --exit-code
+
+# gotestsum is not checked: the nixpkgs build reports its version as "(devel)".
+.PHONY: verify-tool-versions
+verify-tool-versions: ## Check that the tools on PATH match the versions pinned above.
+	@check() { \
+		if ! echo "$$2" | grep -qF -- "$$3"; then \
+			echo "$$1: want \"$$3\", got \"$$2\""; exit 1; \
+		fi; \
+	}; \
+	check golangci-lint "$$(golangci-lint version)" "version $(GOLANGCI_VERSION) " && \
+	check protoc "$$(protoc --version)" "libprotoc $(PROTOC_VERSION)" && \
+	check protoc-gen-go "$$(protoc-gen-go --version)" "protoc-gen-go v$(PROTOC_GEN_GO_VERSION)" && \
+	check protoc-gen-go-grpc "$$(protoc-gen-go-grpc --version)" "protoc-gen-go-grpc $(PROTOC_GEN_GO_GRPC_VERSION)" && \
+	check kind "$$(kind version)" "kind v$(KIND_VERSION) "
 
 ##@ Test and Lint
 
