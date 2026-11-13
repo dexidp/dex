@@ -144,6 +144,14 @@ func (_c *UserIdentityCreate) SetBlockedUntil(v time.Time) *UserIdentityCreate {
 	return _c
 }
 
+// SetNillableBlockedUntil sets the "blocked_until" field if the given value is not nil.
+func (_c *UserIdentityCreate) SetNillableBlockedUntil(v *time.Time) *UserIdentityCreate {
+	if v != nil {
+		_c.SetBlockedUntil(*v)
+	}
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *UserIdentityCreate) SetID(v string) *UserIdentityCreate {
 	_c.mutation.SetID(v)
@@ -248,9 +256,6 @@ func (_c *UserIdentityCreate) check() error {
 	}
 	if _, ok := _c.mutation.LastLogin(); !ok {
 		return &ValidationError{Name: "last_login", err: errors.New(`db: missing required field "UserIdentity.last_login"`)}
-	}
-	if _, ok := _c.mutation.BlockedUntil(); !ok {
-		return &ValidationError{Name: "blocked_until", err: errors.New(`db: missing required field "UserIdentity.blocked_until"`)}
 	}
 	if v, ok := _c.mutation.ID(); ok {
 		if err := useridentity.IDValidator(v); err != nil {
