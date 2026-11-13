@@ -107,6 +107,11 @@ jobs:
       - name: Install Nix
         uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
 
+      # cache-nix-action restores as root and would create ~/.cache owned by
+      # root, so Go could no longer create ~/.cache/go-build.
+      - name: Create cache directory
+        run: mkdir -p ~/.cache
+
       # Saved after the job, so it holds devenv and every package of the shell.
       # Both jobs build the same shell and share the cache.
       - name: Cache Nix store
@@ -114,6 +119,8 @@ jobs:
         with:
           primary-key: nix-${{ runner.os }}-${{ hashFiles('devenv.nix', 'devenv.yaml', 'devenv.lock') }}
           restore-prefixes-first-match: nix-${{ runner.os }}-
+          # Nix's download cache, so nixpkgs and devenv's inputs are not fetched again.
+          paths: ~/.cache/nix
           gc-max-store-size-linux: 3G
 
       - name: Install devenv
@@ -215,6 +222,11 @@ jobs:
       - name: Install Nix
         uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
 
+      # cache-nix-action restores as root and would create ~/.cache owned by
+      # root, so Go could no longer create ~/.cache/go-build.
+      - name: Create cache directory
+        run: mkdir -p ~/.cache
+
       # Saved after the job, so it holds devenv and every package of the shell.
       # Both jobs build the same shell and share the cache.
       - name: Cache Nix store
@@ -222,6 +234,8 @@ jobs:
         with:
           primary-key: nix-${{ runner.os }}-${{ hashFiles('devenv.nix', 'devenv.yaml', 'devenv.lock') }}
           restore-prefixes-first-match: nix-${{ runner.os }}-
+          # Nix's download cache, so nixpkgs and devenv's inputs are not fetched again.
+          paths: ~/.cache/nix
           gc-max-store-size-linux: 3G
 
       - name: Install devenv
