@@ -11073,9 +11073,22 @@ func (m *UserIdentityMutation) OldBlockedUntil(ctx context.Context) (v time.Time
 	return oldValue.BlockedUntil, nil
 }
 
+// ClearBlockedUntil clears the value of the "blocked_until" field.
+func (m *UserIdentityMutation) ClearBlockedUntil() {
+	m.blocked_until = nil
+	m.clearedFields[useridentity.FieldBlockedUntil] = struct{}{}
+}
+
+// BlockedUntilCleared returns if the "blocked_until" field was cleared in this mutation.
+func (m *UserIdentityMutation) BlockedUntilCleared() bool {
+	_, ok := m.clearedFields[useridentity.FieldBlockedUntil]
+	return ok
+}
+
 // ResetBlockedUntil resets all changes to the "blocked_until" field.
 func (m *UserIdentityMutation) ResetBlockedUntil() {
 	m.blocked_until = nil
+	delete(m.clearedFields, useridentity.FieldBlockedUntil)
 }
 
 // Where appends a list predicates to the UserIdentityMutation builder.
@@ -11374,6 +11387,9 @@ func (m *UserIdentityMutation) ClearedFields() []string {
 	if m.FieldCleared(useridentity.FieldWebauthnCredentials) {
 		fields = append(fields, useridentity.FieldWebauthnCredentials)
 	}
+	if m.FieldCleared(useridentity.FieldBlockedUntil) {
+		fields = append(fields, useridentity.FieldBlockedUntil)
+	}
 	return fields
 }
 
@@ -11396,6 +11412,9 @@ func (m *UserIdentityMutation) ClearField(name string) error {
 		return nil
 	case useridentity.FieldWebauthnCredentials:
 		m.ClearWebauthnCredentials()
+		return nil
+	case useridentity.FieldBlockedUntil:
+		m.ClearBlockedUntil()
 		return nil
 	}
 	return fmt.Errorf("unknown UserIdentity nullable field %s", name)
