@@ -310,7 +310,8 @@ func (c *crowdConnector) user(ctx context.Context, client *http.Client, username
 		return user, err
 	}
 
-	if resp.StatusCode == http.StatusNotFound {
+	// Only Crowd's own answer counts: a 404 from a wrong base URL says nothing about the user.
+	if resp.StatusCode == http.StatusNotFound && strings.Contains(string(body), "USER_NOT_FOUND") {
 		return user, fmt.Errorf("%s: %s: %w", resp.Status, body, connector.ErrUserRevoked)
 	}
 	if resp.StatusCode != http.StatusOK {

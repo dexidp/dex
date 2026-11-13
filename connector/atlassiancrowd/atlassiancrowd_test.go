@@ -89,6 +89,8 @@ func TestRefreshUserRevoked(t *testing.T) {
 		case "/rest/usermanagement/1/user?username=deleted":
 			w.WriteHeader(http.StatusNotFound)
 			json.NewEncoder(w).Encode(map[string]string{"reason": "USER_NOT_FOUND"})
+		case "/rest/usermanagement/1/user?username=wrongpath":
+			w.WriteHeader(http.StatusNotFound)
 		case "/rest/usermanagement/1/user?username=inactive":
 			json.NewEncoder(w).Encode(crowdUser{Active: false, Name: "inactive"})
 		default:
@@ -106,6 +108,13 @@ func TestRefreshUserRevoked(t *testing.T) {
 			require.ErrorIs(t, err, connector.ErrUserRevoked)
 		})
 	}
+
+	// A 404 without Crowd's reason, e.g. from a wrong base URL, is a server error.
+	data, err := json.Marshal(refreshData{Username: "wrongpath"})
+	require.NoError(t, err)
+	_, err = c.Refresh(context.Background(), connector.Scopes{}, connector.Identity{ConnectorData: data})
+	require.Error(t, err)
+	require.NotErrorIs(t, err, connector.ErrUserRevoked)
 }
 
 func TestUserPassword(t *testing.T) {
