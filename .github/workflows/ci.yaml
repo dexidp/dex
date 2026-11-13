@@ -104,19 +104,29 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version: "1.27"
+      - name: Install Nix
+        uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
 
-      - name: Download tool dependencies
-        run: make deps
+      - name: Install devenv
+        run: nix profile install nixpkgs#devenv
+
+      - name: Cache Go modules and build cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ github.job }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: go-${{ runner.os }}-${{ github.job }}-
+
+      - name: Build developer environment
+        run: devenv shell -- make verify-tool-versions
 
       # Ensure that generated files were committed.
       # It can help us determine, that the code is in the intermediate state, which should not be tested.
       # Thus, heavy jobs like creating a kind cluster and testing / linting will be skipped.
       - name: Verify
-        run: make verify
+        run: devenv shell -- make verify
 
       - name: Start services
         run: docker compose -f docker-compose.test.yaml up -d
@@ -128,7 +138,7 @@ jobs:
           node_image: "kindest/node:v1.25.3@sha256:cd248d1438192f7814fbca8fede13cfe5b9918746dfa12583976158a834fd5c5"
 
       - name: Test
-        run: make testall
+        run: devenv shell -- make testall
         env:
           DEX_MYSQL_DATABASE: dex
           DEX_MYSQL_USER: root
@@ -192,16 +202,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version: "1.27"
+      - name: Install Nix
+        uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
 
-      - name: Download golangci-lint
-        run: make bin/golangci-lint
+      - name: Install devenv
+        run: nix profile install nixpkgs#devenv
+
+      - name: Cache Go modules and build cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ github.job }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: go-${{ runner.os }}-${{ github.job }}-
+
+      - name: Build developer environment
+        run: devenv shell -- make verify-tool-versions
 
       - name: Lint
-        run: make lint
+        run: devenv shell -- make lint
 
   artifacts:
     name: Artifacts
