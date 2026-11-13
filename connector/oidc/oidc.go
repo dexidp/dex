@@ -430,6 +430,7 @@ var (
 	_ connector.CallbackConnector       = (*oidcConnector)(nil)
 	_ connector.RefreshConnector        = (*oidcConnector)(nil)
 	_ connector.TokenIdentityConnector  = (*oidcConnector)(nil)
+	_ connector.TokenClaimsConnector    = (*oidcConnector)(nil)
 	_ connector.LogoutCallbackConnector = (*oidcConnector)(nil)
 )
 
@@ -597,6 +598,28 @@ func verifyError(ctx context.Context, msg string, err error) error {
 		return &connector.UpstreamUnavailableError{Err: err}
 	}
 	return err
+}
+
+// TokenClaims verifies an ID token or a JWT against the provider's keys and
+// returns its claims. The audience is not checked: the token-exchange grant
+// decides which audiences it accepts.
+func (c *oidcConnector) TokenClaims(ctx context.Context, tokenType, token string) (map[string]any, error) {
+	switch tokenType {
+	case "urn:ietf:params:oauth:token-type:id_token", "urn:ietf:params:oauth:token-type:jwt":
+	default:
+		return nil, fmt.Errorf("oidc: token type %q is not a signed token", tokenType)
+	}
+
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, c.httpClient)
+	idToken, err := c.exchangeVerifier.Verify(ctx, token)
+	if err != nil {
+		return nil, verifyError(ctx, "oidc: failed to verify token", err)
+	}
+	var claims map[string]any
+	if err := idToken.Claims(&claims); err != nil {
+		return nil, fmt.Errorf("oidc: failed to decode claims: %v", err)
+	}
+	return claims, nil
 }
 
 func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.Identity, token *oauth2.Token, caller caller) (connector.Identity, error) {
