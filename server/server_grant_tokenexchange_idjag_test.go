@@ -567,3 +567,197 @@ func TestTokenExchangeIDJAGEndedSession(t *testing.T) {
 		}
 	}
 }
+
+func TestTokenExchangeIDJAGDelegation(t *testing.T) {
+	now := time.Now().Truncate(time.Second)
+	for _, test := range []struct {
+		name      string
+		edit      func(url.Values, map[string]any, map[string]any, *Config)
+		wantError string
+	}{
+		{name: "actor"},
+		{name: "configured lifetime", edit: func(_ url.Values, subject, actor map[string]any, _ *Config) {
+			subject["exp"] = now.Add(10 * time.Minute).Unix()
+			actor["exp"] = float64(now.Add(20 * time.Minute).Unix())
+		}},
+		{name: "chain", edit: func(_ url.Values, subject, _ map[string]any, _ *Config) {
+			subject["act"] = map[string]any{"iss": "https://prior.example", "sub": "prior"}
+			subject["scope"] = "chat.read"
+		}},
+		{name: "missing actor type", edit: func(values url.Values, _, _ map[string]any, _ *Config) { values.Del("actor_token_type") }, wantError: oauth2.InvalidRequest},
+		{name: "unsupported actor type", edit: func(values url.Values, _, _ map[string]any, _ *Config) {
+			values.Set("actor_token_type", oauth2.TokenTypeAccess)
+		}, wantError: oauth2.InvalidRequest},
+		{name: "invalid actor", edit: func(_ url.Values, _, actor map[string]any, _ *Config) { clear(actor) }, wantError: oauth2.InvalidRequest},
+		{name: "actor audience", edit: func(_ url.Values, _, actor map[string]any, _ *Config) { actor["aud"] = "other" }, wantError: oauth2.InvalidRequest},
+		{name: "may act denied", edit: func(_ url.Values, subject, _ map[string]any, _ *Config) {
+			subject["may_act"] = map[string]any{"sub": "other"}
+		}, wantError: oauth2.InvalidRequest},
+		{name: "may act allowed", edit: func(_ url.Values, subject, _ map[string]any, _ *Config) {
+			subject["may_act"] = map[string]any{"sub": delegationActorSubject, "iss": delegationActorIssuer}
+		}},
+		{name: "actor cannot disappear", edit: func(values url.Values, subject, _ map[string]any, _ *Config) {
+			dropActor(values)
+			subject["act"] = map[string]any{"sub": "prior"}
+		}, wantError: oauth2.InvalidRequest},
+		{name: "may act without actor", edit: func(values url.Values, subject, _ map[string]any, _ *Config) {
+			dropActor(values)
+			subject["may_act"] = map[string]any{"sub": delegationActorSubject}
+		}, wantError: oauth2.InvalidRequest},
+		{name: "scope cannot widen", edit: func(_ url.Values, subject, _ map[string]any, _ *Config) {
+			subject["act"] = map[string]any{"sub": "prior"}
+			subject["scope"] = "chat.write"
+		}, wantError: oauth2.InvalidScope},
+		{name: "delegation disabled", edit: func(_ url.Values, _, _ map[string]any, config *Config) { config.TokenExchangeDelegation = nil }, wantError: oauth2.InvalidRequest},
+		{name: "target denied", edit: func(values url.Values, _, _ map[string]any, _ *Config) {
+			values.Set("audience", "https://unknown.example")
+		}, wantError: oauth2.InvalidTarget},
+		{name: "subject expiry", edit: func(_ url.Values, subject, _ map[string]any, _ *Config) { subject["exp"] = now.Add(time.Minute).Unix() }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			subject := map[string]any{"aud": "gateway", "iat": now.Unix(), "exp": now.Add(4 * time.Minute).Unix()}
+			actor := map[string]any{"iss": delegationActorIssuer, "sub": delegationActorSubject, "aud": "gateway", "exp": float64(now.Add(2 * time.Minute).Unix())}
+			values := exchangeValues("gateway", "mock", "", oauth2.TokenTypeID, true)
+			values.Set("requested_token_type", oauth2.TokenTypeIDJAG)
+			values.Set("audience", idJAGAudience)
+			values.Set("scope", "chat.read chat.write")
+			var signing signer.Signer
+			httpServer, server, _, actorConnector := delegationServer(t, now, func(config *Config) {
+				signing = config.Signer
+				config.IDJAG = &grants.IDJAGConfig{Policies: map[string]grants.IDJAGPolicy{"gateway": {AllowedAudiences: []string{idJAGAudience}, AllowedScopes: []string{"chat.read"}}}}
+				if test.edit != nil {
+					test.edit(values, subject, actor, config)
+				}
+			})
+			defer httpServer.Close()
+			actorConnector.Claims = actor
+			subject["iss"] = httpServer.URL
+			subject["sub"] = jwtSubject(t, signSubjectToken(t, server, "gateway", "mock", true))
+			payload, err := json.Marshal(subject)
+			require.NoError(t, err)
+			signed, err := signing.Sign(t.Context(), payload)
+			require.NoError(t, err)
+			values.Set("subject_token", signed)
+			request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, httpServer.URL+"/token", strings.NewReader(values.Encode()))
+			require.NoError(t, err)
+			request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			response, err := httpServer.Client().Do(request)
+			require.NoError(t, err)
+			defer response.Body.Close()
+			if test.wantError != "" {
+				require.Equal(t, http.StatusBadRequest, response.StatusCode)
+				var failure struct {
+					Error string `json:"error"`
+				}
+				require.NoError(t, json.NewDecoder(response.Body).Decode(&failure))
+				require.Equal(t, test.wantError, failure.Error)
+				return
+			}
+			require.Equal(t, http.StatusOK, response.StatusCode)
+			var result tokens.Response
+			require.NoError(t, json.NewDecoder(response.Body).Decode(&result))
+			require.Equal(t, "N_A", result.TokenType)
+			require.Equal(t, oauth2.TokenTypeIDJAG, result.IssuedTokenType)
+			require.Equal(t, "chat.read", result.Scope)
+			signature, err := jose.ParseSignedCompact(result.AccessToken, []jose.SignatureAlgorithm{jose.RS256})
+			require.NoError(t, err)
+			verified, err := signature.Verify(&testKey.PublicKey)
+			require.NoError(t, err)
+			var claims tokens.IDJAGClaims
+			require.NoError(t, json.Unmarshal(verified, &claims))
+			require.Equal(t, oauth2.JWTTypeIDJAG, signature.Signatures[0].Protected.ExtraHeaders[jose.HeaderType])
+			require.Equal(t, idJAGAudience, claims.Audience)
+			require.Equal(t, subject["sub"], claims.Subject)
+			require.Equal(t, delegationActorSubject, claims.Act.Subject)
+			require.Equal(t, delegationActorIssuer, claims.Act.Issuer)
+			require.Equal(t, "chat.read", claims.Scope)
+			expiry := now.Add(2 * time.Minute).Unix()
+			if test.name == "subject expiry" {
+				expiry = now.Add(time.Minute).Unix()
+			}
+			if test.name == "configured lifetime" {
+				expiry = now.Add(5 * time.Minute).Unix()
+			}
+			require.Equal(t, expiry, claims.Expiry)
+			require.Equal(t, int(expiry-now.Unix()), result.ExpiresIn)
+			if test.name == "chain" {
+				require.Equal(t, "prior", claims.Act.Act.Subject)
+			}
+			require.NotContains(t, string(verified), "actor_token")
+		})
+	}
+}
+
+func TestTokenExchangeActorOIDC(t *testing.T) {
+	var actorIssuer *httptest.Server
+	actorIssuer = httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		if request.URL.Path == "/keys" {
+			json.NewEncoder(writer).Encode(jose.JSONWebKeySet{Keys: []jose.JSONWebKey{{Key: &testKey.PublicKey, KeyID: "actor", Algorithm: "RS256", Use: "sig"}}})
+			return
+		}
+		json.NewEncoder(writer).Encode(map[string]any{"issuer": actorIssuer.URL, "authorization_endpoint": actorIssuer.URL + "/auth", "token_endpoint": actorIssuer.URL + "/token", "jwks_uri": actorIssuer.URL + "/keys", "id_token_signing_alg_values_supported": []string{"RS256"}})
+	}))
+	defer actorIssuer.Close()
+	connectorConfig, err := json.Marshal(map[string]any{"issuer": actorIssuer.URL, "clientID": "gateway", "clientSecret": "secret"})
+	require.NoError(t, err)
+	httpServer, server := newTestServerWith(t, []storage.Connector{mockConnector("mock"), {ID: "actor", Type: "oidc", Config: connectorConfig}}, func(config *Config) {
+		require.NoError(t, config.Storage.CreateClient(t.Context(), storage.Client{ID: "gateway", Secret: "secret"}))
+		config.TokenExchangeDelegation = []grants.DelegationPolicy{{ClientID: "gateway", ActorConnectors: []string{"actor"}}}
+		config.IDJAG = &grants.IDJAGConfig{Policies: map[string]grants.IDJAGPolicy{"gateway": {AllowedAudiences: []string{idJAGAudience}, AllowedScopes: []string{"chat.read"}}}}
+	})
+	defer httpServer.Close()
+	actorSigner, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: &jose.JSONWebKey{Key: testKey, KeyID: "actor"}}, nil)
+	require.NoError(t, err)
+	for _, output := range []string{oauth2.TokenTypeAccess, oauth2.TokenTypeIDJAG} {
+		for _, condition := range []string{"valid", "expired", "tampered"} {
+			t.Run(output+"/"+condition, func(t *testing.T) {
+				expiry := time.Now().Add(time.Minute)
+				if condition == "expired" {
+					expiry = time.Now().Add(-time.Minute)
+				}
+				claims, err := json.Marshal(map[string]any{"iss": actorIssuer.URL, "sub": "workload", "aud": "gateway", "exp": expiry.Unix()})
+				require.NoError(t, err)
+				signature, err := actorSigner.Sign(claims)
+				require.NoError(t, err)
+				actorToken, err := signature.CompactSerialize()
+				require.NoError(t, err)
+				if condition == "tampered" {
+					actorToken += "x"
+				}
+				values := exchangeValues("gateway", "", signSubjectToken(t, server, "gateway", "mock", true), oauth2.TokenTypeID, true)
+				values.Set("actor_token", actorToken)
+				values.Set("requested_token_type", output)
+				values.Set("scope", "openid")
+				if output == oauth2.TokenTypeIDJAG {
+					values.Set("connector_id", "mock")
+					values.Set("audience", idJAGAudience)
+					values.Set("scope", "chat.read")
+				}
+				request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, httpServer.URL+"/token", strings.NewReader(values.Encode()))
+				require.NoError(t, err)
+				request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				response, err := httpServer.Client().Do(request)
+				require.NoError(t, err)
+				defer response.Body.Close()
+				if condition != "valid" {
+					require.Equal(t, http.StatusBadRequest, response.StatusCode)
+					return
+				}
+				require.Equal(t, http.StatusOK, response.StatusCode)
+				var result tokens.Response
+				require.NoError(t, json.NewDecoder(response.Body).Decode(&result))
+				signed, err := jose.ParseSignedCompact(result.AccessToken, []jose.SignatureAlgorithm{jose.RS256})
+				require.NoError(t, err)
+				payload, err := signed.Verify(&testKey.PublicKey)
+				require.NoError(t, err)
+				var issued struct {
+					Act tokens.ActorClaims `json:"act"`
+				}
+				require.NoError(t, json.Unmarshal(payload, &issued))
+				require.Equal(t, "workload", issued.Act.Subject)
+				require.Equal(t, actorIssuer.URL, issued.Act.Issuer)
+			})
+		}
+	}
+}

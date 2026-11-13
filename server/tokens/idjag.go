@@ -17,26 +17,31 @@ import (
 // (draft-ietf-oauth-identity-assertion-authz-grant §3.1). The draft allows
 // exactly one audience, so aud is a string.
 type IDJAGClaims struct {
-	Issuer   string `json:"iss"`
-	Subject  string `json:"sub"`
-	Audience string `json:"aud"`
-	ClientID string `json:"client_id"`
-	JWTID    string `json:"jti"`
-	Expiry   int64  `json:"exp"`
-	IssuedAt int64  `json:"iat"`
+	Act      *ActorClaims `json:"act,omitempty"`
+	Issuer   string       `json:"iss"`
+	Subject  string       `json:"sub"`
+	Audience string       `json:"aud"`
+	ClientID string       `json:"client_id"`
+	JWTID    string       `json:"jti"`
+	Expiry   int64        `json:"exp"`
+	IssuedAt int64        `json:"iat"`
 
 	Resource string `json:"resource,omitempty"`
 	Scope    string `json:"scope,omitempty"`
 	Email    string `json:"email,omitempty"`
 }
 
-// SignIDJAG fills in iss, jti, iat and exp and signs the claims as an ID-JAG.
+// SignIDJAG sets issuance claims and signs an ID-JAG. A nonzero Expiry caps
+// the configured lifetime.
 func (i *Issuer) SignIDJAG(ctx context.Context, claims IDJAGClaims, validFor time.Duration) (string, IDJAGClaims, error) {
 	issuedAt := i.now()
 	claims.Issuer = i.issuerURL.String()
 	claims.JWTID = uuid.New().String()
 	claims.IssuedAt = issuedAt.Unix()
-	claims.Expiry = issuedAt.Add(validFor).Unix()
+	expiry := issuedAt.Add(validFor).Unix()
+	if claims.Expiry == 0 || expiry < claims.Expiry {
+		claims.Expiry = expiry
+	}
 
 	payload, err := json.Marshal(claims)
 	if err != nil {
