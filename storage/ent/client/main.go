@@ -23,6 +23,11 @@ type Database struct {
 	txOptions *sql.TxOptions
 
 	hasher func() hash.Hash
+
+	// txRetryCheck classifies transient transaction failures (serialization
+	// failures / deadlocks) that are safe to retry. Nil (the default) disables
+	// retries; set via WithTxRetryCheck.
+	txRetryCheck func(error) bool
 }
 
 // NewDatabase returns new database client with set options.
@@ -52,6 +57,14 @@ func WithHasher(h func() hash.Hash) func(*Database) {
 func WithTxIsolationLevel(level sql.IsolationLevel) func(*Database) {
 	return func(s *Database) {
 		s.txOptions = &sql.TxOptions{Isolation: level}
+	}
+}
+
+// WithTxRetryCheck enables retrying transactions aborted by transient failures
+// classified as retryable by check. Nil (the default) disables retries.
+func WithTxRetryCheck(check func(error) bool) func(*Database) {
+	return func(s *Database) {
+		s.txRetryCheck = check
 	}
 }
 

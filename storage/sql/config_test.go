@@ -238,12 +238,15 @@ func TestPostgres(t *testing.T) {
 			Host:              host,
 			Port:              uint16(port),
 			ConnectionTimeout: 5,
+			// Concurrency conformance tests rotate the same token from many
+			// goroutines; without retry the SERIALIZABLE aborts surface as errors.
+			RetryOnSerializationFailure: true,
 		},
 		SSL: SSL{
 			Mode: pgSSLDisable, // Postgres container doesn't support SSL.
 		},
 	}
-	testDB(t, p, true, false)
+	testDB(t, p, true, true)
 }
 
 const testMySQLEnv = "DEX_MYSQL_HOST"
@@ -272,6 +275,9 @@ func TestMySQL(t *testing.T) {
 			Host:              host,
 			Port:              uint16(port),
 			ConnectionTimeout: 5,
+			// Concurrency conformance tests rotate the same token from many
+			// goroutines; without retry the deadlock aborts surface as errors.
+			RetryOnSerializationFailure: true,
 		},
 		SSL: SSL{
 			Mode: mysqlSSLFalse,
@@ -280,7 +286,7 @@ func TestMySQL(t *testing.T) {
 			"innodb_lock_wait_timeout": "3",
 		},
 	}
-	testDB(t, s, true, false)
+	testDB(t, s, true, true)
 }
 
 const testMySQL8Env = "DEX_MYSQL8_HOST"
@@ -309,6 +315,9 @@ func TestMySQL8(t *testing.T) {
 			Host:              host,
 			Port:              uint16(port),
 			ConnectionTimeout: 5,
+			// Concurrency conformance tests rotate the same token from many
+			// goroutines; without retry the deadlock aborts surface as errors.
+			RetryOnSerializationFailure: true,
 		},
 		SSL: SSL{
 			Mode: mysqlSSLFalse,
@@ -317,5 +326,5 @@ func TestMySQL8(t *testing.T) {
 			"innodb_lock_wait_timeout": "3",
 		},
 	}
-	testDB(t, s, true, false)
+	testDB(t, s, true, true)
 }
