@@ -209,6 +209,10 @@ func closeResp(r *http.Response) {
 }
 
 func (cli *client) get(resource, name string, v interface{}) error {
+	// An empty name would fetch the whole collection instead of one object.
+	if name == "" {
+		return storage.ErrNotFound
+	}
 	return cli.getResource(cli.apiVersion, cli.namespace, resource, name, v)
 }
 
@@ -247,7 +251,7 @@ func (cli *client) listN(resource string, v interface{}, n int) error { //nolint
 }
 
 func (cli *client) list(resource string, v interface{}) error {
-	return cli.get(resource, "", v)
+	return cli.getResource(cli.apiVersion, cli.namespace, resource, "", v)
 }
 
 func (cli *client) post(resource string, v interface{}) error {

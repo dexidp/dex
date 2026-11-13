@@ -99,6 +99,10 @@ func TestInvalidNameNotFound(t *testing.T) {
 		require.ErrorIs(t, c.get(resourceRefreshToken, name, &v), storage.ErrNotFound, name)
 		require.ErrorIs(t, c.delete(resourceRefreshToken, name), storage.ErrNotFound, name)
 	}
+
+	// An empty ID, e.g. from a token that decodes without one, would list the collection.
+	_, err := c.GetRefresh(t.Context(), "")
+	require.ErrorIs(t, err, storage.ErrNotFound)
 }
 
 func TestURLFor(t *testing.T) {
