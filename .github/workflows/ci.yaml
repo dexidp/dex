@@ -107,15 +107,27 @@ jobs:
       - name: Install Nix
         uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
 
+      # Saved after the job, so it holds devenv and every package of the shell.
+      # Both jobs build the same shell and share the cache.
+      - name: Cache Nix store
+        uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('devenv.nix', 'devenv.yaml', 'devenv.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          # Nix's fetcher cache, so flake inputs are not downloaded again.
+          paths: ~/.cache/nix
+          gc-max-store-size-linux: 3G
+
       - name: Install devenv
         run: nix profile install nixpkgs#devenv
 
-      - name: Cache Go modules and build cache
+      - name: Cache Go modules, build cache and golangci-lint cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
+            ~/.cache/golangci-lint
           key: go-${{ runner.os }}-${{ github.job }}-${{ hashFiles('**/go.sum') }}
           restore-keys: go-${{ runner.os }}-${{ github.job }}-
 
@@ -205,15 +217,27 @@ jobs:
       - name: Install Nix
         uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
 
+      # Saved after the job, so it holds devenv and every package of the shell.
+      # Both jobs build the same shell and share the cache.
+      - name: Cache Nix store
+        uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('devenv.nix', 'devenv.yaml', 'devenv.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          # Nix's fetcher cache, so flake inputs are not downloaded again.
+          paths: ~/.cache/nix
+          gc-max-store-size-linux: 3G
+
       - name: Install devenv
         run: nix profile install nixpkgs#devenv
 
-      - name: Cache Go modules and build cache
+      - name: Cache Go modules, build cache and golangci-lint cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
+            ~/.cache/golangci-lint
           key: go-${{ runner.os }}-${{ github.job }}-${{ hashFiles('**/go.sum') }}
           restore-keys: go-${{ runner.os }}-${{ github.job }}-
 
