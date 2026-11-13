@@ -114,8 +114,6 @@ jobs:
         with:
           primary-key: nix-${{ runner.os }}-${{ hashFiles('devenv.nix', 'devenv.yaml', 'devenv.lock') }}
           restore-prefixes-first-match: nix-${{ runner.os }}-
-          # Nix's fetcher cache, so flake inputs are not downloaded again.
-          paths: ~/.cache/nix
           gc-max-store-size-linux: 3G
 
       - name: Install devenv
@@ -224,8 +222,6 @@ jobs:
         with:
           primary-key: nix-${{ runner.os }}-${{ hashFiles('devenv.nix', 'devenv.yaml', 'devenv.lock') }}
           restore-prefixes-first-match: nix-${{ runner.os }}-
-          # Nix's fetcher cache, so flake inputs are not downloaded again.
-          paths: ~/.cache/nix
           gc-max-store-size-linux: 3G
 
       - name: Install devenv
