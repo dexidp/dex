@@ -89,6 +89,22 @@ func (s *StorageTestSuite) TestStorage() {
 	conformance.RunTransactionTests(s.T(), newStorage)
 }
 
+// No object can be named after an invalid name, so looking one up or deleting
+// it finds nothing, without asking the API server.
+func TestInvalidNameNotFound(t *testing.T) {
+	c := &client{baseURL: "https://k8s.example.com", apiVersion: "foo/v1", namespace: "default"}
+
+	var v struct{}
+	for _, name := range []string{"Not A Name", "a/b", strings.Repeat("a", kubeResourceMaxLen+1)} {
+		require.ErrorIs(t, c.get(resourceRefreshToken, name, &v), storage.ErrNotFound, name)
+		require.ErrorIs(t, c.delete(resourceRefreshToken, name), storage.ErrNotFound, name)
+	}
+
+	// An empty ID, e.g. from a token that decodes without one, would list the collection.
+	_, err := c.GetRefresh(t.Context(), "")
+	require.ErrorIs(t, err, storage.ErrNotFound)
+}
+
 func TestURLFor(t *testing.T) {
 	tests := []struct {
 		apiVersion, namespace, resource, name string
