@@ -52,10 +52,16 @@ func (g *tokenExchange) Authorize(ctx context.Context, req *Request, client stor
 	switch req.SubjectTokenType {
 	case oauth2.TokenTypeID, oauth2.TokenTypeAccess: // ok, continue
 	default:
-		return nil, &oauth2.Error{Type: oauth2.RequestNotSupported, Description: "Invalid subject_token_type.", Status: http.StatusBadRequest}
+		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Invalid subject_token_type.", Status: http.StatusBadRequest}
 	}
 	if req.SubjectToken == "" {
 		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Missing subject_token", Status: http.StatusBadRequest}
+	}
+	reqType := requestedTokenType(req)
+	switch reqType {
+	case oauth2.TokenTypeID, oauth2.TokenTypeAccess: // ok, continue
+	default:
+		return nil, &oauth2.Error{Type: oauth2.RequestNotSupported, Description: "Invalid requested_token_type.", Status: http.StatusBadRequest}
 	}
 
 	teConn, ok := conn.Connector.(connector.TokenIdentityConnector)
@@ -78,7 +84,6 @@ func (g *tokenExchange) Authorize(ctx context.Context, req *Request, client stor
 	if !identity.EmailVerified {
 		email += " (unverified)"
 	}
-	reqType := requestedTokenType(req)
 	g.logger.InfoContext(ctx, "token exchange successful",
 		"connector_id", req.ConnectorID, "client_id", client.ID,
 		"user_id", identity.UserID,
@@ -104,8 +109,6 @@ func (g *tokenExchange) Authorize(ctx context.Context, req *Request, client stor
 		token, expiry, err = g.issuer.SignIDToken(ctx, auth, "", "")
 	case oauth2.TokenTypeAccess:
 		token, expiry, err = g.issuer.SignAccessToken(ctx, auth)
-	default:
-		return nil, &oauth2.Error{Type: oauth2.RequestNotSupported, Description: "Invalid requested_token_type.", Status: http.StatusBadRequest}
 	}
 	if err != nil {
 		g.logger.ErrorContext(ctx, "token exchange failed to create new token", "requested_token_type", reqType, "err", err)

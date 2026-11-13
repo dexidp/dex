@@ -324,11 +324,6 @@ func (_u *AuthCodeUpdate) check() error {
 			return &ValidationError{Name: "client_id", err: fmt.Errorf(`db: validator failed for field "AuthCode.client_id": %w`, err)}
 		}
 	}
-	if v, ok := _u.mutation.Nonce(); ok {
-		if err := authcode.NonceValidator(v); err != nil {
-			return &ValidationError{Name: "nonce", err: fmt.Errorf(`db: validator failed for field "AuthCode.nonce": %w`, err)}
-		}
-	}
 	if v, ok := _u.mutation.RedirectURI(); ok {
 		if err := authcode.RedirectURIValidator(v); err != nil {
 			return &ValidationError{Name: "redirect_uri", err: fmt.Errorf(`db: validator failed for field "AuthCode.redirect_uri": %w`, err)}
@@ -337,16 +332,6 @@ func (_u *AuthCodeUpdate) check() error {
 	if v, ok := _u.mutation.ClaimsUserID(); ok {
 		if err := authcode.ClaimsUserIDValidator(v); err != nil {
 			return &ValidationError{Name: "claims_user_id", err: fmt.Errorf(`db: validator failed for field "AuthCode.claims_user_id": %w`, err)}
-		}
-	}
-	if v, ok := _u.mutation.ClaimsUsername(); ok {
-		if err := authcode.ClaimsUsernameValidator(v); err != nil {
-			return &ValidationError{Name: "claims_username", err: fmt.Errorf(`db: validator failed for field "AuthCode.claims_username": %w`, err)}
-		}
-	}
-	if v, ok := _u.mutation.ClaimsEmail(); ok {
-		if err := authcode.ClaimsEmailValidator(v); err != nil {
-			return &ValidationError{Name: "claims_email", err: fmt.Errorf(`db: validator failed for field "AuthCode.claims_email": %w`, err)}
 		}
 	}
 	if v, ok := _u.mutation.ConnectorID(); ok {
@@ -773,11 +758,6 @@ func (_u *AuthCodeUpdateOne) check() error {
 			return &ValidationError{Name: "client_id", err: fmt.Errorf(`db: validator failed for field "AuthCode.client_id": %w`, err)}
 		}
 	}
-	if v, ok := _u.mutation.Nonce(); ok {
-		if err := authcode.NonceValidator(v); err != nil {
-			return &ValidationError{Name: "nonce", err: fmt.Errorf(`db: validator failed for field "AuthCode.nonce": %w`, err)}
-		}
-	}
 	if v, ok := _u.mutation.RedirectURI(); ok {
 		if err := authcode.RedirectURIValidator(v); err != nil {
 			return &ValidationError{Name: "redirect_uri", err: fmt.Errorf(`db: validator failed for field "AuthCode.redirect_uri": %w`, err)}
@@ -786,16 +766,6 @@ func (_u *AuthCodeUpdateOne) check() error {
 	if v, ok := _u.mutation.ClaimsUserID(); ok {
 		if err := authcode.ClaimsUserIDValidator(v); err != nil {
 			return &ValidationError{Name: "claims_user_id", err: fmt.Errorf(`db: validator failed for field "AuthCode.claims_user_id": %w`, err)}
-		}
-	}
-	if v, ok := _u.mutation.ClaimsUsername(); ok {
-		if err := authcode.ClaimsUsernameValidator(v); err != nil {
-			return &ValidationError{Name: "claims_username", err: fmt.Errorf(`db: validator failed for field "AuthCode.claims_username": %w`, err)}
-		}
-	}
-	if v, ok := _u.mutation.ClaimsEmail(); ok {
-		if err := authcode.ClaimsEmailValidator(v); err != nil {
-			return &ValidationError{Name: "claims_email", err: fmt.Errorf(`db: validator failed for field "AuthCode.claims_email": %w`, err)}
 		}
 	}
 	if v, ok := _u.mutation.ConnectorID(); ok {

@@ -120,3 +120,21 @@ func TestSetCachedCloseLen(t *testing.T) {
 	cache.Close("nope")
 	require.Equal(t, 1, cache.Len())
 }
+
+// A local user deleted, or replaced by another user with the same email, ends
+// the refresh with ErrUserRevoked, which the refresh grant answers with invalid_grant.
+func TestPasswordDBRefreshUserRevoked(t *testing.T) {
+	store := memory.New(slog.New(slog.DiscardHandler))
+	db := passwordDB{store}
+	ctx := t.Context()
+
+	_, err := db.Refresh(ctx, connector.Scopes{}, connector.Identity{UserID: "old", Email: "jane@example.com"})
+	require.ErrorIs(t, err, connector.ErrUserRevoked)
+
+	require.NoError(t, store.CreatePassword(ctx, storage.Password{Email: "jane@example.com", UserID: "new"}))
+	_, err = db.Refresh(ctx, connector.Scopes{}, connector.Identity{UserID: "old", Email: "jane@example.com"})
+	require.ErrorIs(t, err, connector.ErrUserRevoked)
+
+	_, err = db.Refresh(ctx, connector.Scopes{}, connector.Identity{UserID: "new", Email: "jane@example.com"})
+	require.NoError(t, err)
+}

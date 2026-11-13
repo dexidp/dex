@@ -336,9 +336,13 @@ func rotateError(err error) *oauth2.Error {
 }
 
 // upstreamRejected reports whether the upstream answered the connector's refresh
-// with invalid_grant. That is the expected end of the user's session there, not a
-// server fault, so it is logged at info rather than error.
+// with invalid_grant, or the connector found the user deleted or disabled. That is
+// the expected end of the user's session there, not a server fault, so it is
+// logged at info rather than error.
 func upstreamRejected(err error) bool {
+	if errors.Is(err, connector.ErrUserRevoked) {
+		return true
+	}
 	var retrieveErr *xoauth2.RetrieveError
 	return errors.As(err, &retrieveErr) && retrieveErr.ErrorCode == oauth2.InvalidGrant
 }

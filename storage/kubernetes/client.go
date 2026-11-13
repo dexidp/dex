@@ -103,6 +103,9 @@ func offlineTokenName(userID string, connID string, h func() hash.Hash) string {
 // https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-subdomain-names
 const kubeResourceMaxLen = 253
 
+// errInvalidName is returned for a name no Kubernetes object can have.
+var errInvalidName = errors.New("invalid kubernetes resource name")
+
 var kubeResourceNameRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`)
 
 func (cli *client) urlForWithParams(
@@ -116,7 +119,8 @@ func (cli *client) urlForWithParams(
 	if name != "" && (len(name) > kubeResourceMaxLen || !kubeResourceNameRegex.MatchString(name)) {
 		// The actual name can be found in auth request or auth code objects and equals to the state value
 		return "", fmt.Errorf(
-			"invalid kubernetes resource name: must match the pattern %s and be no longer than %d characters",
+			"%w: must match the pattern %s and be no longer than %d characters",
+			errInvalidName,
 			kubeResourceNameRegex.String(),
 			kubeResourceMaxLen)
 	}
@@ -205,6 +209,10 @@ func closeResp(r *http.Response) {
 }
 
 func (cli *client) get(resource, name string, v interface{}) error {
+	// An empty name would fetch the whole collection instead of one object.
+	if name == "" {
+		return storage.ErrNotFound
+	}
 	return cli.getResource(cli.apiVersion, cli.namespace, resource, name, v)
 }
 
@@ -223,6 +231,10 @@ func (cli *client) getURL(url string, v interface{}) error {
 func (cli *client) getResource(apiVersion, namespace, resource, name string, v interface{}) error {
 	u, err := cli.urlFor(apiVersion, namespace, resource, name)
 	if err != nil {
+		// An ID no object can be named after, e.g. a malformed token from a client.
+		if errors.Is(err, errInvalidName) {
+			return storage.ErrNotFound
+		}
 		return err
 	}
 	return cli.getURL(u, v)
@@ -239,7 +251,7 @@ func (cli *client) listN(resource string, v interface{}, n int) error { //nolint
 }
 
 func (cli *client) list(resource string, v interface{}) error {
-	return cli.get(resource, "", v)
+	return cli.getResource(cli.apiVersion, cli.namespace, resource, "", v)
 }
 
 func (cli *client) post(resource string, v interface{}) error {
@@ -298,6 +310,9 @@ func (cli *client) detectKubernetesVersion() error {
 func (cli *client) delete(resource, name string) error {
 	url, err := cli.urlFor(cli.apiVersion, cli.namespace, resource, name)
 	if err != nil {
+		if errors.Is(err, errInvalidName) {
+			return storage.ErrNotFound
+		}
 		return err
 	}
 	req, err := http.NewRequest("DELETE", url, nil)

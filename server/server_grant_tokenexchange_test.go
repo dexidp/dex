@@ -185,6 +185,32 @@ func TestHandleTokenExchange(t *testing.T) {
 	}
 }
 
+func TestHandleTokenExchangeInvalidSubjectTokenType(t *testing.T) {
+	ctx := t.Context()
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.Storage.CreateClient(ctx, storage.Client{
+			ID:     "client_1",
+			Secret: "secret_1",
+		})
+	})
+	defer httpServer.Close()
+	vals := make(url.Values)
+	vals.Set("grant_type", oauth2.GrantTypeTokenExchange)
+	vals.Set("connector_id", "mock")
+	vals.Set("subject_token_type", oauth2.TokenTypeRefresh)
+	vals.Set("subject_token", "foobar")
+	vals.Set("client_id", "client_1")
+	vals.Set("client_secret", "secret_1")
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
+	req.Header.Set("content-type", "application/x-www-form-urlencoded")
+
+	s.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+	require.Contains(t, rr.Body.String(), `"error":"invalid_request"`)
+}
+
 func TestHandleTokenExchangeLogsSuccess(t *testing.T) {
 	ctx := t.Context()
 	var logBuf bytes.Buffer
@@ -233,6 +259,35 @@ func TestHandleTokenExchangeLogsSuccess(t *testing.T) {
 	require.Equal(t, []any{"authors"}, found["groups"])
 	require.Equal(t, oauth2.TokenTypeID, found["subject_token_type"])
 	require.Equal(t, oauth2.TokenTypeAccess, found["requested_token_type"])
+}
+
+func TestHandleTokenExchangeRejectsRequestedTokenTypeBeforeConnector(t *testing.T) {
+	ctx := t.Context()
+	var logBuf bytes.Buffer
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.Logger = slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelInfo}))
+		c.Storage.CreateClient(ctx, storage.Client{
+			ID:     "client_1",
+			Secret: "secret_1",
+		})
+	})
+	defer httpServer.Close()
+	vals := make(url.Values)
+	vals.Set("grant_type", oauth2.GrantTypeTokenExchange)
+	vals.Set("connector_id", "mock")
+	vals.Set("requested_token_type", oauth2.TokenTypeIDJAG)
+	vals.Set("subject_token_type", oauth2.TokenTypeID)
+	vals.Set("subject_token", "foobar")
+	vals.Set("client_id", "client_1")
+	vals.Set("client_secret", "secret_1")
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
+	req.Header.Set("content-type", "application/x-www-form-urlencoded")
+
+	s.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+	require.NotContains(t, logBuf.String(), "token exchange successful")
 }
 
 func TestHandleTokenExchangeConnectorGrantTypeRestriction(t *testing.T) {

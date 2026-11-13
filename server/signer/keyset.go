@@ -3,10 +3,10 @@ package signer
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 
 	jose "github.com/go-jose/go-jose/v4"
-
-	"github.com/dexidp/dex/server/oauth2"
 )
 
 // KeySet implements the oidc.KeySet interface backed by a Dex Signer,
@@ -21,10 +21,11 @@ func (k *KeySet) VerifySignature(ctx context.Context, jwt string) (payload []byt
 		return nil, err
 	}
 
-	// An ID-JAG is an assertion for a third-party authorization server and is
-	// never accepted where dex verifies its own tokens.
-	if typ, _ := jws.Signatures[0].Protected.ExtraHeaders[jose.HeaderType].(string); typ == oauth2.JWTTypeIDJAG {
-		return nil, errors.New("ID-JAG is not accepted")
+	// Dex sets typ only on tokens it never verifies itself, such as ID-JAGs.
+	if typ, ok := jws.Signatures[0].Protected.ExtraHeaders[jose.HeaderType]; ok {
+		if s, _ := typ.(string); !strings.EqualFold(s, "JWT") {
+			return nil, fmt.Errorf("JWT typ %v is not accepted", typ)
+		}
 	}
 
 	keyID := ""

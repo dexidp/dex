@@ -34,19 +34,16 @@ func (OAuth2Client) Fields() []ent.Field {
 			NotEmpty().
 			Unique(),
 		field.Text("secret").
-			SchemaType(textSchema).
-			NotEmpty(),
+			SchemaType(textSchema),
 		field.JSON("redirect_uris", []string{}).
 			Optional(),
 		field.JSON("trusted_peers", []string{}).
 			Optional(),
 		field.Bool("public"),
 		field.Text("name").
-			SchemaType(textSchema).
-			NotEmpty(),
+			SchemaType(textSchema),
 		field.Text("logo_url").
-			SchemaType(textSchema).
-			NotEmpty(),
+			SchemaType(textSchema),
 		field.JSON("allowed_connectors", []string{}).
 			Optional(),
 		field.JSON("mfa_chain", []string{}).

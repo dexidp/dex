@@ -3,6 +3,7 @@ package client
 import (
 	"fmt"
 	"hash"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -41,4 +42,14 @@ func compositeKeyID(first string, second string, hasher func() hash.Hash) string
 	h.Write([]byte(first))
 	h.Write([]byte(second))
 	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+// nonZeroTime returns nil for the zero time.Time, so an unset optional time
+// field is stored as NULL. MySQL rejects the zero value ('0000-00-00') under
+// its default sql_mode.
+func nonZeroTime(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
+	}
+	return &t
 }

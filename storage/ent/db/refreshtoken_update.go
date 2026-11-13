@@ -284,24 +284,9 @@ func (_u *RefreshTokenUpdate) check() error {
 			return &ValidationError{Name: "client_id", err: fmt.Errorf(`db: validator failed for field "RefreshToken.client_id": %w`, err)}
 		}
 	}
-	if v, ok := _u.mutation.Nonce(); ok {
-		if err := refreshtoken.NonceValidator(v); err != nil {
-			return &ValidationError{Name: "nonce", err: fmt.Errorf(`db: validator failed for field "RefreshToken.nonce": %w`, err)}
-		}
-	}
 	if v, ok := _u.mutation.ClaimsUserID(); ok {
 		if err := refreshtoken.ClaimsUserIDValidator(v); err != nil {
 			return &ValidationError{Name: "claims_user_id", err: fmt.Errorf(`db: validator failed for field "RefreshToken.claims_user_id": %w`, err)}
-		}
-	}
-	if v, ok := _u.mutation.ClaimsUsername(); ok {
-		if err := refreshtoken.ClaimsUsernameValidator(v); err != nil {
-			return &ValidationError{Name: "claims_username", err: fmt.Errorf(`db: validator failed for field "RefreshToken.claims_username": %w`, err)}
-		}
-	}
-	if v, ok := _u.mutation.ClaimsEmail(); ok {
-		if err := refreshtoken.ClaimsEmailValidator(v); err != nil {
-			return &ValidationError{Name: "claims_email", err: fmt.Errorf(`db: validator failed for field "RefreshToken.claims_email": %w`, err)}
 		}
 	}
 	if v, ok := _u.mutation.ConnectorID(); ok {
@@ -676,24 +661,9 @@ func (_u *RefreshTokenUpdateOne) check() error {
 			return &ValidationError{Name: "client_id", err: fmt.Errorf(`db: validator failed for field "RefreshToken.client_id": %w`, err)}
 		}
 	}
-	if v, ok := _u.mutation.Nonce(); ok {
-		if err := refreshtoken.NonceValidator(v); err != nil {
-			return &ValidationError{Name: "nonce", err: fmt.Errorf(`db: validator failed for field "RefreshToken.nonce": %w`, err)}
-		}
-	}
 	if v, ok := _u.mutation.ClaimsUserID(); ok {
 		if err := refreshtoken.ClaimsUserIDValidator(v); err != nil {
 			return &ValidationError{Name: "claims_user_id", err: fmt.Errorf(`db: validator failed for field "RefreshToken.claims_user_id": %w`, err)}
-		}
-	}
-	if v, ok := _u.mutation.ClaimsUsername(); ok {
-		if err := refreshtoken.ClaimsUsernameValidator(v); err != nil {
-			return &ValidationError{Name: "claims_username", err: fmt.Errorf(`db: validator failed for field "RefreshToken.claims_username": %w`, err)}
-		}
-	}
-	if v, ok := _u.mutation.ClaimsEmail(); ok {
-		if err := refreshtoken.ClaimsEmailValidator(v); err != nil {
-			return &ValidationError{Name: "claims_email", err: fmt.Errorf(`db: validator failed for field "RefreshToken.claims_email": %w`, err)}
 		}
 	}
 	if v, ok := _u.mutation.ConnectorID(); ok {

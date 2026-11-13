@@ -255,6 +255,7 @@ func getAuthRequest(ctx context.Context, q querier, id string) (a storage.AuthRe
 		}
 		return a, fmt.Errorf("select auth request: %v", err)
 	}
+	a.AuthTime = fromStoredTime(a.AuthTime)
 	return a, nil
 }
 
@@ -310,6 +311,7 @@ func (c *conn) GetAuthCode(ctx context.Context, id string) (a storage.AuthCode, 
 		}
 		return a, fmt.Errorf("select auth code: %v", err)
 	}
+	a.AuthTime = fromStoredTime(a.AuthTime)
 	return a, nil
 }
 
