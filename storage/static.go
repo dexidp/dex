@@ -31,6 +31,13 @@ func WithStaticClients(s Storage, staticClients []Client) Storage {
 	return staticClientsStorage{s, staticClients, clientsByID}
 }
 
+// IsStaticPassword forwards the question inwards. These wrappers embed Storage
+// as an interface, so they do not promote the password wrapper's own methods:
+// without this the answer would depend on which wrapper happens to be outermost.
+func (s staticClientsStorage) IsStaticPassword(email string) bool {
+	return isStaticPassword(s.Storage, email)
+}
+
 func (s staticClientsStorage) GetClient(ctx context.Context, id string) (Client, error) {
 	if client, ok := s.clientsByID[id]; ok {
 		return client, nil
@@ -112,6 +119,21 @@ func (s staticPasswordsStorage) isStatic(email string) bool {
 	return ok
 }
 
+// IsStaticPassword reports whether an email is served from the config file
+// rather than from storage. Deleting one is refused, so a caller that is about
+// to cascade several deletes needs to know before it starts: finding out
+// halfway leaves the earlier steps done and no way to finish.
+func (s staticPasswordsStorage) IsStaticPassword(email string) bool {
+	return s.isStatic(email)
+}
+
+// isStaticPassword asks a storage the same question without caring which
+// wrapper answers it.
+func isStaticPassword(s Storage, email string) bool {
+	ro, ok := s.(interface{ IsStaticPassword(string) bool })
+	return ok && ro.IsStaticPassword(email)
+}
+
 func (s staticPasswordsStorage) GetPassword(ctx context.Context, email string) (Password, error) {
 	// TODO(ericchiang): BLAH. We really need to figure out how to handle
 	// lower cased emails better.
@@ -183,6 +205,13 @@ func WithStaticConnectors(s Storage, staticConnectors []Connector) Storage {
 func (s staticConnectorsStorage) isStatic(id string) bool {
 	_, ok := s.connectorsByID[id]
 	return ok
+}
+
+// IsStaticPassword forwards the question inwards. These wrappers embed Storage
+// as an interface, so they do not promote the password wrapper's own methods:
+// without this the answer would depend on which wrapper happens to be outermost.
+func (s staticConnectorsStorage) IsStaticPassword(email string) bool {
+	return isStaticPassword(s.Storage, email)
 }
 
 func (s staticConnectorsStorage) GetConnector(ctx context.Context, id string) (Connector, error) {
