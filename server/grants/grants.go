@@ -177,7 +177,7 @@ func (h *Handler) Mount(m router.Mux) {
 	h.grants = map[string]Grant{}
 	h.register(h.SupportedGrantTypes,
 		&clientCredentials{issuer: h.Issuer, logger: h.Logger},
-		&password{issuer: h.Issuer, logger: h.Logger, connectorID: h.PasswordConnector},
+		&password{issuer: h.Issuer, logger: h.Logger, connectorID: h.PasswordConnector, storage: h.Storage, sessionsEnabled: h.SessionsEnabled, now: h.Now},
 		&tokenExchange{issuer: h.Issuer, logger: h.Logger, idJAG: newIDJAG(h.IDJAG, h.Issuer, h.Sessions, h.IDJAGMetrics, h.Logger)},
 		&authorizationCode{issuer: h.Issuer, storage: h.Storage, connectors: h.Connectors, now: h.Now, logger: h.Logger},
 		&refresh{storage: h.Storage, issuer: h.Issuer, policy: h.RefreshPolicy, sessions: h.Sessions, sessionsEnabled: h.SessionsEnabled, now: h.Now, logger: h.Logger},
