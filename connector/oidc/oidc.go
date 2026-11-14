@@ -91,6 +91,12 @@ type Config struct {
 	// id tokens
 	GetUserInfo bool `json:"getUserInfo"`
 
+	// ValidateTokenExchangeAudience makes token exchange require the "aud" claim
+	// of an exchanged ID token to contain the connector's clientID. By default
+	// the audience isn't checked, so an ID token issued by the upstream to any
+	// client is accepted.
+	ValidateTokenExchangeAudience bool `json:"validateTokenExchangeAudience"`
+
 	UserIDKey string `json:"userIDKey"`
 
 	UserNameKey string `json:"userNameKey"`
@@ -378,6 +384,15 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		}
 	}
 
+	exchangeVerifierConfig := &oidc.Config{SkipClientIDCheck: true}
+	if c.ValidateTokenExchangeAudience {
+		if c.ClientID == "" {
+			cancel()
+			return nil, errors.New("oidc: validateTokenExchangeAudience requires clientID to be set")
+		}
+		exchangeVerifierConfig = &oidc.Config{ClientID: c.ClientID}
+	}
+
 	// go-oidc fetches the issuer's signing keys in the background, on a context
 	// detached from the request, and every verification that needs the keys
 	// waits on that one fetch. httpClient has no overall timeout, so a keys
@@ -401,7 +416,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 			RedirectURL:  c.RedirectURI,
 		},
 		verifier:                  provider.VerifierContext(keysCtx, &oidc.Config{ClientID: clientID}),
-		exchangeVerifier:          provider.VerifierContext(keysCtx, &oidc.Config{SkipClientIDCheck: true}),
+		exchangeVerifier:          provider.VerifierContext(keysCtx, exchangeVerifierConfig),
 		logger:                    logger.With(slog.Group("connector", "type", "oidc", "id", id)),
 		cancel:                    cancel,
 		httpClient:                httpClient,
