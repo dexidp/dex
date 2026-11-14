@@ -1,6 +1,7 @@
 package tokens
 
 import (
+	"log/slog"
 	"testing"
 	"time"
 
@@ -22,6 +23,18 @@ func TestStrategy(t *testing.T) {
 		require.False(t, s.AllowedToReuse(lastTime))
 		require.True(t, s.ExpiredBecauseUnused(lastTime))
 		require.True(t, s.CompletelyExpired(lastTime))
+	})
+
+	t.Run("reuse defaults to a grace window", func(t *testing.T) {
+		logger := slog.New(slog.DiscardHandler)
+
+		s, err := NewRefreshTokenPolicy(logger, false, "", "", "")
+		require.NoError(t, err)
+		require.True(t, s.AllowedToReuse(time.Now()))
+
+		s, err = NewRefreshTokenPolicy(logger, false, "", "", "0s")
+		require.NoError(t, err)
+		require.False(t, s.AllowedToReuse(time.Now()))
 	})
 
 	t.Run("disabled intervals never expire", func(t *testing.T) {
