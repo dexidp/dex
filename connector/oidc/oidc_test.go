@@ -812,6 +812,78 @@ func TestTokenIdentity(t *testing.T) {
 	}
 }
 
+// TestTokenIdentityAudience checks that validateTokenExchangeAudience makes an
+// exchanged ID token's "aud" claim have to contain the connector's clientID.
+// The test server issues ID tokens with aud set to "clientID".
+func TestTokenIdentityAudience(t *testing.T) {
+	tokenTypeID := "urn:ietf:params:oauth:token-type:id_token"
+
+	tests := []struct {
+		name          string
+		clientID      string
+		validate      bool
+		wantErr       bool
+		wantOpenError bool
+	}{
+		{
+			name:     "audience not checked by default",
+			clientID: "otherClient",
+		},
+		{
+			name:     "matching audience",
+			clientID: "clientID",
+			validate: true,
+		},
+		{
+			name:     "mismatched audience",
+			clientID: "otherClient",
+			validate: true,
+			wantErr:  true,
+		},
+		{
+			name:          "validation without a clientID",
+			validate:      true,
+			wantOpenError: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			testServer, err := setupServer(map[string]any{
+				"sub":  "subvalue",
+				"name": "namevalue",
+			}, true)
+			require.NoError(t, err)
+			defer testServer.Close()
+
+			conn, err := newConnector(Config{
+				Issuer:                        testServer.URL,
+				ClientID:                      tc.clientID,
+				Scopes:                        []string{"openid"},
+				ValidateTokenExchangeAudience: tc.validate,
+			})
+			if tc.wantOpenError {
+				require.ErrorContains(t, err, "validateTokenExchangeAudience requires clientID")
+				return
+			}
+			require.NoError(t, err)
+
+			res, err := http.Get(testServer.URL + "/token")
+			require.NoError(t, err)
+			defer res.Body.Close()
+			var tokenResponse map[string]any
+			require.NoError(t, json.NewDecoder(res.Body).Decode(&tokenResponse))
+
+			identity, err := conn.TokenIdentity(t.Context(), tokenTypeID, tokenResponse["id_token"].(string))
+			if tc.wantErr {
+				require.ErrorContains(t, err, "expected audience")
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, "subvalue", identity.UserID)
+		})
+	}
+}
+
 // TestTokenIdentityRootCAsWithOverride is a regression test for the override
 // branch of getProvider dropping the rootCAs-aware HTTP client.
 //
