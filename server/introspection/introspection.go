@@ -333,6 +333,13 @@ func (h *Handler) introspectAccessToken(ctx context.Context, token string) (*Int
 
 	client, err := h.Storage.GetClient(ctx, clientID)
 	if err != nil {
+		// A token whose client has been deleted no longer resolves on this
+		// server, so RFC 7662 §2.2 wants it reported as inactive rather than as
+		// a server error. This mirrors how the refresh-token path treats a
+		// missing token. Any other storage failure is a real server error.
+		if errors.Is(err, storage.ErrNotFound) {
+			return nil, newIntrospectInactiveTokenError()
+		}
 		h.Logger.ErrorContext(ctx, "error while fetching client from storage", "err", err.Error())
 		return nil, newIntrospectInternalServerError()
 	}
