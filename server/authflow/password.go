@@ -92,7 +92,9 @@ func (h *Handler) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		if err := h.Templates.Password(r, w, r.URL.String(), "", usernamePrompt(pwConn), false, backLink, rememberMe); err != nil {
+		// Prefill the username from the OIDC login_hint the login handler forwarded
+		// (a hint only — the field stays editable).
+		if err := h.Templates.Password(r, w, r.URL.String(), r.URL.Query().Get("login_hint"), usernamePrompt(pwConn), false, backLink, rememberMe); err != nil {
 			h.Logger.ErrorContext(r.Context(), "server template error", "err", err)
 		}
 	case http.MethodPost:

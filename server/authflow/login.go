@@ -188,6 +188,13 @@ func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			q := loginURL.Query()
 			q.Set("state", authReq.ID)
 			q.Set("back", backLink)
+			// OIDC login_hint (Core 1.0 §3.1.2.1): the relying party already knows
+			// who is signing in (they typed their email in its own sign-in box).
+			// Carry it to the password page so it can be prefilled; a hint only,
+			// never trusted for anything else, and never persisted.
+			if hint := r.Form.Get("login_hint"); hint != "" {
+				q.Set("login_hint", hint)
+			}
 			loginURL.RawQuery = q.Encode()
 
 			http.Redirect(w, r, loginURL.String(), http.StatusFound)
