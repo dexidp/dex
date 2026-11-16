@@ -183,6 +183,63 @@ func TestHandlePassword_LocalPasswordDBClaims(t *testing.T) {
 	require.Equal(t, []string{"team-a", "team-a/admins"}, claims.Groups)
 }
 
+// TestHandlePasswordLockedAccountDenied covers the review on #5168: the
+// password grant runs the same account-lock check the browser flow's finalize
+// step does, or a locked account could still mint tokens.
+func TestHandlePasswordLockedAccountDenied(t *testing.T) {
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.PasswordConnector = "local"
+		c.SessionConfig = testSessionConfig()
+	})
+	defer httpServer.Close()
+	seedLocalPasswordDB(t, s)
+
+	ctx := t.Context()
+	require.NoError(t, s.storage.CreateUserIdentity(ctx, storage.UserIdentity{
+		UserID:              "user-id",
+		ConnectorID:         "local",
+		Claims:              storage.Claims{UserID: "user-id", Email: "user@example.com"},
+		Consents:            map[string][]string{},
+		MFASecrets:          map[string]*storage.MFASecret{},
+		WebAuthnCredentials: map[string][]storage.WebAuthnCredential{},
+		CreatedAt:           time.Now(),
+		LastLogin:           time.Now(),
+		BlockedUntil:        time.Now().Add(time.Hour),
+	}))
+
+	u, err := url.Parse(s.issuerURL.String())
+	require.NoError(t, err)
+	u.Path = path.Join(u.Path, "/token")
+
+	makeReq := func() *httptest.ResponseRecorder {
+		v := url.Values{}
+		v.Add("scope", "openid email offline_access")
+		v.Add("grant_type", "password")
+		v.Add("username", "user@example.com")
+		v.Add("password", "secret")
+
+		req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(v.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.SetBasicAuth("test", "barfoo")
+
+		rr := httptest.NewRecorder()
+		s.ServeHTTP(rr, req)
+		return rr
+	}
+
+	rr := makeReq()
+	require.Equal(t, http.StatusUnauthorized, rr.Code, "locked account must not get tokens: %s", rr.Body.String())
+	require.Contains(t, rr.Body.String(), "access_denied")
+
+	// Clear the block: the same credentials must succeed again.
+	require.NoError(t, s.storage.UpdateUserIdentity(ctx, "user-id", "local", func(ui storage.UserIdentity) (storage.UserIdentity, error) {
+		ui.BlockedUntil = time.Time{}
+		return ui, nil
+	}))
+	rr = makeReq()
+	require.Equal(t, http.StatusOK, rr.Code, "unlocked account should get tokens: %s", rr.Body.String())
+}
+
 // TestHandlePasswordAllowedConnectors verifies the password grant enforces the
 // client's AllowedConnectors (mirrors TestHandleTokenExchangeAllowedConnectors
 // and TestHandleRefreshTokenAllowedConnectors — every token grant must enforce it).

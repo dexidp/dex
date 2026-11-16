@@ -3,6 +3,7 @@ package grants
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
+	"github.com/dexidp/dex/server/useridentity"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -70,13 +72,19 @@ func (g *password) Authorize(ctx context.Context, req *Request, client storage.C
 		return nil, &oauth2.Error{Type: oauth2.AccessDenied, Description: "Invalid username or password", Status: http.StatusUnauthorized}
 	}
 
-	// Persist the user identity the same way the browser flow's finalize step
-	// does, so a refresh under sessions can resolve the cached claims instead
-	// of failing on a missing identity. Without this row a password-grant
-	// refresh token can never be used while sessions are enabled.
+	// Enforce the account lock and persist the user identity the same way the
+	// browser flow's finalize step does, so a refresh under sessions can
+	// resolve the cached claims instead of failing on a missing identity, and
+	// a locked account cannot mint tokens. Without the identity row a
+	// password-grant refresh token can never be used while sessions are enabled.
 	if g.sessionsEnabled {
-		if oerr := g.persistUserIdentity(ctx, identity); oerr != nil {
-			return nil, oerr
+		err := useridentity.RecordLogin(ctx, g.storage, g.logger, g.now, identity, g.connectorID)
+		var locked *useridentity.LockedError
+		switch {
+		case errors.As(err, &locked):
+			return nil, &oauth2.Error{Type: oauth2.AccessDenied, Description: fmt.Sprintf("Account is locked until %s.", locked.Until.Format(time.RFC3339)), Status: http.StatusUnauthorized}
+		case err != nil:
+			return nil, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
 		}
 	}
 
@@ -89,41 +97,4 @@ func (g *password) Authorize(ctx context.Context, req *Request, client storage.C
 		ConnectorData: identity.ConnectorData,
 	}
 	return issueTokens(ctx, g.logger, g.issuer, auth, "", shouldIssueRefreshToken(conn, req.Scopes))
-}
-
-// persistUserIdentity creates the user's identity row on first login and
-// refreshes its claims and last-login time on later ones — the same write the
-// browser flow performs in server/authflow/finalize.go.
-func (g *password) persistUserIdentity(ctx context.Context, identity connector.Identity) *oauth2.Error {
-	now := g.now()
-
-	_, err := g.storage.GetUserIdentity(ctx, identity.UserID, g.connectorID)
-	switch {
-	case errors.Is(err, storage.ErrNotFound):
-		ui := storage.UserIdentity{
-			UserID:      identity.UserID,
-			ConnectorID: g.connectorID,
-			Claims:      tokens.ClaimsFromIdentity(identity),
-			Consents:    make(map[string][]string),
-			CreatedAt:   now,
-			LastLogin:   now,
-		}
-		if err := g.storage.CreateUserIdentity(ctx, ui); err != nil {
-			g.logger.ErrorContext(ctx, "failed to create user identity", "err", err)
-			return &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
-		}
-	case err == nil:
-		if err := g.storage.UpdateUserIdentity(ctx, identity.UserID, g.connectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
-			old.Claims = tokens.ClaimsFromIdentity(identity)
-			old.LastLogin = now
-			return old, nil
-		}); err != nil {
-			g.logger.ErrorContext(ctx, "failed to update user identity", "err", err)
-			return &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
-		}
-	default:
-		g.logger.ErrorContext(ctx, "failed to get user identity", "err", err)
-		return &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
-	}
-	return nil
 }
