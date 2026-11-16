@@ -228,8 +228,8 @@ func TestHandlePasswordLockedAccountDenied(t *testing.T) {
 	}
 
 	rr := makeReq()
-	require.Equal(t, http.StatusUnauthorized, rr.Code, "locked account must not get tokens: %s", rr.Body.String())
-	require.Contains(t, rr.Body.String(), "access_denied")
+	require.Equal(t, http.StatusBadRequest, rr.Code, "locked account must not get tokens: %s", rr.Body.String())
+	require.Contains(t, rr.Body.String(), "invalid_grant")
 
 	// Clear the block: the same credentials must succeed again.
 	require.NoError(t, s.storage.UpdateUserIdentity(ctx, "user-id", "local", func(ui storage.UserIdentity) (storage.UserIdentity, error) {

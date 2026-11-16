@@ -82,7 +82,7 @@ func (g *password) Authorize(ctx context.Context, req *Request, client storage.C
 		var locked *useridentity.LockedError
 		switch {
 		case errors.As(err, &locked):
-			return nil, &oauth2.Error{Type: oauth2.AccessDenied, Description: fmt.Sprintf("Account is locked until %s.", locked.Until.Format(time.RFC3339)), Status: http.StatusUnauthorized}
+			return nil, &oauth2.Error{Type: oauth2.InvalidGrant, Description: fmt.Sprintf("Account is locked until %s.", locked.Until.Format(time.RFC3339)), Status: http.StatusBadRequest}
 		case err != nil:
 			return nil, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
 		}
