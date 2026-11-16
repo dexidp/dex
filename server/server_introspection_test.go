@@ -258,6 +258,52 @@ func TestHandleIntrospect(t *testing.T) {
 	}
 }
 
+func TestHandleIntrospectAccessTokenDeletedClient(t *testing.T) {
+	ctx := t.Context()
+	now := time.Now
+
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.Now = now
+	})
+	defer httpServer.Close()
+
+	mockTestStorage(t, s.storage)
+
+	accessToken, _, err := s.issuer.SignIDToken(ctx, tokens.Authorization{
+		Client: storage.Client{ID: "test"},
+		Claims: storage.Claims{
+			UserID:   "1",
+			Username: "jane",
+			Email:    "jane.doe@example.com",
+		},
+		Scopes:      []string{"openid", "email", "profile"},
+		ConnectorID: "test",
+	}, "", "")
+	require.NoError(t, err)
+
+	// Delete the client the token was issued for. The access token itself stays
+	// a valid JWT, but its client can no longer be resolved from storage.
+	require.NoError(t, s.storage.DeleteClient(ctx, "test"))
+
+	data := url.Values{}
+	data.Set("token", accessToken)
+
+	u, err := url.Parse(s.issuerURL.String())
+	require.NoError(t, err)
+	u.Path = path.Join(u.Path, "token", "introspect")
+
+	req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(data.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	rr := httptest.NewRecorder()
+	s.ServeHTTP(rr, req)
+
+	// RFC 7662 §2.2: a token that does not resolve on this server is reported as
+	// inactive with a 200, not as a server error.
+	require.Equal(t, http.StatusOK, rr.Code)
+	require.Equal(t, "{\"active\":false}\n", rr.Body.String())
+}
+
 func TestHandleIntrospectRefreshTokenWithoutAbsoluteLifetime(t *testing.T) {
 	// The test server's default refresh policy has no absolute lifetime, so the
 	// refresh token never expires on a fixed date.
