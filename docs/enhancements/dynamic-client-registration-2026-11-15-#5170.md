@@ -127,7 +127,8 @@ oauth2:
 
 Dex refuses to start if registration is enabled without a token, if
 both token settings are given, or if the named environment variable is
-unset or empty.
+unset or empty. Whitespace around the configured token is ignored, so a
+token read from a secret that ends in a newline works.
 
 When enabled, discovery advertises `registration_endpoint`. When
 disabled, the route is not mounted and the field is absent.
@@ -169,16 +170,17 @@ The response echoes the metadata as registered, including defaults, as
 RFC 7591 requires. Errors use the RFC 7591 codes `invalid_redirect_uri`
 and `invalid_client_metadata`, and `invalid_token` with a
 `WWW-Authenticate` challenge when the initial access token is missing
-or wrong.
+or wrong. A metadata field of the wrong JSON type is reported as
+`invalid_client_metadata` and the description names the field.
 
 #### Accepted metadata
 
 | Field | Rule |
 |---|---|
-| `redirect_uris` | Required, at most 20, exact-match, no fragment or userinfo. Confidential clients: `https` only. Public clients: also `http` on loopback and private-use URI schemes. |
+| `redirect_uris` | Required, at most 20, exact-match, no fragment or userinfo. Confidential clients: `https` only. Public clients: also `http` on loopback and private-use URI schemes, as `scheme:/path` or `scheme://host`. |
 | `token_endpoint_auth_method` | `client_secret_basic` (default), `client_secret_post`, or `none` for a public client. |
 | `grant_types` | Subset of `authorization_code` (default), `refresh_token`, `implicit`, and only those the server has enabled. Must include `authorization_code` or `implicit`. |
-| `response_types` | Default `code`. Only response types the server is configured with. Must be consistent with `grant_types`: `code` needs `authorization_code`; `token` and `id_token` need `implicit`. |
+| `response_types` | Default `code`. Each entry is one value or a space-separated combination; every value in it must be a response type the server is configured with, and `token` cannot be used on its own. Must be consistent with `grant_types`: `code` needs `authorization_code`; `token` and `id_token` need `implicit`. |
 | `scope` | Default `openid`. Subset of `openid`, `offline_access`, `email`, `profile`, `groups`, `federated:id`. `openid` is required; `offline_access` requires the `refresh_token` grant. |
 | `client_name` | Optional, at most 256 bytes. |
 | `logo_uri` | Optional, `https`, same origin as one of the redirect URIs. |
@@ -195,7 +197,9 @@ that Dex enforces what it registered:
   registered response type, and only registered scopes.
 - A token request must use a registered grant type and the registered
   authentication method. A client registered for `client_secret_basic`
-  cannot authenticate with `client_secret_post`, and vice versa.
+  cannot authenticate with `client_secret_post`, and vice versa. A
+  request without a client secret counts as `none`, whether the client
+  ID is sent in the form or in a Basic header.
 - A public client (`none`) must use PKCE with `S256` on every
   authorization code request, whether or not PKCE is enforced globally.
 - On the approval page, a notice states that the application registered
@@ -280,10 +284,13 @@ request is parsed before that check passes.
 For the purpose of these checks, a response type that returns a token
 or an ID token from the authorization endpoint requires the `implicit`
 grant, alone or together with `authorization_code` in a hybrid flow.
-The server derives its own supported grant types the same way, so every
-response type the server is configured with can be registered. As a
-consequence, a server configured with the `id_token` or `code id_token`
-response type now lists `implicit` in `grant_types_supported`.
+The server derives its own supported grant types the same way, and
+registration accepts a combination of response types whenever each
+value in it is enabled, as the authorization endpoint does. A client
+can therefore register exactly the response types it would be allowed
+to request. As a consequence, a server configured with the `id_token`
+or `code id_token` response type now lists `implicit` in
+`grant_types_supported`.
 
 #### Interaction with existing features
 
