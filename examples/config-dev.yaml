@@ -116,14 +116,13 @@ grpc:
 # Authentication sessions configuration.
 # Requires DEX_SESSIONS_ENABLED=true feature flag.
 #
-# Enabled here so that single sign-on works out of the box: without it every
-# authorization is a fresh login, the home page has no session to describe, and
-# prompt=none requests — how a client asks whether you are still signed in —
-# always answer no.
-sessions:
-  cookieName: "dex_session"
-  absoluteLifetime: "24h"
-  validIfNotUsedFor: "1h"
+# Needed for single sign-on: without it every authorization is a fresh login,
+# the home page has no session to describe, and prompt=none requests — how a
+# client asks whether you are still signed in — always answer no.
+# sessions:
+#   cookieName: "dex_session"
+#   absoluteLifetime: "24h"
+#   validIfNotUsedFor: "1h"
 #   rememberMeCheckedByDefault: false
 #   # Default SSO sharing policy for clients without explicit ssoSharedWith.
 #   # "all" = share with all clients (Keycloak-like), "none" = no sharing (default).
