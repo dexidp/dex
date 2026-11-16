@@ -52,6 +52,7 @@ func TestPasswordLoginPrefillsLoginHint(t *testing.T) {
 			require.Equal(t, http.StatusOK, rr.Code)
 			if tc.hint != "" {
 				require.Contains(t, rr.Body.String(), `value="`+tc.hint+`"`)
+				require.Regexp(t, `name="password"[^>]*autofocus`, rr.Body.String())
 			} else {
 				require.Regexp(t, `name="login"[^>]*autofocus`, rr.Body.String())
 			}
