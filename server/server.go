@@ -193,7 +193,7 @@ func (s *Server) openConnectors(ctx context.Context, c Config) error {
 			return fmt.Errorf("server: failed to open all connectors (%d/%d)", failedCount, len(storageConnectors))
 		}
 
-		s.logger.Warn("server: failed to open all connectors", "failed", failedCount)
+		s.logger.Warn("server: failed to open all connectors, fix them through the connectors API", "failed", failedCount)
 	}
 
 	return nil
