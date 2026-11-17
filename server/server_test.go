@@ -1980,6 +1980,47 @@ func TestConnectorFailureHandling(t *testing.T) {
 	}
 }
 
+func TestEmptyConnectorsPicksUpAddedConnector(t *testing.T) {
+	ctx := t.Context()
+
+	httpServer, s := newTestServerWith(t, nil, func(c *Config) {
+		c.AllowEmptyConnectors = true
+		require.NoError(t, c.Storage.CreateClient(ctx, storage.Client{
+			ID:           "test",
+			RedirectURIs: []string{"http://example.com/callback"},
+		}))
+	})
+	defer httpServer.Close()
+
+	authURL := httpServer.URL + "/auth?response_type=code&client_id=test&redirect_uri=http://example.com/callback&scope=openid"
+
+	rr := httptest.NewRecorder()
+	s.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, authURL, nil))
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+	require.Contains(t, rr.Body.String(), "No connectors available")
+
+	// Add a connector the same way the connectors API does.
+	require.NoError(t, s.storage.CreateConnector(ctx, mockConnector("mock")))
+
+	_, ok := s.connectors.Cached("mock")
+	require.False(t, ok, "connector should not be opened before login")
+
+	rr = httptest.NewRecorder()
+	s.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, authURL, nil))
+	require.Equal(t, http.StatusFound, rr.Code)
+
+	connectorURL := rr.Header().Get("Location")
+	require.Contains(t, connectorURL, "/auth/mock")
+
+	// Following the redirect opens the new connector without a restart.
+	rr = httptest.NewRecorder()
+	s.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, connectorURL, nil))
+	require.Equal(t, http.StatusFound, rr.Code)
+
+	_, ok = s.connectors.Cached("mock")
+	require.True(t, ok, "connector should be opened after login")
+}
+
 func TestHandleHealth(t *testing.T) {
 	httpServer, server := newTestServer(t, nil)
 	defer httpServer.Close()
