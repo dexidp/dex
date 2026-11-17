@@ -309,7 +309,10 @@ func TestRefreshTokenAuthTime(t *testing.T) {
 			s.ServeHTTP(rr, req)
 
 			if tc.wantHTTPError {
-				assert.Equal(t, http.StatusInternalServerError, rr.Code)
+				// No persisted user identity means the token cannot be honored
+				// under sessions: invalid_grant, not a server error.
+				assert.Equal(t, http.StatusBadRequest, rr.Code)
+				assert.Contains(t, rr.Body.String(), `"error":"invalid_grant"`)
 				return
 			}
 			require.Equal(t, http.StatusOK, rr.Code)
@@ -964,6 +967,37 @@ func TestRefreshGrantStorageBackedPasswordDB(t *testing.T) {
 	var third tokenResponse
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &third))
 	require.NotEqual(t, second.RefreshToken, third.RefreshToken, "chained refresh did not rotate")
+}
+
+// TestRefreshGrantPasswordFlowWithSessions refreshes a token issued by the
+// password grant while sessions are enabled (#5166). The password grant never
+// passes through the browser finalize step that writes the user identity, so
+// until the grant persisted one itself every refresh of its tokens failed with
+// a 500.
+func TestRefreshGrantPasswordFlowWithSessions(t *testing.T) {
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.PasswordConnector = "local"
+		c.SessionConfig = testSessionConfig()
+	})
+	defer httpServer.Close()
+	seedLocalPasswordDB(t, s)
+
+	first := doPasswordGrant(t, s)
+
+	rr := doRefreshGrant(t, s, first, 0)
+	require.Equal(t, http.StatusOK, rr.Code, "refresh grant failed: %s", rr.Body.String())
+	var second tokenResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &second))
+	require.NotEqual(t, first, second.RefreshToken, "refresh token was not rotated")
+
+	// The refresh resolved cached claims: the grant recorded the user's
+	// identity the way the browser finalize step does.
+	_, err := s.storage.GetUserIdentity(t.Context(), "user-id", "local")
+	require.NoError(t, err, "password grant did not persist the user identity")
+
+	// Claims come from the stored identity, not the connector.
+	claims := decodeJWTClaims(t, second.IDToken)
+	require.Equal(t, "user@example.com", claims["email"])
 }
 
 func TestRefreshDoesNotLogConnectorData(t *testing.T) {
