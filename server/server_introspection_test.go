@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/grants"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/introspection"
 	"github.com/dexidp/dex/server/tokens"
@@ -333,10 +334,12 @@ func TestHandleIntrospectRefreshTokenWithoutAbsoluteLifetime(t *testing.T) {
 	require.NotContains(t, resp, "exp", "a refresh token without an absolute lifetime must not report an expiry")
 }
 
-// TestHandleIntrospectTypedAccessToken checks that introspection accepts an
-// access token typed at+jwt.
+// TestHandleIntrospectTypedAccessToken checks that introspection and userinfo
+// accept the at+jwt access token of a client with an ID-JAG policy.
 func TestHandleIntrospectTypedAccessToken(t *testing.T) {
-	httpServer, s := newTestServer(t, nil)
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.IDJAG = &grants.IDJAGConfig{Policies: map[string]grants.IDJAGPolicy{"test": {}}}
+	})
 	defer httpServer.Close()
 
 	mockTestStorage(t, s.storage)
@@ -352,6 +355,16 @@ func TestHandleIntrospectTypedAccessToken(t *testing.T) {
 		ConnectorID: "test",
 	})
 	require.NoError(t, err)
+	require.Equal(t, "at+jwt", tokenTyp(t, accessToken))
+
+	userinfoURL, err := url.Parse(s.issuerURL.String())
+	require.NoError(t, err)
+	userinfoURL.Path = path.Join(userinfoURL.Path, "userinfo")
+	userinfoReq, _ := http.NewRequest("GET", userinfoURL.String(), nil)
+	userinfoReq.Header.Set("Authorization", "Bearer "+accessToken)
+	userinfoRR := httptest.NewRecorder()
+	s.ServeHTTP(userinfoRR, userinfoReq)
+	require.Equal(t, http.StatusOK, userinfoRR.Code, "userinfo: %s", userinfoRR.Body.String())
 
 	data := url.Values{}
 	data.Set("token", accessToken)

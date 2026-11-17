@@ -76,14 +76,9 @@ func TestIssuerIssue(t *testing.T) {
 	require.Empty(t, ts2.RefreshToken)
 }
 
-// TestIssuerTokenTypes checks that access tokens carry typ at+jwt and ID tokens
-// carry no typ, so the two are distinguishable in the JWT header.
+// TestIssuerTokenTypes checks that only a client selected by TypeAccessTokenFor
+// gets access tokens typed at+jwt, and that ID tokens never carry a typ.
 func TestIssuerTokenTypes(t *testing.T) {
-	iss, _ := newTestIssuer(t)
-
-	ts, err := iss.Issue(t.Context(), testAuthorization(), "", false)
-	require.NoError(t, err)
-
 	headerType := func(token string) (any, bool) {
 		jws, err := jose.ParseSigned(token, []jose.SignatureAlgorithm{jose.RS256})
 		require.NoError(t, err)
@@ -91,10 +86,29 @@ func TestIssuerTokenTypes(t *testing.T) {
 		return typ, ok
 	}
 
-	typ, ok := headerType(ts.AccessToken)
-	require.True(t, ok, "access token has no typ")
-	require.Equal(t, "at+jwt", typ)
+	iss, _ := newTestIssuer(t)
 
+	ts, err := iss.Issue(t.Context(), testAuthorization(), "", false)
+	require.NoError(t, err)
+	_, ok := headerType(ts.AccessToken)
+	require.False(t, ok, "access token has a typ without TypeAccessTokenFor")
 	_, ok = headerType(ts.IDToken)
 	require.False(t, ok, "ID token has a typ")
+
+	iss.TypeAccessTokenFor = func(clientID string) bool { return clientID == "client-1" }
+
+	ts, err = iss.Issue(t.Context(), testAuthorization(), "", false)
+	require.NoError(t, err)
+	typ, ok := headerType(ts.AccessToken)
+	require.True(t, ok, "selected client's access token has no typ")
+	require.Equal(t, "at+jwt", typ)
+	_, ok = headerType(ts.IDToken)
+	require.False(t, ok, "selected client's ID token has a typ")
+
+	other := testAuthorization()
+	other.Client = storage.Client{ID: "client-2"}
+	ts, err = iss.Issue(t.Context(), other, "", false)
+	require.NoError(t, err)
+	_, ok = headerType(ts.AccessToken)
+	require.False(t, ok, "another client's access token has a typ")
 }

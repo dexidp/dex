@@ -25,6 +25,11 @@ type Issuer struct {
 	now              func() time.Time
 	logger           *slog.Logger
 
+	// TypeAccessTokenFor reports whether a client's access tokens are typed
+	// at+jwt. Nil types none. The server selects the clients that have an
+	// ID-JAG policy, so every other client keeps untyped access tokens.
+	TypeAccessTokenFor func(clientID string) bool
+
 	// Refresh persists and rotates refresh tokens.
 	Refresh *RefreshStore
 }
@@ -85,9 +90,14 @@ func (i *Issuer) IssueResponse(ctx context.Context, auth Authorization, code str
 
 // SignAccessToken mints an opaque-looking JWT access token. Dex's access token
 // carries ID token claims bound to a random value, so each access token is
-// unique, and is typed at+jwt so it is not accepted where an ID token is required.
+// unique. For a client that TypeAccessTokenFor selects it is typed at+jwt, so
+// it is not accepted where an ID token is required.
 func (i *Issuer) SignAccessToken(ctx context.Context, auth Authorization) (string, time.Time, error) {
-	return i.signToken(ctx, auth, storage.NewID(), "", signer.TypeAccessToken)
+	typ := ""
+	if i.TypeAccessTokenFor != nil && i.TypeAccessTokenFor(auth.Client.ID) {
+		typ = signer.TypeAccessToken
+	}
+	return i.signToken(ctx, auth, storage.NewID(), "", typ)
 }
 
 // SignIDToken mints an ID token. accessToken/code, when set, contribute

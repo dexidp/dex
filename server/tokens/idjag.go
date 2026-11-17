@@ -50,8 +50,10 @@ func (i *Issuer) SignIDJAG(ctx context.Context, claims IDJAGClaims, validFor tim
 }
 
 // VerifyIDToken verifies an ID token this issuer signed and issued to clientID.
-// Dex access tokens are typed at+jwt, which the KeySet refuses here. Untyped
-// access tokens issued before that change still pass until they expire.
+// The access tokens of a client with an ID-JAG policy are typed at+jwt, which
+// the KeySet refuses here. An untyped access token of another client fails the
+// audience and azp checks below. An untyped access token issued to clientID
+// before it had a policy still passes until it expires.
 func (i *Issuer) VerifyIDToken(ctx context.Context, rawIDToken, clientID string) (*oidc.IDToken, error) {
 	verifier := oidc.NewVerifier(i.issuerURL.String(), &signer.KeySet{Signer: i.signer}, &oidc.Config{
 		ClientID:             clientID,

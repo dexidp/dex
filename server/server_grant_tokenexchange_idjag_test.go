@@ -584,7 +584,48 @@ func TestTokenExchangeIDJAGAccessTokenSubject(t *testing.T) {
 		ConnectorID: "mock",
 	})
 	require.NoError(t, err)
+	require.Equal(t, signer.TypeAccessToken, tokenTyp(t, accessToken))
 
 	rr := postToken(t, s, httpServer, idJAGRequest(accessToken))
 	require.Equal(t, http.StatusBadRequest, rr.Code, "an access token is not an Identity Assertion: %s", rr.Body.String())
+}
+
+// tokenTyp returns the typ header of a signed token, empty when it has none.
+func tokenTyp(t *testing.T, token string) string {
+	t.Helper()
+	jws, err := jose.ParseSigned(token, []jose.SignatureAlgorithm{jose.RS256, jose.ES256})
+	require.NoError(t, err)
+	typ, _ := jws.Signatures[0].Protected.ExtraHeaders[jose.HeaderType].(string)
+	return typ
+}
+
+// TestTokenExchangeIDJAGOtherClientAccessToken checks that a client with an
+// ID-JAG policy cannot exchange the untyped access token of a client without
+// one, also when the policy client is among that token's audiences.
+func TestTokenExchangeIDJAGOtherClientAccessToken(t *testing.T) {
+	httpServer, s := newIDJAGTestServer(t, map[string]grants.IDJAGPolicy{
+		"client_1": {AllowedAudiences: []string{idJAGAudience}},
+	}, func(c *Config) {
+		require.NoError(t, c.Storage.CreateClient(t.Context(), storage.Client{ID: "other_client", Secret: "secret_3"}))
+	})
+	defer httpServer.Close()
+
+	for name, scopes := range map[string][]string{
+		"own audience only":             {"openid", "email"},
+		"policy client among audiences": {"openid", "email", "audience:server:client_id:client_1"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			accessToken, _, err := s.issuer.SignAccessToken(t.Context(), tokens.Authorization{
+				Client:      storage.Client{ID: "other_client"},
+				Claims:      storage.Claims{UserID: "0-385-28089-0", Email: "kilgore@kilgore.trout", EmailVerified: true},
+				Scopes:      scopes,
+				ConnectorID: "mock",
+			})
+			require.NoError(t, err)
+			require.Empty(t, tokenTyp(t, accessToken), "a client without an ID-JAG policy keeps untyped access tokens")
+
+			rr := postToken(t, s, httpServer, idJAGRequest(accessToken))
+			require.Equal(t, http.StatusBadRequest, rr.Code, "another client's access token is not an Identity Assertion: %s", rr.Body.String())
+		})
+	}
 }

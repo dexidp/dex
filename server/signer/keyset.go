@@ -9,7 +9,8 @@ import (
 	jose "github.com/go-jose/go-jose/v4"
 )
 
-// TypeAccessToken is the JWT "typ" header of Dex access tokens (RFC 9068).
+// TypeAccessToken is the JWT "typ" header (RFC 9068) of the access tokens Dex
+// issues to clients that have an ID-JAG policy.
 const TypeAccessToken = "at+jwt"
 
 // KeySet implements the oidc.KeySet interface backed by a Dex Signer,
@@ -28,9 +29,10 @@ func (k *KeySet) VerifySignature(ctx context.Context, jwt string) (payload []byt
 		return nil, err
 	}
 
-	// ID tokens carry no typ or "JWT". Access tokens carry "at+jwt" and pass only
-	// when AcceptAccessTokens is set. Other typed tokens, such as ID-JAGs, never
-	// pass, because Dex does not verify them itself.
+	// ID tokens and untyped access tokens carry no typ or "JWT". Typed access
+	// tokens carry "at+jwt" and pass only when AcceptAccessTokens is set. Other
+	// typed tokens, such as ID-JAGs, never pass, because Dex does not verify
+	// them itself.
 	if typ, ok := jws.Signatures[0].Protected.ExtraHeaders[jose.HeaderType]; ok {
 		s, _ := typ.(string)
 		accessToken := strings.EqualFold(s, TypeAccessToken) || strings.EqualFold(s, "application/"+TypeAccessToken)
