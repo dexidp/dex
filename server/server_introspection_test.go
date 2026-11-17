@@ -332,3 +332,43 @@ func TestHandleIntrospectRefreshTokenWithoutAbsoluteLifetime(t *testing.T) {
 	require.Contains(t, resp, "iat")
 	require.NotContains(t, resp, "exp", "a refresh token without an absolute lifetime must not report an expiry")
 }
+
+// TestHandleIntrospectTypedAccessToken checks that introspection accepts an
+// access token typed at+jwt.
+func TestHandleIntrospectTypedAccessToken(t *testing.T) {
+	httpServer, s := newTestServer(t, nil)
+	defer httpServer.Close()
+
+	mockTestStorage(t, s.storage)
+
+	accessToken, _, err := s.issuer.SignAccessToken(t.Context(), tokens.Authorization{
+		Client: storage.Client{ID: "test"},
+		Claims: storage.Claims{
+			UserID:   "1",
+			Username: "jane",
+			Email:    "jane.doe@example.com",
+		},
+		Scopes:      []string{"openid", "email", "profile"},
+		ConnectorID: "test",
+	})
+	require.NoError(t, err)
+
+	data := url.Values{}
+	data.Set("token", accessToken)
+
+	u, err := url.Parse(s.issuerURL.String())
+	require.NoError(t, err)
+	u.Path = path.Join(u.Path, "token", "introspect")
+
+	req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(data.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	rr := httptest.NewRecorder()
+	s.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	require.Equal(t, true, resp["active"], "body: %s", rr.Body.String())
+	require.Equal(t, "access_token", resp["token_use"])
+}

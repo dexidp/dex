@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	jose "github.com/go-jose/go-jose/v4"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/server/internal"
@@ -73,4 +74,27 @@ func TestIssuerIssue(t *testing.T) {
 	require.NotEmpty(t, ts2.AccessToken)
 	require.NotEmpty(t, ts2.IDToken)
 	require.Empty(t, ts2.RefreshToken)
+}
+
+// TestIssuerTokenTypes checks that access tokens carry typ at+jwt and ID tokens
+// carry no typ, so the two are distinguishable in the JWT header.
+func TestIssuerTokenTypes(t *testing.T) {
+	iss, _ := newTestIssuer(t)
+
+	ts, err := iss.Issue(t.Context(), testAuthorization(), "", false)
+	require.NoError(t, err)
+
+	headerType := func(token string) (any, bool) {
+		jws, err := jose.ParseSigned(token, []jose.SignatureAlgorithm{jose.RS256})
+		require.NoError(t, err)
+		typ, ok := jws.Signatures[0].Protected.ExtraHeaders[jose.HeaderType]
+		return typ, ok
+	}
+
+	typ, ok := headerType(ts.AccessToken)
+	require.True(t, ok, "access token has no typ")
+	require.Equal(t, "at+jwt", typ)
+
+	_, ok = headerType(ts.IDToken)
+	require.False(t, ok, "ID token has a typ")
 }

@@ -83,15 +83,22 @@ func (i *Issuer) IssueResponse(ctx context.Context, auth Authorization, code str
 	return ts.Response(i.now()), nil
 }
 
-// SignAccessToken mints an opaque-looking JWT access token. Dex's access token is
-// an ID token bound to a random value, so each access token is unique.
+// SignAccessToken mints an opaque-looking JWT access token. Dex's access token
+// carries ID token claims bound to a random value, so each access token is
+// unique, and is typed at+jwt so it is not accepted where an ID token is required.
 func (i *Issuer) SignAccessToken(ctx context.Context, auth Authorization) (string, time.Time, error) {
-	return i.SignIDToken(ctx, auth, storage.NewID(), "")
+	return i.signToken(ctx, auth, storage.NewID(), "", signer.TypeAccessToken)
 }
 
 // SignIDToken mints an ID token. accessToken/code, when set, contribute
 // at_hash/c_hash.
 func (i *Issuer) SignIDToken(ctx context.Context, auth Authorization, accessToken, code string) (string, time.Time, error) {
+	return i.signToken(ctx, auth, accessToken, code, "")
+}
+
+// signToken mints a JWT with ID token claims and the given typ header, omitted
+// when typ is empty.
+func (i *Issuer) signToken(ctx context.Context, auth Authorization, accessToken, code, typ string) (string, time.Time, error) {
 	issuedAt := i.now()
 	expiry := issuedAt.Add(i.idTokensValidFor)
 
@@ -181,11 +188,11 @@ func (i *Issuer) SignIDToken(ctx context.Context, auth Authorization, accessToke
 		return "", expiry, fmt.Errorf("could not serialize claims: %v", err)
 	}
 
-	idToken, err := i.signer.Sign(ctx, payload)
+	token, err := i.signer.SignWithType(ctx, payload, typ)
 	if err != nil {
 		return "", expiry, fmt.Errorf("failed to sign payload: %v", err)
 	}
-	return idToken, expiry, nil
+	return token, expiry, nil
 }
 
 // crossClientTrusted reports whether peerID's client trusts clientID as a peer.

@@ -567,3 +567,24 @@ func TestTokenExchangeIDJAGEndedSession(t *testing.T) {
 		}
 	}
 }
+
+// TestTokenExchangeIDJAGAccessTokenSubject checks that a dex access token, which
+// carries ID token claims, is not accepted as the Identity Assertion
+// (draft-ietf-oauth-identity-assertion-authz-grant-06 §4.3.3).
+func TestTokenExchangeIDJAGAccessTokenSubject(t *testing.T) {
+	httpServer, s := newIDJAGTestServer(t, map[string]grants.IDJAGPolicy{
+		"client_1": {AllowedAudiences: []string{idJAGAudience}},
+	}, nil)
+	defer httpServer.Close()
+
+	accessToken, _, err := s.issuer.SignAccessToken(t.Context(), tokens.Authorization{
+		Client:      storage.Client{ID: "client_1"},
+		Claims:      storage.Claims{UserID: "0-385-28089-0", Email: "kilgore@kilgore.trout", EmailVerified: true},
+		Scopes:      []string{"openid", "email"},
+		ConnectorID: "mock",
+	})
+	require.NoError(t, err)
+
+	rr := postToken(t, s, httpServer, idJAGRequest(accessToken))
+	require.Equal(t, http.StatusBadRequest, rr.Code, "an access token is not an Identity Assertion: %s", rr.Body.String())
+}

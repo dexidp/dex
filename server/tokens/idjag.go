@@ -50,7 +50,8 @@ func (i *Issuer) SignIDJAG(ctx context.Context, claims IDJAGClaims, validFor tim
 }
 
 // VerifyIDToken verifies an ID token this issuer signed and issued to clientID.
-// Dex access tokens are ID tokens with a random at_hash, so they pass here too.
+// Dex access tokens are typed at+jwt, which the KeySet refuses here. Untyped
+// access tokens issued before that change still pass until they expire.
 func (i *Issuer) VerifyIDToken(ctx context.Context, rawIDToken, clientID string) (*oidc.IDToken, error) {
 	verifier := oidc.NewVerifier(i.issuerURL.String(), &signer.KeySet{Signer: i.signer}, &oidc.Config{
 		ClientID:             clientID,
