@@ -2,22 +2,29 @@ package grants
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/tokens"
+	"github.com/dexidp/dex/server/useridentity"
 	"github.com/dexidp/dex/storage"
 )
 
 // password serves the Resource Owner Password Credentials grant: the client
 // exchanges a username and password for tokens via a password-capable connector.
 type password struct {
-	issuer      *tokens.Issuer
-	logger      *slog.Logger
-	connectorID string
+	issuer          *tokens.Issuer
+	logger          *slog.Logger
+	connectorID     string
+	storage         storage.Storage
+	sessionsEnabled bool
+	now             func() time.Time
 }
 
 func (g *password) GrantType() string {
@@ -63,6 +70,22 @@ func (g *password) Authorize(ctx context.Context, req *Request, client storage.C
 	}
 	if !ok {
 		return nil, &oauth2.Error{Type: oauth2.AccessDenied, Description: "Invalid username or password", Status: http.StatusUnauthorized}
+	}
+
+	// Enforce the account lock and persist the user identity the same way the
+	// browser flow's finalize step does, so a refresh under sessions can
+	// resolve the cached claims instead of failing on a missing identity, and
+	// a locked account cannot mint tokens. Without the identity row a
+	// password-grant refresh token can never be used while sessions are enabled.
+	if g.sessionsEnabled {
+		err := useridentity.RecordLogin(ctx, g.storage, g.logger, g.now, identity, g.connectorID)
+		var locked *useridentity.LockedError
+		switch {
+		case errors.As(err, &locked):
+			return nil, &oauth2.Error{Type: oauth2.InvalidGrant, Description: fmt.Sprintf("Account is locked until %s.", locked.Until.Format(time.RFC3339)), Status: http.StatusBadRequest}
+		case err != nil:
+			return nil, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
+		}
 	}
 
 	auth := tokens.Authorization{
