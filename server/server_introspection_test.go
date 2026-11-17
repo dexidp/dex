@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/grants"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/introspection"
 	"github.com/dexidp/dex/server/tokens"
@@ -331,4 +332,56 @@ func TestHandleIntrospectRefreshTokenWithoutAbsoluteLifetime(t *testing.T) {
 	require.Equal(t, "refresh_token", resp["token_use"])
 	require.Contains(t, resp, "iat")
 	require.NotContains(t, resp, "exp", "a refresh token without an absolute lifetime must not report an expiry")
+}
+
+// TestHandleIntrospectTypedAccessToken checks that introspection and userinfo
+// accept the at+jwt access token of a client with an ID-JAG policy.
+func TestHandleIntrospectTypedAccessToken(t *testing.T) {
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.IDJAG = &grants.IDJAGConfig{Policies: map[string]grants.IDJAGPolicy{"test": {}}}
+	})
+	defer httpServer.Close()
+
+	mockTestStorage(t, s.storage)
+
+	accessToken, _, err := s.issuer.SignAccessToken(t.Context(), tokens.Authorization{
+		Client: storage.Client{ID: "test"},
+		Claims: storage.Claims{
+			UserID:   "1",
+			Username: "jane",
+			Email:    "jane.doe@example.com",
+		},
+		Scopes:      []string{"openid", "email", "profile"},
+		ConnectorID: "test",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "at+jwt", tokenTyp(t, accessToken))
+
+	userinfoURL, err := url.Parse(s.issuerURL.String())
+	require.NoError(t, err)
+	userinfoURL.Path = path.Join(userinfoURL.Path, "userinfo")
+	userinfoReq, _ := http.NewRequest("GET", userinfoURL.String(), nil)
+	userinfoReq.Header.Set("Authorization", "Bearer "+accessToken)
+	userinfoRR := httptest.NewRecorder()
+	s.ServeHTTP(userinfoRR, userinfoReq)
+	require.Equal(t, http.StatusOK, userinfoRR.Code, "userinfo: %s", userinfoRR.Body.String())
+
+	data := url.Values{}
+	data.Set("token", accessToken)
+
+	u, err := url.Parse(s.issuerURL.String())
+	require.NoError(t, err)
+	u.Path = path.Join(u.Path, "token", "introspect")
+
+	req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(data.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	rr := httptest.NewRecorder()
+	s.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	require.Equal(t, true, resp["active"], "body: %s", rr.Body.String())
+	require.Equal(t, "access_token", resp["token_use"])
 }

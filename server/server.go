@@ -104,6 +104,15 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		IssuerURL: s.issuerURL,
 	}
 	s.issuer = tokens.NewIssuer(s.storage, c.Signer, s.issuerURL.URL, rc.idTokensValidFor, rc.now, s.logger)
+	if c.IDJAG != nil {
+		// Only a client with an ID-JAG policy can exchange a token for an
+		// ID-JAG, so only its access tokens need a type that the exchange
+		// refuses. Other clients keep the untyped format.
+		s.issuer.TypedAccessTokenClients = make(map[string]bool, len(c.IDJAG.Policies))
+		for clientID := range c.IDJAG.Policies {
+			s.issuer.TypedAccessTokenClients[clientID] = true
+		}
+	}
 	s.connectors = connectors.NewCache(s.storage, connectors.Resolver(s.storage, s.logger, ConnectorsConfig))
 	s.backchannel = &backchannel.Notifier{
 		Storage:   s.storage,

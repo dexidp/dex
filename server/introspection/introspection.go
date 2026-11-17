@@ -313,7 +313,7 @@ func (h *Handler) sessionAlive(ctx context.Context, client storage.Client, subje
 }
 
 func (h *Handler) introspectAccessToken(ctx context.Context, token string) (*Introspection, error) {
-	verifier := oidc.NewVerifier(h.Issuer, &signer.KeySet{Signer: h.Signer}, &oidc.Config{SkipClientIDCheck: true})
+	verifier := oidc.NewVerifier(h.Issuer, &signer.KeySet{Signer: h.Signer, AcceptAccessTokens: true}, &oidc.Config{SkipClientIDCheck: true})
 	idToken, err := verifier.Verify(ctx, token)
 	if err != nil {
 		return nil, newIntrospectInactiveTokenError()

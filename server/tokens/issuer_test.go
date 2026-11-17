@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	jose "github.com/go-jose/go-jose/v4"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/server/internal"
@@ -73,4 +74,41 @@ func TestIssuerIssue(t *testing.T) {
 	require.NotEmpty(t, ts2.AccessToken)
 	require.NotEmpty(t, ts2.IDToken)
 	require.Empty(t, ts2.RefreshToken)
+}
+
+// TestIssuerTokenTypes checks that only a client in TypedAccessTokenClients
+// gets access tokens typed at+jwt, and that ID tokens never carry a typ.
+func TestIssuerTokenTypes(t *testing.T) {
+	headerType := func(token string) (any, bool) {
+		jws, err := jose.ParseSigned(token, []jose.SignatureAlgorithm{jose.RS256})
+		require.NoError(t, err)
+		typ, ok := jws.Signatures[0].Protected.ExtraHeaders[jose.HeaderType]
+		return typ, ok
+	}
+
+	iss, _ := newTestIssuer(t)
+
+	ts, err := iss.Issue(t.Context(), testAuthorization(), "", false)
+	require.NoError(t, err)
+	_, ok := headerType(ts.AccessToken)
+	require.False(t, ok, "access token has a typ without TypedAccessTokenClients")
+	_, ok = headerType(ts.IDToken)
+	require.False(t, ok, "ID token has a typ")
+
+	iss.TypedAccessTokenClients = map[string]bool{"client-1": true}
+
+	ts, err = iss.Issue(t.Context(), testAuthorization(), "", false)
+	require.NoError(t, err)
+	typ, ok := headerType(ts.AccessToken)
+	require.True(t, ok, "selected client's access token has no typ")
+	require.Equal(t, "at+jwt", typ)
+	_, ok = headerType(ts.IDToken)
+	require.False(t, ok, "selected client's ID token has a typ")
+
+	other := testAuthorization()
+	other.Client = storage.Client{ID: "client-2"}
+	ts, err = iss.Issue(t.Context(), other, "", false)
+	require.NoError(t, err)
+	_, ok = headerType(ts.AccessToken)
+	require.False(t, ok, "another client's access token has a typ")
 }
