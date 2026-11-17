@@ -156,7 +156,8 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 // openConnectors opens every connector in storage into the cache. Nothing is
 // served without at least one, so an empty set is an error unless the connectors
 // API can add one later; so is a single failure, unless the server is configured
-// to start on a subset.
+// to start on a subset. When it is, every connector failing is still an error,
+// unless the connectors API can fix them later.
 func (s *Server) openConnectors(ctx context.Context, c Config) error {
 	// This list includes the static connectors defined in the ConfigMap and
 	// dynamic connectors retrieved from the storage.
@@ -188,7 +189,11 @@ func (s *Server) openConnectors(ctx context.Context, c Config) error {
 	}
 
 	if c.ContinueOnConnectorFailure && failedCount == len(storageConnectors) {
-		return fmt.Errorf("server: failed to open all connectors (%d/%d)", failedCount, len(storageConnectors))
+		if !c.AllowEmptyConnectors {
+			return fmt.Errorf("server: failed to open all connectors (%d/%d)", failedCount, len(storageConnectors))
+		}
+
+		s.logger.Warn("server: failed to open all connectors", "failed", failedCount)
 	}
 
 	return nil

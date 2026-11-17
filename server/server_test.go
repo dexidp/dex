@@ -1890,8 +1890,22 @@ func TestConnectorFailureHandling(t *testing.T) {
 			},
 			continueOnConnectorFailure: true,
 			allowEmptyConnectors:       true,
+			wantErr:                    false,
+			expectConnectors:           []string{},
+		},
+		{
+			name: "broken connector with empty connectors allowed and no partial start",
+			connectors: []storage.Connector{
+				{
+					ID:   "bad",
+					Type: "nonexistent",
+					Name: "Bad",
+				},
+			},
+			continueOnConnectorFailure: false,
+			allowEmptyConnectors:       true,
 			wantErr:                    true,
-			wantErrContains:            "failed to open all connectors (1/1)",
+			wantErrContains:            "Failed to open connector bad",
 		},
 	}
 
