@@ -76,7 +76,7 @@ func TestIssuerIssue(t *testing.T) {
 	require.Empty(t, ts2.RefreshToken)
 }
 
-// TestIssuerTokenTypes checks that only a client selected by TypeAccessTokenFor
+// TestIssuerTokenTypes checks that only a client in TypedAccessTokenClients
 // gets access tokens typed at+jwt, and that ID tokens never carry a typ.
 func TestIssuerTokenTypes(t *testing.T) {
 	headerType := func(token string) (any, bool) {
@@ -91,11 +91,11 @@ func TestIssuerTokenTypes(t *testing.T) {
 	ts, err := iss.Issue(t.Context(), testAuthorization(), "", false)
 	require.NoError(t, err)
 	_, ok := headerType(ts.AccessToken)
-	require.False(t, ok, "access token has a typ without TypeAccessTokenFor")
+	require.False(t, ok, "access token has a typ without TypedAccessTokenClients")
 	_, ok = headerType(ts.IDToken)
 	require.False(t, ok, "ID token has a typ")
 
-	iss.TypeAccessTokenFor = func(clientID string) bool { return clientID == "client-1" }
+	iss.TypedAccessTokenClients = map[string]bool{"client-1": true}
 
 	ts, err = iss.Issue(t.Context(), testAuthorization(), "", false)
 	require.NoError(t, err)
