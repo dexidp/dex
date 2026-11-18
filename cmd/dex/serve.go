@@ -250,8 +250,9 @@ func runServe(options serveOptions) error {
 			}
 			if sc.IDJAGPolicy != nil {
 				idJAGPolicies[client.ID] = grants.IDJAGPolicy{
-					AllowedAudiences: sc.IDJAGPolicy.AllowedAudiences,
-					AllowedScopes:    sc.IDJAGPolicy.AllowedScopes,
+					AllowedAudiences:  sc.IDJAGPolicy.AllowedAudiences,
+					AllowedScopes:     sc.IDJAGPolicy.AllowedScopes,
+					AudienceClientIDs: sc.IDJAGPolicy.AudienceClientIDs,
 				}
 			}
 			logger.Info("config static client", "client_name", client.Name)
