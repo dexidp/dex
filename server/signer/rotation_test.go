@@ -85,7 +85,7 @@ func TestKeyRotator(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		now = now.Add(rotationFrequency + delta)
-		if err := r.rotate(); err != nil {
+		if err := r.rotate(false); err != nil {
 			t.Fatal(err)
 		}
 
@@ -99,5 +99,61 @@ func TestKeyRotator(t *testing.T) {
 		if n := len(expVerificationKeys); n > maxVerificationKeys {
 			expVerificationKeys = expVerificationKeys[n-maxVerificationKeys:]
 		}
+	}
+}
+
+func TestKeyRotatorAlgorithmCheck(t *testing.T) {
+	now := time.Now()
+	l := slog.New(slog.DiscardHandler)
+
+	newRotator := func(s storage.Storage, alg jose.SignatureAlgorithm) *keyRotator {
+		strategy, err := rotationStrategyForAlgorithm(time.Hour, time.Hour, alg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return &keyRotator{
+			Storage:  s,
+			strategy: strategy,
+			now:      func() time.Time { return now },
+			logger:   l,
+		}
+	}
+
+	s := memory.New(l)
+	if err := newRotator(s, jose.RS256).rotate(false); err != nil {
+		t.Fatal(err)
+	}
+	rsaKeyID := signingKeyID(t, s)
+
+	// A key that matches the configured algorithm is kept.
+	if err := newRotator(s, jose.RS256).rotate(true); err != nil {
+		t.Fatal(err)
+	}
+	if got := signingKeyID(t, s); got != rsaKeyID {
+		t.Fatalf("expected signing key %q to be kept, got %q", rsaKeyID, got)
+	}
+
+	// A key with another algorithm is kept until it expires unless the
+	// algorithm is checked.
+	es := newRotator(s, jose.ES256)
+	if err := es.rotate(false); err != nil {
+		t.Fatal(err)
+	}
+	if got := signingKeyID(t, s); got != rsaKeyID {
+		t.Fatalf("expected signing key %q to be kept, got %q", rsaKeyID, got)
+	}
+
+	if err := es.rotate(true); err != nil {
+		t.Fatal(err)
+	}
+	keys, err := s.GetKeys(context.TODO())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if keys.SigningKey.KeyID == rsaKeyID || keys.SigningKey.Algorithm != string(jose.ES256) {
+		t.Fatalf("expected a new ES256 signing key, got %q (%s)", keys.SigningKey.KeyID, keys.SigningKey.Algorithm)
+	}
+	if got := verificationKeyIDs(t, s); !slicesEq(got, []string{rsaKeyID}) {
+		t.Fatalf("expected the RS256 key %q to be kept for verification, got %q", rsaKeyID, got)
 	}
 }

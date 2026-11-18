@@ -6,32 +6,45 @@ package authflow
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"time"
 
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/server/tokens"
+	"github.com/dexidp/dex/server/useridentity"
 	"github.com/dexidp/dex/storage"
 )
+
+// sessionAuthRequest returns authReq as the browser session should record it.
+// The session keeps only what the connector's upstream logout needs
+// (connector.StatefulLogoutCallbackConnector.LogoutSessionData). The rest of the
+// connector data is upstream credentials, such as refresh tokens, or claims, and
+// the session has no use for them, so for every other connector it is dropped.
+func (h *Handler) sessionAuthRequest(ctx context.Context, authReq storage.AuthRequest, conn connector.Connector) storage.AuthRequest {
+	logoutConn, ok := conn.(connector.StatefulLogoutCallbackConnector)
+	if !ok {
+		authReq.ConnectorData = nil
+		return authReq
+	}
+
+	data, err := logoutConn.LogoutSessionData(authReq.ConnectorData)
+	if err != nil {
+		h.Logger.WarnContext(ctx, "failed to derive upstream logout data for the auth session, upstream logout will be skipped",
+			"connector_id", authReq.ConnectorID, "err", err)
+		data = nil
+	}
+	authReq.ConnectorData = data
+	return authReq
+}
 
 // finalizeLogin associates the user's identity with the current AuthRequest, then returns
 // the approval page's path.
 func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity, authReq storage.AuthRequest, conn connector.Connector) (storage.AuthRequest, error) {
-	// Refuse to complete login for a locked account. BlockedUntil lives on the
-	// persisted UserIdentity, which only exists when the sessions feature is on;
-	// a first-time login (no stored identity yet) cannot be blocked.
+	// Enforce the account lock and persist the user's identity the same way
+	// every login path must. The UserIdentity row only exists when the
+	// sessions feature is on; a first-time login cannot be blocked.
 	if h.Sessions.Enabled() {
-		storedIdentity, err := h.Storage.GetUserIdentity(ctx, identity.UserID, authReq.ConnectorID)
-		switch {
-		case err == nil:
-			if !storedIdentity.BlockedUntil.IsZero() && h.Now().Before(storedIdentity.BlockedUntil) {
-				h.Logger.WarnContext(ctx, "login rejected for locked account",
-					"connector_id", authReq.ConnectorID, "user_id", identity.UserID, "blocked_until", storedIdentity.BlockedUntil)
-				return storage.AuthRequest{}, fmt.Errorf("account is locked until %s", storedIdentity.BlockedUntil.Format(time.RFC3339))
-			}
-		case !errors.Is(err, storage.ErrNotFound):
-			return storage.AuthRequest{}, fmt.Errorf("failed to look up user identity: %w", err)
+		if err := useridentity.RecordLogin(ctx, h.Storage, h.Logger, h.Now, identity, authReq.ConnectorID); err != nil {
+			return storage.AuthRequest{}, err
 		}
 	}
 
@@ -109,40 +122,6 @@ func (h *Handler) finalizeLogin(ctx context.Context, identity connector.Identity
 			}
 		default:
 			h.Logger.ErrorContext(ctx, "failed to get offline session", "err", err)
-			return storage.AuthRequest{}, err
-		}
-	}
-
-	// Create or update UserIdentity to persist user claims across sessions.
-	if h.Sessions.Enabled() {
-		now := h.Now()
-
-		_, err := h.Storage.GetUserIdentity(ctx, identity.UserID, authReq.ConnectorID)
-		switch {
-		case err != nil && errors.Is(err, storage.ErrNotFound):
-			ui := storage.UserIdentity{
-				UserID:      identity.UserID,
-				ConnectorID: authReq.ConnectorID,
-				Claims:      claims,
-				Consents:    make(map[string][]string),
-				CreatedAt:   now,
-				LastLogin:   now,
-			}
-			if err := h.Storage.CreateUserIdentity(ctx, ui); err != nil {
-				h.Logger.ErrorContext(ctx, "failed to create user identity", "err", err)
-				return storage.AuthRequest{}, err
-			}
-		case err == nil:
-			if err := h.Storage.UpdateUserIdentity(ctx, identity.UserID, authReq.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
-				old.Claims = claims
-				old.LastLogin = now
-				return old, nil
-			}); err != nil {
-				h.Logger.ErrorContext(ctx, "failed to update user identity", "err", err)
-				return storage.AuthRequest{}, err
-			}
-		default:
-			h.Logger.ErrorContext(ctx, "failed to get user identity", "err", err)
 			return storage.AuthRequest{}, err
 		}
 	}

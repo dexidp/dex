@@ -93,9 +93,18 @@ type keyRotator struct {
 	logger *slog.Logger
 }
 
-func (k keyRotator) rotationReason(keys storage.Keys, tNow time.Time) string {
+// rotationReason reports why the signing key must be rotated now, or "" if it
+// does not have to be. When checkAlgorithm is set, a signing key whose algorithm
+// differs from the configured one is rotated as well.
+func (k keyRotator) rotationReason(keys storage.Keys, tNow time.Time, checkAlgorithm bool) string {
 	if keys.SigningKey == nil {
 		return "missing signing key"
+	}
+
+	if checkAlgorithm {
+		if alg, err := signatureAlgorithm(keys.SigningKey); err == nil && alg != k.strategy.algorithm {
+			return "signing algorithm changed"
+		}
 	}
 
 	if tNow.Before(keys.NextRotation) {
@@ -104,13 +113,17 @@ func (k keyRotator) rotationReason(keys storage.Keys, tNow time.Time) string {
 	return "expired"
 }
 
-func (k keyRotator) rotate() error {
+// rotate replaces the signing key if rotationReason requires it. checkAlgorithm
+// is set only on startup: switching the configured algorithm and restarting
+// then takes effect immediately, while instances that share storage but are
+// configured with different algorithms do not keep rotating each other's keys.
+func (k keyRotator) rotate(checkAlgorithm bool) error {
 	keys, err := k.GetKeys(context.Background())
 	if err != nil && err != storage.ErrNotFound {
 		return fmt.Errorf("get keys: %v", err)
 	}
 
-	reason := k.rotationReason(keys, k.now())
+	reason := k.rotationReason(keys, k.now(), checkAlgorithm)
 	if reason == "" {
 		return nil
 	}
@@ -129,7 +142,7 @@ func (k keyRotator) rotate() error {
 	var nextRotation time.Time
 	err = k.Storage.UpdateKeys(context.Background(), func(keys storage.Keys) (storage.Keys, error) {
 		tNow := k.now()
-		reason := k.rotationReason(keys, tNow)
+		reason := k.rotationReason(keys, tNow, checkAlgorithm)
 
 		// if you are running multiple instances of dex, another instance
 		// could have already rotated the keys.

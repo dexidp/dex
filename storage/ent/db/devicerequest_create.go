@@ -117,11 +117,6 @@ func (_c *DeviceRequestCreate) check() error {
 	if _, ok := _c.mutation.ClientSecret(); !ok {
 		return &ValidationError{Name: "client_secret", err: errors.New(`db: missing required field "DeviceRequest.client_secret"`)}
 	}
-	if v, ok := _c.mutation.ClientSecret(); ok {
-		if err := devicerequest.ClientSecretValidator(v); err != nil {
-			return &ValidationError{Name: "client_secret", err: fmt.Errorf(`db: validator failed for field "DeviceRequest.client_secret": %w`, err)}
-		}
-	}
 	if _, ok := _c.mutation.Expiry(); !ok {
 		return &ValidationError{Name: "expiry", err: errors.New(`db: missing required field "DeviceRequest.expiry"`)}
 	}

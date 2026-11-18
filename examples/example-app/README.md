@@ -29,9 +29,9 @@ in another tab and this app stops showing you as signed in.
 
 ## Configuring dex for it
 
-`examples/config-dev.yaml` is set up for all of this already — sessions, the
-device callback, the password connector and the gRPC API. What each part is for,
-if you are writing your own config:
+`examples/config-dev.yaml` is set up for the device callback, the password
+connector and the gRPC API, and has the `sessions` block commented out. What
+each part is for, if you are writing your own config:
 
 ```yaml
 oauth2:

@@ -170,29 +170,14 @@ func (_c *OAuth2ClientCreate) check() error {
 	if _, ok := _c.mutation.Secret(); !ok {
 		return &ValidationError{Name: "secret", err: errors.New(`db: missing required field "OAuth2Client.secret"`)}
 	}
-	if v, ok := _c.mutation.Secret(); ok {
-		if err := oauth2client.SecretValidator(v); err != nil {
-			return &ValidationError{Name: "secret", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.secret": %w`, err)}
-		}
-	}
 	if _, ok := _c.mutation.Public(); !ok {
 		return &ValidationError{Name: "public", err: errors.New(`db: missing required field "OAuth2Client.public"`)}
 	}
 	if _, ok := _c.mutation.Name(); !ok {
 		return &ValidationError{Name: "name", err: errors.New(`db: missing required field "OAuth2Client.name"`)}
 	}
-	if v, ok := _c.mutation.Name(); ok {
-		if err := oauth2client.NameValidator(v); err != nil {
-			return &ValidationError{Name: "name", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.name": %w`, err)}
-		}
-	}
 	if _, ok := _c.mutation.LogoURL(); !ok {
 		return &ValidationError{Name: "logo_url", err: errors.New(`db: missing required field "OAuth2Client.logo_url"`)}
-	}
-	if v, ok := _c.mutation.LogoURL(); ok {
-		if err := oauth2client.LogoURLValidator(v); err != nil {
-			return &ValidationError{Name: "logo_url", err: fmt.Errorf(`db: validator failed for field "OAuth2Client.logo_url": %w`, err)}
-		}
 	}
 	if v, ok := _c.mutation.ID(); ok {
 		if err := oauth2client.IDValidator(v); err != nil {

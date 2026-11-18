@@ -48,7 +48,8 @@ type Introspection struct {
 
 	// Integer timestamp, measured in the number of seconds
 	// since January 1 1970 UTC, indicating when this token will expire.
-	Expiry int64 `json:"exp"`
+	// Omitted for refresh tokens that have no absolute lifetime.
+	Expiry int64 `json:"exp,omitempty"`
 
 	// Integer timestamp, measured in the number of seconds
 	// since January 1 1970 UTC, indicating when this token was
@@ -260,12 +261,19 @@ func (h *Handler) introspectRefreshToken(ctx context.Context, token string) (*In
 		return nil, newIntrospectInternalServerError()
 	}
 
+	// Without an absolute lifetime a refresh token never expires on a fixed date,
+	// so exp is left out rather than reported as the issue time.
+	var expiry int64
+	if lifetime := h.RefreshPolicy.AbsoluteLifetime(); lifetime > 0 {
+		expiry = refresh.CreatedAt.Add(lifetime).Unix()
+	}
+
 	return &Introspection{
 		Active:    true,
 		ClientID:  refresh.ClientID,
 		IssuedAt:  refresh.CreatedAt.Unix(),
 		NotBefore: refresh.CreatedAt.Unix(),
-		Expiry:    refresh.CreatedAt.Add(h.RefreshPolicy.AbsoluteLifetime()).Unix(),
+		Expiry:    expiry,
 		Subject:   subjectString,
 		Username:  refresh.Claims.PreferredUsername,
 		// Refresh-token introspection does not resolve scopes, so the audience is
@@ -305,7 +313,7 @@ func (h *Handler) sessionAlive(ctx context.Context, client storage.Client, subje
 }
 
 func (h *Handler) introspectAccessToken(ctx context.Context, token string) (*Introspection, error) {
-	verifier := oidc.NewVerifier(h.Issuer, &signer.KeySet{Signer: h.Signer}, &oidc.Config{SkipClientIDCheck: true})
+	verifier := oidc.NewVerifier(h.Issuer, &signer.KeySet{Signer: h.Signer, AcceptAccessTokens: true}, &oidc.Config{SkipClientIDCheck: true})
 	idToken, err := verifier.Verify(ctx, token)
 	if err != nil {
 		return nil, newIntrospectInactiveTokenError()
@@ -325,6 +333,13 @@ func (h *Handler) introspectAccessToken(ctx context.Context, token string) (*Int
 
 	client, err := h.Storage.GetClient(ctx, clientID)
 	if err != nil {
+		// A token whose client has been deleted no longer resolves on this
+		// server, so RFC 7662 §2.2 wants it reported as inactive rather than as
+		// a server error. This mirrors how the refresh-token path treats a
+		// missing token. Any other storage failure is a real server error.
+		if errors.Is(err, storage.ErrNotFound) {
+			return nil, newIntrospectInactiveTokenError()
+		}
 		h.Logger.ErrorContext(ctx, "error while fetching client from storage", "err", err.Error())
 		return nil, newIntrospectInternalServerError()
 	}

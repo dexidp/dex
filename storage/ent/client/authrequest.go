@@ -36,7 +36,7 @@ func (d *Database) CreateAuthRequest(ctx context.Context, authRequest storage.Au
 		SetWebauthnSessionData(authRequest.WebAuthnSessionData).
 		SetPrompt(authRequest.Prompt).
 		SetMaxAge(authRequest.MaxAge).
-		SetAuthTime(authRequest.AuthTime).
+		SetNillableAuthTime(nonZeroTime(authRequest.AuthTime)).
 		Save(ctx)
 	if err != nil {
 		return convertDBError("create auth request: %w", err)
@@ -105,7 +105,7 @@ func (d *Database) UpdateAuthRequest(ctx context.Context, id string, updater fun
 		SetWebauthnSessionData(newAuthRequest.WebAuthnSessionData).
 		SetPrompt(newAuthRequest.Prompt).
 		SetMaxAge(newAuthRequest.MaxAge).
-		SetAuthTime(newAuthRequest.AuthTime).
+		SetNillableAuthTime(nonZeroTime(newAuthRequest.AuthTime)).
 		Save(context.TODO())
 	if err != nil {
 		return rollback(tx, "update auth request uploading: %w", err)

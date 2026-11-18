@@ -15,6 +15,7 @@ import (
 	"github.com/dexidp/dex/connector/mock"
 	"github.com/dexidp/dex/connector/oidc"
 	"github.com/dexidp/dex/server"
+	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/sql"
@@ -76,8 +77,8 @@ func TestInvalidRefreshTokenLifetime(t *testing.T) {
 		Issuer:  "http://127.0.0.1:5556/dex",
 		Storage: Storage{Type: "sqlite3", Config: &sql.SQLite3{File: "examples/dex.db"}},
 		Web:     Web{HTTP: "127.0.0.1:5556"},
-		StaticClients: []storage.Client{
-			{ID: "proxy", RefreshTokenLifetime: "sessions"},
+		StaticClients: []staticClient{
+			{Client: storage.Client{ID: "proxy", RefreshTokenLifetime: "sessions"}},
 		},
 	}
 
@@ -221,15 +222,15 @@ additionalFeatures: [
 				"foo": "bar",
 			},
 		},
-		StaticClients: []storage.Client{
-			{
+		StaticClients: []staticClient{
+			{Client: storage.Client{
 				ID:     "example-app",
 				Secret: "ZXhhbXBsZS1hcHAtc2VjcmV0",
 				Name:   "Example App",
 				RedirectURIs: []string{
 					"http://127.0.0.1:5555/callback",
 				},
-			},
+			}},
 		},
 		OAuth2: OAuth2{
 			AlwaysShowLoginScreen: true,
@@ -303,6 +304,86 @@ additionalFeatures: [
 	if diff := pretty.Compare(c, want); diff != "" {
 		t.Errorf("got!=want: %s", diff)
 	}
+}
+
+func TestUnmarshalConfigIDJAG(t *testing.T) {
+	rawConfig := []byte(`
+oauth2:
+  tokenExchange:
+    tokenTypes:
+      - urn:ietf:params:oauth:token-type:id_token
+      - urn:ietf:params:oauth:token-type:id-jag
+expiry:
+  idJAGTokens: "10m"
+staticClients:
+- id: wiki-app
+  secret: wiki-secret
+  name: 'Wiki Application'
+  idJAGPolicies:
+    allowedAudiences:
+    - https://chat.example/
+    allowedScopes:
+    - chat.read
+- id: other-app
+  secret: other-secret
+  name: 'Other Application'
+`)
+
+	var c Config
+	require.NoError(t, yaml.Unmarshal(rawConfig, &c))
+	require.True(t, c.OAuth2.TokenExchange.idJAGEnabled())
+	require.Equal(t, "10m", c.Expiry.IDJAGTokens)
+	require.Equal(t, []staticClient{
+		{
+			Client: storage.Client{ID: "wiki-app", Secret: "wiki-secret", Name: "Wiki Application"},
+			IDJAGPolicy: &IDJAGPolicy{
+				AllowedAudiences: []string{"https://chat.example/"},
+				AllowedScopes:    []string{"chat.read"},
+			},
+		},
+		{Client: storage.Client{ID: "other-app", Secret: "other-secret", Name: "Other Application"}},
+	}, c.StaticClients)
+}
+
+func TestInvalidIDJAGConfiguration(t *testing.T) {
+	base := func() Config {
+		return Config{
+			Issuer:  "http://127.0.0.1:5556/dex",
+			Storage: Storage{Type: "sqlite3", Config: &sql.SQLite3{File: "examples/dex.db"}},
+			Web:     Web{HTTP: "127.0.0.1:5556"},
+		}
+	}
+
+	t.Run("policy without ID-JAG enabled", func(t *testing.T) {
+		c := base()
+		c.StaticClients = []staticClient{{
+			Client:      storage.Client{ID: "wiki-app"},
+			IDJAGPolicy: &IDJAGPolicy{AllowedAudiences: []string{"https://chat.example/"}},
+		}}
+		err := c.Validate()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), `client "wiki-app" has idJAGPolicies`)
+	})
+
+	t.Run("policy on a public client", func(t *testing.T) {
+		c := base()
+		c.OAuth2.TokenExchange.TokenTypes = []string{oauth2.TokenTypeIDJAG}
+		c.StaticClients = []staticClient{{
+			Client:      storage.Client{ID: "cli", Public: true},
+			IDJAGPolicy: &IDJAGPolicy{AllowedAudiences: []string{"https://chat.example/"}},
+		}}
+		err := c.Validate()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), `client "cli" is public`)
+	})
+
+	t.Run("unknown token type", func(t *testing.T) {
+		c := base()
+		c.OAuth2.TokenExchange.TokenTypes = []string{"urn:ietf:params:oauth:token-type:id_jag"}
+		err := c.Validate()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unsupported token type")
+	})
 }
 
 func TestUnmarshalConfigWithEnvNoExpand(t *testing.T) {
@@ -450,15 +531,15 @@ logger:
 				"foo": "bar",
 			},
 		},
-		StaticClients: []storage.Client{
-			{
+		StaticClients: []staticClient{
+			{Client: storage.Client{
 				ID:     "example-app",
 				Secret: "ZXhhbXBsZS1hcHAtc2VjcmV0",
 				Name:   "Example App",
 				RedirectURIs: []string{
 					"http://127.0.0.1:5555/callback",
 				},
-			},
+			}},
 		},
 		OAuth2: OAuth2{
 			AlwaysShowLoginScreen: true,

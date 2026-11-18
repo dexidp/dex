@@ -104,6 +104,15 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		IssuerURL: s.issuerURL,
 	}
 	s.issuer = tokens.NewIssuer(s.storage, c.Signer, s.issuerURL.URL, rc.idTokensValidFor, rc.now, s.logger)
+	if c.IDJAG != nil {
+		// Only a client with an ID-JAG policy can exchange a token for an
+		// ID-JAG, so only its access tokens need a type that the exchange
+		// refuses. Other clients keep the untyped format.
+		s.issuer.TypedAccessTokenClients = make(map[string]bool, len(c.IDJAG.Policies))
+		for clientID := range c.IDJAG.Policies {
+			s.issuer.TypedAccessTokenClients[clientID] = true
+		}
+	}
 	s.connectors = connectors.NewCache(s.storage, connectors.Resolver(s.storage, s.logger, ConnectorsConfig))
 	s.backchannel = &backchannel.Notifier{
 		Storage:   s.storage,
@@ -123,6 +132,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		GrantTypes:      rc.grantTypes,
 		PKCEMethods:     c.PKCE.CodeChallengeMethodsSupported,
 		SessionsEnabled: c.SessionConfig != nil,
+		IDJAGEnabled:    c.IDJAG != nil,
 	}
 
 	if err := s.openConnectors(ctx, c); err != nil {
@@ -234,6 +244,15 @@ func instrumentHandler(registry *prometheus.Registry) func(string, http.Handler)
 	}
 }
 
+// idJAGMetrics registers the ID-JAG counters only when ID-JAG is enabled, so a
+// server without it exports no metrics that never move.
+func idJAGMetrics(c Config) *grants.IDJAGMetrics {
+	if c.IDJAG == nil || c.PrometheusRegistry == nil {
+		return nil
+	}
+	return grants.NewIDJAGMetrics(c.PrometheusRegistry)
+}
+
 // mount wires every domain onto routes. Self-contained domains mount their own
 // routes through the router.Mux abstraction; this is the only place they are
 // wired in.
@@ -258,6 +277,8 @@ func (s *Server) mount(routes router.Mux, c Config, rc resolvedConfig) {
 			Sessions:            sessions,
 			SessionsEnabled:     c.SessionConfig != nil,
 			SupportedGrantTypes: rc.grantTypes,
+			IDJAG:               c.IDJAG,
+			IDJAGMetrics:        idJAGMetrics(c),
 		},
 		&userinfo.Handler{
 			Issuer: s.issuerURL.String(),

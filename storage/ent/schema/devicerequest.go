@@ -36,8 +36,7 @@ func (DeviceRequest) Fields() []ent.Field {
 			SchemaType(textSchema).
 			NotEmpty(),
 		field.Text("client_secret").
-			SchemaType(textSchema).
-			NotEmpty(),
+			SchemaType(textSchema),
 		field.JSON("scopes", []string{}).
 			Optional(),
 		field.Time("expiry").

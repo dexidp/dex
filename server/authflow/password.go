@@ -92,7 +92,9 @@ func (h *Handler) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		if err := h.Templates.Password(r, w, r.URL.String(), "", usernamePrompt(pwConn), false, backLink, rememberMe); err != nil {
+		// Prefill the username from the OIDC login_hint the login handler forwarded
+		// (a hint only — the field stays editable).
+		if err := h.Templates.Password(r, w, r.URL.String(), r.URL.Query().Get("login_hint"), usernamePrompt(pwConn), false, backLink, rememberMe); err != nil {
 			h.Logger.ErrorContext(r.Context(), "server template error", "err", err)
 		}
 	case http.MethodPost:
@@ -121,7 +123,7 @@ func (h *Handler) handlePasswordLogin(w http.ResponseWriter, r *http.Request) {
 		}
 
 		rememberMe := r.FormValue("remember_me") == "on"
-		if err := h.Sessions.CreateOrUpdateAuthSession(ctx, r, w, authReq, rememberMe); err != nil {
+		if err := h.Sessions.CreateOrUpdateAuthSession(ctx, r, w, h.sessionAuthRequest(ctx, authReq, conn.Connector), rememberMe); err != nil {
 			h.Logger.ErrorContext(ctx, "failed to create/update auth session", "err", err)
 		}
 

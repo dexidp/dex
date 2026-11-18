@@ -70,12 +70,6 @@ func ValidColumn(column string) bool {
 }
 
 var (
-	// SecretValidator is a validator for the "secret" field. It is called by the builders before save.
-	SecretValidator func(string) error
-	// NameValidator is a validator for the "name" field. It is called by the builders before save.
-	NameValidator func(string) error
-	// LogoURLValidator is a validator for the "logo_url" field. It is called by the builders before save.
-	LogoURLValidator func(string) error
 	// DefaultBackchannelLogoutURI holds the default value on creation for the "backchannel_logout_uri" field.
 	DefaultBackchannelLogoutURI string
 	// DefaultRefreshTokenLifetime holds the default value on creation for the "refresh_token_lifetime" field.

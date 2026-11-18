@@ -2,7 +2,6 @@ package connectors
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"golang.org/x/crypto/bcrypt"
@@ -71,14 +70,14 @@ func (db passwordDB) Refresh(ctx context.Context, s connector.Scopes, identity c
 	p, err := db.s.GetPassword(ctx, identity.Email)
 	if err != nil {
 		if err == storage.ErrNotFound {
-			return connector.Identity{}, errors.New("user not found")
+			return connector.Identity{}, fmt.Errorf("user not found: %w", connector.ErrUserRevoked)
 		}
 		return connector.Identity{}, fmt.Errorf("get password: %v", err)
 	}
 
 	// User removed but a new user with the same email exists.
 	if p.UserID != identity.UserID {
-		return connector.Identity{}, errors.New("user not found")
+		return connector.Identity{}, fmt.Errorf("user not found: %w", connector.ErrUserRevoked)
 	}
 
 	// If a user has updated their username, that will be reflected in the

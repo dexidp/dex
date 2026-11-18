@@ -59,10 +59,14 @@ func signatureAlgorithmFromECDSACurve(curve elliptic.Curve) (jose.SignatureAlgor
 	}
 }
 
-func signPayload(key *jose.JSONWebKey, alg jose.SignatureAlgorithm, payload []byte) (jws string, err error) {
+func signPayload(key *jose.JSONWebKey, alg jose.SignatureAlgorithm, payload []byte, typ string) (jws string, err error) {
 	signingKey := jose.SigningKey{Key: key, Algorithm: alg}
 
-	signer, err := jose.NewSigner(signingKey, &jose.SignerOptions{})
+	opts := &jose.SignerOptions{}
+	if typ != "" {
+		opts.WithType(jose.ContentType(typ))
+	}
+	signer, err := jose.NewSigner(signingKey, opts)
 	if err != nil {
 		return "", fmt.Errorf("new signer: %v", err)
 	}

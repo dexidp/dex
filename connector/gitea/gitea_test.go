@@ -3,11 +3,15 @@ package gitea
 import (
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"reflect"
 	"testing"
+	"time"
+
+	"golang.org/x/oauth2"
 
 	"github.com/dexidp/dex/connector"
 )
@@ -68,5 +72,34 @@ func expectNil(t *testing.T, a interface{}) {
 func expectEquals(t *testing.T, a interface{}, b interface{}) {
 	if !reflect.DeepEqual(a, b) {
 		t.Errorf("Expected %+v to equal %+v", a, b)
+	}
+}
+
+// TestRefreshUpstreamRejection verifies that a refresh Gitea refuses keeps
+// the upstream's OAuth2 error, so the server can tell a rejected refresh
+// token apart from other failures.
+func TestRefreshUpstreamRejection(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid_grant"})
+	}))
+	defer s.Close()
+
+	c := giteaConnector{baseURL: s.URL, httpClient: newClient()}
+	connData, err := json.Marshal(connectorData{
+		AccessToken:  "access-token",
+		RefreshToken: "refresh-token",
+		Expiry:       time.Now().Add(-time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = c.Refresh(t.Context(), connector.Scopes{OfflineAccess: true}, connector.Identity{ConnectorData: connData})
+
+	var retrieveErr *oauth2.RetrieveError
+	if !errors.As(err, &retrieveErr) || retrieveErr.ErrorCode != "invalid_grant" {
+		t.Fatalf("expected the upstream invalid_grant in the error chain, got %v", err)
 	}
 }

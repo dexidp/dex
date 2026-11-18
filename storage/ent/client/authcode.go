@@ -26,7 +26,7 @@ func (d *Database) CreateAuthCode(ctx context.Context, code storage.AuthCode) er
 		SetExpiry(code.Expiry.UTC()).
 		SetConnectorID(code.ConnectorID).
 		SetConnectorData(code.ConnectorData).
-		SetAuthTime(code.AuthTime).
+		SetNillableAuthTime(nonZeroTime(code.AuthTime)).
 		SetSessionID(code.SessionID).
 		Save(ctx)
 	if err != nil {

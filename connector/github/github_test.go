@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/oauth2"
+
 	"github.com/dexidp/dex/connector"
 )
 
@@ -126,6 +128,32 @@ func TestUserGroupsWithTeamNameAndSlugFieldConfig(t *testing.T) {
 		"org-1:Team 1",
 		"org-1:team-1",
 	})
+}
+
+// tests case-insensitive org matching and the warn log on case mismatch
+func TestTeamsForOrgCaseInsensitive(t *testing.T) {
+	s := newTestServer(map[string]testResponse{
+		"/user/teams": {
+			data: []team{
+				{Name: "team-1", Org: org{Login: "myorg"}},
+				{Name: "team-2", Org: org{Login: "myorg"}},
+				{Name: "team-3", Org: org{Login: "otherorg"}},
+			},
+		},
+	})
+	defer s.Close()
+
+	var logBuf strings.Builder
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	c := githubConnector{apiURL: s.URL, logger: logger}
+
+	for _, configOrg := range []string{"MyOrg", "MYORG", "myOrg"} {
+		groups, err := c.teamsForOrg(context.Background(), newClient(), configOrg)
+		expectNil(t, err)
+		expectEquals(t, groups, []string{"team-1", "team-2"})
+	}
+
+	expectEquals(t, strings.Count(logBuf.String(), "level=WARN"), 3)
 }
 
 // tests that the users login is used as their username when they have no username set
@@ -686,5 +714,44 @@ func expectNotNil(t *testing.T, a interface{}, msg string) {
 func expectEquals(t *testing.T, a interface{}, b interface{}) {
 	if !reflect.DeepEqual(a, b) {
 		t.Errorf("Expected %+v to equal %+v", a, b)
+	}
+}
+
+// TestRefreshUpstreamRejection verifies that a refresh GitHub refuses keeps
+// the upstream's OAuth2 error, so the server can tell a rejected refresh
+// token apart from other failures.
+func TestRefreshUpstreamRejection(t *testing.T) {
+	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid_grant"})
+	}))
+	defer s.Close()
+
+	hostURL, err := url.Parse(s.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := githubConnector{
+		apiURL:       s.URL,
+		hostName:     hostURL.Host,
+		httpClient:   newClient(),
+		clientID:     "client-id",
+		clientSecret: "client-secret",
+	}
+	connData, err := json.Marshal(connectorData{
+		AccessToken:  "access-token",
+		RefreshToken: "refresh-token",
+		Expiry:       time.Now().Add(-time.Hour),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = c.Refresh(t.Context(), connector.Scopes{OfflineAccess: true}, connector.Identity{ConnectorData: connData})
+
+	var retrieveErr *oauth2.RetrieveError
+	if !errors.As(err, &retrieveErr) || retrieveErr.ErrorCode != "invalid_grant" {
+		t.Fatalf("expected the upstream invalid_grant in the error chain, got %v", err)
 	}
 }

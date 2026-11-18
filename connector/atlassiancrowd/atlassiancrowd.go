@@ -157,7 +157,10 @@ func (c *crowdConnector) Refresh(ctx context.Context, s connector.Scopes, ident 
 
 	user, err := c.user(ctx, client, data.Username)
 	if err != nil {
-		return ident, fmt.Errorf("crowd: get user %q: %v", data.Username, err)
+		return ident, fmt.Errorf("crowd: get user %q: %w", data.Username, err)
+	}
+	if !user.Active {
+		return ident, fmt.Errorf("crowd: user %q is inactive: %w", data.Username, connector.ErrUserRevoked)
 	}
 
 	newIdent := c.identityFromCrowdUser(user)
@@ -307,6 +310,10 @@ func (c *crowdConnector) user(ctx context.Context, client *http.Client, username
 		return user, err
 	}
 
+	// Only Crowd's own answer counts: a 404 from a wrong base URL says nothing about the user.
+	if resp.StatusCode == http.StatusNotFound && strings.Contains(string(body), "USER_NOT_FOUND") {
+		return user, fmt.Errorf("%s: %s: %w", resp.Status, body, connector.ErrUserRevoked)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return user, fmt.Errorf("%s: %s", resp.Status, body)
 	}

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 // Error is an OAuth2 error response a token grant can return instead of writing
@@ -15,6 +16,9 @@ type Error struct {
 	Type        string
 	Description string
 	Status      int
+	// RetryAfter, if set, is sent in the Retry-After header, rounded down to
+	// whole seconds.
+	RetryAfter time.Duration
 }
 
 func (e *Error) Error() string {

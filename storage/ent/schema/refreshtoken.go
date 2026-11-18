@@ -47,18 +47,15 @@ func (RefreshToken) Fields() []ent.Field {
 		field.JSON("scopes", []string{}).
 			Optional(),
 		field.Text("nonce").
-			SchemaType(textSchema).
-			NotEmpty(),
+			SchemaType(textSchema),
 
 		field.Text("claims_user_id").
 			SchemaType(textSchema).
 			NotEmpty(),
 		field.Text("claims_username").
-			SchemaType(textSchema).
-			NotEmpty(),
+			SchemaType(textSchema),
 		field.Text("claims_email").
-			SchemaType(textSchema).
-			NotEmpty(),
+			SchemaType(textSchema),
 		field.Bool("claims_email_verified"),
 		field.JSON("claims_groups", []string{}).
 			Optional(),

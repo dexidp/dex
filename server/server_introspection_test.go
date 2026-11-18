@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexidp/dex/server/grants"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/introspection"
 	"github.com/dexidp/dex/server/tokens"
@@ -256,4 +257,131 @@ func TestHandleIntrospect(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHandleIntrospectAccessTokenDeletedClient(t *testing.T) {
+	ctx := t.Context()
+	now := time.Now
+
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.Now = now
+	})
+	defer httpServer.Close()
+
+	mockTestStorage(t, s.storage)
+
+	accessToken, _, err := s.issuer.SignIDToken(ctx, tokens.Authorization{
+		Client: storage.Client{ID: "test"},
+		Claims: storage.Claims{
+			UserID:   "1",
+			Username: "jane",
+			Email:    "jane.doe@example.com",
+		},
+		Scopes:      []string{"openid", "email", "profile"},
+		ConnectorID: "test",
+	}, "", "")
+	require.NoError(t, err)
+
+	// Delete the client the token was issued for. The access token itself stays
+	// a valid JWT, but its client can no longer be resolved from storage.
+	require.NoError(t, s.storage.DeleteClient(ctx, "test"))
+
+	data := url.Values{}
+	data.Set("token", accessToken)
+
+	u, err := url.Parse(s.issuerURL.String())
+	require.NoError(t, err)
+	u.Path = path.Join(u.Path, "token", "introspect")
+
+	req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(data.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	rr := httptest.NewRecorder()
+	s.ServeHTTP(rr, req)
+
+	// RFC 7662 §2.2: a token that does not resolve on this server is reported as
+	// inactive with a 200, not as a server error.
+	require.Equal(t, http.StatusOK, rr.Code)
+	require.Equal(t, "{\"active\":false}\n", rr.Body.String())
+}
+
+func TestHandleIntrospectRefreshTokenWithoutAbsoluteLifetime(t *testing.T) {
+	// The test server's default refresh policy has no absolute lifetime, so the
+	// refresh token never expires on a fixed date.
+	httpServer, s := newTestServer(t, nil)
+	defer httpServer.Close()
+
+	mockTestStorage(t, s.storage)
+
+	refreshToken, err := internal.Marshal(&internal.RefreshToken{RefreshId: "test", Token: "bar"})
+	require.NoError(t, err)
+
+	data := url.Values{}
+	data.Set("token", refreshToken)
+
+	req := httptest.NewRequest(http.MethodPost, s.issuerURL.JoinPath("token", "introspect").String(), bytes.NewBufferString(data.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	rr := httptest.NewRecorder()
+	s.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	require.Equal(t, true, resp["active"])
+	require.Equal(t, "refresh_token", resp["token_use"])
+	require.Contains(t, resp, "iat")
+	require.NotContains(t, resp, "exp", "a refresh token without an absolute lifetime must not report an expiry")
+}
+
+// TestHandleIntrospectTypedAccessToken checks that introspection and userinfo
+// accept the at+jwt access token of a client with an ID-JAG policy.
+func TestHandleIntrospectTypedAccessToken(t *testing.T) {
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.IDJAG = &grants.IDJAGConfig{Policies: map[string]grants.IDJAGPolicy{"test": {}}}
+	})
+	defer httpServer.Close()
+
+	mockTestStorage(t, s.storage)
+
+	accessToken, _, err := s.issuer.SignAccessToken(t.Context(), tokens.Authorization{
+		Client: storage.Client{ID: "test"},
+		Claims: storage.Claims{
+			UserID:   "1",
+			Username: "jane",
+			Email:    "jane.doe@example.com",
+		},
+		Scopes:      []string{"openid", "email", "profile"},
+		ConnectorID: "test",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "at+jwt", tokenTyp(t, accessToken))
+
+	userinfoURL, err := url.Parse(s.issuerURL.String())
+	require.NoError(t, err)
+	userinfoURL.Path = path.Join(userinfoURL.Path, "userinfo")
+	userinfoReq, _ := http.NewRequest("GET", userinfoURL.String(), nil)
+	userinfoReq.Header.Set("Authorization", "Bearer "+accessToken)
+	userinfoRR := httptest.NewRecorder()
+	s.ServeHTTP(userinfoRR, userinfoReq)
+	require.Equal(t, http.StatusOK, userinfoRR.Code, "userinfo: %s", userinfoRR.Body.String())
+
+	data := url.Values{}
+	data.Set("token", accessToken)
+
+	u, err := url.Parse(s.issuerURL.String())
+	require.NoError(t, err)
+	u.Path = path.Join(u.Path, "token", "introspect")
+
+	req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(data.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	rr := httptest.NewRecorder()
+	s.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	require.Equal(t, true, resp["active"], "body: %s", rr.Body.String())
+	require.Equal(t, "access_token", resp["token_use"])
 }

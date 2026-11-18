@@ -84,16 +84,10 @@ func ValidColumn(column string) bool {
 var (
 	// ClientIDValidator is a validator for the "client_id" field. It is called by the builders before save.
 	ClientIDValidator func(string) error
-	// NonceValidator is a validator for the "nonce" field. It is called by the builders before save.
-	NonceValidator func(string) error
 	// RedirectURIValidator is a validator for the "redirect_uri" field. It is called by the builders before save.
 	RedirectURIValidator func(string) error
 	// ClaimsUserIDValidator is a validator for the "claims_user_id" field. It is called by the builders before save.
 	ClaimsUserIDValidator func(string) error
-	// ClaimsUsernameValidator is a validator for the "claims_username" field. It is called by the builders before save.
-	ClaimsUsernameValidator func(string) error
-	// ClaimsEmailValidator is a validator for the "claims_email" field. It is called by the builders before save.
-	ClaimsEmailValidator func(string) error
 	// DefaultClaimsPreferredUsername holds the default value on creation for the "claims_preferred_username" field.
 	DefaultClaimsPreferredUsername string
 	// ConnectorIDValidator is a validator for the "connector_id" field. It is called by the builders before save.
