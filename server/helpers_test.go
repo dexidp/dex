@@ -129,6 +129,15 @@ func setSessionsEnabled(t *testing.T, enabled bool) {
 	}
 }
 
+func setAPIConnectorsCRUD(t *testing.T, enabled bool) {
+	t.Helper()
+	if enabled {
+		t.Setenv("DEX_API_CONNECTORS_CRUD", "true")
+	} else {
+		t.Setenv("DEX_API_CONNECTORS_CRUD", "false")
+	}
+}
+
 // spnegoShortCircuit implements connector.PasswordConnector and connector.SPNEGOAware
 // to simulate successful SPNEGO authentication on GET.
 type spnegoShortCircuit struct{ Identity connector.Identity }
