@@ -92,7 +92,7 @@ type UserMatcher struct {
 // Config holds configuration options for LDAP logins.
 type Config struct {
 	// The host and optional port of the LDAP server. If port isn't supplied, it will be
-	// guessed based on the TLS configuration. 389 or 636.
+	// guessed based on the TLS configuration: 389 for insecureNoSSL or startTLS, 636 otherwise.
 	Host string `json:"host"`
 
 	// Required if LDAP host does not use TLS.
@@ -332,7 +332,7 @@ func (c *Config) openConnector(logger *slog.Logger) (*ldapConnector, error) {
 	)
 	if host, _, err = net.SplitHostPort(c.Host); err != nil {
 		host = c.Host
-		if c.InsecureNoSSL {
+		if c.InsecureNoSSL || c.StartTLS {
 			c.Host += ":389"
 		} else {
 			c.Host += ":636"
