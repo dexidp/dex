@@ -96,10 +96,6 @@ type Config struct {
 	// This allows the server to operate with a subset of connectors if some are misconfigured.
 	ContinueOnConnectorFailure bool
 
-	// If enabled, the server starts with no working connectors, so they can be
-	// added or fixed through the connectors gRPC API.
-	AllowEmptyConnectors bool
-
 	// SessionConfig holds session settings. Nil when sessions are disabled.
 	SessionConfig *session.Config
 

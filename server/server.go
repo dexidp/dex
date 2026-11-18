@@ -167,7 +167,7 @@ func (s *Server) openConnectors(ctx context.Context, c Config) error {
 	}
 
 	if len(storageConnectors) == 0 && s.connectors.Len() == 0 {
-		if !c.AllowEmptyConnectors {
+		if !featureflags.APIConnectorsCRUD.Enabled() {
 			return errors.New("server: no connectors specified")
 		}
 
@@ -189,7 +189,7 @@ func (s *Server) openConnectors(ctx context.Context, c Config) error {
 	}
 
 	if c.ContinueOnConnectorFailure && failedCount == len(storageConnectors) {
-		if !c.AllowEmptyConnectors {
+		if !featureflags.APIConnectorsCRUD.Enabled() {
 			return fmt.Errorf("server: failed to open all connectors (%d/%d)", failedCount, len(storageConnectors))
 		}
 

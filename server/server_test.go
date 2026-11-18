@@ -1732,7 +1732,7 @@ func TestConnectorFailureHandling(t *testing.T) {
 		name                       string
 		connectors                 []storage.Connector
 		continueOnConnectorFailure bool
-		allowEmptyConnectors       bool
+		apiConnectorsCRUD          bool
 		wantErr                    bool
 		wantErrContains            string
 		expectConnectors           []string // IDs of connectors that should be loaded successfully
@@ -1867,7 +1867,7 @@ func TestConnectorFailureHandling(t *testing.T) {
 			name:                       "no connectors with empty connectors allowed",
 			connectors:                 []storage.Connector{},
 			continueOnConnectorFailure: true,
-			allowEmptyConnectors:       true,
+			apiConnectorsCRUD:          true,
 			wantErr:                    false,
 			expectConnectors:           []string{},
 		},
@@ -1875,7 +1875,7 @@ func TestConnectorFailureHandling(t *testing.T) {
 			name:                       "no connectors with empty connectors allowed and no partial start",
 			connectors:                 []storage.Connector{},
 			continueOnConnectorFailure: false,
-			allowEmptyConnectors:       true,
+			apiConnectorsCRUD:          true,
 			wantErr:                    false,
 			expectConnectors:           []string{},
 		},
@@ -1889,7 +1889,7 @@ func TestConnectorFailureHandling(t *testing.T) {
 				},
 			},
 			continueOnConnectorFailure: true,
-			allowEmptyConnectors:       true,
+			apiConnectorsCRUD:          true,
 			wantErr:                    false,
 			expectConnectors:           []string{},
 		},
@@ -1903,7 +1903,7 @@ func TestConnectorFailureHandling(t *testing.T) {
 				},
 			},
 			continueOnConnectorFailure: false,
-			allowEmptyConnectors:       true,
+			apiConnectorsCRUD:          true,
 			wantErr:                    true,
 			wantErrContains:            "Failed to open connector bad",
 		},
@@ -1911,6 +1911,8 @@ func TestConnectorFailureHandling(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			setAPIConnectorsCRUD(t, tc.apiConnectorsCRUD)
+
 			logger := newLogger(t)
 
 			sig, err := signer.NewMockSigner(testKey)
@@ -1928,7 +1930,6 @@ func TestConnectorFailureHandling(t *testing.T) {
 				PrometheusRegistry:         prometheus.NewRegistry(),
 				HealthChecker:              gosundheit.New(),
 				ContinueOnConnectorFailure: tc.continueOnConnectorFailure,
-				AllowEmptyConnectors:       tc.allowEmptyConnectors,
 				Signer:                     sig,
 			}
 
@@ -1983,8 +1984,9 @@ func TestConnectorFailureHandling(t *testing.T) {
 func TestEmptyConnectorsPicksUpAddedConnector(t *testing.T) {
 	ctx := t.Context()
 
+	setAPIConnectorsCRUD(t, true)
+
 	httpServer, s := newTestServerWith(t, nil, func(c *Config) {
-		c.AllowEmptyConnectors = true
 		require.NoError(t, c.Storage.CreateClient(ctx, storage.Client{
 			ID:           "test",
 			RedirectURIs: []string{"http://example.com/callback"},
