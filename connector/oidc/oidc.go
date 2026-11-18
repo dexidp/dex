@@ -75,8 +75,12 @@ type Config struct {
 	InsecureSkipEmailVerified bool `json:"insecureSkipEmailVerified"`
 
 	// InsecureEnableGroups enables groups claims. This is disabled by default until https://github.com/dexidp/dex/issues/1065 is resolved
-	InsecureEnableGroups bool     `json:"insecureEnableGroups"`
-	AllowedGroups        []string `json:"allowedGroups"`
+	InsecureEnableGroups bool `json:"insecureEnableGroups"`
+	// AllowedGroups restricts login to users in at least one of the listed
+	// groups. The groups claim is read for this check even when
+	// insecureEnableGroups is not set; the groups are then not included in the
+	// identity.
+	AllowedGroups []string `json:"allowedGroups"`
 
 	// AcrValues (Authentication Context Class Reference Values) that specifies the Authentication Context Class Values
 	// within the Authentication Request that the Authorization Server is being requested to use for
@@ -287,6 +291,10 @@ func getAuthCodeOptionForCodeChallenge(codeVerifier, codeChallengeMethod string)
 func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector, err error) {
 	if len(c.HostedDomains) > 0 {
 		return nil, fmt.Errorf("support for the Hosted domains option had been deprecated and removed, consider switching to the Google connector")
+	}
+
+	if len(c.AllowedGroups) > 0 && !c.InsecureEnableGroups {
+		logger.Warn("allowedGroups is set without insecureEnableGroups: group membership will be checked, but groups will not be included in the identity", "connector_id", id)
 	}
 
 	httpClient, err := httpclient.NewHTTPClient(c.RootCAs, c.InsecureSkipVerify)
@@ -706,8 +714,11 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		}
 	}
 
+	// The groups claim is read when groups are passed through to the identity,
+	// and also when allowedGroups is set: the allow-list is a login condition,
+	// so it must be enforced even when the groups claim is not part of the token.
 	var groups []string
-	if c.insecureEnableGroups {
+	if c.insecureEnableGroups || len(c.allowedGroups) > 0 {
 		groupsKey := "groups"
 		vs, found := claims[groupsKey].([]interface{})
 		if (!found || c.overrideClaimMapping) && c.groupsKey != "" {
@@ -743,7 +754,8 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 			}
 		}
 
-		// Validate that the user is part of allowedGroups
+		// Validate that the user is part of allowedGroups. A missing claim
+		// leaves groups empty and is denied here like any other non-match.
 		if len(c.allowedGroups) > 0 {
 			groupMatches := groups_pkg.Filter(groups, c.allowedGroups)
 
@@ -752,7 +764,14 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 				return identity, fmt.Errorf("user not a member of allowed groups")
 			}
 
-			groups = groupMatches
+			// allowedGroups restricts login and, when groups are enabled, the
+			// groups passed through to the token. Without insecureEnableGroups
+			// the claim is only read for the check above.
+			if c.insecureEnableGroups {
+				groups = groupMatches
+			} else {
+				groups = nil
+			}
 		}
 	}
 
