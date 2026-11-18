@@ -799,7 +799,7 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 	var (
 		reqDump, respDump []byte
 		gotIDToken        bool
-		state             = "a_state"
+		state             = "a_state/with=reserved&chars"
 		nonce             = "a_nonce"
 	)
 	defer func() {
@@ -862,9 +862,12 @@ func TestOAuth2ImplicitFlow(t *testing.T) {
 		if u.Fragment == "" {
 			return fmt.Errorf("url has no fragment: %s", u)
 		}
-		v, err := url.ParseQuery(u.Fragment)
+		v, err := url.ParseQuery(u.EscapedFragment())
 		if err != nil {
 			return fmt.Errorf("failed to parse fragment: %v", err)
+		}
+		if got := v.Get("state"); got != state {
+			return fmt.Errorf("state was %q, but want %q", got, state)
 		}
 		rawIDToken := v.Get("id_token")
 		if rawIDToken == "" {

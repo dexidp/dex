@@ -93,7 +93,10 @@ func (h *Handler) writeResponse(w http.ResponseWriter, r *http.Request, authReq 
 		//     &expires_in=3600
 		//     &state=af0ifjsldkj
 		//
-		u.Fragment = v.Encode()
+		// u.Fragment holds the decoded form, so the encoded values go in
+		// u.RawFragment to avoid percent-encoding them a second time.
+		u.RawFragment = v.Encode()
+		u.Fragment, _ = url.PathUnescape(u.RawFragment)
 	} else {
 		// The code flow add values to the URL query.
 		//
