@@ -64,6 +64,9 @@ type Config struct {
 	// Optional value for the prompt parameter, defaults to consent when offline_access
 	// scope is requested
 	PromptType *string `json:"promptType"`
+
+	// If this field is true, the user's email address is converted to lowercase
+	EmailToLowercase bool `json:"emailToLowercase"`
 }
 
 // Open returns a connector which can be used to login users through Google.
@@ -140,6 +143,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 		fetchTransitiveGroupMembership: c.FetchTransitiveGroupMembership,
 		adminSrv:                       adminSrv,
 		promptType:                     promptType,
+		emailToLowercase:               c.EmailToLowercase,
 	}, nil
 }
 
@@ -161,6 +165,7 @@ type googleConnector struct {
 	fetchTransitiveGroupMembership bool
 	adminSrv                       map[string]*admin.Service
 	promptType                     string
+	emailToLowercase               bool
 }
 
 func (c *googleConnector) Close() error {
@@ -268,6 +273,10 @@ func (c *googleConnector) createIdentity(ctx context.Context, identity connector
 		if !found {
 			return identity, fmt.Errorf("oidc: unexpected hd claim %v", claims.HostedDomain)
 		}
+	}
+
+	if c.emailToLowercase {
+		claims.Email = strings.ToLower(claims.Email)
 	}
 
 	var groups []string
