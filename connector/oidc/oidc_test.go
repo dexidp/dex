@@ -613,6 +613,148 @@ func TestHandleCallback(t *testing.T) {
 	}
 }
 
+func TestHandleCallbackAllowedGroups(t *testing.T) {
+	baseToken := func(groups interface{}) map[string]interface{} {
+		tok := map[string]interface{}{
+			"sub":            "subvalue",
+			"name":           "namevalue",
+			"email":          "emailvalue",
+			"email_verified": true,
+		}
+		if groups != nil {
+			tok["groups"] = groups
+		}
+		return tok
+	}
+
+	tests := []struct {
+		name                 string
+		insecureEnableGroups bool
+		allowedGroups        []string
+		token                map[string]interface{}
+		expectGroups         []string
+		expectError          string
+	}{
+		{
+			name:          "list set and flag unset allows a member without passing groups through",
+			allowedGroups: []string{"admins"},
+			token:         baseToken([]string{"admins", "developers"}),
+			expectGroups:  nil,
+		},
+		{
+			name:          "list set and flag unset denies a non-member",
+			allowedGroups: []string{"admins"},
+			token:         baseToken([]string{"developers"}),
+			expectError:   "user not a member of allowed groups",
+		},
+		{
+			name:          "list set and flag unset denies a missing claim",
+			allowedGroups: []string{"admins"},
+			token:         baseToken(nil),
+			expectError:   "user not a member of allowed groups",
+		},
+		{
+			name:          "list set and flag unset denies an empty claim",
+			allowedGroups: []string{"admins"},
+			token:         baseToken([]string{}),
+			expectError:   "user not a member of allowed groups",
+		},
+		{
+			name:                 "list set and flag set filters groups as before",
+			insecureEnableGroups: true,
+			allowedGroups:        []string{"admins"},
+			token:                baseToken([]string{"admins", "developers"}),
+			expectGroups:         []string{"admins"},
+		},
+		{
+			name:                 "list set and flag set denies a non-member",
+			insecureEnableGroups: true,
+			allowedGroups:        []string{"admins"},
+			token:                baseToken([]string{"developers"}),
+			expectError:          "user not a member of allowed groups",
+		},
+		{
+			name:         "list unset and flag unset passes no groups",
+			token:        baseToken([]string{"admins", "developers"}),
+			expectGroups: nil,
+		},
+		{
+			name:                 "list unset and flag set passes all groups",
+			insecureEnableGroups: true,
+			token:                baseToken([]string{"admins", "developers"}),
+			expectGroups:         []string{"admins", "developers"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			testServer, err := setupServer(tc.token, true)
+			require.NoError(t, err)
+			defer testServer.Close()
+
+			serverURL := testServer.URL
+			basicAuth := true
+			config := Config{
+				Issuer:               serverURL,
+				ClientID:             "clientID",
+				ClientSecret:         "clientSecret",
+				Scopes:               []string{"email", "groups"},
+				RedirectURI:          fmt.Sprintf("%s/callback", serverURL),
+				InsecureEnableGroups: tc.insecureEnableGroups,
+				AllowedGroups:        tc.allowedGroups,
+				BasicAuthUnsupported: &basicAuth,
+			}
+			conn, err := newConnector(config)
+			require.NoError(t, err)
+			defer conn.Close()
+
+			req, err := newRequestWithAuthCode(serverURL, "someCode")
+			require.NoError(t, err)
+
+			identity, err := conn.HandleCallback(connector.Scopes{Groups: true}, nil, req)
+			if tc.expectError != "" {
+				require.ErrorContains(t, err, tc.expectError)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.expectGroups, identity.Groups)
+		})
+	}
+}
+
+func TestAllowedGroupsStartupWarning(t *testing.T) {
+	testServer, err := setupServer(map[string]interface{}{
+		"sub":            "subvalue",
+		"name":           "namevalue",
+		"email":          "emailvalue",
+		"email_verified": true,
+	}, true)
+	require.NoError(t, err)
+	defer testServer.Close()
+
+	serverURL := testServer.URL
+	basicAuth := true
+	config := Config{
+		Issuer:               serverURL,
+		ClientID:             "clientID",
+		ClientSecret:         "clientSecret",
+		Scopes:               []string{"email", "groups"},
+		RedirectURI:          fmt.Sprintf("%s/callback", serverURL),
+		AllowedGroups:        []string{"admins"},
+		BasicAuthUnsupported: &basicAuth,
+	}
+
+	var logs bytes.Buffer
+	c, err := config.Open("test-connector", slog.New(slog.NewTextHandler(&logs, nil)))
+	require.NoError(t, err)
+	conn, ok := c.(*oidcConnector)
+	require.True(t, ok)
+	defer conn.Close()
+
+	require.Contains(t, logs.String(), "allowedGroups")
+	require.Contains(t, logs.String(), "insecureEnableGroups")
+}
+
 func TestRefresh(t *testing.T) {
 	t.Helper()
 
