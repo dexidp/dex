@@ -714,9 +714,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 		}
 	}
 
-	// The groups claim is read when groups are passed through to the identity,
-	// and also when allowedGroups is set: the allow-list is a login condition,
-	// so it must be enforced even when the groups claim is not part of the token.
+	// allowedGroups is a login condition, so read the claim for it even without insecureEnableGroups.
 	var groups []string
 	if c.insecureEnableGroups || len(c.allowedGroups) > 0 {
 		groupsKey := "groups"
@@ -754,8 +752,7 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 			}
 		}
 
-		// Validate that the user is part of allowedGroups. A missing claim
-		// leaves groups empty and is denied here like any other non-match.
+		// Validate that the user is part of allowedGroups
 		if len(c.allowedGroups) > 0 {
 			groupMatches := groups_pkg.Filter(groups, c.allowedGroups)
 
@@ -764,9 +761,6 @@ func (c *oidcConnector) createIdentity(ctx context.Context, identity connector.I
 				return identity, fmt.Errorf("user not a member of allowed groups")
 			}
 
-			// allowedGroups restricts login and, when groups are enabled, the
-			// groups passed through to the token. Without insecureEnableGroups
-			// the claim is only read for the check above.
 			if c.insecureEnableGroups {
 				groups = groupMatches
 			} else {
