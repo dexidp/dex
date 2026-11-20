@@ -91,9 +91,10 @@ func newIDJAG(config *IDJAGConfig, issuer *tokens.Issuer, sessions *session.Mana
 	return g
 }
 
-// Authorize verifies the subject token, an ID token this server issued to the
+// authorizeIDJAG verifies the subject token, an ID token this server issued to the
 // client, applies the client's policy and issues the ID-JAG.
-func (g *idJAG) Authorize(ctx context.Context, req *Request, client storage.Client) (Responder, error) {
+func (exchange *tokenExchange) authorizeIDJAG(ctx context.Context, req *Request, client storage.Client) (Responder, error) {
+	g := exchange.idJAG
 	logAttrs := []any{
 		"client_id", client.ID, "connector_id", req.ConnectorID,
 		"audience", req.Audience, "resource", req.Resource, "requested_scope", req.Scopes,
@@ -155,6 +156,17 @@ func (g *idJAG) Authorize(ctx context.Context, req *Request, client storage.Clie
 		return nil, reject("session_ended", &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Invalid subject_token.", Status: http.StatusBadRequest})
 	}
 
+	var verifiedClaims map[string]any
+	if err := idToken.Claims(&verifiedClaims); err != nil {
+		return nil, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
+	}
+	actor, expiresAt, err := exchange.authorizeActor(ctx, req, client, verifiedClaims)
+	if err != nil {
+		return nil, err
+	}
+	if exchange.delegation.actorConnectors[req.ConnectorID] {
+		return nil, invalidRequest("connector only verifies actor tokens")
+	}
 	audience := req.Audience[0]
 	scopes, reason := g.config.evaluate(client.ID, audience, req.Scopes)
 	switch reason {
@@ -167,7 +179,14 @@ func (g *idJAG) Authorize(ctx context.Context, req *Request, client storage.Clie
 		return nil, deny(reason, &oauth2.Error{Type: oauth2.AccessDenied, Status: http.StatusBadRequest})
 	}
 
+	if actor != nil {
+		scopes = delegatedScopes(scopes, verifiedClaims["scope"], verifiedClaims["act"] != nil)
+		if len(req.Scopes) > 0 && len(scopes) == 0 {
+			return nil, invalidScope("subject token does not carry the requested scopes")
+		}
+	}
 	claims := tokens.IDJAGClaims{
+		Act:      actor,
 		Subject:  idToken.Subject,
 		Audience: audience,
 		ClientID: client.ID,
@@ -182,6 +201,9 @@ func (g *idJAG) Authorize(ctx context.Context, req *Request, client storage.Clie
 		claims.Email = subjectClaims.Email
 	}
 
+	if actor != nil && !expiresAt.IsZero() {
+		claims.Expiry = expiresAt.Unix()
+	}
 	token, claims, err := g.issuer.SignIDJAG(ctx, claims, g.config.ValidFor)
 	if err != nil {
 		g.logger.ErrorContext(ctx, "failed to sign ID-JAG", "err", err)
@@ -196,7 +218,7 @@ func (g *idJAG) Authorize(ctx context.Context, req *Request, client storage.Clie
 		AccessToken:     token,
 		IssuedTokenType: oauth2.TokenTypeIDJAG,
 		TokenType:       "N_A",
-		ExpiresIn:       int(g.config.ValidFor.Seconds()),
+		ExpiresIn:       int(claims.Expiry - claims.IssuedAt),
 	}
 	if scopesReduced {
 		resp.Scope = claims.Scope

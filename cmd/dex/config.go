@@ -161,6 +161,41 @@ func (c Config) Validate() error {
 		}
 	}
 
+	return c.validateDelegation()
+}
+
+// validateDelegation checks the token-exchange delegation policies: one per
+// client, each naming at least one actor connector. Actor connectors must be
+// static connectors when any are configured; with connectors kept in storage
+// only, their existence is checked at request time.
+func (c Config) validateDelegation() error {
+	staticConnectors := make(map[string]bool, len(c.StaticConnectors))
+	for _, conn := range c.StaticConnectors {
+		staticConnectors[conn.ID] = true
+	}
+	clients := make(map[string]bool, len(c.OAuth2.TokenExchange.Delegation))
+	for _, policy := range c.OAuth2.TokenExchange.Delegation {
+		if policy.ClientID == "" {
+			return fmt.Errorf("oauth2.tokenExchange.delegation: entry without clientID")
+		}
+		if clients[policy.ClientID] {
+			return fmt.Errorf("oauth2.tokenExchange.delegation: client %q listed twice", policy.ClientID)
+		}
+		clients[policy.ClientID] = true
+		if len(policy.ActorConnectors) == 0 {
+			return fmt.Errorf("oauth2.tokenExchange.delegation: client %q: actorConnectors is empty", policy.ClientID)
+		}
+		for _, id := range policy.ActorConnectors {
+			if len(staticConnectors) > 0 && !staticConnectors[id] {
+				return fmt.Errorf("oauth2.tokenExchange.delegation: client %q: actor connector %q is not a configured connector", policy.ClientID, id)
+			}
+		}
+		for _, scope := range policy.AllowedScopes {
+			if strings.HasPrefix(scope, "audience:server:client_id:") {
+				return fmt.Errorf("oauth2.tokenExchange.delegation: client %q: allowedScopes may not contain %q, name targets with allowedAudiences", policy.ClientID, scope)
+			}
+		}
+	}
 	return nil
 }
 
@@ -300,10 +335,24 @@ type TokenExchange struct {
 	// urn:ietf:params:oauth:token-type:id-jag has an effect: listing it enables
 	// ID-JAG issuance. ID and access tokens are always exchangeable.
 	TokenTypes []string `json:"tokenTypes"`
+	// Delegation lists the clients allowed to present actor credentials.
+	Delegation []DelegationPolicy `json:"delegation"`
 }
 
 func (t TokenExchange) idJAGEnabled() bool {
 	return slices.Contains(t.TokenTypes, oauth2.TokenTypeIDJAG)
+}
+
+// DelegationPolicy enables delegation for one client.
+type DelegationPolicy struct {
+	ClientID        string   `json:"clientID"`
+	ActorConnectors []string `json:"actorConnectors"`
+	// AllowedAudiences are the client IDs a delegated token may name through
+	// the audience parameter, besides the client's own ID; none by default.
+	AllowedAudiences []string `json:"allowedAudiences"`
+	// AllowedScopes are the scope values a delegated token may carry beyond
+	// Dex's standard scopes; none by default.
+	AllowedScopes []string `json:"allowedScopes"`
 }
 
 // PKCE holds the PKCE (Proof Key for Code Exchange) configuration.

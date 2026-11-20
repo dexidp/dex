@@ -113,6 +113,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 			s.issuer.TypedAccessTokenClients[clientID] = true
 		}
 	}
+	s.issuer.Sessions = s.sessions
 	s.connectors = connectors.NewCache(s.storage, connectors.Resolver(s.storage, s.logger, ConnectorsConfig))
 	s.backchannel = &backchannel.Notifier{
 		Storage:   s.storage,
@@ -279,6 +280,7 @@ func (s *Server) mount(routes router.Mux, c Config, rc resolvedConfig) {
 			SupportedGrantTypes: rc.grantTypes,
 			IDJAG:               c.IDJAG,
 			IDJAGMetrics:        idJAGMetrics(c),
+			Delegation:          c.TokenExchangeDelegation,
 		},
 		&userinfo.Handler{
 			Issuer: s.issuerURL.String(),
@@ -291,7 +293,7 @@ func (s *Server) mount(routes router.Mux, c Config, rc resolvedConfig) {
 			Storage:       s.storage,
 			Logger:        s.logger,
 			RefreshPolicy: c.RefreshTokenPolicy,
-			Sessions:      sessions,
+			Tokens:        s.issuer,
 		},
 		&device.Handler{
 			IssuerURL:        s.issuerURL,

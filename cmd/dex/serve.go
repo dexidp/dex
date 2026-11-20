@@ -382,11 +382,12 @@ func runServe(options serveOptions) error {
 	}
 
 	serverConfig := server.Config{
-		AllowedGrantTypes:      c.OAuth2.GrantTypes,
-		SupportedResponseTypes: c.OAuth2.ResponseTypes,
-		SkipApprovalScreen:     c.OAuth2.SkipApprovalScreen,
-		AlwaysShowLoginScreen:  c.OAuth2.AlwaysShowLoginScreen,
-		PasswordConnector:      c.OAuth2.PasswordConnector,
+		AllowedGrantTypes:       c.OAuth2.GrantTypes,
+		SupportedResponseTypes:  c.OAuth2.ResponseTypes,
+		SkipApprovalScreen:      c.OAuth2.SkipApprovalScreen,
+		AlwaysShowLoginScreen:   c.OAuth2.AlwaysShowLoginScreen,
+		PasswordConnector:       c.OAuth2.PasswordConnector,
+		TokenExchangeDelegation: delegationPolicies(c.OAuth2.TokenExchange.Delegation),
 		PKCE: authflow.PKCEConfig{
 			Enforce:                       c.OAuth2.PKCE.Enforce,
 			CodeChallengeMethodsSupported: c.OAuth2.PKCE.CodeChallengeMethodsSupported,
@@ -977,4 +978,12 @@ func buildMFAProviders(authenticators []MFAAuthenticator, issuerURL string, logg
 		}
 	}
 	return providers
+}
+
+func delegationPolicies(policies []DelegationPolicy) []grants.DelegationPolicy {
+	out := make([]grants.DelegationPolicy, 0, len(policies))
+	for _, p := range policies {
+		out = append(out, grants.DelegationPolicy{ClientID: p.ClientID, ActorConnectors: p.ActorConnectors, AllowedAudiences: p.AllowedAudiences, AllowedScopes: p.AllowedScopes})
+	}
+	return out
 }
