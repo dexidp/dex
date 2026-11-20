@@ -20,6 +20,9 @@ func (d dexAPI) CreatePassword(ctx context.Context, req *api.CreatePasswordReq) 
 	if req.Password.UserId == "" {
 		return nil, errors.New("no user ID supplied")
 	}
+	if req.Password.Username == "" {
+		return nil, errors.New("no username supplied")
+	}
 	if req.Password.Hash != nil {
 		if err := passwords.CheckCost(req.Password.Hash); err != nil {
 			return nil, err
