@@ -562,6 +562,38 @@ func TestUsernamePrompt(t *testing.T) {
 	}
 }
 
+func TestDefaultPort(t *testing.T) {
+	tests := []struct {
+		name string
+		conf Config
+		want string
+	}{
+		{name: "ldaps", want: "ldap.example.com:636"},
+		{name: "insecure", conf: Config{InsecureNoSSL: true}, want: "ldap.example.com:389"},
+		{name: "starttls", conf: Config{StartTLS: true}, want: "ldap.example.com:389"},
+		{name: "explicit port", conf: Config{Host: "ldap.example.com:1389", StartTLS: true}, want: "ldap.example.com:1389"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := tt.conf
+			if c.Host == "" {
+				c.Host = "ldap.example.com"
+			}
+			c.UserSearch.BaseDN = "ou=People,dc=example,dc=org"
+			c.UserSearch.Username = UsernameAttributes{"uid"}
+
+			conn, err := c.openConnector(slog.New(slog.DiscardHandler))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if conn.Host != tt.want {
+				t.Errorf("got host %q, want %q", conn.Host, tt.want)
+			}
+		})
+	}
+}
+
 func TestUsernameAttributesUnmarshal(t *testing.T) {
 	tests := []struct {
 		name    string
