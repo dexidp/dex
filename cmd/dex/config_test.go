@@ -324,6 +324,8 @@ staticClients:
     - https://chat.example/
     allowedScopes:
     - chat.read
+    audienceClientIDs:
+      https://chat.example/: f53f191f9311af35
 - id: other-app
   secret: other-secret
   name: 'Other Application'
@@ -337,8 +339,9 @@ staticClients:
 		{
 			Client: storage.Client{ID: "wiki-app", Secret: "wiki-secret", Name: "Wiki Application"},
 			IDJAGPolicy: &IDJAGPolicy{
-				AllowedAudiences: []string{"https://chat.example/"},
-				AllowedScopes:    []string{"chat.read"},
+				AllowedAudiences:  []string{"https://chat.example/"},
+				AllowedScopes:     []string{"chat.read"},
+				AudienceClientIDs: map[string]string{"https://chat.example/": "f53f191f9311af35"},
 			},
 		},
 		{Client: storage.Client{ID: "other-app", Secret: "other-secret", Name: "Other Application"}},
@@ -375,6 +378,21 @@ func TestInvalidIDJAGConfiguration(t *testing.T) {
 		err := c.Validate()
 		require.Error(t, err)
 		require.Contains(t, err.Error(), `client "cli" is public`)
+	})
+
+	t.Run("client ID for an audience not in allowedAudiences", func(t *testing.T) {
+		c := base()
+		c.OAuth2.TokenExchange.TokenTypes = []string{oauth2.TokenTypeIDJAG}
+		c.StaticClients = []staticClient{{
+			Client: storage.Client{ID: "wiki-app"},
+			IDJAGPolicy: &IDJAGPolicy{
+				AllowedAudiences:  []string{"https://chat.example/"},
+				AudienceClientIDs: map[string]string{"https://other.example/": "f53f191f9311af35"},
+			},
+		}}
+		err := c.Validate()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), `"https://other.example/" needs a client ID and must be in allowedAudiences`)
 	})
 
 	t.Run("unknown token type", func(t *testing.T) {

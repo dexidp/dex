@@ -208,6 +208,9 @@ web:
 #         - "https://chat.example/"
 #       allowedScopes:
 #         - "chat.read"
+#       # The client's ID at an audience, when it differs from "wiki-app".
+#       audienceClientIDs:
+#         "https://chat.example/": "f53f191f9311af35"
 
 # Connectors are used to authenticate users against upstream identity providers.
 #

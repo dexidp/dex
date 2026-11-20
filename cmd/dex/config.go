@@ -151,6 +151,13 @@ func (c Config) Validate() error {
 		if client.IDJAGPolicy != nil && client.Public {
 			return fmt.Errorf("staticClients: client %q is public and cannot have idJAGPolicies", client.ID)
 		}
+		if client.IDJAGPolicy != nil {
+			for aud, id := range client.IDJAGPolicy.AudienceClientIDs {
+				if !slices.Contains(client.IDJAGPolicy.AllowedAudiences, aud) || id == "" {
+					return fmt.Errorf("staticClients: client %q: idJAGPolicies.audienceClientIDs: %q needs a client ID and must be in allowedAudiences", client.ID, aud)
+				}
+			}
+		}
 	}
 
 	for _, t := range c.OAuth2.TokenExchange.TokenTypes {
@@ -218,8 +225,9 @@ type staticClient struct {
 
 // IDJAGPolicy is a client's ID-JAG policy.
 type IDJAGPolicy struct {
-	AllowedAudiences []string `json:"allowedAudiences"`
-	AllowedScopes    []string `json:"allowedScopes"`
+	AllowedAudiences  []string          `json:"allowedAudiences"`
+	AllowedScopes     []string          `json:"allowedScopes"`
+	AudienceClientIDs map[string]string `json:"audienceClientIDs,omitempty"`
 }
 
 type password storage.Password
