@@ -217,6 +217,12 @@ func (_u *UserIdentityUpdate) SetNillableBlockedUntil(v *time.Time) *UserIdentit
 	return _u
 }
 
+// ClearBlockedUntil clears the value of the "blocked_until" field.
+func (_u *UserIdentityUpdate) ClearBlockedUntil() *UserIdentityUpdate {
+	_u.mutation.ClearBlockedUntil()
+	return _u
+}
+
 // Mutation returns the UserIdentityMutation object of the builder.
 func (_u *UserIdentityUpdate) Mutation() *UserIdentityMutation {
 	return _u.mutation
@@ -331,6 +337,9 @@ func (_u *UserIdentityUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if value, ok := _u.mutation.BlockedUntil(); ok {
 		_spec.SetField(useridentity.FieldBlockedUntil, field.TypeTime, value)
+	}
+	if _u.mutation.BlockedUntilCleared() {
+		_spec.ClearField(useridentity.FieldBlockedUntil, field.TypeTime)
 	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -540,6 +549,12 @@ func (_u *UserIdentityUpdateOne) SetNillableBlockedUntil(v *time.Time) *UserIden
 	return _u
 }
 
+// ClearBlockedUntil clears the value of the "blocked_until" field.
+func (_u *UserIdentityUpdateOne) ClearBlockedUntil() *UserIdentityUpdateOne {
+	_u.mutation.ClearBlockedUntil()
+	return _u
+}
+
 // Mutation returns the UserIdentityMutation object of the builder.
 func (_u *UserIdentityUpdateOne) Mutation() *UserIdentityMutation {
 	return _u.mutation
@@ -684,6 +699,9 @@ func (_u *UserIdentityUpdateOne) sqlSave(ctx context.Context) (_node *UserIdenti
 	}
 	if value, ok := _u.mutation.BlockedUntil(); ok {
 		_spec.SetField(useridentity.FieldBlockedUntil, field.TypeTime, value)
+	}
+	if _u.mutation.BlockedUntilCleared() {
+		_spec.ClearField(useridentity.FieldBlockedUntil, field.TypeTime)
 	}
 	_node = &UserIdentity{config: _u.config}
 	_spec.Assign = _node.assignValues

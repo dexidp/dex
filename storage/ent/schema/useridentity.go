@@ -52,7 +52,8 @@ func (UserIdentity) Fields() []ent.Field {
 		field.Time("last_login").
 			SchemaType(timeSchema),
 		field.Time("blocked_until").
-			SchemaType(timeSchema),
+			SchemaType(timeSchema).
+			Optional(),
 	}
 }
 

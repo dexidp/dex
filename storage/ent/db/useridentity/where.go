@@ -799,6 +799,16 @@ func BlockedUntilLTE(v time.Time) predicate.UserIdentity {
 	return predicate.UserIdentity(sql.FieldLTE(FieldBlockedUntil, v))
 }
 
+// BlockedUntilIsNil applies the IsNil predicate on the "blocked_until" field.
+func BlockedUntilIsNil() predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldIsNull(FieldBlockedUntil))
+}
+
+// BlockedUntilNotNil applies the NotNil predicate on the "blocked_until" field.
+func BlockedUntilNotNil() predicate.UserIdentity {
+	return predicate.UserIdentity(sql.FieldNotNull(FieldBlockedUntil))
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.UserIdentity) predicate.UserIdentity {
 	return predicate.UserIdentity(sql.AndPredicates(predicates...))
