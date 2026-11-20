@@ -27,6 +27,23 @@ type Authorization struct {
 	// that user happens to have open to tokens minted by the password, token
 	// exchange and client credentials grants — none of which joined it.
 	SessionID string
+
+	// Act is the actor a delegated token exchange verified; nil for every other
+	// grant. It is emitted as the "act" claim.
+	Act *ActorClaims
+
+	// ScopeClaim, when set, is emitted as the "scope" claim (RFC 8693 §4.2).
+	// Only a delegated token exchange sets it.
+	ScopeClaim string
+
+	// Audience lists client IDs a token exchange named with the audience
+	// parameter (RFC 8693 §2.1); each becomes an entry of the aud claim.
+	Audience []string
+
+	// ExpiresAt, when set, caps the issued tokens' expiry below the default
+	// lifetime. A delegated exchange sets it so the issued token never outlives
+	// the subject or actor token it was minted from.
+	ExpiresAt time.Time
 }
 
 // TokenSet is what the /token endpoint returns for an Authorization.

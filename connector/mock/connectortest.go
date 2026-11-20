@@ -32,6 +32,7 @@ var (
 	_ connector.CallbackConnector      = &Callback{}
 	_ connector.RefreshConnector       = &Callback{}
 	_ connector.TokenIdentityConnector = &Callback{}
+	_ connector.TokenClaimsConnector   = &Callback{}
 )
 
 // Callback is a connector that requires no user interaction and always returns the same identity.
@@ -41,6 +42,7 @@ type Callback struct {
 	Logger   *slog.Logger
 	// TokenIdentityErr, if set, is returned by TokenIdentity instead of Identity.
 	TokenIdentityErr error
+	Claims           map[string]any
 }
 
 // LoginURL returns the URL to redirect the user to login with.
@@ -72,6 +74,10 @@ func (m *Callback) TokenIdentity(ctx context.Context, subjectTokenType, subjectT
 		return connector.Identity{}, m.TokenIdentityErr
 	}
 	return m.Identity, nil
+}
+
+func (m *Callback) TokenClaims(ctx context.Context, tokenType, token string) (map[string]any, error) {
+	return m.Claims, nil
 }
 
 // CallbackConfig holds the configuration parameters for a connector which requires no interaction.
