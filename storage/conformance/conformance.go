@@ -61,6 +61,7 @@ func RunTests(t *testing.T, newStorage func(t *testing.T) storage.Storage) {
 		{"AuthSessionCRUD", testAuthSessionCRUD},
 		{"AuthSessionLogoutState", testAuthSessionLogoutState},
 		{"UnsetAuthTime", testUnsetAuthTime},
+		{"UnsetBlockedUntil", testUnsetBlockedUntil},
 	})
 }
 
@@ -1612,6 +1613,81 @@ func testUnsetAuthTime(t *testing.T, s storage.Storage) {
 	}
 	if !gotCode.AuthTime.IsZero() {
 		t.Errorf("auth code: expected zero auth time, got %v", gotCode.AuthTime)
+	}
+}
+
+// testUnsetBlockedUntil checks that a user identity can be stored with a zero
+// BlockedUntil, which is how the server creates every identity, and that a
+// block can be set and cleared again.
+func testUnsetBlockedUntil(t *testing.T, s storage.Storage) {
+	ctx := t.Context()
+
+	now := time.Now().UTC().Round(time.Millisecond)
+
+	// The sql storage keeps the zero time as the Unix epoch on MySQL, so
+	// anything up to the epoch counts as unset.
+	mustBeUnset := func(when string) {
+		t.Helper()
+		got, err := s.GetUserIdentity(ctx, "user1", "conn1")
+		if err != nil {
+			t.Fatalf("%s: get user identity: %v", when, err)
+		}
+		if got.BlockedUntil.After(time.Unix(0, 0)) {
+			t.Errorf("%s: expected unset blocked until, got %v", when, got.BlockedUntil)
+		}
+	}
+
+	u := storage.UserIdentity{
+		UserID:      "user1",
+		ConnectorID: "conn1",
+		Claims: storage.Claims{
+			UserID:   "user1",
+			Username: "jane",
+			Email:    "jane@example.com",
+		},
+		Consents:  make(map[string][]string),
+		CreatedAt: now,
+		LastLogin: now,
+	}
+	if err := s.CreateUserIdentity(ctx, u); err != nil {
+		t.Fatalf("failed creating user identity with unset blocked until: %v", err)
+	}
+	mustBeUnset("created")
+
+	// Every later login updates the identity and leaves BlockedUntil alone.
+	if err := s.UpdateUserIdentity(ctx, u.UserID, u.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
+		old.LastLogin = now.Add(time.Minute)
+		return old, nil
+	}); err != nil {
+		t.Fatalf("failed updating user identity with unset blocked until: %v", err)
+	}
+	mustBeUnset("updated")
+
+	blockedUntil := now.Add(time.Hour)
+	if err := s.UpdateUserIdentity(ctx, u.UserID, u.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
+		old.BlockedUntil = blockedUntil
+		return old, nil
+	}); err != nil {
+		t.Fatalf("failed blocking user identity: %v", err)
+	}
+	got, err := s.GetUserIdentity(ctx, u.UserID, u.ConnectorID)
+	if err != nil {
+		t.Fatalf("failed getting user identity: %v", err)
+	}
+	if gotBlockedUntil := got.BlockedUntil.UTC().Round(time.Millisecond); !gotBlockedUntil.Equal(blockedUntil) {
+		t.Errorf("blocked: expected blocked until %v, got %v", blockedUntil, gotBlockedUntil)
+	}
+
+	if err := s.UpdateUserIdentity(ctx, u.UserID, u.ConnectorID, func(old storage.UserIdentity) (storage.UserIdentity, error) {
+		old.BlockedUntil = time.Time{}
+		return old, nil
+	}); err != nil {
+		t.Fatalf("failed unblocking user identity: %v", err)
+	}
+	mustBeUnset("unblocked")
+
+	if err := s.DeleteUserIdentity(ctx, u.UserID, u.ConnectorID); err != nil {
+		t.Fatalf("failed deleting user identity: %v", err)
 	}
 }
 

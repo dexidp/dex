@@ -229,13 +229,26 @@ func TestPassword(t *testing.T) {
 	}
 
 	emptyGroup := api.Password{
-		Email:  "empty-group@example.com",
-		Hash:   p.Hash,
-		UserId: "empty-group",
-		Groups: []string{""},
+		Email:    "empty-group@example.com",
+		Hash:     p.Hash,
+		Username: "empty-group",
+		UserId:   "empty-group",
+		Groups:   []string{""},
 	}
 	if _, err := client.CreatePassword(ctx, &api.CreatePasswordReq{Password: &emptyGroup}); err == nil {
 		t.Fatal("CreatePassword accepted an empty group name")
+	}
+
+	emptyUsername := api.Password{
+		Email:  "empty-username@example.com",
+		Hash:   p.Hash,
+		UserId: "empty-username",
+	}
+	if _, err := client.CreatePassword(ctx, &api.CreatePasswordReq{Password: &emptyUsername}); err == nil {
+		t.Fatal("CreatePassword accepted an empty username")
+	}
+	if _, err := s.GetPassword(ctx, emptyUsername.Email); err != storage.ErrNotFound {
+		t.Fatalf("Rejected CreatePassword stored a password. Expected %v retrieved %v", storage.ErrNotFound, err)
 	}
 
 	deleteReq := api.DeletePasswordReq{

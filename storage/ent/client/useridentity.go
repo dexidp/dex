@@ -47,7 +47,7 @@ func (d *Database) CreateUserIdentity(ctx context.Context, identity storage.User
 		SetWebauthnCredentials(encodedWebAuthnCreds).
 		SetCreatedAt(identity.CreatedAt).
 		SetLastLogin(identity.LastLogin).
-		SetBlockedUntil(identity.BlockedUntil).
+		SetNillableBlockedUntil(nonZeroTime(identity.BlockedUntil)).
 		Save(ctx)
 	if err != nil {
 		return convertDBError("create user identity: %w", err)
@@ -119,7 +119,7 @@ func (d *Database) UpdateUserIdentity(ctx context.Context, userID string, connec
 		return rollback(tx, "encode webauthn credentials user identity: %w", err)
 	}
 
-	_, err = tx.UserIdentity.UpdateOneID(id).
+	update := tx.UserIdentity.UpdateOneID(id).
 		SetUserID(newUserIdentity.UserID).
 		SetConnectorID(newUserIdentity.ConnectorID).
 		SetClaimsUserID(newUserIdentity.Claims.UserID).
@@ -132,10 +132,15 @@ func (d *Database) UpdateUserIdentity(ctx context.Context, userID string, connec
 		SetMfaSecrets(encodedMFASecrets).
 		SetWebauthnCredentials(encodedWebAuthnCreds).
 		SetCreatedAt(newUserIdentity.CreatedAt).
-		SetLastLogin(newUserIdentity.LastLogin).
-		SetBlockedUntil(newUserIdentity.BlockedUntil).
-		Save(ctx)
-	if err != nil {
+		SetLastLogin(newUserIdentity.LastLogin)
+	// A zero BlockedUntil lifts the block, so the column has to be cleared.
+	// SetNillableBlockedUntil would keep the stored value.
+	if newUserIdentity.BlockedUntil.IsZero() {
+		update.ClearBlockedUntil()
+	} else {
+		update.SetBlockedUntil(newUserIdentity.BlockedUntil)
+	}
+	if _, err = update.Save(ctx); err != nil {
 		return rollback(tx, "update user identity uploading: %w", err)
 	}
 
