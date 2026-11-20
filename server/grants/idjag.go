@@ -144,6 +144,7 @@ func (g *idJAG) Authorize(ctx context.Context, req *Request, client storage.Clie
 		Email         string `json:"email"`
 		EmailVerified bool   `json:"email_verified"`
 		SessionID     string `json:"sid"`
+		AuthTime      int64  `json:"auth_time"`
 	}
 	if err := idToken.Claims(&subjectClaims); err != nil {
 		g.logger.ErrorContext(ctx, "failed to decode subject token claims", "err", err)
@@ -172,6 +173,7 @@ func (g *idJAG) Authorize(ctx context.Context, req *Request, client storage.Clie
 		Audience: audience,
 		ClientID: client.ID,
 		Scope:    strings.Join(scopes, " "),
+		AuthTime: subjectClaims.AuthTime,
 	}
 	if len(req.Resource) == 1 {
 		claims.Resource = req.Resource[0]
