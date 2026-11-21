@@ -78,6 +78,7 @@ Dex implements the following connectors:
 | [LinkedIn](https://dexidp.io/docs/connectors/linkedin/) | yes | no | no | beta | |
 | [Microsoft](https://dexidp.io/docs/connectors/microsoft/) | yes | yes | no | beta | |
 | [AuthProxy](https://dexidp.io/docs/connectors/authproxy/) | no | yes | no | alpha | Authentication proxies such as Apache2 mod_auth, etc. |
+| [JWT](https://dexidp.io/docs/connectors/jwt/) | no | yes | yes | alpha | Upstream JWT bearer token in an HTTP header, verified against the issuer's JWKS |
 | [Bitbucket Cloud](https://dexidp.io/docs/connectors/bitbucketcloud/) | yes | yes | no | alpha | |
 | [OpenShift](https://dexidp.io/docs/connectors/openshift/) | yes | yes | no | alpha | |
 | [Atlassian Crowd](https://dexidp.io/docs/connectors/atlassian-crowd/) | yes | yes | yes * | beta | preferred_username claim must be configured through config |
