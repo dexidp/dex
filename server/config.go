@@ -11,6 +11,7 @@ import (
 	"os"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	gosundheit "github.com/AppsFlyer/go-sundheit"
@@ -78,6 +79,10 @@ type Config struct {
 	// PKCE configuration
 	PKCE authflow.PKCEConfig
 
+	// DynamicClientRegistration enables the RFC 7591 client registration
+	// endpoint. Nil keeps the endpoint disabled and out of discovery.
+	DynamicClientRegistration *DynamicClientRegistrationConfig
+
 	GCFrequency time.Duration // Defaults to 5 minutes
 
 	// If specified, the server will use this function for determining time.
@@ -109,6 +114,14 @@ type Config struct {
 
 	// IDJAG enables issuing ID-JAGs through token exchange. Nil disables it.
 	IDJAG *grants.IDJAGConfig
+}
+
+// DynamicClientRegistrationConfig configures protected RFC 7591 client
+// registration. Dex deliberately requires an initial access token when the
+// endpoint is enabled; an accidentally open endpoint would allow arbitrary
+// callers to create persistent clients.
+type DynamicClientRegistrationConfig struct {
+	InitialAccessToken string
 }
 
 // WebConfig holds the server's frontend templates and asset configuration.
@@ -178,6 +191,9 @@ func normalizeConfig(c *Config) (resolvedConfig, error) {
 	if c.Storage == nil {
 		return resolvedConfig{}, errors.New("server: storage cannot be nil")
 	}
+	if c.DynamicClientRegistration != nil && strings.TrimSpace(c.DynamicClientRegistration.InitialAccessToken) == "" {
+		return resolvedConfig{}, errors.New("server: dynamic client registration requires an initial access token")
+	}
 
 	issuerURL, err := url.Parse(c.Issuer)
 	if err != nil {
@@ -233,8 +249,9 @@ func normalizeConfig(c *Config) (resolvedConfig, error) {
 }
 
 // supportedTypes resolves the response types the server accepts and the grant
-// types it advertises. A response type enabling the implicit flow adds the
-// implicit grant; AllowedGrantTypes, when set, narrows the result to it.
+// types it advertises. A response type that returns a token or an ID token from
+// the authorization endpoint adds the implicit grant; AllowedGrantTypes, when
+// set, narrows the result to it.
 func supportedTypes(c *Config) (map[string]bool, []string, error) {
 	allGrants := map[string]bool{
 		oauth2.GrantTypeAuthorizationCode: true,
@@ -247,11 +264,17 @@ func supportedTypes(c *Config) (map[string]bool, []string, error) {
 
 	for _, respType := range c.SupportedResponseTypes {
 		switch respType {
-		case oauth2.ResponseTypeCode, oauth2.ResponseTypeIDToken, oauth2.ResponseTypeCodeIDToken:
+		case oauth2.ResponseTypeCode:
 			// continue
-		case oauth2.ResponseTypeToken, oauth2.ResponseTypeCodeToken, oauth2.ResponseTypeIDTokenToken, oauth2.ResponseTypeCodeIDTokenToken:
-			// response_type=token is an implicit flow, let's add it to the discovery info
+		case oauth2.ResponseTypeToken, oauth2.ResponseTypeIDToken,
+			oauth2.ResponseTypeCodeToken, oauth2.ResponseTypeCodeIDToken,
+			oauth2.ResponseTypeIDTokenToken, oauth2.ResponseTypeCodeIDTokenToken:
+			// Any response type that returns a token or an ID token from the
+			// authorization endpoint uses the implicit grant, alone or as part
+			// of a hybrid flow. The authorization endpoint and dynamic client
+			// registration classify response types the same way.
 			// https://datatracker.ietf.org/doc/html/rfc6749#section-4.2.1
+			// https://openid.net/specs/openid-connect-registration-1_0.html#ClientMetadata
 			allGrants[oauth2.GrantTypeImplicit] = true
 		default:
 			return nil, nil, fmt.Errorf("unsupported response_type %q", respType)

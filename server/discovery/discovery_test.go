@@ -43,13 +43,16 @@ func testHandler(t *testing.T, sessionsEnabled bool) *Handler {
 }
 
 func TestConstruct(t *testing.T) {
-	doc := testHandler(t, true).Construct(context.Background())
+	h := testHandler(t, true)
+	h.RegistrationEnabled = true
+	doc := h.Construct(context.Background())
 
 	require.Equal(t, "https://dex.example.com", doc.Issuer)
 	require.Equal(t, "https://dex.example.com/auth", doc.Auth)
 	require.Equal(t, "https://dex.example.com/token", doc.Token)
 	require.Equal(t, "https://dex.example.com/keys", doc.Keys)
 	require.Equal(t, "https://dex.example.com/token/introspect", doc.Introspect)
+	require.Equal(t, "https://dex.example.com/register", doc.Registration)
 	// Response types are sorted.
 	require.Equal(t, []string{"code", "id_token"}, doc.ResponseTypes)
 	require.Equal(t, []string{"authorization_code", "refresh_token"}, doc.GrantTypes)
@@ -62,6 +65,7 @@ func TestConstruct(t *testing.T) {
 func TestConstructNoSessions(t *testing.T) {
 	doc := testHandler(t, false).Construct(context.Background())
 	require.Empty(t, doc.EndSession)
+	require.Empty(t, doc.Registration)
 }
 
 // flakySigner fails its first Algorithm lookup, as a signer backed by storage or

@@ -23,15 +23,16 @@ import (
 // handler it takes the issuer URL and the templates directly, so it can be
 // built without a Server.
 type Handler struct {
-	IssuerURL       oauth2.IssuerURL
-	Templates       *templates.Templates
-	Signer          signer.Signer
-	Logger          *slog.Logger
-	ResponseTypes   map[string]bool
-	GrantTypes      []string
-	PKCEMethods     []string
-	SessionsEnabled bool
-	IDJAGEnabled    bool
+	IssuerURL           oauth2.IssuerURL
+	Templates           *templates.Templates
+	Signer              signer.Signer
+	Logger              *slog.Logger
+	ResponseTypes       map[string]bool
+	GrantTypes          []string
+	PKCEMethods         []string
+	SessionsEnabled     bool
+	IDJAGEnabled        bool
+	RegistrationEnabled bool
 
 	// doc caches the marshaled discovery document. It is only filled once the
 	// signing algorithm has been resolved, so a failed lookup is retried by the
@@ -59,6 +60,7 @@ type Document struct {
 	UserInfo       string `json:"userinfo_endpoint"`
 	DeviceEndpoint string `json:"device_authorization_endpoint"`
 	Introspect     string `json:"introspection_endpoint"`
+	Registration   string `json:"registration_endpoint,omitempty"`
 	EndSession     string `json:"end_session_endpoint,omitempty"`
 	// BackchannelLogout and BackchannelLogoutSession advertise OIDC Back-Channel
 	// Logout 1.0. Both are omitted rather than sent as false when sessions are off,
@@ -178,13 +180,16 @@ func (h *Handler) construct(ctx context.Context) (Document, error) {
 		Subjects:          []string{"public"},
 		IDTokenAlgs:       []string{string(jose.RS256)},
 		CodeChallengeAlgs: h.PKCEMethods,
-		Scopes:            []string{"openid", "email", "groups", "profile", "offline_access"},
-		AuthMethods:       []string{"client_secret_basic", "client_secret_post"},
+		Scopes:            []string{"openid", "email", "groups", "profile", "offline_access", "federated:id"},
+		AuthMethods:       []string{"client_secret_basic", "client_secret_post", "none"},
 		Claims: []string{
 			"iss", "sub", "aud", "iat", "exp", "email", "email_verified",
 			"locale", "name", "preferred_username", "at_hash", "groups",
 			"federated_claims",
 		},
+	}
+	if h.RegistrationEnabled {
+		d.Registration = h.IssuerURL.AbsURL("/register")
 	}
 
 	// Determine signing algorithm from signer.

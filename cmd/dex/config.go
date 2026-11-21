@@ -112,6 +112,8 @@ func (c Config) Validate() error {
 		{c.GRPC.TLSMinVersion != "" && c.GRPC.TLSMinVersion != "1.2" && c.GRPC.TLSMinVersion != "1.3", "supported TLS versions are: 1.2, 1.3"},
 		{c.GRPC.TLSMaxVersion != "" && c.GRPC.TLSMaxVersion != "1.2" && c.GRPC.TLSMaxVersion != "1.3", "supported TLS versions are: 1.2, 1.3"},
 		{c.GRPC.TLSMaxVersion != "" && c.GRPC.TLSMinVersion != "" && c.GRPC.TLSMinVersion > c.GRPC.TLSMaxVersion, "TLSMinVersion greater than TLSMaxVersion"},
+		{c.OAuth2.DynamicClientRegistration.Enabled && c.OAuth2.DynamicClientRegistration.InitialAccessToken == "" && c.OAuth2.DynamicClientRegistration.InitialAccessTokenEnv == "", "dynamic client registration requires an initial access token"},
+		{c.OAuth2.DynamicClientRegistration.InitialAccessToken != "" && c.OAuth2.DynamicClientRegistration.InitialAccessTokenEnv != "", "dynamic client registration initialAccessToken and initialAccessTokenEnv are mutually exclusive"},
 	}
 
 	var checkErrors []string
@@ -300,6 +302,8 @@ type OAuth2 struct {
 	PKCE PKCE `json:"pkce"`
 	// TokenExchange configuration
 	TokenExchange TokenExchange `json:"tokenExchange"`
+	// DynamicClientRegistration controls the protected RFC 7591 endpoint.
+	DynamicClientRegistration DynamicClientRegistration `json:"dynamicClientRegistration"`
 }
 
 // TokenExchange holds the token exchange (RFC 8693) configuration.
@@ -312,6 +316,26 @@ type TokenExchange struct {
 
 func (t TokenExchange) idJAGEnabled() bool {
 	return slices.Contains(t.TokenTypes, oauth2.TokenTypeIDJAG)
+}
+
+// DynamicClientRegistration is disabled by default. When enabled, clients
+// must authenticate with the configured initial access token.
+type DynamicClientRegistration struct {
+	Enabled               bool   `json:"enabled"`
+	InitialAccessToken    string `json:"initialAccessToken"`
+	InitialAccessTokenEnv string `json:"initialAccessTokenEnv"`
+}
+
+func (c DynamicClientRegistration) token() (string, error) {
+	if c.InitialAccessTokenEnv == "" {
+		return strings.TrimSpace(c.InitialAccessToken), nil
+	}
+	// Secrets injected from files commonly end in a newline.
+	token := strings.TrimSpace(os.Getenv(c.InitialAccessTokenEnv))
+	if token == "" {
+		return "", fmt.Errorf("dynamic client registration environment variable %q is unset or empty", c.InitialAccessTokenEnv)
+	}
+	return token, nil
 }
 
 // PKCE holds the PKCE (Proof Key for Code Exchange) configuration.
