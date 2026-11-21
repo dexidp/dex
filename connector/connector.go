@@ -116,7 +116,7 @@ type CallbackConnector interface {
 	//
 	// Many identity providers have arbitrary restrictions on refresh tokens. For
 	// example Google only allows a single refresh token per client/user/scopes
-	// combination, and wont return a refresh token even if offline access is
+	// combination, and won't return a refresh token even if offline access is
 	// requested if one has already been issues. There's no good general answer
 	// for these kind of restrictions, and may require this package to become more
 	// aware of the global set of user/connector interactions.
