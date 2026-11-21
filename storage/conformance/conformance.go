@@ -1348,6 +1348,19 @@ func testDeviceTokenCRUD(t *testing.T, s storage.Storage) {
 	if !reflect.DeepEqual(got.PKCE, codeChallenge) {
 		t.Fatalf("storage does not support PKCE, wanted challenge=%#v got %#v", codeChallenge, got.PKCE)
 	}
+
+	// Delete is the atomic single-use gate the device_code grant redeems through,
+	// so deleting the token once must succeed and a second delete of the same code
+	// must report it already gone. That ErrNotFound is what lets a concurrent loser
+	// be told the code is spent rather than handed the token a second time.
+	if err := s.DeleteDeviceToken(ctx, d1.DeviceCode); err != nil {
+		t.Fatalf("failed to delete device token: %v", err)
+	}
+	err = s.DeleteDeviceToken(ctx, d1.DeviceCode)
+	mustBeErrNotFound(t, "device token", err)
+
+	_, err = s.GetDeviceToken(ctx, d1.DeviceCode)
+	mustBeErrNotFound(t, "device token", err)
 }
 
 func testUserIdentityCRUD(t *testing.T, s storage.Storage) {

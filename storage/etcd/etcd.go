@@ -188,6 +188,12 @@ func (c *conn) DeleteAuthCode(ctx context.Context, id string) error {
 	return c.deleteKey(ctx, keyID(authCodePrefix, id))
 }
 
+func (c *conn) DeleteDeviceToken(ctx context.Context, deviceCode string) error {
+	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
+	defer cancel()
+	return c.deleteKey(ctx, keyID(deviceTokenPrefix, deviceCode))
+}
+
 func (c *conn) CreateRefresh(ctx context.Context, r storage.RefreshToken) error {
 	return c.txnCreate(ctx, keyID(refreshTokenPrefix, r.ID), fromStorageRefreshToken(r))
 }

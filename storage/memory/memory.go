@@ -679,3 +679,14 @@ func (s *memStorage) UpdateDeviceToken(ctx context.Context, deviceCode string, u
 	})
 	return
 }
+
+func (s *memStorage) DeleteDeviceToken(ctx context.Context, deviceCode string) (err error) {
+	s.tx(func() {
+		if _, ok := s.deviceTokens[deviceCode]; !ok {
+			err = storage.ErrNotFound
+			return
+		}
+		delete(s.deviceTokens, deviceCode)
+	})
+	return
+}

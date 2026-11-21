@@ -37,6 +37,23 @@ func (d *Database) GetDeviceToken(ctx context.Context, deviceCode string) (stora
 	return toStorageDeviceToken(deviceToken), nil
 }
 
+// DeleteDeviceToken deletes a device token from the database by device code. It
+// is the atomic single-use gate for the device_code grant: the DELETE statement
+// serializes concurrent redemptions, so only one caller removes the row and the
+// rest get storage.ErrNotFound.
+func (d *Database) DeleteDeviceToken(ctx context.Context, deviceCode string) error {
+	affected, err := d.client.DeviceToken.Delete().
+		Where(devicetoken.DeviceCode(deviceCode)).
+		Exec(ctx)
+	if err != nil {
+		return convertDBError("delete device token: %w", err)
+	}
+	if affected == 0 {
+		return storage.ErrNotFound
+	}
+	return nil
+}
+
 // UpdateDeviceToken changes a token by device code using an updater function and saves it to the database.
 func (d *Database) UpdateDeviceToken(ctx context.Context, deviceCode string, updater func(old storage.DeviceToken) (storage.DeviceToken, error)) error {
 	tx, err := d.BeginTx(ctx)

@@ -117,6 +117,7 @@ type Storage interface {
 	// Delete methods MUST be atomic.
 	DeleteAuthRequest(ctx context.Context, id string) error
 	DeleteAuthCode(ctx context.Context, code string) error
+	DeleteDeviceToken(ctx context.Context, deviceCode string) error
 	DeleteClient(ctx context.Context, id string) error
 	DeleteRefresh(ctx context.Context, id string) error
 	DeletePassword(ctx context.Context, email string) error
