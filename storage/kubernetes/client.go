@@ -68,6 +68,7 @@ type client struct {
 	// CRD handling behavior controls how missing Custom Resource Definitions are handled:
 	// - "ensure": Attempt to create all missing CRDs. Fails if any CRD creation fails. (default)
 	// - "check": Fail if any CRDs are missing, with error "storage is not initialized, CRDs are not created"
+	// - "skip": Bypass all CRD detection and creation
 	crdHandling string
 
 	// This is called once the client's Close method is called to signal goroutines,
