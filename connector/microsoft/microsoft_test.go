@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"regexp"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -154,6 +155,24 @@ func TestUserGroupsFromGraphAPI(t *testing.T) {
 	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, nil, req)
 	expectNil(t, err)
 	expectEquals(t, identity.Groups, []string{"a", "b"})
+}
+
+func TestUserGroupsFromGraphAPIWithFilter(t *testing.T) {
+	s := newTestServer(map[string]testResponse{
+		"/v1.0/me?$select=id,displayName,userPrincipalName,mailNickname,onPremisesSamAccountName": {data: user{}},
+		"/v1.0/me/getMemberGroups": {data: map[string]interface{}{
+			"value": []string{"alloweda", "allowedb", "filteredc", "filteredd"},
+		}},
+		"/" + tenant + "/oauth2/v2.0/token": dummyToken,
+	})
+	defer s.Close()
+
+	req, _ := http.NewRequest("GET", s.URL, nil)
+
+	c := microsoftConnector{apiURL: s.URL, graphURL: s.URL, tenant: tenant, groupsFilter: regexp.MustCompile("^allowed")}
+	identity, err := c.HandleCallback(connector.Scopes{Groups: true}, nil, req)
+	expectNil(t, err)
+	expectEquals(t, identity.Groups, []string{"alloweda", "allowedb"})
 }
 
 func TestUserNotInRequiredGroupFromGraphAPI(t *testing.T) {
