@@ -231,8 +231,16 @@ func (h *Handler) renderTOTPPage(secret *storage.MFASecret, lastFail bool, issue
 	// Prevent browser from caching the TOTP page (contains QR code with secret).
 	w.Header().Set("Cache-Control", "no-store")
 	var qrCode string
+	var totpKey string
 	if !secret.Confirmed {
 		var err error
+		totpKey, err = totpManualSecret(secret.Secret)
+		if err != nil {
+			h.Logger.ErrorContext(r.Context(), "failed to load TOTP key", "err", err)
+			h.renderError(r, w, http.StatusInternalServerError, "Internal server error.")
+			return
+		}
+
 		qrCode, err = generateTOTPQRCode(secret.Secret)
 		if err != nil {
 			h.Logger.ErrorContext(r.Context(), "failed to generate QR code", "err", err)
@@ -240,9 +248,17 @@ func (h *Handler) renderTOTPPage(secret *storage.MFASecret, lastFail bool, issue
 			return
 		}
 	}
-	if err := h.Templates.TOTPVerify(r, w, r.URL.String(), issuer, connectorID, qrCode, lastFail); err != nil {
+	if err := h.Templates.TOTPVerifyWithKey(r, w, r.URL.String(), issuer, connectorID, qrCode, totpKey, lastFail); err != nil {
 		h.Logger.ErrorContext(r.Context(), "server template error", "err", err)
 	}
+}
+
+func totpManualSecret(keyURL string) (string, error) {
+	generated, err := otp.NewKeyFromURL(keyURL)
+	if err != nil {
+		return "", fmt.Errorf("load TOTP key: %w", err)
+	}
+	return generated.Secret(), nil
 }
 
 func generateTOTPQRCode(keyURL string) (string, error) {
