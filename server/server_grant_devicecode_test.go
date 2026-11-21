@@ -315,6 +315,84 @@ func TestDeviceTokenResponse(t *testing.T) {
 	}
 }
 
+// A device code buys one token set. The second redemption must be refused, and
+// the response stored against the code must not outlive its delivery: it holds the
+// access and refresh tokens, so a device code that has already been spent is not a
+// credential any more.
+func TestDeviceTokenSingleUse(t *testing.T) {
+	t0 := time.Now()
+	now := func() time.Time { return t0 }
+
+	storedTokenResponse := `{"access_token":"foobar","token_type":"bearer","expires_in":300,"id_token":"idtoken"}`
+
+	ctx := t.Context()
+
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.Now = now
+	})
+	defer httpServer.Close()
+
+	if err := s.storage.CreateDeviceRequest(ctx, storage.DeviceRequest{
+		UserCode:   "ABCD-WXYZ",
+		DeviceCode: "foo",
+		ClientID:   "testclient",
+		Scopes:     []string{"openid", "profile", "offline_access"},
+		Expiry:     now().Add(5 * time.Minute),
+	}); err != nil {
+		t.Fatalf("Failed to store device request: %v", err)
+	}
+
+	if err := s.storage.CreateDeviceToken(ctx, storage.DeviceToken{
+		DeviceCode:      "foo",
+		Status:          oauth2.DeviceTokenComplete,
+		Token:           storedTokenResponse,
+		Expiry:          now().Add(5 * time.Minute),
+		LastRequestTime: time.Time{},
+	}); err != nil {
+		t.Fatalf("Failed to store device token: %v", err)
+	}
+
+	u, err := url.Parse(s.issuerURL.String())
+	if err != nil {
+		t.Fatalf("Could not parse issuer URL: %v", err)
+	}
+	u.Path = path.Join(u.Path, "token")
+
+	redeem := func() *httptest.ResponseRecorder {
+		data := url.Values{}
+		data.Set("grant_type", oauth2.GrantTypeDeviceCode)
+		data.Set("device_code", "foo")
+		req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(data.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+		s.ServeHTTP(rr, req)
+		return rr
+	}
+
+	first := redeem()
+	if first.Code != http.StatusOK {
+		t.Fatalf("first redemption: expected 200, got %d: %s", first.Code, first.Body.String())
+	}
+	if first.Body.String() != storedTokenResponse {
+		t.Fatalf("first redemption: expected %s, got %s", storedTokenResponse, first.Body.String())
+	}
+
+	second := redeem()
+	if second.Code == http.StatusOK {
+		t.Errorf("second redemption of the same device code succeeded and returned the token set again: %s", second.Body.String())
+	} else {
+		expectJSONErrorResponse("TestDeviceTokenSingleUse", second.Body.Bytes(), oauth2.InvalidRequest, t)
+	}
+
+	spent, err := s.storage.GetDeviceToken(ctx, "foo")
+	if err != nil {
+		t.Fatalf("Failed to read device token back: %v", err)
+	}
+	if spent.Token != "" {
+		t.Errorf("token response is still stored against the spent device code: %s", spent.Token)
+	}
+}
+
 func expectJSONErrorResponse(testCase string, body []byte, expectedError string, t *testing.T) {
 	jsonMap := make(map[string]any)
 	err := json.Unmarshal(body, &jsonMap)

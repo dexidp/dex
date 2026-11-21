@@ -3,6 +3,7 @@ package grants
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -88,10 +89,22 @@ func (g *deviceCode) Authorize(ctx context.Context, req *Request, client storage
 		if oerr := verifyPKCE(req.CodeVerifier, deviceToken.PKCE); oerr != nil {
 			return nil, oerr
 		}
+
+		// Spend the code before the response goes out. A device code buys one token
+		// set, like the authorization code the browser callback consumed to mint it,
+		// and the stored response is the access and refresh tokens themselves, so it
+		// does not stay in storage once it has been handed over. Consuming first
+		// means a later failure leaves the code spent, which is the same trade
+		// ExchangeAuthCode makes: replay safety over a retry.
+		stored, oerr := g.spend(ctx, req.DeviceCode)
+		if oerr != nil {
+			return nil, oerr
+		}
+
 		// The token was minted by the browser callback and stored as a serialized
 		// tokens.Response. Decode it so it is written like every other grant's response.
 		var resp tokens.Response
-		if err := json.Unmarshal([]byte(deviceToken.Token), &resp); err != nil {
+		if err := json.Unmarshal([]byte(stored), &resp); err != nil {
 			g.logger.ErrorContext(ctx, "failed to decode stored device token response", "err", err)
 			return nil, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
 		}
@@ -100,4 +113,32 @@ func (g *deviceCode) Authorize(ctx context.Context, req *Request, client storage
 	default:
 		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Invalid Device code.", Status: http.StatusBadRequest}
 	}
+}
+
+// errDeviceTokenSpent reports that another request got to the code first.
+var errDeviceTokenSpent = errors.New("device token already redeemed")
+
+// spend hands over the stored token response and marks the device code redeemed,
+// returning what was stored. The status is read inside the updater, so two
+// requests arriving together cannot both be handed the response.
+func (g *deviceCode) spend(ctx context.Context, deviceCode string) (string, *oauth2.Error) {
+	var stored string
+	updater := func(old storage.DeviceToken) (storage.DeviceToken, error) {
+		if old.Status != oauth2.DeviceTokenComplete {
+			return old, errDeviceTokenSpent
+		}
+		stored = old.Token
+		old.Token = ""
+		old.Status = oauth2.DeviceTokenRedeemed
+		return old, nil
+	}
+
+	if err := g.storage.UpdateDeviceToken(ctx, deviceCode, updater); err != nil {
+		if errors.Is(err, errDeviceTokenSpent) {
+			return "", &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Invalid Device code.", Status: http.StatusBadRequest}
+		}
+		g.logger.ErrorContext(ctx, "failed to redeem device token", "err", err)
+		return "", &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
+	}
+	return stored, nil
 }

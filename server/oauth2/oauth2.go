@@ -65,6 +65,11 @@ const (
 	DeviceTokenComplete = "complete"
 	DeviceTokenSlowDown = "slow_down"
 	DeviceTokenExpired  = "expired_token"
+
+	// DeviceTokenRedeemed marks a device code whose token set has been handed
+	// over. It is a stored status only: the device never sees it, because the
+	// grant reports a redeemed code the same way it reports an unknown one.
+	DeviceTokenRedeemed = "redeemed"
 )
 
 // Special redirect URIs for native and device clients.
