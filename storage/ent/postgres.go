@@ -18,6 +18,7 @@ import (
 	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/ent/client"
 	"github.com/dexidp/dex/storage/ent/db"
+	"github.com/dexidp/dex/storage/sqlretry"
 )
 
 const (
@@ -43,7 +44,7 @@ func (p *Postgres) Open(logger *slog.Logger) (storage.Storage, error) {
 		return nil, err
 	}
 
-	databaseClient := client.NewDatabase(
+	opts := []func(*client.Database){
 		client.WithClient(db.NewClient(db.Driver(drv))),
 		client.WithHasher(sha256.New),
 		// The default behavior for Postgres transactions is consistent reads, not consistent writes.
@@ -51,7 +52,12 @@ func (p *Postgres) Open(logger *slog.Logger) (storage.Storage, error) {
 		//
 		// See: https://www.postgresql.org/docs/9.3/static/sql-set-transaction.html
 		client.WithTxIsolationLevel(sql.LevelSerializable),
-	)
+	}
+	if p.RetryOnSerializationFailure {
+		opts = append(opts, client.WithTxRetryCheck(sqlretry.IsSerializationFailure))
+	}
+
+	databaseClient := client.NewDatabase(opts...)
 
 	if err := databaseClient.Schema().Create(context.TODO()); err != nil {
 		return nil, err
