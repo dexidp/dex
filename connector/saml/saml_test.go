@@ -22,6 +22,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -79,6 +80,9 @@ type responseTest struct {
 	inResponseTo string
 	redirectURI  string
 	entityIssuer string
+	ssoIssuer    string
+
+	insecureSkipAudienceRestriction bool
 
 	// Attribute customization.
 	usernameAttr  string
@@ -88,8 +92,10 @@ type responseTest struct {
 	filterGroups  bool
 
 	// Expected outcome of the test.
-	wantErr   bool
-	wantIdent connector.Identity
+	wantErr bool
+	// If set, the error must contain this string.
+	wantErrContains string
+	wantIdent       connector.Identity
 }
 
 func TestGoodResponse(t *testing.T) {
@@ -423,6 +429,117 @@ func TestTamperedResponseNameID(t *testing.T) {
 	test.run(t)
 }
 
+// signedAssertionResponse returns a copy of testdata/assertion-signed.tmpl with
+// edit applied to the Assertion, which is then signed with testdata/ca.key. The
+// Response itself is left unsigned.
+func signedAssertionResponse(t *testing.T, edit func(assertion *etree.Element)) string {
+	t.Helper()
+	doc := etree.NewDocument()
+	if err := doc.ReadFromFile("testdata/assertion-signed.tmpl"); err != nil {
+		t.Fatal(err)
+	}
+	assertion := doc.FindElement("/Response/Assertion")
+	if assertion == nil {
+		t.Fatal("template has no Assertion element")
+	}
+	// Drop the xmlsec1 signature template, goxmldsig adds its own.
+	assertion.RemoveChild(assertion.SelectElement("Signature"))
+	if edit != nil {
+		edit(assertion)
+	}
+
+	tlsCert, err := tls.LoadX509KeyPair("testdata/ca.crt", "testdata/ca.key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := dsig.NewDefaultSigningContext(dsig.TLSCertKeyStore(tlsCert))
+	// Exclusive canonicalization, as in the xmlsec1 fixtures, so the signature
+	// doesn't depend on namespaces declared on the unsigned Response.
+	ctx.Canonicalizer = dsig.MakeC14N10ExclusiveCanonicalizerWithPrefixList("")
+	signed, err := ctx.SignEnveloped(assertion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc.Root().InsertChildAt(assertion.Index(), signed)
+	doc.Root().RemoveChild(assertion)
+
+	path := filepath.Join(t.TempDir(), "resp.xml")
+	if err := doc.WriteToFile(path); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// TestAssertionIssuerAndAudience covers responses where only the Assertion is
+// signed, so the Assertion's own Issuer and AudienceRestriction are what count.
+func TestAssertionIssuerAndAudience(t *testing.T) {
+	const oktaIssuer = "http://www.okta.com/exk91cb99lKkKSYoy0h7"
+
+	setIssuer := func(v string) func(*etree.Element) {
+		return func(a *etree.Element) { a.SelectElement("Issuer").SetText(v) }
+	}
+	removeConditions := func(a *etree.Element) {
+		a.RemoveChild(a.SelectElement("Conditions"))
+	}
+	removeAudienceRestriction := func(a *etree.Element) {
+		c := a.SelectElement("Conditions")
+		c.RemoveChild(c.SelectElement("AudienceRestriction"))
+	}
+	setAudience := func(v string) func(*etree.Element) {
+		return func(a *etree.Element) {
+			a.FindElement("Conditions/AudienceRestriction/Audience").SetText(v)
+		}
+	}
+
+	tests := []struct {
+		name      string
+		edit      func(*etree.Element)
+		ssoIssuer string
+		skipAud   bool
+		// Substring of the expected error, empty if the login should succeed.
+		wantErr string
+	}{
+		{name: "matching issuer and audience", ssoIssuer: oktaIssuer},
+		{name: "wrong assertion issuer", edit: setIssuer("http://evil.example.com"), ssoIssuer: oktaIssuer, wantErr: "expected Assertion Issuer"},
+		{name: "empty assertion issuer", edit: setIssuer(""), ssoIssuer: oktaIssuer, wantErr: "expected Assertion Issuer"},
+		{name: "assertion issuer not checked without ssoIssuer", edit: setIssuer("http://evil.example.com")},
+		{name: "no conditions", edit: removeConditions, wantErr: "did not contain an AudienceRestriction"},
+		{name: "no audience restriction", edit: removeAudienceRestriction, wantErr: "did not contain an AudienceRestriction"},
+		{name: "no conditions with opt-out", edit: removeConditions, skipAud: true},
+		{name: "no audience restriction with opt-out", edit: removeAudienceRestriction, skipAud: true},
+		{name: "wrong audience", edit: setAudience("http://other-sp.example.com"), wantErr: "required audience"},
+		{name: "wrong audience with opt-out", edit: setAudience("http://other-sp.example.com"), skipAud: true, wantErr: "required audience"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			test := responseTest{
+				caFile:       "testdata/ca.crt",
+				respFile:     signedAssertionResponse(t, tc.edit),
+				now:          "2017-04-04T04:34:59.330Z",
+				usernameAttr: "Name",
+				emailAttr:    "email",
+				inResponseTo: "6zmm5mguyebwvajyf2sdwwcw6m",
+				redirectURI:  "http://127.0.0.1:5556/dex/callback",
+				ssoIssuer:    tc.ssoIssuer,
+
+				insecureSkipAudienceRestriction: tc.skipAud,
+
+				wantErr:         tc.wantErr != "",
+				wantErrContains: tc.wantErr,
+			}
+			if tc.wantErr == "" {
+				test.wantIdent = connector.Identity{
+					UserID:        "eric.chiang+okta@coreos.com",
+					Username:      "Eric",
+					Email:         "eric.chiang+okta@coreos.com",
+					EmailVerified: true,
+				}
+			}
+			test.run(t)
+		})
+	}
+}
+
 func loadCert(ca string) (*x509.Certificate, error) {
 	data, err := os.ReadFile(ca)
 	if err != nil {
@@ -443,8 +560,12 @@ func (r responseTest) run(t *testing.T) {
 		GroupsAttr:    r.groupsAttr,
 		RedirectURI:   r.redirectURI,
 		EntityIssuer:  r.entityIssuer,
+		SSOIssuer:     r.ssoIssuer,
 		AllowedGroups: r.allowedGroups,
 		FilterGroups:  r.filterGroups,
+
+		InsecureSkipAudienceRestriction: r.insecureSkipAudienceRestriction,
+
 		// Never logging in, don't need this.
 		SSOURL: "http://foo.bar/",
 	}
@@ -472,6 +593,9 @@ func (r responseTest) run(t *testing.T) {
 	if err != nil {
 		if !r.wantErr {
 			t.Fatalf("handle response: %v", err)
+		}
+		if !strings.Contains(err.Error(), r.wantErrContains) {
+			t.Fatalf("expected error containing %q, got: %v", r.wantErrContains, err)
 		}
 		return
 	}

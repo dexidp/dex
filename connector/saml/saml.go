@@ -99,6 +99,11 @@ type Config struct {
 
 	InsecureSkipSignatureValidation bool `json:"insecureSkipSignatureValidation"`
 
+	// InsecureSkipAudienceRestriction accepts assertions that carry no
+	// AudienceRestriction, for IdPs that omit it. An AudienceRestriction that is
+	// present is still checked against entityIssuer (or redirectURI).
+	InsecureSkipAudienceRestriction bool `json:"insecureSkipAudienceRestriction"`
+
 	// SLOURL is the IdP's Single Logout Service URL (HTTP-Redirect binding).
 	// If empty, SLO is not available for this connector.
 	SLOURL string `json:"sloURL"`
@@ -191,6 +196,8 @@ func (c *Config) openConnector(logger *slog.Logger) (*provider, error) {
 		filterGroups:  c.FilterGroups,
 		redirectURI:   c.RedirectURI,
 		logger:        logger,
+
+		insecureSkipAudienceRestriction: c.InsecureSkipAudienceRestriction,
 
 		nameIDPolicyFormat: c.NameIDPolicyFormat,
 
@@ -361,6 +368,8 @@ type provider struct {
 	filterGroups  bool
 
 	redirectURI string
+
+	insecureSkipAudienceRestriction bool
 
 	nameIDPolicyFormat string
 
@@ -534,6 +543,12 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 		return ident, fmt.Errorf("response did not contain an assertion")
 	}
 
+	// The Assertion's Issuer is checked even when only the Assertion is signed,
+	// so a certificate in the CA bundle can't assert for another issuer.
+	if p.ssoIssuer != "" && assertion.Issuer.Issuer != p.ssoIssuer {
+		return ident, fmt.Errorf("expected Assertion Issuer value %s, got %s", p.ssoIssuer, assertion.Issuer.Issuer)
+	}
+
 	// Subject is usually optional, but we need it for the user ID, so complain
 	// if it's not present.
 	subject := assertion.Subject
@@ -546,12 +561,16 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 		return ident, err
 	}
 
-	// Conditions element is optional, but must be validated if present.
+	// The Web Browser SSO profile (§4.1.4.2) requires a bearer assertion to
+	// carry an AudienceRestriction, so Conditions are required unless
+	// insecureSkipAudienceRestriction is set.
 	if assertion.Conditions != nil {
 		// Validate that dex is the intended audience of this response.
 		if err = p.validateConditions(assertion.Conditions); err != nil {
 			return ident, err
 		}
+	} else if !p.insecureSkipAudienceRestriction {
+		return ident, fmt.Errorf("response did not contain an AudienceRestriction")
 	}
 
 	var nameIDFormat string
@@ -773,6 +792,10 @@ func (p *provider) validateConditions(conditions *conditions) error {
 	expAud := p.entityIssuer
 	if expAud == "" {
 		expAud = p.redirectURI
+	}
+
+	if len(conditions.AudienceRestriction) == 0 && !p.insecureSkipAudienceRestriction {
+		return fmt.Errorf("response did not contain an AudienceRestriction")
 	}
 
 	// AudienceRestriction elements indicate the intended audience(s) of an
