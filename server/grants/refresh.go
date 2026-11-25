@@ -3,6 +3,7 @@ package grants
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"slices"
@@ -109,6 +110,11 @@ func (g *refresh) Authorize(ctx context.Context, req *Request, client storage.Cl
 			return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Status: http.StatusInternalServerError}
 		}
 		userIdent = &ui
+		if !ui.BlockedUntil.IsZero() && g.now().Before(ui.BlockedUntil) {
+			g.logger.WarnContext(ctx, "refresh: refused, account is locked",
+				"client_id", refreshToken.ClientID, "user_id", refreshToken.Claims.UserID, "blocked_until", ui.BlockedUntil)
+			return nil, &oauth2.Error{Type: oauth2.InvalidGrant, Description: fmt.Sprintf("Account is locked until %s.", ui.BlockedUntil.Format(time.RFC3339)), Status: http.StatusBadRequest}
+		}
 	}
 
 	authTime := time.Time{}

@@ -1040,3 +1040,36 @@ func TestRefreshDoesNotLogConnectorData(t *testing.T) {
 	// no log line carries the connector data itself.
 	require.NotContains(t, logs, "connector_data=")
 }
+
+// TestRefreshLockedAccountDenied covers issue #5176: an account locked after
+// login (BlockedUntil in the future) must not keep refreshing from its cached
+// identity, the same way the browser login and the password grant refuse a
+// locked account.
+func TestRefreshLockedAccountDenied(t *testing.T) {
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.PasswordConnector = "local"
+		c.SessionConfig = testSessionConfig()
+	})
+	defer httpServer.Close()
+	seedLocalPasswordDB(t, s)
+
+	first := doPasswordGrant(t, s)
+
+	ctx := t.Context()
+	require.NoError(t, s.storage.UpdateUserIdentity(ctx, "user-id", "local", func(ui storage.UserIdentity) (storage.UserIdentity, error) {
+		ui.BlockedUntil = time.Now().Add(time.Hour)
+		return ui, nil
+	}))
+
+	rr := doRefreshGrant(t, s, first, 0)
+	require.Equal(t, http.StatusBadRequest, rr.Code, "locked account refreshed: %s", rr.Body.String())
+	require.Contains(t, rr.Body.String(), "invalid_grant")
+
+	// Clear the block: the same refresh token works again.
+	require.NoError(t, s.storage.UpdateUserIdentity(ctx, "user-id", "local", func(ui storage.UserIdentity) (storage.UserIdentity, error) {
+		ui.BlockedUntil = time.Time{}
+		return ui, nil
+	}))
+	rr = doRefreshGrant(t, s, first, 0)
+	require.Equal(t, http.StatusOK, rr.Code, "unlocked account refresh failed: %s", rr.Body.String())
+}
