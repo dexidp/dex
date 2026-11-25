@@ -109,29 +109,29 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	authReq, _, err := h.parseAuthorizationRequest(r)
+	if err != nil {
+		h.Logger.ErrorContext(r.Context(), "failed to parse authorization request", "err", err)
+
+		switch authErr := err.(type) {
+		case *redirectedAuthErr:
+			authErr.Handler().ServeHTTP(w, r)
+		case *displayedAuthErr:
+			h.renderError(r, w, authErr.Status, err.Error())
+		default:
+			panic("unsupported error type")
+		}
+		return
+	}
+	prompt, err := oauth2.ParsePrompt(authReq.Prompt)
+	if err != nil {
+		// Server error because authReq was validated before saving it to database.
+		h.redirectWithError(w, r, authReq, oauth2.ServerError, "Invalid authentication request")
+		return
+	}
+
 	// Skip connector selection if a valid session exists, unless prompt=select_account or alwaysShowLogin.
 	if h.Sessions.Enabled() {
-		authReq, _, err := h.parseAuthorizationRequest(r)
-		if err != nil {
-			h.Logger.ErrorContext(r.Context(), "failed to parse authorization request", "err", err)
-
-			switch authErr := err.(type) {
-			case *redirectedAuthErr:
-				authErr.Handler().ServeHTTP(w, r)
-			case *displayedAuthErr:
-				h.renderError(r, w, authErr.Status, err.Error())
-			default:
-				panic("unsupported error type")
-			}
-			return
-		}
-		prompt, err := oauth2.ParsePrompt(authReq.Prompt)
-		if err != nil {
-			// Server error because authReq was validated before saving it to database.
-			h.redirectWithError(w, r, authReq, oauth2.ServerError, "Invalid authentication request")
-			return
-		}
-
 		// Invalid prompts will be validated and properly redirected later
 		if !h.AlwaysShowLogin && !prompt.SelectAccount() {
 			session := h.Sessions.ValidSession(ctx, w, r)
@@ -146,11 +146,12 @@ func (h *Handler) handleAuthorization(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		if prompt.None() {
-			// Cannot authenticate silently with prompt=none.
-			h.redirectWithError(w, r, authReq, oauth2.LoginRequired, "id_token_hint does not match authenticated user")
-			return
-		}
+	}
+
+	if prompt.None() {
+		// Cannot authenticate silently with prompt=none.
+		h.redirectWithError(w, r, authReq, oauth2.LoginRequired, "id_token_hint does not match authenticated user")
+		return
 	}
 
 	connectorInfos := make([]templates.ConnectorInfo, 0, len(connectors))

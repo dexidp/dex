@@ -118,22 +118,18 @@ func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// prompt=none: no UI allowed.
-		if prompt.None() {
-			// prompt=none: no UI allowed. advance reports interaction_required if the
-			// session login can't complete silently; a missing session is login_required.
-			if !h.trySessionLoginWithSession(ctx, r, w, authReq, session) {
-				h.redirectWithError(w, r, authReq, oauth2.LoginRequired, "User not authenticated")
-			}
-			return
-		}
-
 		if !prompt.Login() {
 			// Normal flow: try session-based login (skip if prompt=login forces re-auth).
 			if h.trySessionLoginWithSession(ctx, r, w, authReq, session) {
 				return
 			}
 		}
+	}
+
+	// prompt=none: no UI allowed.
+	if prompt.None() {
+		h.redirectWithError(w, r, authReq, oauth2.LoginRequired, "User not authenticated")
+		return
 	}
 
 	scopes := tokens.ParseScopes(authReq.Scopes)
