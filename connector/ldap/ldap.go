@@ -728,6 +728,7 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 	}
 
 	var groupNames []string
+	var seenGroupNames map[string]struct{}
 
 	for _, matcher := range c.GroupSearch.UserMatchers {
 		// Initial Search
@@ -756,12 +757,22 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 					)
 				}
 				groupNames = append(groupNames, name)
+				if seenGroupNames != nil {
+					seenGroupNames[name] = struct{}{}
+				}
 			}
 			continue
 		}
 
 		// Recursive Search
 		c.logger.Info("Recursive group search enabled", "groupAttr", matcher.GroupAttr, "recursionAttr", matcher.RecursionGroupAttr)
+		if seenGroupNames == nil {
+			seenGroupNames = make(map[string]struct{}, len(groupNames)+len(groups))
+			// Earlier non-recursive matchers may already have contributed names.
+			for _, name := range groupNames {
+				seenGroupNames[name] = struct{}{}
+			}
+		}
 		for {
 			var nextLevel []*ldap.Entry
 			for _, group := range groups {
@@ -772,19 +783,13 @@ func (c *ldapConnector) groups(ctx context.Context, user ldap.Entry) ([]string, 
 				}
 
 				// Prevent duplicates and circular references.
-				duplicate := false
-				for _, existingName := range groupNames {
-					if name == existingName {
-						c.logger.Debug("Found duplicate group", "name", name)
-						duplicate = true
-						break
-					}
-				}
-				if duplicate {
+				if _, duplicate := seenGroupNames[name]; duplicate {
+					c.logger.Debug("Found duplicate group", "name", name)
 					continue
 				}
 
 				groupNames = append(groupNames, name)
+				seenGroupNames[name] = struct{}{}
 
 				// Search for parent groups using the group's DN.
 				parents, filter, err := c.queryGroups(ctx, matcher.RecursionGroupAttr, group.DN)

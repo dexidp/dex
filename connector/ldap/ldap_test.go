@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/kylelemons/godebug/pretty"
@@ -672,6 +673,113 @@ func TestNestedGroups(t *testing.T) {
 		},
 	}
 	runTests(t, connectLDAP, c, tests)
+}
+
+func TestNestedGroupsWithMultipleMatchers(t *testing.T) {
+	ldapHost := os.Getenv("DEX_LDAP_HOST")
+	if ldapHost == "" {
+		t.Skipf(`test environment variable "DEX_LDAP_HOST" not set, skipping`)
+	}
+
+	c := &Config{Host: fmt.Sprintf("%s:%s", ldapHost, getenv("DEX_LDAP_PORT", "389")), InsecureNoSSL: true}
+	c.BindDN = "cn=admin,dc=example,dc=org"
+	c.BindPW = "admin"
+	c.UserSearch.BaseDN = "ou=People,ou=TestNestedGroupMatchers,dc=example,dc=org"
+	c.UserSearch.NameAttr = "cn"
+	c.UserSearch.EmailAttr = "mail"
+	c.UserSearch.IDAttr = "DN"
+	c.UserSearch.Username = UsernameAttributes{"cn"}
+	c.GroupSearch.BaseDN = "ou=Groups,ou=TestNestedGroupMatchers,dc=example,dc=org"
+	c.GroupSearch.NameAttr = "description"
+	conn, err := c.openConnector(slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatal(err)
+	}
+	userDN := "cn=jane," + c.UserSearch.BaseDN
+	// LDAP does not guarantee search order. Preserve the order of each search
+	// rather than assuming an order for the entries in the fixture.
+	names := func(attr string) []string {
+		entries, _, err := conn.queryGroups(context.Background(), attr, userDN)
+		if err != nil {
+			t.Fatal(err)
+		}
+		names := make([]string, 0, len(entries))
+		for _, entry := range entries {
+			names = append(names, conn.getAttr(*entry, c.GroupSearch.NameAttr))
+		}
+		return names
+	}
+	directNames := names("member")
+	recursiveNames := names("owner")
+	var unseenRecursiveNames []string
+	for _, name := range recursiveNames {
+		if name != "Shared" {
+			unseenRecursiveNames = append(unseenRecursiveNames, name)
+		}
+	}
+
+	direct := UserMatcher{UserAttr: "DN", GroupAttr: "member"}
+	recursive := UserMatcher{UserAttr: "DN", GroupAttr: "owner", RecursionGroupAttr: "member"}
+	otherRecursive := UserMatcher{UserAttr: "DN", GroupAttr: "seeAlso", RecursionGroupAttr: "member"}
+	for _, test := range []struct {
+		name     string
+		matchers []UserMatcher
+		want     []string
+		nameAttr string
+		wantErr  bool
+	}{
+		{
+			name:     "nonrecursive duplicates are retained",
+			matchers: []UserMatcher{direct, direct},
+			want:     slices.Concat(directNames, directNames),
+		},
+		{
+			name:     "recursive matcher sees earlier nonrecursive names",
+			matchers: []UserMatcher{direct, recursive},
+			want:     slices.Concat(directNames, unseenRecursiveNames, []string{"parent"}),
+		},
+		{
+			name:     "recursive matchers share seen names",
+			matchers: []UserMatcher{recursive, otherRecursive},
+			want:     slices.Concat(recursiveNames, []string{"parent", "directOnly", "extraParent"}),
+		},
+		{
+			name:     "nonrecursive matcher updates names seen by later recursion",
+			matchers: []UserMatcher{recursive, direct, otherRecursive},
+			want:     slices.Concat(recursiveNames, []string{"parent"}, directNames),
+		},
+		{
+			name:     "missing nonrecursive group name",
+			matchers: []UserMatcher{direct},
+			nameAttr: "businessCategory",
+			wantErr:  true,
+		},
+		{
+			name:     "missing recursive group name",
+			matchers: []UserMatcher{recursive},
+			nameAttr: "businessCategory",
+			wantErr:  true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			c.GroupSearch.UserMatchers = test.matchers
+			c.GroupSearch.NameAttr = test.nameAttr
+			if c.GroupSearch.NameAttr == "" {
+				c.GroupSearch.NameAttr = "description"
+			}
+			runTests(t, connectLDAP, c, []subtest{{
+				name: "login and refresh", username: "jane", password: "foo", groups: true,
+				wantErr: test.wantErr,
+				want: connector.Identity{
+					UserID:        userDN,
+					Username:      "jane",
+					Email:         "janedoe@example.com",
+					EmailVerified: true,
+					Groups:        test.want,
+				},
+			}})
+		})
+	}
 }
 
 func getenv(key, defaultVal string) string {

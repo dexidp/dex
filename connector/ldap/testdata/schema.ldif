@@ -527,3 +527,74 @@ sn: doe
 cn: jane
 mail: janedoe@example.com
 userpassword: foo
+########################################################################
+
+dn: ou=TestNestedGroupMatchers,dc=example,dc=org
+objectClass: organizationalUnit
+ou: TestNestedGroupMatchers
+
+dn: ou=People,ou=TestNestedGroupMatchers,dc=example,dc=org
+objectClass: organizationalUnit
+ou: People
+
+dn: cn=jane,ou=People,ou=TestNestedGroupMatchers,dc=example,dc=org
+objectClass: person
+objectClass: inetOrgPerson
+sn: doe
+cn: jane
+mail: janedoe@example.com
+userpassword: foo
+
+dn: ou=Groups,ou=TestNestedGroupMatchers,dc=example,dc=org
+objectClass: organizationalUnit
+ou: Groups
+
+dn: cn=direct-shared,ou=Groups,ou=TestNestedGroupMatchers,dc=example,dc=org
+objectClass: groupOfNames
+cn: direct-shared
+description: Shared
+member: cn=jane,ou=People,ou=TestNestedGroupMatchers,dc=example,dc=org
+owner: cn=jane,ou=People,ou=TestNestedGroupMatchers,dc=example,dc=org
+
+dn: cn=direct-duplicate,ou=Groups,ou=TestNestedGroupMatchers,dc=example,dc=org
+objectClass: groupOfNames
+cn: direct-duplicate
+description: Shared
+member: cn=jane,ou=People,ou=TestNestedGroupMatchers,dc=example,dc=org
+
+dn: cn=case-distinct,ou=Groups,ou=TestNestedGroupMatchers,dc=example,dc=org
+objectClass: groupOfNames
+cn: case-distinct
+description: shared
+member: cn=case-distinct,ou=Groups,ou=TestNestedGroupMatchers,dc=example,dc=org
+owner: cn=jane,ou=People,ou=TestNestedGroupMatchers,dc=example,dc=org
+
+dn: cn=recursive,ou=Groups,ou=TestNestedGroupMatchers,dc=example,dc=org
+objectClass: groupOfNames
+cn: recursive
+description: recursive
+member: cn=recursive,ou=Groups,ou=TestNestedGroupMatchers,dc=example,dc=org
+owner: cn=jane,ou=People,ou=TestNestedGroupMatchers,dc=example,dc=org
+seeAlso: cn=jane,ou=People,ou=TestNestedGroupMatchers,dc=example,dc=org
+
+dn: cn=direct-only,ou=Groups,ou=TestNestedGroupMatchers,dc=example,dc=org
+objectClass: groupOfNames
+cn: direct-only
+description: directOnly
+member: cn=jane,ou=People,ou=TestNestedGroupMatchers,dc=example,dc=org
+seeAlso: cn=jane,ou=People,ou=TestNestedGroupMatchers,dc=example,dc=org
+
+dn: cn=parent,ou=Groups,ou=TestNestedGroupMatchers,dc=example,dc=org
+objectClass: groupOfNames
+cn: parent
+description: parent
+member: cn=direct-shared,ou=Groups,ou=TestNestedGroupMatchers,dc=example,dc=org
+member: cn=case-distinct,ou=Groups,ou=TestNestedGroupMatchers,dc=example,dc=org
+member: cn=recursive,ou=Groups,ou=TestNestedGroupMatchers,dc=example,dc=org
+member: cn=parent,ou=Groups,ou=TestNestedGroupMatchers,dc=example,dc=org
+
+dn: cn=extra-parent,ou=Groups,ou=TestNestedGroupMatchers,dc=example,dc=org
+objectClass: groupOfNames
+cn: extra-parent
+description: extraParent
+member: cn=direct-only,ou=Groups,ou=TestNestedGroupMatchers,dc=example,dc=org
