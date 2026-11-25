@@ -471,6 +471,40 @@ message DeleteUserIdentityResp {
   bool not_found = 1;
 }
 
+// LockUserIdentityReq locks a user identity until the given time.
+// While the lock is in force, every login path that reaches the stored
+// identity refuses the user, and refresh tokens stop working: the server
+// answers invalid_grant. Sessions the user already has keep working until
+// they end, so terminate them separately if the lock must take effect at once.
+message LockUserIdentityReq {
+  string user_id = 1;
+  string connector_id = 2;
+  // Unix seconds, must be in the future. 0 or a past time is refused; use
+  // UnlockUserIdentity to lift a lock. The lock expires on its own at this
+  // time, and nothing has to be scheduled to end it.
+  int64 blocked_until = 3;
+}
+
+// LockUserIdentityResp returns the result of locking a user identity.
+message LockUserIdentityResp {
+  // Set when no identity is stored for the user and connector, so nothing
+  // was locked: an identity exists only after the user has logged in once.
+  bool not_found = 1;
+}
+
+// UnlockUserIdentityReq lifts a user identity's lock.
+// Unlocking an identity that is not locked succeeds without changing it.
+message UnlockUserIdentityReq {
+  string user_id = 1;
+  string connector_id = 2;
+}
+
+// UnlockUserIdentityResp returns the result of unlocking a user identity.
+message UnlockUserIdentityResp {
+  // Set when no identity is stored for the user and connector.
+  bool not_found = 1;
+}
+
 // ResetMFAReq is a request to clear all MFA secrets and WebAuthn credentials for a user.
 // Use when a user has lost access to all their MFA devices.
 message ResetMFAReq {
@@ -591,6 +625,11 @@ service Dex {
   // DeleteUserIdentity performs a full data purge for GDPR compliance: deletes the identity,
   // auth session, refresh tokens, and offline sessions.
   rpc DeleteUserIdentity(DeleteUserIdentityReq) returns (DeleteUserIdentityResp) {};
+  // LockUserIdentity locks a user identity until the given time, refusing its
+  // logins and refresh tokens while the lock is in force.
+  rpc LockUserIdentity(LockUserIdentityReq) returns (LockUserIdentityResp) {};
+  // UnlockUserIdentity lifts a user identity's lock.
+  rpc UnlockUserIdentity(UnlockUserIdentityReq) returns (UnlockUserIdentityResp) {};
   // ResetMFA clears all MFA secrets and WebAuthn credentials for a user.
   rpc ResetMFA(ResetMFAReq) returns (ResetMFAResp) {};
   // ListMFADevices lists registered MFA authenticators for a user.

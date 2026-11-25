@@ -17,7 +17,7 @@ import (
 
 // apiVersion increases every time a new call is added to the API. Clients should use this info
 // to determine if the server supports specific features.
-const apiVersion = 4
+const apiVersion = 5
 
 // NewAPI returns a server which implements the gRPC API interface. It takes only
 // the narrow dependencies it needs — the connector cache to invalidate on
