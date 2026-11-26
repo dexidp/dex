@@ -17,6 +17,9 @@ func (d dexAPI) CreatePassword(ctx context.Context, req *api.CreatePasswordReq) 
 	if req.Password == nil {
 		return nil, errors.New("no password supplied")
 	}
+	if req.Password.Email == "" {
+		return nil, errors.New("no email supplied")
+	}
 	if req.Password.UserId == "" {
 		return nil, errors.New("no user ID supplied")
 	}

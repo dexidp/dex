@@ -251,6 +251,18 @@ func TestPassword(t *testing.T) {
 		t.Fatalf("Rejected CreatePassword stored a password. Expected %v retrieved %v", storage.ErrNotFound, err)
 	}
 
+	emptyEmail := api.Password{
+		Hash:     p.Hash,
+		Username: "empty-email",
+		UserId:   "empty-email",
+	}
+	if _, err := client.CreatePassword(ctx, &api.CreatePasswordReq{Password: &emptyEmail}); err == nil {
+		t.Fatal("CreatePassword accepted an empty email")
+	}
+	if _, err := s.GetPassword(ctx, emptyEmail.Email); err != storage.ErrNotFound {
+		t.Fatalf("Rejected CreatePassword stored a password. Expected %v retrieved %v", storage.ErrNotFound, err)
+	}
+
 	deleteReq := api.DeletePasswordReq{
 		Email: "test@example.com",
 	}
