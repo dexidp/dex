@@ -112,3 +112,28 @@ func TestIssuerTokenTypes(t *testing.T) {
 	_, ok = headerType(ts.AccessToken)
 	require.False(t, ok, "another client's access token has a typ")
 }
+
+func TestIssuerVerifyTypedAccessToken(t *testing.T) {
+	issuer, store := newTestIssuer(t)
+	authorization := testAuthorization()
+	require.NoError(t, store.CreateClient(t.Context(), authorization.Client))
+	issuer.TypedAccessTokenClients = map[string]bool{authorization.Client.ID: true}
+
+	issued, err := issuer.Issue(t.Context(), authorization, "", false)
+	require.NoError(t, err)
+	for name, token := range map[string]string{
+		"access token": issued.AccessToken,
+		"ID token":     issued.IDToken,
+	} {
+		t.Run(name, func(t *testing.T) {
+			verified, err := issuer.VerifyToken(t.Context(), token)
+			require.NoError(t, err)
+			require.Equal(t, authorization.Client.ID, verified.Client.ID)
+		})
+	}
+
+	_, err = issuer.VerifyIDToken(t.Context(), issued.AccessToken, authorization.Client.ID)
+	require.Error(t, err)
+	_, err = issuer.VerifyIDToken(t.Context(), issued.IDToken, authorization.Client.ID)
+	require.NoError(t, err)
+}

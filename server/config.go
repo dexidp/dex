@@ -75,6 +75,10 @@ type Config struct {
 	// If set, the server will use this connector to handle password grants
 	PasswordConnector string
 
+	// TokenExchangeDelegation enables RFC 8693 delegation on the token-exchange
+	// grant for the listed clients.
+	TokenExchangeDelegation []grants.DelegationPolicy
+
 	// PKCE configuration
 	PKCE authflow.PKCEConfig
 

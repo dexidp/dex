@@ -31,8 +31,8 @@ func TestHandleTokenExchangeConnectorError(t *testing.T) {
 		{
 			name:          "subject-token-does-not-verify",
 			connectorErr:  errors.New("mock: subject token does not verify"),
-			expectedCode:  http.StatusUnauthorized,
-			expectedError: oauth2.AccessDenied,
+			expectedCode:  http.StatusBadRequest,
+			expectedError: oauth2.InvalidRequest,
 		},
 		{
 			name:               "upstream-unavailable",
