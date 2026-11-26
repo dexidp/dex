@@ -103,7 +103,7 @@ type Config struct {
 	PromptType *string `json:"promptType"`
 
 	// PKCEChallenge specifies which PKCE algorithm will be used
-	// If not setted it will be auto-detected the best-fit for the connector.
+	// If not set it will be auto-detected the best-fit for the connector.
 	PKCEChallenge string `json:"pkceChallenge"`
 
 	// OverrideClaimMapping will be used to override the options defined in claimMappings.
@@ -356,7 +356,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 	if err := provider.Claims(&metadata); err != nil {
 		logger.Warn("failed to parse provider metadata")
 	}
-	// if PKCEChallenge method has not been setted in the config, auto-detect the best fit
+	// if PKCEChallenge method has not been set in the config, auto-detect the best fit
 	if c.PKCEChallenge == "" {
 		if contains(metadata.CodeChallengeMethodsSupported, codeChallengeMethodS256) {
 			c.PKCEChallenge = codeChallengeMethodS256
@@ -364,7 +364,7 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 			c.PKCEChallenge = codeChallengeMethodPlain
 		}
 	} else {
-		// if PKCEChallenge method has been setted in the config, check if it is supported
+		// if PKCEChallenge method has been set in the config, check if it is supported
 		if !contains(metadata.CodeChallengeMethodsSupported, c.PKCEChallenge) {
 			logger.Warn("provided PKCEChallenge method not supported by the connector")
 		}
