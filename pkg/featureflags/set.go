@@ -27,4 +27,8 @@ var (
 
 	// APISessionsIdentitiesCRUD allows CRUD operations on auth sessions and user identities through the gRPC API.
 	APISessionsIdentitiesCRUD = newFlag("api_sessions_identities_crud", false)
+
+	// SAMLStrictAssertionValidation makes the SAML connector reject assertions whose Issuer doesn't match
+	// ssoIssuer or that carry no AudienceRestriction. When disabled, such assertions are accepted with a warning.
+	SAMLStrictAssertionValidation = newFlag("saml_strict_assertion_validation", false)
 )
