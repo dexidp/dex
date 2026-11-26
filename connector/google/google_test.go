@@ -483,3 +483,124 @@ func TestRefreshUpstreamRejection(t *testing.T) {
 	require.ErrorAs(t, err, &retrieveErr)
 	require.Equal(t, "invalid_grant", retrieveErr.ErrorCode)
 }
+
+func TestLoginURLWithHints(t *testing.T) {
+	promptTypeSelectAccount := "select_account"
+	cases := []struct {
+		name              string
+		promptType        *string
+		scopes            connector.Scopes
+		hints             connector.LoginHints
+		expectedLoginHint string
+		expectedPrompt    string
+		expectPrompt      bool
+	}{
+		{
+			name:   "no hints without offline access",
+			scopes: connector.Scopes{},
+		},
+		{
+			name:           "no hints with offline access keeps the configured prompt type",
+			scopes:         connector.Scopes{OfflineAccess: true},
+			expectedPrompt: "consent",
+			expectPrompt:   true,
+		},
+		{
+			name:              "login hint is passed on",
+			scopes:            connector.Scopes{},
+			hints:             connector.LoginHints{LoginHint: "jane@example.com"},
+			expectedLoginHint: "jane@example.com",
+		},
+		{
+			name:           "requested prompt without offline access",
+			scopes:         connector.Scopes{},
+			hints:          connector.LoginHints{Prompt: "select_account"},
+			expectedPrompt: "select_account",
+			expectPrompt:   true,
+		},
+		{
+			name:           "requested prompt is added to the configured prompt type with offline access",
+			scopes:         connector.Scopes{OfflineAccess: true},
+			hints:          connector.LoginHints{Prompt: "select_account"},
+			expectedPrompt: "consent select_account",
+			expectPrompt:   true,
+		},
+		{
+			name:           "requested prompt already in the configured prompt type",
+			scopes:         connector.Scopes{OfflineAccess: true},
+			hints:          connector.LoginHints{Prompt: "consent"},
+			expectedPrompt: "consent",
+			expectPrompt:   true,
+		},
+		{
+			name:              "requested none replaces the configured prompt type",
+			scopes:            connector.Scopes{OfflineAccess: true},
+			hints:             connector.LoginHints{Prompt: "none", LoginHint: "jane@example.com"},
+			expectedLoginHint: "jane@example.com",
+			expectedPrompt:    "none",
+			expectPrompt:      true,
+		},
+		{
+			name:           "login has no equivalent at Google",
+			scopes:         connector.Scopes{},
+			hints:          connector.LoginHints{Prompt: "login"},
+			expectedPrompt: "",
+		},
+		{
+			name:           "login is dropped from the other values",
+			scopes:         connector.Scopes{},
+			hints:          connector.LoginHints{Prompt: "login consent"},
+			expectedPrompt: "consent",
+			expectPrompt:   true,
+		},
+		{
+			name:           "requested prompt with a configured prompt type",
+			promptType:     &promptTypeSelectAccount,
+			scopes:         connector.Scopes{OfflineAccess: true},
+			hints:          connector.LoginHints{Prompt: "consent"},
+			expectedPrompt: "select_account consent",
+			expectPrompt:   true,
+		},
+		{
+			name:           "requested prompt with an empty prompt type",
+			promptType:     new(string),
+			scopes:         connector.Scopes{OfflineAccess: true},
+			hints:          connector.LoginHints{Prompt: "select_account"},
+			expectedPrompt: "select_account",
+			expectPrompt:   true,
+		},
+	}
+
+	ts := testSetup()
+	defer ts.Close()
+
+	serviceAccountFilePath, err := tempServiceAccountKey()
+	assert.Nil(t, err)
+
+	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", serviceAccountFilePath)
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			conn, err := newConnector(&Config{
+				ClientID:           "testClient",
+				ClientSecret:       "testSecret",
+				RedirectURI:        ts.URL + "/callback",
+				Scopes:             []string{"openid", "groups", "offline_access"},
+				DomainToAdminEmail: map[string]string{"dexidp.com": "admin@dexidp.com"},
+				PromptType:         test.promptType,
+			})
+			assert.Nil(t, err)
+
+			loginURL, _, err := conn.LoginURLWithHints(test.scopes, ts.URL+"/callback", "state", test.hints)
+			assert.Nil(t, err)
+
+			urlp, err := url.Parse(loginURL)
+			assert.Nil(t, err)
+
+			query := urlp.Query()
+			assert.Equal(t, test.expectedLoginHint, query.Get("login_hint"))
+			assert.Equal(t, test.expectPrompt, query.Has("prompt"))
+			assert.Equal(t, test.expectedPrompt, query.Get("prompt"))
+		})
+	}
+}

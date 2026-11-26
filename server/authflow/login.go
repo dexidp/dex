@@ -162,7 +162,11 @@ func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 			// Use the auth request ID as the "state" token.
 			//
 			// TODO(ericchiang): Is this appropriate or should we also be using a nonce?
-			callbackURL, connData, err := conn.LoginURL(scopes, h.IssuerURL.AbsURL("/callback"), authReq.ID)
+			hints := connector.LoginHints{
+				LoginHint: r.Form.Get("login_hint"),
+				Prompt:    authReq.Prompt,
+			}
+			callbackURL, connData, err := callbackLoginURL(conn, scopes, h.IssuerURL.AbsURL("/callback"), authReq.ID, hints)
 			if err != nil {
 				h.Logger.ErrorContext(r.Context(), "connector returned error when creating callback", "connector_id", connID, "err", err)
 				h.renderError(r, w, http.StatusInternalServerError, "Login error.")
@@ -229,4 +233,13 @@ func (h *Handler) handleConnectorLogin(w http.ResponseWriter, r *http.Request) {
 	default:
 		h.renderError(r, w, http.StatusBadRequest, "Unsupported request method.")
 	}
+}
+
+// callbackLoginURL returns the URL a callback connector redirects the user to,
+// passing the hints of the authorization request to the connectors that take them.
+func callbackLoginURL(conn connector.CallbackConnector, scopes connector.Scopes, callbackURL, state string, hints connector.LoginHints) (string, []byte, error) {
+	if hintsConn, ok := conn.(connector.LoginHintsConnector); ok {
+		return hintsConn.LoginURLWithHints(scopes, callbackURL, state, hints)
+	}
+	return conn.LoginURL(scopes, callbackURL, state)
 }
