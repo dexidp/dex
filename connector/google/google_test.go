@@ -2,6 +2,9 @@ package google
 
 import (
 	"context"
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -11,7 +14,10 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/go-jose/go-jose/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -482,4 +488,204 @@ func TestRefreshUpstreamRejection(t *testing.T) {
 	var retrieveErr *oauth2.RetrieveError
 	require.ErrorAs(t, err, &retrieveErr)
 	require.Equal(t, "invalid_grant", retrieveErr.ErrorCode)
+}
+
+// tokenExchangeSetup returns a googleConnector whose ID token verification and
+// userinfo calls go to local test doubles, a function to sign ID tokens with the
+// test key, and the test server.
+func tokenExchangeSetup(t *testing.T) (*googleConnector, func(claims map[string]any) string, *httptest.Server) {
+	t.Helper()
+
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: key}, nil)
+	require.NoError(t, err)
+
+	sign := func(claims map[string]any) string {
+		payload, err := json.Marshal(claims)
+		require.NoError(t, err)
+		jws, err := signer.Sign(payload)
+		require.NoError(t, err)
+		raw, err := jws.CompactSerialize()
+		require.NoError(t, err)
+		return raw
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/userinfo", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer valid-access-token" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"sub":            "userinfo-subject",
+			"name":           "User One",
+			"email":          "user_1@dexidp.com",
+			"email_verified": true,
+			"hd":             "dexidp.com",
+		})
+	})
+	mux.HandleFunc("/admin/directory/v1/groups/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(admin.Groups{Groups: testGroups[r.URL.Query().Get("userKey")]})
+	})
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	keySet := &oidc.StaticKeySet{PublicKeys: []crypto.PublicKey{key.Public()}}
+	provider := (&oidc.ProviderConfig{
+		IssuerURL:   issuerURL,
+		UserInfoURL: ts.URL + "/userinfo",
+	}).NewProvider(t.Context())
+
+	conn := &googleConnector{
+		provider:         provider,
+		verifier:         oidc.NewVerifier(issuerURL, keySet, &oidc.Config{ClientID: "testClient"}),
+		exchangeVerifier: oidc.NewVerifier(issuerURL, keySet, &oidc.Config{SkipClientIDCheck: true}),
+		logger:           slog.New(slog.DiscardHandler),
+		adminSrv:         map[string]*admin.Service{},
+	}
+	return conn, sign, ts
+}
+
+func TestTokenIdentity(t *testing.T) {
+	const (
+		idTokenType     = "urn:ietf:params:oauth:token-type:id_token"
+		accessTokenType = "urn:ietf:params:oauth:token-type:access_token"
+	)
+
+	idTokenClaims := func(overrides map[string]any) map[string]any {
+		claims := map[string]any{
+			"iss":            issuerURL,
+			"sub":            "id-token-subject",
+			"aud":            "some-other-audience",
+			"exp":            time.Now().Add(time.Hour).Unix(),
+			"name":           "User One",
+			"email":          "user_1@dexidp.com",
+			"email_verified": true,
+			"hd":             "dexidp.com",
+		}
+		for k, v := range overrides {
+			claims[k] = v
+		}
+		return claims
+	}
+
+	tests := []struct {
+		name          string
+		hostedDomains []string
+		groups        []string
+		withGroups    bool
+		tokenType     string
+		token         func(sign func(map[string]any) string) string
+		wantIdentity  connector.Identity
+		wantErr       string
+	}{
+		{
+			name:      "id token",
+			tokenType: idTokenType,
+			token:     func(sign func(map[string]any) string) string { return sign(idTokenClaims(nil)) },
+			wantIdentity: connector.Identity{
+				UserID:        "id-token-subject",
+				Username:      "User One",
+				Email:         "user_1@dexidp.com",
+				EmailVerified: true,
+				ConnectorData: []byte{},
+			},
+		},
+		{
+			name:       "id token with groups",
+			tokenType:  idTokenType,
+			withGroups: true,
+			groups:     []string{"groups_1@dexidp.com"},
+			token:      func(sign func(map[string]any) string) string { return sign(idTokenClaims(nil)) },
+			wantIdentity: connector.Identity{
+				UserID:        "id-token-subject",
+				Username:      "User One",
+				Email:         "user_1@dexidp.com",
+				EmailVerified: true,
+				ConnectorData: []byte{},
+				Groups:        []string{"groups_1@dexidp.com"},
+			},
+		},
+		{
+			name:       "id token user not in required groups",
+			tokenType:  idTokenType,
+			withGroups: true,
+			groups:     []string{"groups_0@dexidp.com"},
+			token:      func(sign func(map[string]any) string) string { return sign(idTokenClaims(nil)) },
+			wantErr:    "not in any of the required groups",
+		},
+		{
+			name:      "id token from another issuer",
+			tokenType: idTokenType,
+			token: func(sign func(map[string]any) string) string {
+				return sign(idTokenClaims(map[string]any{"iss": "https://example.com"}))
+			},
+			wantErr: "failed to verify token",
+		},
+		{
+			name:      "expired id token",
+			tokenType: idTokenType,
+			token: func(sign func(map[string]any) string) string {
+				return sign(idTokenClaims(map[string]any{"exp": time.Now().Add(-time.Hour).Unix()}))
+			},
+			wantErr: "failed to verify token",
+		},
+		{
+			name:          "id token from unexpected hosted domain",
+			hostedDomains: []string{"example.com"},
+			tokenType:     idTokenType,
+			token:         func(sign func(map[string]any) string) string { return sign(idTokenClaims(nil)) },
+			wantErr:       "unexpected hd claim",
+		},
+		{
+			name:          "access token",
+			hostedDomains: []string{"dexidp.com"},
+			tokenType:     accessTokenType,
+			token:         func(func(map[string]any) string) string { return "valid-access-token" },
+			wantIdentity: connector.Identity{
+				UserID:        "userinfo-subject",
+				Username:      "User One",
+				Email:         "user_1@dexidp.com",
+				EmailVerified: true,
+				ConnectorData: []byte{},
+			},
+		},
+		{
+			name:      "access token rejected by userinfo",
+			tokenType: accessTokenType,
+			token:     func(func(map[string]any) string) string { return "bad-access-token" },
+			wantErr:   "error loading userinfo",
+		},
+		{
+			name:      "unknown token type",
+			tokenType: "urn:ietf:params:oauth:token-type:saml2",
+			token:     func(func(map[string]any) string) string { return "token" },
+			wantErr:   "unknown token type",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			conn, sign, ts := tokenExchangeSetup(t)
+			conn.hostedDomains = tc.hostedDomains
+			conn.groups = tc.groups
+			if tc.withGroups {
+				srv, err := admin.NewService(t.Context(), option.WithoutAuthentication(), option.WithEndpoint(ts.URL))
+				require.NoError(t, err)
+				conn.adminSrv[wildcardDomainToAdminEmail] = srv
+			}
+
+			identity, err := conn.TokenIdentity(t.Context(), tc.tokenType, tc.token(sign))
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.wantIdentity, identity)
+		})
+	}
 }
