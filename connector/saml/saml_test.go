@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -83,6 +84,9 @@ type responseTest struct {
 	ssoIssuer    string
 
 	insecureSkipAudienceRestriction bool
+
+	// If nil, logs are discarded.
+	logger *slog.Logger
 
 	// Attribute customization.
 	usernameAttr  string
@@ -471,7 +475,8 @@ func signedAssertionResponse(t *testing.T, edit func(assertion *etree.Element)) 
 }
 
 // TestAssertionIssuerAndAudience covers responses where only the Assertion is
-// signed, so the Assertion's own Issuer and AudienceRestriction are what count.
+// signed, so the Assertion's own Issuer and AudienceRestriction are what count,
+// with DEX_SAML_STRICT_ASSERTION_VALIDATION enabled and disabled.
 func TestAssertionIssuerAndAudience(t *testing.T) {
 	const oktaIssuer = "http://www.okta.com/exk91cb99lKkKSYoy0h7"
 
@@ -496,23 +501,35 @@ func TestAssertionIssuerAndAudience(t *testing.T) {
 		edit      func(*etree.Element)
 		ssoIssuer string
 		skipAud   bool
+		strict    bool
 		// Substring of the expected error, empty if the login should succeed.
 		wantErr string
+		// Whether the non-strict warning should be logged.
+		wantWarn bool
 	}{
-		{name: "matching issuer and audience", ssoIssuer: oktaIssuer},
-		{name: "wrong assertion issuer", edit: setIssuer("http://evil.example.com"), ssoIssuer: oktaIssuer, wantErr: "expected Assertion Issuer"},
-		{name: "empty assertion issuer", edit: setIssuer(""), ssoIssuer: oktaIssuer, wantErr: "expected Assertion Issuer"},
-		{name: "assertion issuer not checked without ssoIssuer", edit: setIssuer("http://evil.example.com")},
-		{name: "no conditions", edit: removeConditions, wantErr: "did not contain an AudienceRestriction"},
-		{name: "no audience restriction", edit: removeAudienceRestriction, wantErr: "did not contain an AudienceRestriction"},
-		{name: "no conditions with opt-out", edit: removeConditions, skipAud: true},
-		{name: "no audience restriction with opt-out", edit: removeAudienceRestriction, skipAud: true},
-		{name: "wrong audience", edit: setAudience("http://other-sp.example.com"), wantErr: "required audience"},
-		{name: "wrong audience with opt-out", edit: setAudience("http://other-sp.example.com"), skipAud: true, wantErr: "required audience"},
+		{name: "strict: matching issuer and audience", ssoIssuer: oktaIssuer, strict: true},
+		{name: "strict: wrong assertion issuer", edit: setIssuer("http://evil.example.com"), ssoIssuer: oktaIssuer, wantErr: "expected Assertion Issuer", strict: true},
+		{name: "strict: empty assertion issuer", edit: setIssuer(""), ssoIssuer: oktaIssuer, wantErr: "expected Assertion Issuer", strict: true},
+		{name: "strict: assertion issuer not checked without ssoIssuer", edit: setIssuer("http://evil.example.com"), strict: true},
+		{name: "strict: no conditions", edit: removeConditions, wantErr: "did not contain an AudienceRestriction", strict: true},
+		{name: "strict: no audience restriction", edit: removeAudienceRestriction, wantErr: "did not contain an AudienceRestriction", strict: true},
+		{name: "strict: no conditions with opt-out", edit: removeConditions, skipAud: true, strict: true},
+		{name: "strict: no audience restriction with opt-out", edit: removeAudienceRestriction, skipAud: true, strict: true},
+		{name: "strict: wrong audience", edit: setAudience("http://other-sp.example.com"), wantErr: "required audience", strict: true},
+		{name: "strict: wrong audience with opt-out", edit: setAudience("http://other-sp.example.com"), skipAud: true, wantErr: "required audience", strict: true},
+		{name: "lax: matching issuer and audience", ssoIssuer: oktaIssuer},
+		{name: "lax: wrong assertion issuer", edit: setIssuer("http://evil.example.com"), ssoIssuer: oktaIssuer, wantWarn: true},
+		{name: "lax: no conditions", edit: removeConditions, wantWarn: true},
+		{name: "lax: no audience restriction", edit: removeAudienceRestriction, wantWarn: true},
+		{name: "lax: no conditions with opt-out", edit: removeConditions, skipAud: true},
+		{name: "lax: wrong audience", edit: setAudience("http://other-sp.example.com"), wantErr: "required audience"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("DEX_SAML_STRICT_ASSERTION_VALIDATION", strconv.FormatBool(tc.strict))
+			var logs bytes.Buffer
 			test := responseTest{
+				logger:       slog.New(slog.NewTextHandler(&logs, nil)),
 				caFile:       "testdata/ca.crt",
 				respFile:     signedAssertionResponse(t, tc.edit),
 				now:          "2017-04-04T04:34:59.330Z",
@@ -536,6 +553,9 @@ func TestAssertionIssuerAndAudience(t *testing.T) {
 				}
 			}
 			test.run(t)
+			if gotWarn := strings.Contains(logs.String(), "DEX_SAML_STRICT_ASSERTION_VALIDATION"); gotWarn != tc.wantWarn {
+				t.Errorf("warning logged = %v, want %v; logs:\n%s", gotWarn, tc.wantWarn, logs.String())
+			}
 		})
 	}
 }
@@ -574,7 +594,11 @@ func (r responseTest) run(t *testing.T) {
 		t.Fatalf("parse test time: %v", err)
 	}
 
-	conn, err := c.openConnector(slog.New(slog.DiscardHandler))
+	logger := r.logger
+	if logger == nil {
+		logger = slog.New(slog.DiscardHandler)
+	}
+	conn, err := c.openConnector(logger)
 	if err != nil {
 		t.Fatal(err)
 	}

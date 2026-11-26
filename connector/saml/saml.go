@@ -30,6 +30,7 @@ import (
 	"github.com/russellhaering/goxmldsig/etreeutils"
 
 	"github.com/dexidp/dex/connector"
+	"github.com/dexidp/dex/pkg/featureflags"
 	"github.com/dexidp/dex/pkg/groups"
 )
 
@@ -100,8 +101,10 @@ type Config struct {
 	InsecureSkipSignatureValidation bool `json:"insecureSkipSignatureValidation"`
 
 	// InsecureSkipAudienceRestriction accepts assertions that carry no
-	// AudienceRestriction, for IdPs that omit it. An AudienceRestriction that is
-	// present is still checked against entityIssuer (or redirectURI).
+	// AudienceRestriction, for IdPs that omit it, when the
+	// DEX_SAML_STRICT_ASSERTION_VALIDATION feature flag is enabled. An
+	// AudienceRestriction that is present is still checked against
+	// entityIssuer (or redirectURI).
 	InsecureSkipAudienceRestriction bool `json:"insecureSkipAudienceRestriction"`
 
 	// SLOURL is the IdP's Single Logout Service URL (HTTP-Redirect binding).
@@ -198,6 +201,7 @@ func (c *Config) openConnector(logger *slog.Logger) (*provider, error) {
 		logger:        logger,
 
 		insecureSkipAudienceRestriction: c.InsecureSkipAudienceRestriction,
+		strictAssertionValidation:       featureflags.SAMLStrictAssertionValidation.Enabled(),
 
 		nameIDPolicyFormat: c.NameIDPolicyFormat,
 
@@ -370,6 +374,9 @@ type provider struct {
 	redirectURI string
 
 	insecureSkipAudienceRestriction bool
+	// If false, assertions failing the Assertion Issuer or AudienceRestriction
+	// checks are accepted with a warning.
+	strictAssertionValidation bool
 
 	nameIDPolicyFormat string
 
@@ -546,7 +553,9 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 	// The Assertion's Issuer is checked even when only the Assertion is signed,
 	// so a certificate in the CA bundle can't assert for another issuer.
 	if p.ssoIssuer != "" && assertion.Issuer.Issuer != p.ssoIssuer {
-		return ident, fmt.Errorf("expected Assertion Issuer value %s, got %s", p.ssoIssuer, assertion.Issuer.Issuer)
+		if err = p.strictCheck(fmt.Errorf("expected Assertion Issuer value %s, got %s", p.ssoIssuer, assertion.Issuer.Issuer)); err != nil {
+			return ident, err
+		}
 	}
 
 	// Subject is usually optional, but we need it for the user ID, so complain
@@ -563,14 +572,17 @@ func (p *provider) HandlePOST(s connector.Scopes, samlResponse, inResponseTo str
 
 	// The Web Browser SSO profile (§4.1.4.2) requires a bearer assertion to
 	// carry an AudienceRestriction, so Conditions are required unless
-	// insecureSkipAudienceRestriction is set.
+	// insecureSkipAudienceRestriction is set (or, for now, strict assertion
+	// validation is disabled).
 	if assertion.Conditions != nil {
 		// Validate that dex is the intended audience of this response.
 		if err = p.validateConditions(assertion.Conditions); err != nil {
 			return ident, err
 		}
 	} else if !p.insecureSkipAudienceRestriction {
-		return ident, fmt.Errorf("response did not contain an AudienceRestriction")
+		if err = p.strictCheck(fmt.Errorf("response did not contain an AudienceRestriction")); err != nil {
+			return ident, err
+		}
 	}
 
 	var nameIDFormat string
@@ -769,6 +781,18 @@ func (p *provider) validateSubject(subject *subject, inResponseTo string) error 
 	return fmt.Errorf("failed to validate subject confirmation: %v", errs)
 }
 
+// strictCheck returns err if strict assertion validation is enabled. Otherwise
+// it logs err as a warning and returns nil, so existing setups keep working
+// until the DEX_SAML_STRICT_ASSERTION_VALIDATION default changes.
+func (p *provider) strictCheck(err error) error {
+	if p.strictAssertionValidation {
+		return err
+	}
+	p.logger.Warn("accepting a SAML assertion that strict validation would reject; "+
+		"set DEX_SAML_STRICT_ASSERTION_VALIDATION=true to reject it, this will become the default", "err", err)
+	return nil
+}
+
 // validateConditions ensures that dex is the intended audience
 // for the request, and not another service provider.
 //
@@ -795,7 +819,9 @@ func (p *provider) validateConditions(conditions *conditions) error {
 	}
 
 	if len(conditions.AudienceRestriction) == 0 && !p.insecureSkipAudienceRestriction {
-		return fmt.Errorf("response did not contain an AudienceRestriction")
+		if err := p.strictCheck(fmt.Errorf("response did not contain an AudienceRestriction")); err != nil {
+			return err
+		}
 	}
 
 	// AudienceRestriction elements indicate the intended audience(s) of an
