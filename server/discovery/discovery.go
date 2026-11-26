@@ -33,6 +33,9 @@ type Handler struct {
 	SessionsEnabled bool
 	IDJAGEnabled    bool
 
+	// Now is the clock, for tests. Defaults to time.Now.
+	Now func() time.Time
+
 	// doc caches the marshaled discovery document. It is only filled once the
 	// signing algorithm has been resolved, so a failed lookup is retried by the
 	// next request instead of being served for the life of the process.
@@ -81,6 +84,10 @@ type Document struct {
 // Keys serves the JSON Web Key Set.
 func (h *Handler) Keys(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	// Read the rotation time before the keys. A rotation in between then
+	// shortens the cache time instead of extending it for the old keys.
+	maxAge := h.keysMaxAge(ctx)
+
 	// TODO(ericchiang): Cache this.
 	keys, err := h.Signer.ValidationKeys(ctx)
 	if err != nil {
@@ -109,14 +116,43 @@ func (h *Handler) Keys(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// We don't have NextRotation info from Signer interface easily,
-	// so we'll just set a reasonable default cache time.
-	maxAge := time.Minute * 10
-
 	w.Header().Set("Cache-Control", fmt.Sprintf("max-age=%d, must-revalidate", int(maxAge.Seconds())))
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 	w.Write(data)
+}
+
+// keysMaxAge returns how long clients may cache the key set: until the next
+// key rotation, between two and ten minutes. Signers that cannot tell when
+// their keys rotate, such as Vault, get ten minutes.
+func (h *Handler) keysMaxAge(ctx context.Context) time.Duration {
+	const maxKeysMaxAge = time.Minute * 10
+
+	rs, ok := h.Signer.(signer.RotationScheduler)
+	if !ok {
+		return maxKeysMaxAge
+	}
+	nextRotation, err := rs.NextRotation(ctx)
+	if err != nil {
+		h.Logger.ErrorContext(ctx, "failed to get next key rotation", "err", err)
+		return maxKeysMaxAge
+	}
+
+	now := time.Now()
+	if h.Now != nil {
+		now = h.Now()
+	}
+	maxAge := nextRotation.Sub(now)
+	if maxAge < (time.Minute * 2) {
+		maxAge = time.Minute * 2
+	}
+	// The local signer can also rotate out of schedule, when its configured
+	// algorithm changes on restart, so never cache longer than for signers
+	// that cannot report a rotation time.
+	if maxAge > maxKeysMaxAge {
+		maxAge = maxKeysMaxAge
+	}
+	return maxAge
 }
 
 // serveDocument serves the discovery document.

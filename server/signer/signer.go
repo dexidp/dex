@@ -2,6 +2,7 @@ package signer
 
 import (
 	"context"
+	"time"
 
 	"github.com/go-jose/go-jose/v4"
 )
@@ -19,4 +20,14 @@ type Signer interface {
 	Algorithm(ctx context.Context) (jose.SignatureAlgorithm, error)
 	// Start starts any background tasks required by the signer (e.g., key rotation).
 	Start(ctx context.Context)
+}
+
+// RotationScheduler is implemented by signers that rotate their own keys on a
+// schedule. The keys endpoint uses it to shorten how long clients cache the key
+// set before a scheduled rotation.
+type RotationScheduler interface {
+	// NextRotation returns the time of the next scheduled rotation of the
+	// signing key. A key can still be rotated earlier, for example when the
+	// configured algorithm changes on restart.
+	NextRotation(ctx context.Context) (time.Time, error)
 }

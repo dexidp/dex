@@ -138,6 +138,14 @@ func (l *localSigner) ValidationKeys(ctx context.Context) ([]*jose.JSONWebKey, e
 	return jwks, nil
 }
 
+func (l *localSigner) NextRotation(ctx context.Context) (time.Time, error) {
+	keys, err := l.storage.GetKeys(ctx)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to get keys: %v", err)
+	}
+	return keys.NextRotation, nil
+}
+
 func (l *localSigner) Algorithm(ctx context.Context) (jose.SignatureAlgorithm, error) {
 	keys, err := l.storage.GetKeys(ctx)
 	if err != nil && !errors.Is(err, storage.ErrNotFound) {
