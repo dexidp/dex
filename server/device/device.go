@@ -233,8 +233,14 @@ func (h *Handler) handleDeviceCode(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Issue a code only to a client that can complete the flow.
-	if _, oerr := grants.AuthenticateClient(r.Context(), h.Storage, h.Logger, req.clientID, req.clientSecret); oerr != nil {
+	client, oerr := grants.AuthenticateClient(r.Context(), h.Storage, h.Logger, req.clientID, req.clientSecret)
+	if oerr != nil {
 		h.writeFlowError(r, w, oauth2FlowError(oerr))
+		return
+	}
+	if !client.AllowsGrantType(oauth2.GrantTypeDeviceCode) {
+		h.Logger.WarnContext(r.Context(), "client did not register the device_code grant", "client_id", client.ID)
+		h.writeFlowError(r, w, &deviceFlowError{status: http.StatusBadRequest, code: oauth2.UnauthorizedClient, message: "Client did not register this grant type."})
 		return
 	}
 
@@ -389,6 +395,15 @@ func (h *Handler) completeDeviceAuthorization(w http.ResponseWriter, r *http.Req
 	client, oerr := grants.AuthenticateClient(ctx, h.Storage, h.Logger, deviceReq.ClientID, deviceReq.ClientSecret)
 	if oerr != nil {
 		return "", oauth2FlowError(oerr)
+	}
+	// This callback mints the tokens the device_code grant later relays without
+	// authenticating the client, so the registered grant types are enforced
+	// here. Without it a client registered for authorization_code alone could
+	// obtain tokens through the device flow and skip the token endpoint's
+	// client authentication and PKCE checks.
+	if !client.AllowsGrantType(oauth2.GrantTypeDeviceCode) {
+		h.Logger.WarnContext(ctx, "client did not register the device_code grant", "client_id", client.ID)
+		return "", &deviceFlowError{status: http.StatusBadRequest, code: oauth2.UnauthorizedClient, message: "Client did not register this grant type."}
 	}
 
 	// ExchangeAuthCode consumes the code (its atomic single-use gate) and returns

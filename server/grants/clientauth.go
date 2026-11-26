@@ -30,6 +30,22 @@ func ClientCredentials(r *http.Request, form url.Values) (id, secret string, oer
 	return id, secret, nil
 }
 
+// clientAuthMethod names the token endpoint authentication method a request
+// used, in the terms of RFC 7591 token_endpoint_auth_method. It mirrors
+// ClientCredentials: the Authorization header wins over the form. secret is the
+// secret ClientCredentials resolved.
+func clientAuthMethod(r *http.Request, secret string) string {
+	// A request without a secret did not authenticate, however the client
+	// ID was sent; public clients commonly send it in a Basic header.
+	if secret == "" {
+		return "none"
+	}
+	if _, _, ok := r.BasicAuth(); ok {
+		return "client_secret_basic"
+	}
+	return "client_secret_post"
+}
+
 // AuthenticateClient looks the client up and checks its secret in constant time.
 // A client with an empty secret authenticates without one.
 func AuthenticateClient(ctx context.Context, s storage.Storage, logger *slog.Logger, id, secret string) (storage.Client, *oauth2.Error) {

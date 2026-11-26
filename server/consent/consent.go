@@ -98,7 +98,7 @@ func (h *Handler) handleApproval(w http.ResponseWriter, r *http.Request) {
 			h.renderError(r, w, http.StatusInternalServerError, "Failed to retrieve client.")
 			return
 		}
-		if err := h.Templates.Approval(r, w, authReq.ID, authReq.Claims.Username, client.Name, authReq.Scopes); err != nil {
+		if err := h.Templates.Approval(r, w, authReq.ID, authReq.Claims.Username, client.ID, client.Name, authReq.RedirectURI, client.DynamicallyRegistered, authReq.Scopes); err != nil {
 			h.Logger.ErrorContext(ctx, "server template error", "err", err)
 		}
 	case http.MethodPost:
