@@ -444,6 +444,10 @@ func (cli *client) DeleteAuthCode(ctx context.Context, code string) error {
 	return cli.delete(resourceAuthCode, code)
 }
 
+func (cli *client) DeleteDeviceToken(ctx context.Context, deviceCode string) error {
+	return cli.delete(resourceDeviceToken, deviceCode)
+}
+
 func (cli *client) DeleteClient(ctx context.Context, id string) error {
 	// Check for hash collision.
 	c, err := cli.getClient(id)

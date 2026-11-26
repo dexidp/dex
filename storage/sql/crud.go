@@ -1269,6 +1269,10 @@ func (c *conn) DeleteAuthCode(ctx context.Context, id string) error {
 	return c.delete("auth_code", "id", id)
 }
 
+func (c *conn) DeleteDeviceToken(ctx context.Context, deviceCode string) error {
+	return c.delete("device_token", "device_code", deviceCode)
+}
+
 func (c *conn) DeleteClient(ctx context.Context, id string) error {
 	return c.delete("client", "id", id)
 }

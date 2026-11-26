@@ -51,8 +51,12 @@ func (g *deviceCode) Authorize(ctx context.Context, req *Request, client storage
 	if err != nil {
 		if err != storage.ErrNotFound {
 			g.logger.ErrorContext(ctx, "failed to get device code", "err", err)
+			return nil, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
 		}
-		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Invalid Device code.", Status: http.StatusBadRequest}
+		// Either the code never existed or it was already redeemed and deleted.
+		// A used-up device code is an invalid grant under RFC 6749 section 5.2,
+		// the same ruling the authorization_code grant makes on a missing code.
+		return nil, &oauth2.Error{Type: oauth2.InvalidGrant, Description: "Invalid or expired device code.", Status: http.StatusBadRequest}
 	}
 	if now.After(deviceToken.Expiry) {
 		return nil, &oauth2.Error{Type: oauth2.DeviceTokenExpired, Status: http.StatusBadRequest}
@@ -88,6 +92,24 @@ func (g *deviceCode) Authorize(ctx context.Context, req *Request, client storage
 		if oerr := verifyPKCE(req.CodeVerifier, deviceToken.PKCE); oerr != nil {
 			return nil, oerr
 		}
+
+		// Spend the code before the response goes out. Deleting it is the atomic
+		// single-use gate, the same one ExchangeAuthCode uses for the authorization
+		// code the browser callback consumed to mint this response: a single DELETE
+		// serializes concurrent redemptions on every backend, so the winner removes
+		// the row and any loser finds it already gone. The stored response is the
+		// access and refresh tokens themselves, so it does not outlive its delivery.
+		// Consuming before decoding means a later failure leaves the code spent,
+		// which is the trade ExchangeAuthCode already makes: replay safety over a
+		// retry.
+		if err := g.storage.DeleteDeviceToken(ctx, req.DeviceCode); err != nil {
+			if err == storage.ErrNotFound {
+				return nil, &oauth2.Error{Type: oauth2.InvalidGrant, Description: "Invalid or expired device code.", Status: http.StatusBadRequest}
+			}
+			g.logger.ErrorContext(ctx, "failed to spend device token", "err", err)
+			return nil, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
+		}
+
 		// The token was minted by the browser callback and stored as a serialized
 		// tokens.Response. Decode it so it is written like every other grant's response.
 		var resp tokens.Response
@@ -98,6 +120,6 @@ func (g *deviceCode) Authorize(ctx context.Context, req *Request, client storage
 		return resp, nil
 
 	default:
-		return nil, &oauth2.Error{Type: oauth2.InvalidRequest, Description: "Invalid Device code.", Status: http.StatusBadRequest}
+		return nil, &oauth2.Error{Type: oauth2.InvalidGrant, Description: "Invalid or expired device code.", Status: http.StatusBadRequest}
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"path"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -105,7 +106,7 @@ func TestDeviceTokenResponse(t *testing.T) {
 				PollIntervalSeconds: 0,
 			},
 			testDeviceCode:         "bar",
-			expectedServerResponse: oauth2.InvalidRequest,
+			expectedServerResponse: oauth2.InvalidGrant,
 			expectedResponseCode:   http.StatusBadRequest,
 		},
 		{
@@ -312,6 +313,102 @@ func TestDeviceTokenResponse(t *testing.T) {
 				t.Errorf("Unexpected Server Response.  Expected %v got %v", tc.expectedServerResponse, string(body))
 			}
 		})
+	}
+}
+
+// A device code buys one token set. Redeeming it spends it with an atomic delete,
+// so even when many requests race for the same code exactly one is handed the
+// tokens and the rest are refused, and the stored response does not outlive its
+// delivery: it holds the access and refresh tokens, so a spent device code is no
+// longer a credential. Run with -race to exercise the concurrent path.
+func TestDeviceTokenSingleUse(t *testing.T) {
+	t0 := time.Now()
+	now := func() time.Time { return t0 }
+
+	storedTokenResponse := `{"access_token":"foobar","token_type":"bearer","expires_in":300,"id_token":"idtoken"}`
+
+	ctx := t.Context()
+
+	httpServer, s := newTestServer(t, func(c *Config) {
+		c.Now = now
+	})
+	defer httpServer.Close()
+
+	if err := s.storage.CreateDeviceRequest(ctx, storage.DeviceRequest{
+		UserCode:   "ABCD-WXYZ",
+		DeviceCode: "foo",
+		ClientID:   "testclient",
+		Scopes:     []string{"openid", "profile", "offline_access"},
+		Expiry:     now().Add(5 * time.Minute),
+	}); err != nil {
+		t.Fatalf("Failed to store device request: %v", err)
+	}
+
+	if err := s.storage.CreateDeviceToken(ctx, storage.DeviceToken{
+		DeviceCode:      "foo",
+		Status:          oauth2.DeviceTokenComplete,
+		Token:           storedTokenResponse,
+		Expiry:          now().Add(5 * time.Minute),
+		LastRequestTime: time.Time{},
+	}); err != nil {
+		t.Fatalf("Failed to store device token: %v", err)
+	}
+
+	u, err := url.Parse(s.issuerURL.String())
+	if err != nil {
+		t.Fatalf("Could not parse issuer URL: %v", err)
+	}
+	u.Path = path.Join(u.Path, "token")
+
+	redeem := func() *httptest.ResponseRecorder {
+		data := url.Values{}
+		data.Set("grant_type", oauth2.GrantTypeDeviceCode)
+		data.Set("device_code", "foo")
+		req, _ := http.NewRequest("POST", u.String(), bytes.NewBufferString(data.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+		s.ServeHTTP(rr, req)
+		return rr
+	}
+
+	// Fire many redemptions of the same code at once. The delete that spends the
+	// code serializes them, so exactly one caller is handed the token set and the
+	// rest are refused with invalid_grant. None may get a 500: a conflict between
+	// concurrent redemptions is resolved by the storage, not surfaced to the device.
+	const redemptions = 20
+	var wg sync.WaitGroup
+	results := make([]*httptest.ResponseRecorder, redemptions)
+	wg.Add(redemptions)
+	for i := 0; i < redemptions; i++ {
+		go func(i int) {
+			defer wg.Done()
+			results[i] = redeem()
+		}(i)
+	}
+	wg.Wait()
+
+	okCount := 0
+	for i, rr := range results {
+		switch rr.Code {
+		case http.StatusOK:
+			okCount++
+			if rr.Body.String() != storedTokenResponse {
+				t.Errorf("redemption %d returned 200 with an unexpected body: %s", i, rr.Body.String())
+			}
+		case http.StatusInternalServerError:
+			t.Errorf("redemption %d got a 500, the race was not resolved atomically: %s", i, rr.Body.String())
+		default:
+			expectJSONErrorResponse("TestDeviceTokenSingleUse", rr.Body.Bytes(), oauth2.InvalidGrant, t)
+		}
+	}
+	if okCount != 1 {
+		t.Fatalf("expected exactly one redemption to succeed, got %d", okCount)
+	}
+
+	// The spent code is gone, not just emptied: the stored response held the access
+	// and refresh tokens, so GetDeviceToken must now report it missing.
+	if _, err := s.storage.GetDeviceToken(ctx, "foo"); err != storage.ErrNotFound {
+		t.Errorf("expected the spent device code to be deleted, GetDeviceToken returned err=%v", err)
 	}
 }
 
