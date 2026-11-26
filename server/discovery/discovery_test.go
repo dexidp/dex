@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	jose "github.com/go-jose/go-jose/v4"
 	"github.com/stretchr/testify/require"
@@ -18,6 +19,7 @@ import (
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/signer"
 	"github.com/dexidp/dex/server/templates"
+	"github.com/dexidp/dex/storage/memory"
 	dexweb "github.com/dexidp/dex/web"
 )
 
@@ -115,4 +117,122 @@ func TestServeDocumentRetriesFailedSigningAlgorithm(t *testing.T) {
 	require.Equal(t, []string{string(jose.ES256)}, idTokenAlgs())
 	require.Equal(t, []string{string(jose.ES256)}, idTokenAlgs())
 	require.Equal(t, 2, sig.calls)
+}
+
+// rotatingSigner reports a fixed next rotation time, as the local signer does
+// from its stored keys. With rotateOnRead set, reading the keys moves the next
+// rotation that far ahead, as a rotation between the two reads would.
+type rotatingSigner struct {
+	signer.Signer
+	next         time.Time
+	err          error
+	rotateOnRead time.Duration
+}
+
+func (s *rotatingSigner) NextRotation(context.Context) (time.Time, error) {
+	return s.next, s.err
+}
+
+func (s *rotatingSigner) ValidationKeys(ctx context.Context) ([]*jose.JSONWebKey, error) {
+	s.next = s.next.Add(s.rotateOnRead)
+	return s.Signer.ValidationKeys(ctx)
+}
+
+func TestKeysCacheControl(t *testing.T) {
+	now := time.Date(2026, 11, 26, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name   string
+		signer func(signer.Signer) signer.Signer
+		want   string
+	}{
+		{
+			name:   "rotation time unknown",
+			signer: func(s signer.Signer) signer.Signer { return s },
+			want:   "max-age=600, must-revalidate",
+		},
+		{
+			name: "cached until the next rotation",
+			signer: func(s signer.Signer) signer.Signer {
+				return &rotatingSigner{Signer: s, next: now.Add(5*time.Minute + 30*time.Second)}
+			},
+			want: "max-age=330, must-revalidate",
+		},
+		{
+			name: "next rotation over the cap",
+			signer: func(s signer.Signer) signer.Signer {
+				return &rotatingSigner{Signer: s, next: now.Add(5*time.Hour + 30*time.Second)}
+			},
+			want: "max-age=600, must-revalidate",
+		},
+		{
+			name: "next rotation under the floor",
+			signer: func(s signer.Signer) signer.Signer {
+				return &rotatingSigner{Signer: s, next: now.Add(30 * time.Second)}
+			},
+			want: "max-age=120, must-revalidate",
+		},
+		{
+			name: "next rotation in the past",
+			signer: func(s signer.Signer) signer.Signer {
+				return &rotatingSigner{Signer: s, next: now.Add(-time.Hour)}
+			},
+			want: "max-age=120, must-revalidate",
+		},
+		{
+			// The rotation time is read before the keys, so a rotation in
+			// between leaves the earlier, shorter cache time.
+			name: "rotation between the two reads",
+			signer: func(s signer.Signer) signer.Signer {
+				return &rotatingSigner{Signer: s, next: now.Add(30 * time.Second), rotateOnRead: 6 * time.Hour}
+			},
+			want: "max-age=120, must-revalidate",
+		},
+		{
+			name: "next rotation lookup fails",
+			signer: func(s signer.Signer) signer.Signer {
+				return &rotatingSigner{Signer: s, err: errors.New("storage unavailable")}
+			},
+			want: "max-age=600, must-revalidate",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			h := testHandler(t, false)
+			h.Signer = tc.signer(h.Signer)
+			h.Now = func() time.Time { return now }
+
+			rr := httptest.NewRecorder()
+			h.Keys(rr, httptest.NewRequest(http.MethodGet, "/keys", nil))
+
+			require.Equal(t, http.StatusOK, rr.Code)
+			require.Equal(t, tc.want, rr.Header().Get("Cache-Control"))
+		})
+	}
+}
+
+func TestKeysCacheControlLocalSigner(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	now := time.Date(2026, 11, 26, 12, 0, 0, 0, time.UTC)
+	logger := slog.New(slog.DiscardHandler)
+
+	config := signer.LocalConfig{KeysRotationPeriod: "6h"}
+	sig, err := config.Open(ctx, memory.New(logger), time.Hour, func() time.Time { return now }, logger)
+	require.NoError(t, err)
+	// Start generates the first signing key, due for rotation in six hours.
+	sig.Start(ctx)
+
+	h := testHandler(t, false)
+	h.Signer = sig
+	// Serve the keys four minutes before the scheduled rotation.
+	h.Now = func() time.Time { return now.Add(6*time.Hour - 4*time.Minute) }
+
+	rr := httptest.NewRecorder()
+	h.Keys(rr, httptest.NewRequest(http.MethodGet, "/keys", nil))
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	require.Equal(t, "max-age=240, must-revalidate", rr.Header().Get("Cache-Control"))
 }

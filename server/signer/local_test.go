@@ -274,3 +274,27 @@ func TestLocalSignerDoesNotRevertSharedKeyAlgorithmBeforeNextRotation(t *testing
 	require.NoError(t, err)
 	requireVerifiedByAnyKey(t, token, jose.ES256, keys, payload)
 }
+
+func TestLocalSignerNextRotation(t *testing.T) {
+	ctx := context.Background()
+	logger := slog.New(slog.DiscardHandler)
+	s := memory.New(logger)
+
+	nextRotation := time.Date(2026, 11, 26, 18, 0, 0, 0, time.UTC)
+	priv, pub := newTestRSAJWKPair(t)
+	err := s.UpdateKeys(ctx, func(keys storage.Keys) (storage.Keys, error) {
+		keys.SigningKey = priv
+		keys.SigningKeyPub = pub
+		keys.NextRotation = nextRotation
+		return keys, nil
+	})
+	require.NoError(t, err)
+
+	var sig Signer = newTestLocalSigner(t, LocalConfig{}, s, nil)
+	rs, ok := sig.(RotationScheduler)
+	require.True(t, ok, "local signer should report its next rotation")
+
+	got, err := rs.NextRotation(ctx)
+	require.NoError(t, err)
+	assert.True(t, nextRotation.Equal(got), "got %v, want %v", got, nextRotation)
+}

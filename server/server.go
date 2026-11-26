@@ -128,6 +128,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		Templates:       s.templates,
 		Signer:          c.Signer,
 		Logger:          s.logger,
+		Now:             rc.now,
 		ResponseTypes:   rc.responseTypes,
 		GrantTypes:      rc.grantTypes,
 		PKCEMethods:     c.PKCE.CodeChallengeMethodsSupported,
