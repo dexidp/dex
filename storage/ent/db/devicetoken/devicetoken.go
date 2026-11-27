@@ -17,6 +17,8 @@ const (
 	FieldStatus = "status"
 	// FieldToken holds the string denoting the token field in the database.
 	FieldToken = "token"
+	// FieldClientID holds the string denoting the client_id field in the database.
+	FieldClientID = "client_id"
 	// FieldExpiry holds the string denoting the expiry field in the database.
 	FieldExpiry = "expiry"
 	// FieldLastRequest holds the string denoting the last_request field in the database.
@@ -37,6 +39,7 @@ var Columns = []string{
 	FieldDeviceCode,
 	FieldStatus,
 	FieldToken,
+	FieldClientID,
 	FieldExpiry,
 	FieldLastRequest,
 	FieldPollInterval,
@@ -59,6 +62,8 @@ var (
 	DeviceCodeValidator func(string) error
 	// StatusValidator is a validator for the "status" field. It is called by the builders before save.
 	StatusValidator func(string) error
+	// DefaultClientID holds the default value on creation for the "client_id" field.
+	DefaultClientID string
 	// DefaultCodeChallenge holds the default value on creation for the "code_challenge" field.
 	DefaultCodeChallenge string
 	// DefaultCodeChallengeMethod holds the default value on creation for the "code_challenge_method" field.
@@ -81,6 +86,11 @@ func ByDeviceCode(opts ...sql.OrderTermOption) OrderOption {
 // ByStatus orders the results by the status field.
 func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldStatus, opts...).ToFunc()
+}
+
+// ByClientID orders the results by the client_id field.
+func ByClientID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldClientID, opts...).ToFunc()
 }
 
 // ByExpiry orders the results by the expiry field.

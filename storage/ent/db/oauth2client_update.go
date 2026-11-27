@@ -139,6 +139,24 @@ func (_u *OAuth2ClientUpdate) ClearAllowedConnectors() *OAuth2ClientUpdate {
 	return _u
 }
 
+// SetGrantTypes sets the "grant_types" field.
+func (_u *OAuth2ClientUpdate) SetGrantTypes(v []string) *OAuth2ClientUpdate {
+	_u.mutation.SetGrantTypes(v)
+	return _u
+}
+
+// AppendGrantTypes appends value to the "grant_types" field.
+func (_u *OAuth2ClientUpdate) AppendGrantTypes(v []string) *OAuth2ClientUpdate {
+	_u.mutation.AppendGrantTypes(v)
+	return _u
+}
+
+// ClearGrantTypes clears the value of the "grant_types" field.
+func (_u *OAuth2ClientUpdate) ClearGrantTypes() *OAuth2ClientUpdate {
+	_u.mutation.ClearGrantTypes()
+	return _u
+}
+
 // SetMfaChain sets the "mfa_chain" field.
 func (_u *OAuth2ClientUpdate) SetMfaChain(v []string) *OAuth2ClientUpdate {
 	_u.mutation.SetMfaChain(v)
@@ -331,6 +349,17 @@ func (_u *OAuth2ClientUpdate) sqlSave(ctx context.Context) (_node int, err error
 	if _u.mutation.AllowedConnectorsCleared() {
 		_spec.ClearField(oauth2client.FieldAllowedConnectors, field.TypeJSON)
 	}
+	if value, ok := _u.mutation.GrantTypes(); ok {
+		_spec.SetField(oauth2client.FieldGrantTypes, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedGrantTypes(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, oauth2client.FieldGrantTypes, value)
+		})
+	}
+	if _u.mutation.GrantTypesCleared() {
+		_spec.ClearField(oauth2client.FieldGrantTypes, field.TypeJSON)
+	}
 	if value, ok := _u.mutation.MfaChain(); ok {
 		_spec.SetField(oauth2client.FieldMfaChain, field.TypeJSON, value)
 	}
@@ -509,6 +538,24 @@ func (_u *OAuth2ClientUpdateOne) AppendAllowedConnectors(v []string) *OAuth2Clie
 // ClearAllowedConnectors clears the value of the "allowed_connectors" field.
 func (_u *OAuth2ClientUpdateOne) ClearAllowedConnectors() *OAuth2ClientUpdateOne {
 	_u.mutation.ClearAllowedConnectors()
+	return _u
+}
+
+// SetGrantTypes sets the "grant_types" field.
+func (_u *OAuth2ClientUpdateOne) SetGrantTypes(v []string) *OAuth2ClientUpdateOne {
+	_u.mutation.SetGrantTypes(v)
+	return _u
+}
+
+// AppendGrantTypes appends value to the "grant_types" field.
+func (_u *OAuth2ClientUpdateOne) AppendGrantTypes(v []string) *OAuth2ClientUpdateOne {
+	_u.mutation.AppendGrantTypes(v)
+	return _u
+}
+
+// ClearGrantTypes clears the value of the "grant_types" field.
+func (_u *OAuth2ClientUpdateOne) ClearGrantTypes() *OAuth2ClientUpdateOne {
+	_u.mutation.ClearGrantTypes()
 	return _u
 }
 
@@ -733,6 +780,17 @@ func (_u *OAuth2ClientUpdateOne) sqlSave(ctx context.Context) (_node *OAuth2Clie
 	}
 	if _u.mutation.AllowedConnectorsCleared() {
 		_spec.ClearField(oauth2client.FieldAllowedConnectors, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.GrantTypes(); ok {
+		_spec.SetField(oauth2client.FieldGrantTypes, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedGrantTypes(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, oauth2client.FieldGrantTypes, value)
+		})
+	}
+	if _u.mutation.GrantTypesCleared() {
+		_spec.ClearField(oauth2client.FieldGrantTypes, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.MfaChain(); ok {
 		_spec.SetField(oauth2client.FieldMfaChain, field.TypeJSON, value)

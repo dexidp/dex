@@ -68,6 +68,20 @@ func (_u *DeviceTokenUpdate) ClearToken() *DeviceTokenUpdate {
 	return _u
 }
 
+// SetClientID sets the "client_id" field.
+func (_u *DeviceTokenUpdate) SetClientID(v string) *DeviceTokenUpdate {
+	_u.mutation.SetClientID(v)
+	return _u
+}
+
+// SetNillableClientID sets the "client_id" field if the given value is not nil.
+func (_u *DeviceTokenUpdate) SetNillableClientID(v *string) *DeviceTokenUpdate {
+	if v != nil {
+		_u.SetClientID(*v)
+	}
+	return _u
+}
+
 // SetExpiry sets the "expiry" field.
 func (_u *DeviceTokenUpdate) SetExpiry(v time.Time) *DeviceTokenUpdate {
 	_u.mutation.SetExpiry(v)
@@ -216,6 +230,9 @@ func (_u *DeviceTokenUpdate) sqlSave(ctx context.Context) (_node int, err error)
 	if _u.mutation.TokenCleared() {
 		_spec.ClearField(devicetoken.FieldToken, field.TypeBytes)
 	}
+	if value, ok := _u.mutation.ClientID(); ok {
+		_spec.SetField(devicetoken.FieldClientID, field.TypeString, value)
+	}
 	if value, ok := _u.mutation.Expiry(); ok {
 		_spec.SetField(devicetoken.FieldExpiry, field.TypeTime, value)
 	}
@@ -291,6 +308,20 @@ func (_u *DeviceTokenUpdateOne) SetToken(v []byte) *DeviceTokenUpdateOne {
 // ClearToken clears the value of the "token" field.
 func (_u *DeviceTokenUpdateOne) ClearToken() *DeviceTokenUpdateOne {
 	_u.mutation.ClearToken()
+	return _u
+}
+
+// SetClientID sets the "client_id" field.
+func (_u *DeviceTokenUpdateOne) SetClientID(v string) *DeviceTokenUpdateOne {
+	_u.mutation.SetClientID(v)
+	return _u
+}
+
+// SetNillableClientID sets the "client_id" field if the given value is not nil.
+func (_u *DeviceTokenUpdateOne) SetNillableClientID(v *string) *DeviceTokenUpdateOne {
+	if v != nil {
+		_u.SetClientID(*v)
+	}
 	return _u
 }
 
@@ -471,6 +502,9 @@ func (_u *DeviceTokenUpdateOne) sqlSave(ctx context.Context) (_node *DeviceToken
 	}
 	if _u.mutation.TokenCleared() {
 		_spec.ClearField(devicetoken.FieldToken, field.TypeBytes)
+	}
+	if value, ok := _u.mutation.ClientID(); ok {
+		_spec.SetField(devicetoken.FieldClientID, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Expiry(); ok {
 		_spec.SetField(devicetoken.FieldExpiry, field.TypeTime, value)

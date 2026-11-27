@@ -320,6 +320,16 @@ func (h *Handler) parseAuthorizationRequest(r *http.Request) (*storage.AuthReque
 	if len(responseTypes) == 0 {
 		return nil, "", newredirectedAuthErr(oauth2.InvalidRequest, "No response_type provided")
 	}
+	grantType := oauth2.GrantTypeImplicit
+	if rt.code {
+		grantType = oauth2.GrantTypeAuthorizationCode
+		if redirectURI == h.IssuerURL.AbsPath(oauth2.DeviceCallbackURI) {
+			grantType = oauth2.GrantTypeDeviceCode
+		}
+	}
+	if !client.AllowsGrantType(grantType) || (rt.code && (rt.idToken || rt.token) && !client.AllowsGrantType(oauth2.GrantTypeImplicit)) {
+		return nil, "", newredirectedAuthErr(oauth2.UnauthorizedClient, "Grant type is not allowed for this client.")
+	}
 
 	if rt.token && !rt.code && !rt.idToken {
 		// "token" can't be provided on its own.

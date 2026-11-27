@@ -23,6 +23,8 @@ type DeviceToken struct {
 	Status string `json:"status,omitempty"`
 	// Token holds the value of the "token" field.
 	Token *[]byte `json:"token,omitempty"`
+	// ClientID holds the value of the "client_id" field.
+	ClientID string `json:"client_id,omitempty"`
 	// Expiry holds the value of the "expiry" field.
 	Expiry time.Time `json:"expiry,omitempty"`
 	// LastRequest holds the value of the "last_request" field.
@@ -45,7 +47,7 @@ func (*DeviceToken) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case devicetoken.FieldID, devicetoken.FieldPollInterval:
 			values[i] = new(sql.NullInt64)
-		case devicetoken.FieldDeviceCode, devicetoken.FieldStatus, devicetoken.FieldCodeChallenge, devicetoken.FieldCodeChallengeMethod:
+		case devicetoken.FieldDeviceCode, devicetoken.FieldStatus, devicetoken.FieldClientID, devicetoken.FieldCodeChallenge, devicetoken.FieldCodeChallengeMethod:
 			values[i] = new(sql.NullString)
 		case devicetoken.FieldExpiry, devicetoken.FieldLastRequest:
 			values[i] = new(sql.NullTime)
@@ -87,6 +89,12 @@ func (_m *DeviceToken) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field token", values[i])
 			} else if value != nil {
 				_m.Token = value
+			}
+		case devicetoken.FieldClientID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field client_id", values[i])
+			} else if value.Valid {
+				_m.ClientID = value.String
 			}
 		case devicetoken.FieldExpiry:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -164,6 +172,9 @@ func (_m *DeviceToken) String() string {
 		builder.WriteString("token=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
+	builder.WriteString(", ")
+	builder.WriteString("client_id=")
+	builder.WriteString(_m.ClientID)
 	builder.WriteString(", ")
 	builder.WriteString("expiry=")
 	builder.WriteString(_m.Expiry.Format(time.ANSIC))

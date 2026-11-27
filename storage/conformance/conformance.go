@@ -325,6 +325,7 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 		Name:              "dex client",
 		LogoURL:           "https://goo.gl/JIyzIC",
 		AllowedConnectors: []string{"github", "google"},
+		GrantTypes:        []string{"authorization_code", "refresh_token"},
 		// Explicitly persisted fields: at their zero values they round-trip even
 		// when a backend drops them.
 		BackchannelLogoutURI:   "https://auth.example.com/backchannel-logout",
@@ -382,6 +383,7 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 	// An update carries those same fields, not just the one it changes.
 	err = s.UpdateClient(ctx, id1, func(old storage.Client) (storage.Client, error) {
 		old.RefreshTokenLifetime = storage.RefreshTokenLifetimeStandalone
+		old.GrantTypes = []string{"client_credentials"}
 		old.BackchannelLogoutURI = "https://auth.example.com/logout-2"
 		return old, nil
 	})
@@ -389,7 +391,18 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 		t.Errorf("update client: %v", err)
 	}
 	c1.RefreshTokenLifetime = storage.RefreshTokenLifetimeStandalone
+	c1.GrantTypes = []string{"client_credentials"}
 	c1.BackchannelLogoutURI = "https://auth.example.com/logout-2"
+	getAndCompare(id1, c1)
+
+	err = s.UpdateClient(ctx, id1, func(old storage.Client) (storage.Client, error) {
+		old.GrantTypes = nil
+		return old, nil
+	})
+	if err != nil {
+		t.Errorf("clear client grant types: %v", err)
+	}
+	c1.GrantTypes = nil
 	getAndCompare(id1, c1)
 
 	// Verify SSOSharedWith nil vs empty slice roundtrip.
@@ -1307,6 +1320,7 @@ func testDeviceTokenCRUD(t *testing.T, s storage.Storage) {
 	// Create a Token
 	d1 := storage.DeviceToken{
 		DeviceCode:          storage.NewID(),
+		ClientID:            "device-client",
 		Status:              "pending",
 		Token:               storage.NewID(),
 		Expiry:              neverExpire,

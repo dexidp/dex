@@ -46,6 +46,8 @@ func (OAuth2Client) Fields() []ent.Field {
 			SchemaType(textSchema),
 		field.JSON("allowed_connectors", []string{}).
 			Optional(),
+		field.JSON("grant_types", []string{}).
+			Optional(),
 		field.JSON("mfa_chain", []string{}).
 			Optional(),
 		field.JSON("post_logout_redirect_uris", []string{}).

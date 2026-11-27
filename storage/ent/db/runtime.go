@@ -170,12 +170,16 @@ func init() {
 	devicetokenDescStatus := devicetokenFields[1].Descriptor()
 	// devicetoken.StatusValidator is a validator for the "status" field. It is called by the builders before save.
 	devicetoken.StatusValidator = devicetokenDescStatus.Validators[0].(func(string) error)
+	// devicetokenDescClientID is the schema descriptor for client_id field.
+	devicetokenDescClientID := devicetokenFields[3].Descriptor()
+	// devicetoken.DefaultClientID holds the default value on creation for the client_id field.
+	devicetoken.DefaultClientID = devicetokenDescClientID.Default.(string)
 	// devicetokenDescCodeChallenge is the schema descriptor for code_challenge field.
-	devicetokenDescCodeChallenge := devicetokenFields[6].Descriptor()
+	devicetokenDescCodeChallenge := devicetokenFields[7].Descriptor()
 	// devicetoken.DefaultCodeChallenge holds the default value on creation for the code_challenge field.
 	devicetoken.DefaultCodeChallenge = devicetokenDescCodeChallenge.Default.(string)
 	// devicetokenDescCodeChallengeMethod is the schema descriptor for code_challenge_method field.
-	devicetokenDescCodeChallengeMethod := devicetokenFields[7].Descriptor()
+	devicetokenDescCodeChallengeMethod := devicetokenFields[8].Descriptor()
 	// devicetoken.DefaultCodeChallengeMethod holds the default value on creation for the code_challenge_method field.
 	devicetoken.DefaultCodeChallengeMethod = devicetokenDescCodeChallengeMethod.Default.(string)
 	keysFields := schema.Keys{}.Fields()
@@ -187,11 +191,11 @@ func init() {
 	oauth2clientFields := schema.OAuth2Client{}.Fields()
 	_ = oauth2clientFields
 	// oauth2clientDescBackchannelLogoutURI is the schema descriptor for backchannel_logout_uri field.
-	oauth2clientDescBackchannelLogoutURI := oauth2clientFields[11].Descriptor()
+	oauth2clientDescBackchannelLogoutURI := oauth2clientFields[12].Descriptor()
 	// oauth2client.DefaultBackchannelLogoutURI holds the default value on creation for the backchannel_logout_uri field.
 	oauth2client.DefaultBackchannelLogoutURI = oauth2clientDescBackchannelLogoutURI.Default.(string)
 	// oauth2clientDescRefreshTokenLifetime is the schema descriptor for refresh_token_lifetime field.
-	oauth2clientDescRefreshTokenLifetime := oauth2clientFields[12].Descriptor()
+	oauth2clientDescRefreshTokenLifetime := oauth2clientFields[13].Descriptor()
 	// oauth2client.DefaultRefreshTokenLifetime holds the default value on creation for the refresh_token_lifetime field.
 	oauth2client.DefaultRefreshTokenLifetime = oauth2clientDescRefreshTokenLifetime.Default.(string)
 	// oauth2clientDescID is the schema descriptor for id field.

@@ -17,6 +17,7 @@ func (d *Database) CreateClient(ctx context.Context, client storage.Client) erro
 		SetRedirectUris(client.RedirectURIs).
 		SetTrustedPeers(client.TrustedPeers).
 		SetAllowedConnectors(client.AllowedConnectors).
+		SetGrantTypes(client.GrantTypes).
 		SetMfaChain(client.MFAChain).
 		SetPostLogoutRedirectUris(client.PostLogoutRedirectURIs).
 		SetSSOSharedWith(client.SSOSharedWith).
@@ -89,6 +90,7 @@ func (d *Database) UpdateClient(ctx context.Context, id string, updater func(old
 		SetRedirectUris(newClient.RedirectURIs).
 		SetTrustedPeers(newClient.TrustedPeers).
 		SetAllowedConnectors(newClient.AllowedConnectors).
+		SetGrantTypes(newClient.GrantTypes).
 		SetMfaChain(newClient.MFAChain).
 		SetPostLogoutRedirectUris(newClient.PostLogoutRedirectURIs).
 		SetSSOSharedWith(newClient.SSOSharedWith).

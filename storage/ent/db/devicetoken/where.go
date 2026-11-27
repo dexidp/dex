@@ -69,6 +69,11 @@ func Token(v []byte) predicate.DeviceToken {
 	return predicate.DeviceToken(sql.FieldEQ(FieldToken, v))
 }
 
+// ClientID applies equality check predicate on the "client_id" field. It's identical to ClientIDEQ.
+func ClientID(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(sql.FieldEQ(FieldClientID, v))
+}
+
 // Expiry applies equality check predicate on the "expiry" field. It's identical to ExpiryEQ.
 func Expiry(v time.Time) predicate.DeviceToken {
 	return predicate.DeviceToken(sql.FieldEQ(FieldExpiry, v))
@@ -272,6 +277,71 @@ func TokenIsNil() predicate.DeviceToken {
 // TokenNotNil applies the NotNil predicate on the "token" field.
 func TokenNotNil() predicate.DeviceToken {
 	return predicate.DeviceToken(sql.FieldNotNull(FieldToken))
+}
+
+// ClientIDEQ applies the EQ predicate on the "client_id" field.
+func ClientIDEQ(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(sql.FieldEQ(FieldClientID, v))
+}
+
+// ClientIDNEQ applies the NEQ predicate on the "client_id" field.
+func ClientIDNEQ(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(sql.FieldNEQ(FieldClientID, v))
+}
+
+// ClientIDIn applies the In predicate on the "client_id" field.
+func ClientIDIn(vs ...string) predicate.DeviceToken {
+	return predicate.DeviceToken(sql.FieldIn(FieldClientID, vs...))
+}
+
+// ClientIDNotIn applies the NotIn predicate on the "client_id" field.
+func ClientIDNotIn(vs ...string) predicate.DeviceToken {
+	return predicate.DeviceToken(sql.FieldNotIn(FieldClientID, vs...))
+}
+
+// ClientIDGT applies the GT predicate on the "client_id" field.
+func ClientIDGT(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(sql.FieldGT(FieldClientID, v))
+}
+
+// ClientIDGTE applies the GTE predicate on the "client_id" field.
+func ClientIDGTE(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(sql.FieldGTE(FieldClientID, v))
+}
+
+// ClientIDLT applies the LT predicate on the "client_id" field.
+func ClientIDLT(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(sql.FieldLT(FieldClientID, v))
+}
+
+// ClientIDLTE applies the LTE predicate on the "client_id" field.
+func ClientIDLTE(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(sql.FieldLTE(FieldClientID, v))
+}
+
+// ClientIDContains applies the Contains predicate on the "client_id" field.
+func ClientIDContains(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(sql.FieldContains(FieldClientID, v))
+}
+
+// ClientIDHasPrefix applies the HasPrefix predicate on the "client_id" field.
+func ClientIDHasPrefix(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(sql.FieldHasPrefix(FieldClientID, v))
+}
+
+// ClientIDHasSuffix applies the HasSuffix predicate on the "client_id" field.
+func ClientIDHasSuffix(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(sql.FieldHasSuffix(FieldClientID, v))
+}
+
+// ClientIDEqualFold applies the EqualFold predicate on the "client_id" field.
+func ClientIDEqualFold(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(sql.FieldEqualFold(FieldClientID, v))
+}
+
+// ClientIDContainsFold applies the ContainsFold predicate on the "client_id" field.
+func ClientIDContainsFold(v string) predicate.DeviceToken {
+	return predicate.DeviceToken(sql.FieldContainsFold(FieldClientID, v))
 }
 
 // ExpiryEQ applies the EQ predicate on the "expiry" field.
