@@ -5409,6 +5409,7 @@ type DeviceTokenMutation struct {
 	device_code           *string
 	status                *string
 	token                 *[]byte
+	client_id             *string
 	expiry                *time.Time
 	last_request          *time.Time
 	poll_interval         *int
@@ -5638,6 +5639,42 @@ func (m *DeviceTokenMutation) TokenCleared() bool {
 func (m *DeviceTokenMutation) ResetToken() {
 	m.token = nil
 	delete(m.clearedFields, devicetoken.FieldToken)
+}
+
+// SetClientID sets the "client_id" field.
+func (m *DeviceTokenMutation) SetClientID(s string) {
+	m.client_id = &s
+}
+
+// ClientID returns the value of the "client_id" field in the mutation.
+func (m *DeviceTokenMutation) ClientID() (r string, exists bool) {
+	v := m.client_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldClientID returns the old "client_id" field's value of the DeviceToken entity.
+// If the DeviceToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *DeviceTokenMutation) OldClientID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldClientID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldClientID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldClientID: %w", err)
+	}
+	return oldValue.ClientID, nil
+}
+
+// ResetClientID resets all changes to the "client_id" field.
+func (m *DeviceTokenMutation) ResetClientID() {
+	m.client_id = nil
 }
 
 // SetExpiry sets the "expiry" field.
@@ -5874,7 +5911,7 @@ func (m *DeviceTokenMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *DeviceTokenMutation) Fields() []string {
-	fields := make([]string, 0, 8)
+	fields := make([]string, 0, 9)
 	if m.device_code != nil {
 		fields = append(fields, devicetoken.FieldDeviceCode)
 	}
@@ -5883,6 +5920,9 @@ func (m *DeviceTokenMutation) Fields() []string {
 	}
 	if m.token != nil {
 		fields = append(fields, devicetoken.FieldToken)
+	}
+	if m.client_id != nil {
+		fields = append(fields, devicetoken.FieldClientID)
 	}
 	if m.expiry != nil {
 		fields = append(fields, devicetoken.FieldExpiry)
@@ -5913,6 +5953,8 @@ func (m *DeviceTokenMutation) Field(name string) (ent.Value, bool) {
 		return m.Status()
 	case devicetoken.FieldToken:
 		return m.Token()
+	case devicetoken.FieldClientID:
+		return m.ClientID()
 	case devicetoken.FieldExpiry:
 		return m.Expiry()
 	case devicetoken.FieldLastRequest:
@@ -5938,6 +5980,8 @@ func (m *DeviceTokenMutation) OldField(ctx context.Context, name string) (ent.Va
 		return m.OldStatus(ctx)
 	case devicetoken.FieldToken:
 		return m.OldToken(ctx)
+	case devicetoken.FieldClientID:
+		return m.OldClientID(ctx)
 	case devicetoken.FieldExpiry:
 		return m.OldExpiry(ctx)
 	case devicetoken.FieldLastRequest:
@@ -5977,6 +6021,13 @@ func (m *DeviceTokenMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetToken(v)
+		return nil
+	case devicetoken.FieldClientID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetClientID(v)
 		return nil
 	case devicetoken.FieldExpiry:
 		v, ok := value.(time.Time)
@@ -6094,6 +6145,9 @@ func (m *DeviceTokenMutation) ResetField(name string) error {
 		return nil
 	case devicetoken.FieldToken:
 		m.ResetToken()
+		return nil
+	case devicetoken.FieldClientID:
+		m.ResetClientID()
 		return nil
 	case devicetoken.FieldExpiry:
 		m.ResetExpiry()
@@ -6688,6 +6742,8 @@ type OAuth2ClientMutation struct {
 	logo_url                        *string
 	allowed_connectors              *[]string
 	appendallowed_connectors        []string
+	grant_types                     *[]string
+	appendgrant_types               []string
 	mfa_chain                       *[]string
 	appendmfa_chain                 []string
 	post_logout_redirect_uris       *[]string
@@ -7146,6 +7202,71 @@ func (m *OAuth2ClientMutation) ResetAllowedConnectors() {
 	delete(m.clearedFields, oauth2client.FieldAllowedConnectors)
 }
 
+// SetGrantTypes sets the "grant_types" field.
+func (m *OAuth2ClientMutation) SetGrantTypes(s []string) {
+	m.grant_types = &s
+	m.appendgrant_types = nil
+}
+
+// GrantTypes returns the value of the "grant_types" field in the mutation.
+func (m *OAuth2ClientMutation) GrantTypes() (r []string, exists bool) {
+	v := m.grant_types
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGrantTypes returns the old "grant_types" field's value of the OAuth2Client entity.
+// If the OAuth2Client object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuth2ClientMutation) OldGrantTypes(ctx context.Context) (v []string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGrantTypes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGrantTypes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGrantTypes: %w", err)
+	}
+	return oldValue.GrantTypes, nil
+}
+
+// AppendGrantTypes adds s to the "grant_types" field.
+func (m *OAuth2ClientMutation) AppendGrantTypes(s []string) {
+	m.appendgrant_types = append(m.appendgrant_types, s...)
+}
+
+// AppendedGrantTypes returns the list of values that were appended to the "grant_types" field in this mutation.
+func (m *OAuth2ClientMutation) AppendedGrantTypes() ([]string, bool) {
+	if len(m.appendgrant_types) == 0 {
+		return nil, false
+	}
+	return m.appendgrant_types, true
+}
+
+// ClearGrantTypes clears the value of the "grant_types" field.
+func (m *OAuth2ClientMutation) ClearGrantTypes() {
+	m.grant_types = nil
+	m.appendgrant_types = nil
+	m.clearedFields[oauth2client.FieldGrantTypes] = struct{}{}
+}
+
+// GrantTypesCleared returns if the "grant_types" field was cleared in this mutation.
+func (m *OAuth2ClientMutation) GrantTypesCleared() bool {
+	_, ok := m.clearedFields[oauth2client.FieldGrantTypes]
+	return ok
+}
+
+// ResetGrantTypes resets all changes to the "grant_types" field.
+func (m *OAuth2ClientMutation) ResetGrantTypes() {
+	m.grant_types = nil
+	m.appendgrant_types = nil
+	delete(m.clearedFields, oauth2client.FieldGrantTypes)
+}
+
 // SetMfaChain sets the "mfa_chain" field.
 func (m *OAuth2ClientMutation) SetMfaChain(s []string) {
 	m.mfa_chain = &s
@@ -7522,7 +7643,7 @@ func (m *OAuth2ClientMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *OAuth2ClientMutation) Fields() []string {
-	fields := make([]string, 0, 13)
+	fields := make([]string, 0, 14)
 	if m.secret != nil {
 		fields = append(fields, oauth2client.FieldSecret)
 	}
@@ -7543,6 +7664,9 @@ func (m *OAuth2ClientMutation) Fields() []string {
 	}
 	if m.allowed_connectors != nil {
 		fields = append(fields, oauth2client.FieldAllowedConnectors)
+	}
+	if m.grant_types != nil {
+		fields = append(fields, oauth2client.FieldGrantTypes)
 	}
 	if m.mfa_chain != nil {
 		fields = append(fields, oauth2client.FieldMfaChain)
@@ -7584,6 +7708,8 @@ func (m *OAuth2ClientMutation) Field(name string) (ent.Value, bool) {
 		return m.LogoURL()
 	case oauth2client.FieldAllowedConnectors:
 		return m.AllowedConnectors()
+	case oauth2client.FieldGrantTypes:
+		return m.GrantTypes()
 	case oauth2client.FieldMfaChain:
 		return m.MfaChain()
 	case oauth2client.FieldPostLogoutRedirectUris:
@@ -7619,6 +7745,8 @@ func (m *OAuth2ClientMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldLogoURL(ctx)
 	case oauth2client.FieldAllowedConnectors:
 		return m.OldAllowedConnectors(ctx)
+	case oauth2client.FieldGrantTypes:
+		return m.OldGrantTypes(ctx)
 	case oauth2client.FieldMfaChain:
 		return m.OldMfaChain(ctx)
 	case oauth2client.FieldPostLogoutRedirectUris:
@@ -7688,6 +7816,13 @@ func (m *OAuth2ClientMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetAllowedConnectors(v)
+		return nil
+	case oauth2client.FieldGrantTypes:
+		v, ok := value.([]string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGrantTypes(v)
 		return nil
 	case oauth2client.FieldMfaChain:
 		v, ok := value.([]string)
@@ -7770,6 +7905,9 @@ func (m *OAuth2ClientMutation) ClearedFields() []string {
 	if m.FieldCleared(oauth2client.FieldAllowedConnectors) {
 		fields = append(fields, oauth2client.FieldAllowedConnectors)
 	}
+	if m.FieldCleared(oauth2client.FieldGrantTypes) {
+		fields = append(fields, oauth2client.FieldGrantTypes)
+	}
 	if m.FieldCleared(oauth2client.FieldMfaChain) {
 		fields = append(fields, oauth2client.FieldMfaChain)
 	}
@@ -7810,6 +7948,9 @@ func (m *OAuth2ClientMutation) ClearField(name string) error {
 		return nil
 	case oauth2client.FieldAllowedConnectors:
 		m.ClearAllowedConnectors()
+		return nil
+	case oauth2client.FieldGrantTypes:
+		m.ClearGrantTypes()
 		return nil
 	case oauth2client.FieldMfaChain:
 		m.ClearMfaChain()
@@ -7857,6 +7998,9 @@ func (m *OAuth2ClientMutation) ResetField(name string) error {
 		return nil
 	case oauth2client.FieldAllowedConnectors:
 		m.ResetAllowedConnectors()
+		return nil
+	case oauth2client.FieldGrantTypes:
+		m.ResetGrantTypes()
 		return nil
 	case oauth2client.FieldMfaChain:
 		m.ResetMfaChain()

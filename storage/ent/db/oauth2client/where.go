@@ -327,6 +327,16 @@ func AllowedConnectorsNotNil() predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.FieldNotNull(FieldAllowedConnectors))
 }
 
+// GrantTypesIsNil applies the IsNil predicate on the "grant_types" field.
+func GrantTypesIsNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldIsNull(FieldGrantTypes))
+}
+
+// GrantTypesNotNil applies the NotNil predicate on the "grant_types" field.
+func GrantTypesNotNil() predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNotNull(FieldGrantTypes))
+}
+
 // MfaChainIsNil applies the IsNil predicate on the "mfa_chain" field.
 func MfaChainIsNil() predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.FieldIsNull(FieldMfaChain))

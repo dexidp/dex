@@ -57,6 +57,19 @@ func (g *deviceCode) Authorize(ctx context.Context, req *Request, client storage
 	if now.After(deviceToken.Expiry) {
 		return nil, &oauth2.Error{Type: oauth2.DeviceTokenExpired, Status: http.StatusBadRequest}
 	}
+	if deviceToken.ClientID != "" {
+		deviceClient, err := g.storage.GetClient(ctx, deviceToken.ClientID)
+		if err != nil {
+			if err != storage.ErrNotFound {
+				g.logger.ErrorContext(ctx, "failed to get device client", "err", err)
+				return nil, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}
+			}
+			return nil, &oauth2.Error{Type: oauth2.InvalidClient, Status: http.StatusBadRequest}
+		}
+		if !deviceClient.AllowsGrantType(g.GrantType()) {
+			return nil, &oauth2.Error{Type: oauth2.UnauthorizedClient, Description: "Grant type is not allowed for this client.", Status: http.StatusBadRequest}
+		}
+	}
 
 	// Rate limiting: increase the poll interval until the device waits long enough.
 	slowDown := false

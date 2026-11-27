@@ -38,6 +38,20 @@ func (_c *DeviceTokenCreate) SetToken(v []byte) *DeviceTokenCreate {
 	return _c
 }
 
+// SetClientID sets the "client_id" field.
+func (_c *DeviceTokenCreate) SetClientID(v string) *DeviceTokenCreate {
+	_c.mutation.SetClientID(v)
+	return _c
+}
+
+// SetNillableClientID sets the "client_id" field if the given value is not nil.
+func (_c *DeviceTokenCreate) SetNillableClientID(v *string) *DeviceTokenCreate {
+	if v != nil {
+		_c.SetClientID(*v)
+	}
+	return _c
+}
+
 // SetExpiry sets the "expiry" field.
 func (_c *DeviceTokenCreate) SetExpiry(v time.Time) *DeviceTokenCreate {
 	_c.mutation.SetExpiry(v)
@@ -119,6 +133,10 @@ func (_c *DeviceTokenCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *DeviceTokenCreate) defaults() {
+	if _, ok := _c.mutation.ClientID(); !ok {
+		v := devicetoken.DefaultClientID
+		_c.mutation.SetClientID(v)
+	}
 	if _, ok := _c.mutation.CodeChallenge(); !ok {
 		v := devicetoken.DefaultCodeChallenge
 		_c.mutation.SetCodeChallenge(v)
@@ -146,6 +164,9 @@ func (_c *DeviceTokenCreate) check() error {
 		if err := devicetoken.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`db: validator failed for field "DeviceToken.status": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.ClientID(); !ok {
+		return &ValidationError{Name: "client_id", err: errors.New(`db: missing required field "DeviceToken.client_id"`)}
 	}
 	if _, ok := _c.mutation.Expiry(); !ok {
 		return &ValidationError{Name: "expiry", err: errors.New(`db: missing required field "DeviceToken.expiry"`)}
@@ -199,6 +220,10 @@ func (_c *DeviceTokenCreate) createSpec() (*DeviceToken, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Token(); ok {
 		_spec.SetField(devicetoken.FieldToken, field.TypeBytes, value)
 		_node.Token = &value
+	}
+	if value, ok := _c.mutation.ClientID(); ok {
+		_spec.SetField(devicetoken.FieldClientID, field.TypeString, value)
+		_node.ClientID = value
 	}
 	if value, ok := _c.mutation.Expiry(); ok {
 		_spec.SetField(devicetoken.FieldExpiry, field.TypeTime, value)

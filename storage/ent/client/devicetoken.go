@@ -11,6 +11,7 @@ import (
 func (d *Database) CreateDeviceToken(ctx context.Context, token storage.DeviceToken) error {
 	_, err := d.client.DeviceToken.Create().
 		SetDeviceCode(token.DeviceCode).
+		SetClientID(token.ClientID).
 		SetToken([]byte(token.Token)).
 		SetPollInterval(token.PollIntervalSeconds).
 		// Save utc time into database because ent doesn't support comparing dates with different timezones
@@ -59,6 +60,7 @@ func (d *Database) UpdateDeviceToken(ctx context.Context, deviceCode string, upd
 	_, err = tx.DeviceToken.Update().
 		Where(devicetoken.DeviceCode(newToken.DeviceCode)).
 		SetDeviceCode(newToken.DeviceCode).
+		SetClientID(newToken.ClientID).
 		SetToken([]byte(newToken.Token)).
 		SetPollInterval(newToken.PollIntervalSeconds).
 		// Save utc time into database because ent doesn't support comparing dates with different timezones

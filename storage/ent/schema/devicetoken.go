@@ -35,6 +35,9 @@ func (DeviceToken) Fields() []ent.Field {
 			SchemaType(textSchema).
 			NotEmpty(),
 		field.Bytes("token").Nillable().Optional(),
+		field.Text("client_id").
+			SchemaType(textSchema).
+			Default(""),
 		field.Time("expiry").
 			SchemaType(timeSchema),
 		field.Time("last_request").

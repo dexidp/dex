@@ -287,6 +287,7 @@ type Client struct {
 	LogoURL string `json:"logoURL,omitempty"`
 
 	AllowedConnectors []string `json:"allowedConnectors,omitempty"`
+	GrantTypes        []string `json:"grantTypes,omitempty"`
 
 	MFAChain []string `json:"mfaChain,omitempty"`
 
@@ -324,6 +325,7 @@ func (cli *client) fromStorageClient(c storage.Client) Client {
 		Name:                   c.Name,
 		LogoURL:                c.LogoURL,
 		AllowedConnectors:      c.AllowedConnectors,
+		GrantTypes:             c.GrantTypes,
 		MFAChain:               c.MFAChain,
 		PostLogoutRedirectURIs: c.PostLogoutRedirectURIs,
 		SSOSharedWith:          c.SSOSharedWith,
@@ -342,6 +344,7 @@ func toStorageClient(c Client) storage.Client {
 		Name:                   c.Name,
 		LogoURL:                c.LogoURL,
 		AllowedConnectors:      c.AllowedConnectors,
+		GrantTypes:             c.GrantTypes,
 		MFAChain:               c.MFAChain,
 		PostLogoutRedirectURIs: c.PostLogoutRedirectURIs,
 		SSOSharedWith:          c.SSOSharedWith,
@@ -902,6 +905,7 @@ type DeviceToken struct {
 	k8sapi.ObjectMeta `json:"metadata,omitempty"`
 
 	Status              string    `json:"status,omitempty"`
+	ClientID            string    `json:"clientID,omitempty"`
 	Token               string    `json:"token,omitempty"`
 	Expiry              time.Time `json:"expiry"`
 	LastRequestTime     time.Time `json:"last_request"`
@@ -928,6 +932,7 @@ func (cli *client) fromStorageDeviceToken(t storage.DeviceToken) DeviceToken {
 			Namespace: cli.namespace,
 		},
 		Status:              t.Status,
+		ClientID:            t.ClientID,
 		Token:               t.Token,
 		Expiry:              t.Expiry,
 		LastRequestTime:     t.LastRequestTime,
@@ -941,6 +946,7 @@ func (cli *client) fromStorageDeviceToken(t storage.DeviceToken) DeviceToken {
 func toStorageDeviceToken(t DeviceToken) storage.DeviceToken {
 	return storage.DeviceToken{
 		DeviceCode:          t.ObjectMeta.Name,
+		ClientID:            t.ClientID,
 		Status:              t.Status,
 		Token:               t.Token,
 		Expiry:              t.Expiry,

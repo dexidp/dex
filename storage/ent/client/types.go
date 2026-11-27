@@ -96,6 +96,7 @@ func toStorageClient(c *db.OAuth2Client) storage.Client {
 		Name:                    c.Name,
 		LogoURL:                 c.LogoURL,
 		AllowedConnectors:       c.AllowedConnectors,
+		GrantTypes:              c.GrantTypes,
 		MFAChain:                c.MfaChain,
 		PostLogoutRedirectURIs:  c.PostLogoutRedirectUris,
 		SSOSharedWith:           c.SSOSharedWith,
@@ -273,6 +274,7 @@ func toStorageAuthSession(s *db.AuthSession) storage.AuthSession {
 func toStorageDeviceToken(t *db.DeviceToken) storage.DeviceToken {
 	return storage.DeviceToken{
 		DeviceCode:          t.DeviceCode,
+		ClientID:            t.ClientID,
 		Status:              t.Status,
 		Token:               string(*t.Token),
 		Expiry:              t.Expiry,

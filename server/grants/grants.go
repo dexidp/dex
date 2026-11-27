@@ -231,6 +231,10 @@ func (h *Handler) dispatch(w http.ResponseWriter, r *http.Request, grantType str
 		if !ok {
 			return true
 		}
+		if !client.AllowsGrantType(grantType) {
+			h.writeError(ctx, w, &oauth2.Error{Type: oauth2.UnauthorizedClient, Description: "Grant type is not allowed for this client.", Status: http.StatusBadRequest})
+			return true
+		}
 	}
 
 	// 2. Validate the requested scopes.

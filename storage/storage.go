@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"slices"
 	"strings"
 	"time"
 
@@ -203,6 +204,10 @@ type Client struct {
 	// If empty, all connectors are allowed.
 	AllowedConnectors []string `json:"allowedConnectors"`
 
+	// GrantTypes restricts the grants this client may use. Empty permits any
+	// grant enabled by the server.
+	GrantTypes []string `json:"grantTypes,omitempty"`
+
 	// MFAChain is an ordered list of MFA authenticator IDs that a user must complete
 	// during login. Empty means no MFA required.
 	MFAChain []string `json:"mfaChain"`
@@ -251,6 +256,11 @@ func ValidateRefreshTokenLifetime(lifetime string) error {
 // browser session that issued them.
 func (c Client) RefreshBoundToSession() bool {
 	return c.RefreshTokenLifetime == RefreshTokenLifetimeSession
+}
+
+// AllowsGrantType reports whether the client's grant restrictions permit grantType.
+func (c Client) AllowsGrantType(grantType string) bool {
+	return len(c.GrantTypes) == 0 || slices.Contains(c.GrantTypes, grantType)
 }
 
 // ClientCredentialsClaims contains claims that are included in tokens issued via
@@ -701,6 +711,7 @@ type DeviceRequest struct {
 // DeviceToken is a structure which represents the actual token of an authorized device and its rotation parameters
 type DeviceToken struct {
 	DeviceCode          string
+	ClientID            string
 	Status              string
 	Token               string
 	Expiry              time.Time

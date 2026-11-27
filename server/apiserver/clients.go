@@ -25,6 +25,7 @@ func (d dexAPI) GetClient(ctx context.Context, req *api.GetClientReq) (*api.GetC
 			Public:                 c.Public,
 			LogoUrl:                c.LogoURL,
 			AllowedConnectors:      c.AllowedConnectors,
+			GrantTypes:             c.GrantTypes,
 			SsoSharedWith:          c.SSOSharedWith,
 			BackchannelLogoutUri:   c.BackchannelLogoutURI,
 			PostLogoutRedirectUris: c.PostLogoutRedirectURIs,
@@ -58,6 +59,7 @@ func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*ap
 		Name:                   req.Client.Name,
 		LogoURL:                req.Client.LogoUrl,
 		AllowedConnectors:      req.Client.AllowedConnectors,
+		GrantTypes:             req.Client.GrantTypes,
 		SSOSharedWith:          req.Client.SsoSharedWith,
 		BackchannelLogoutURI:   req.Client.BackchannelLogoutUri,
 		PostLogoutRedirectURIs: req.Client.PostLogoutRedirectUris,
@@ -99,6 +101,9 @@ func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*ap
 		}
 		if req.AllowedConnectors != nil {
 			old.AllowedConnectors = req.AllowedConnectors
+		}
+		if req.GrantTypes != nil {
+			old.GrantTypes = req.GrantTypes.GrantTypes
 		}
 		if req.SsoSharedWith != nil {
 			old.SSOSharedWith = req.SsoSharedWith
@@ -155,6 +160,7 @@ func (d dexAPI) ListClients(ctx context.Context, req *api.ListClientReq) (*api.L
 			Public:                 client.Public,
 			LogoUrl:                client.LogoURL,
 			AllowedConnectors:      client.AllowedConnectors,
+			GrantTypes:             client.GrantTypes,
 			SsoSharedWith:          client.SSOSharedWith,
 			BackchannelLogoutUri:   client.BackchannelLogoutURI,
 			PostLogoutRedirectUris: client.PostLogoutRedirectURIs,

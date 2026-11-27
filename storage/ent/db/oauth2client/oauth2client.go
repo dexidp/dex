@@ -25,6 +25,8 @@ const (
 	FieldLogoURL = "logo_url"
 	// FieldAllowedConnectors holds the string denoting the allowed_connectors field in the database.
 	FieldAllowedConnectors = "allowed_connectors"
+	// FieldGrantTypes holds the string denoting the grant_types field in the database.
+	FieldGrantTypes = "grant_types"
 	// FieldMfaChain holds the string denoting the mfa_chain field in the database.
 	FieldMfaChain = "mfa_chain"
 	// FieldPostLogoutRedirectUris holds the string denoting the post_logout_redirect_uris field in the database.
@@ -51,6 +53,7 @@ var Columns = []string{
 	FieldName,
 	FieldLogoURL,
 	FieldAllowedConnectors,
+	FieldGrantTypes,
 	FieldMfaChain,
 	FieldPostLogoutRedirectUris,
 	FieldSSOSharedWith,

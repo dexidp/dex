@@ -170,6 +170,17 @@ func (h *Handler) parseDeviceCodeRequest(r *http.Request) (deviceCodeRequest, *d
 // createDeviceAuthorization mints and stores the device and user codes and builds
 // the authorization response the device polls against.
 func (h *Handler) createDeviceAuthorization(ctx context.Context, req deviceCodeRequest) (*DeviceCodeResponse, *deviceFlowError) {
+	client, err := h.Storage.GetClient(ctx, req.clientID)
+	if err != nil {
+		if err != storage.ErrNotFound {
+			h.Logger.ErrorContext(ctx, "failed to get device client", "err", err)
+			return nil, &deviceFlowError{status: http.StatusInternalServerError, code: oauth2.ServerError}
+		}
+		return nil, &deviceFlowError{status: http.StatusBadRequest, code: oauth2.InvalidClient}
+	}
+	if !client.AllowsGrantType(oauth2.GrantTypeDeviceCode) {
+		return nil, &deviceFlowError{status: http.StatusBadRequest, code: oauth2.UnauthorizedClient, message: "Grant type is not allowed for this client."}
+	}
 	h.Logger.InfoContext(ctx, "received device request", "client_id", req.clientID, "scoped", req.scopes)
 
 	deviceCode := storage.NewDeviceCode()
@@ -190,6 +201,7 @@ func (h *Handler) createDeviceAuthorization(ctx context.Context, req deviceCodeR
 
 	if err := h.Storage.CreateDeviceToken(ctx, storage.DeviceToken{
 		DeviceCode:          deviceCode,
+		ClientID:            req.clientID,
 		Status:              oauth2.DeviceTokenPending,
 		Expiry:              expireTime,
 		LastRequestTime:     h.Now(),
@@ -389,6 +401,9 @@ func (h *Handler) completeDeviceAuthorization(w http.ResponseWriter, r *http.Req
 	client, oerr := grants.AuthenticateClient(ctx, h.Storage, h.Logger, deviceReq.ClientID, deviceReq.ClientSecret)
 	if oerr != nil {
 		return "", oauth2FlowError(oerr)
+	}
+	if !client.AllowsGrantType(oauth2.GrantTypeDeviceCode) {
+		return "", &deviceFlowError{status: http.StatusBadRequest, code: oauth2.UnauthorizedClient, message: "Grant type is not allowed for this client."}
 	}
 
 	// ExchangeAuthCode consumes the code (its atomic single-use gate) and returns

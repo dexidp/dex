@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/server/oauth2"
+	"github.com/dexidp/dex/storage"
 	"github.com/dexidp/dex/storage/memory"
 )
 
@@ -21,10 +22,6 @@ func TestGetDeviceVerificationURI(t *testing.T) {
 	require.Equal(t, "/non-root-path/device/auth/verify_code", h.getDeviceVerificationURI())
 }
 
-// TestCreateDeviceAuthorizationUsesInjectedClock pins the device request and
-// token expiry to the handler's clock. Both were minted from a mix of
-// time.Now() and h.Now(), which made the two expiries drift apart under a
-// fixed test clock.
 func TestCreateDeviceAuthorizationUsesInjectedClock(t *testing.T) {
 	u, err := url.Parse("https://dex.example.com")
 	require.NoError(t, err)
@@ -39,6 +36,7 @@ func TestCreateDeviceAuthorizationUsesInjectedClock(t *testing.T) {
 		Now:              func() time.Time { return fixed },
 		RequestsValidFor: 5 * time.Minute,
 	}
+	require.NoError(t, h.Storage.CreateClient(t.Context(), storage.Client{ID: "test"}))
 
 	resp, ferr := h.createDeviceAuthorization(t.Context(), deviceCodeRequest{
 		clientID: "test",
@@ -55,5 +53,6 @@ func TestCreateDeviceAuthorizationUsesInjectedClock(t *testing.T) {
 	token, err := h.Storage.GetDeviceToken(t.Context(), resp.DeviceCode)
 	require.NoError(t, err)
 	require.WithinDuration(t, want, token.Expiry, 0)
+	require.Equal(t, "test", token.ClientID)
 	require.WithinDuration(t, fixed, token.LastRequestTime, 0)
 }
