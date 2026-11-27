@@ -473,9 +473,11 @@ message DeleteUserIdentityResp {
 
 // LockUserIdentityReq locks a user identity until the given time.
 // While the lock is in force, every login path that reaches the stored
-// identity refuses the user, and refresh tokens stop working: the server
-// answers invalid_grant. Sessions the user already has keep working until
-// they end, so terminate them separately if the lock must take effect at once.
+// identity refuses the user. Refresh tokens are refused too, with invalid_grant,
+// but only when the sessions feature is enabled: that grant is also what resolves
+// the stored identity, so without sessions the lock cannot reach a refresh token
+// and they keep working. Sessions the user already has keep working until they
+// end, so terminate them separately if the lock must take effect at once.
 message LockUserIdentityReq {
   string user_id = 1;
   string connector_id = 2;

@@ -3806,9 +3806,11 @@ func (x *DeleteUserIdentityResp) GetNotFound() bool {
 
 // LockUserIdentityReq locks a user identity until the given time.
 // While the lock is in force, every login path that reaches the stored
-// identity refuses the user, and refresh tokens stop working: the server
-// answers invalid_grant. Sessions the user already has keep working until
-// they end, so terminate them separately if the lock must take effect at once.
+// identity refuses the user. Refresh tokens are refused too, with invalid_grant,
+// but only when the sessions feature is enabled: that grant is also what resolves
+// the stored identity, so without sessions the lock cannot reach a refresh token
+// and they keep working. Sessions the user already has keep working until they
+// end, so terminate them separately if the lock must take effect at once.
 type LockUserIdentityReq struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	UserId      string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`

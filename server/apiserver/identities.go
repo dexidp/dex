@@ -151,10 +151,13 @@ func (d dexAPI) DeleteUserIdentity(ctx context.Context, req *api.DeleteUserIdent
 	return &api.DeleteUserIdentityResp{}, nil
 }
 
-// LockUserIdentity sets the identity's BlockedUntil, the field every login path
-// already checks: RecordLogin refuses a locked account for the browser flow and
-// the password grant, and the refresh grant answers invalid_grant. Until this
-// call existed the only way to set it was to edit storage directly.
+// LockUserIdentity sets the identity's BlockedUntil, the field the login paths
+// check: RecordLogin refuses a locked account for the browser flow and the
+// password grant, and, when sessions are enabled, the refresh grant answers
+// invalid_grant. That refresh check lives inside the sessions branch, so a
+// deployment without sessions cannot retire an existing refresh token this way.
+// Until this call existed the only way to set BlockedUntil was to edit storage
+// directly.
 func (d dexAPI) LockUserIdentity(ctx context.Context, req *api.LockUserIdentityReq) (*api.LockUserIdentityResp, error) {
 	if !featureflags.APISessionsIdentitiesCRUD.Enabled() {
 		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APISessionsIdentitiesCRUD.Name)
