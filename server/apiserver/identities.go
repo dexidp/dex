@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/dexidp/dex/api/v2"
 	"github.com/dexidp/dex/pkg/featureflags"
@@ -148,4 +149,84 @@ func (d dexAPI) DeleteUserIdentity(ctx context.Context, req *api.DeleteUserIdent
 
 	d.logger.Info("api: purged user identity", "user_id", req.UserId, "connector_id", req.ConnectorId)
 	return &api.DeleteUserIdentityResp{}, nil
+}
+
+// LockUserIdentity sets the identity's BlockedUntil, the field the login paths
+// check: RecordLogin refuses a locked account for the browser flow and the
+// password grant, and, when sessions are enabled, the refresh grant answers
+// invalid_grant. That refresh check lives inside the sessions branch, so a
+// deployment without sessions cannot retire an existing refresh token this way.
+// Until this call existed the only way to set BlockedUntil was to edit storage
+// directly.
+func (d dexAPI) LockUserIdentity(ctx context.Context, req *api.LockUserIdentityReq) (*api.LockUserIdentityResp, error) {
+	if !featureflags.APISessionsIdentitiesCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APISessionsIdentitiesCRUD.Name)
+	}
+
+	if req.UserId == "" {
+		return nil, errors.New("no user_id supplied")
+	}
+	if req.ConnectorId == "" {
+		return nil, errors.New("no connector_id supplied")
+	}
+	if req.BlockedUntil == 0 {
+		return nil, errors.New("no blocked_until supplied")
+	}
+
+	// A lock in the past is not a lock: the login paths compare BlockedUntil
+	// against the current time, so storing it would report success and change
+	// nothing. Unlocking is the way to clear a lock.
+	blockedUntil := time.Unix(req.BlockedUntil, 0)
+	if !blockedUntil.After(time.Now()) {
+		return nil, errors.New("blocked_until must be in the future")
+	}
+
+	if err := d.s.UpdateUserIdentity(ctx, req.UserId, req.ConnectorId, func(old storage.UserIdentity) (storage.UserIdentity, error) {
+		old.BlockedUntil = blockedUntil
+		return old, nil
+	}); err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return &api.LockUserIdentityResp{NotFound: true}, nil
+		}
+		d.logger.Error("api: failed to lock user identity", "err", err)
+		return nil, fmt.Errorf("lock user identity: %v", err)
+	}
+
+	d.logger.Info("api: locked user identity", "user_id", req.UserId, "connector_id", req.ConnectorId, "blocked_until", blockedUntil)
+	return &api.LockUserIdentityResp{}, nil
+}
+
+// UnlockUserIdentity clears BlockedUntil. Like LockUserIdentity it only touches
+// the stored identity: sessions the user already holds are unaffected, and
+// refresh tokens keep working only if they resolve their identity (sessions
+// enabled).
+func (d dexAPI) UnlockUserIdentity(ctx context.Context, req *api.UnlockUserIdentityReq) (*api.UnlockUserIdentityResp, error) {
+	if !featureflags.APISessionsIdentitiesCRUD.Enabled() {
+		return nil, fmt.Errorf("%s feature flag is not enabled", featureflags.APISessionsIdentitiesCRUD.Name)
+	}
+
+	if req.UserId == "" {
+		return nil, errors.New("no user_id supplied")
+	}
+	if req.ConnectorId == "" {
+		return nil, errors.New("no connector_id supplied")
+	}
+
+	if err := d.s.UpdateUserIdentity(ctx, req.UserId, req.ConnectorId, func(old storage.UserIdentity) (storage.UserIdentity, error) {
+		if old.BlockedUntil.IsZero() {
+			// Already unlocked: skip the write (and its resource-version bump).
+			return old, errIdentityUnchanged
+		}
+		old.BlockedUntil = time.Time{}
+		return old, nil
+	}); err != nil {
+		if errors.Is(err, errIdentityUnchanged) || errors.Is(err, storage.ErrNotFound) {
+			return &api.UnlockUserIdentityResp{NotFound: errors.Is(err, storage.ErrNotFound)}, nil
+		}
+		d.logger.Error("api: failed to unlock user identity", "err", err)
+		return nil, fmt.Errorf("unlock user identity: %v", err)
+	}
+
+	d.logger.Info("api: unlocked user identity", "user_id", req.UserId, "connector_id", req.ConnectorId)
+	return &api.UnlockUserIdentityResp{}, nil
 }

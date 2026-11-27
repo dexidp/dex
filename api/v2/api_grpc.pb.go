@@ -45,6 +45,8 @@ const (
 	Dex_GetUserIdentity_FullMethodName              = "/api.Dex/GetUserIdentity"
 	Dex_ListUserIdentities_FullMethodName           = "/api.Dex/ListUserIdentities"
 	Dex_DeleteUserIdentity_FullMethodName           = "/api.Dex/DeleteUserIdentity"
+	Dex_LockUserIdentity_FullMethodName             = "/api.Dex/LockUserIdentity"
+	Dex_UnlockUserIdentity_FullMethodName           = "/api.Dex/UnlockUserIdentity"
 	Dex_ResetMFA_FullMethodName                     = "/api.Dex/ResetMFA"
 	Dex_ListMFADevices_FullMethodName               = "/api.Dex/ListMFADevices"
 	Dex_DeleteWebAuthnCredential_FullMethodName     = "/api.Dex/DeleteWebAuthnCredential"
@@ -113,6 +115,11 @@ type DexClient interface {
 	// DeleteUserIdentity performs a full data purge for GDPR compliance: deletes the identity,
 	// auth session, refresh tokens, and offline sessions.
 	DeleteUserIdentity(ctx context.Context, in *DeleteUserIdentityReq, opts ...grpc.CallOption) (*DeleteUserIdentityResp, error)
+	// LockUserIdentity locks a user identity until the given time, refusing its
+	// logins and refresh tokens while the lock is in force.
+	LockUserIdentity(ctx context.Context, in *LockUserIdentityReq, opts ...grpc.CallOption) (*LockUserIdentityResp, error)
+	// UnlockUserIdentity lifts a user identity's lock.
+	UnlockUserIdentity(ctx context.Context, in *UnlockUserIdentityReq, opts ...grpc.CallOption) (*UnlockUserIdentityResp, error)
 	// ResetMFA clears all MFA secrets and WebAuthn credentials for a user.
 	ResetMFA(ctx context.Context, in *ResetMFAReq, opts ...grpc.CallOption) (*ResetMFAResp, error)
 	// ListMFADevices lists registered MFA authenticators for a user.
@@ -393,6 +400,26 @@ func (c *dexClient) DeleteUserIdentity(ctx context.Context, in *DeleteUserIdenti
 	return out, nil
 }
 
+func (c *dexClient) LockUserIdentity(ctx context.Context, in *LockUserIdentityReq, opts ...grpc.CallOption) (*LockUserIdentityResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LockUserIdentityResp)
+	err := c.cc.Invoke(ctx, Dex_LockUserIdentity_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *dexClient) UnlockUserIdentity(ctx context.Context, in *UnlockUserIdentityReq, opts ...grpc.CallOption) (*UnlockUserIdentityResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UnlockUserIdentityResp)
+	err := c.cc.Invoke(ctx, Dex_UnlockUserIdentity_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *dexClient) ResetMFA(ctx context.Context, in *ResetMFAReq, opts ...grpc.CallOption) (*ResetMFAResp, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ResetMFAResp)
@@ -504,6 +531,11 @@ type DexServer interface {
 	// DeleteUserIdentity performs a full data purge for GDPR compliance: deletes the identity,
 	// auth session, refresh tokens, and offline sessions.
 	DeleteUserIdentity(context.Context, *DeleteUserIdentityReq) (*DeleteUserIdentityResp, error)
+	// LockUserIdentity locks a user identity until the given time, refusing its
+	// logins and refresh tokens while the lock is in force.
+	LockUserIdentity(context.Context, *LockUserIdentityReq) (*LockUserIdentityResp, error)
+	// UnlockUserIdentity lifts a user identity's lock.
+	UnlockUserIdentity(context.Context, *UnlockUserIdentityReq) (*UnlockUserIdentityResp, error)
 	// ResetMFA clears all MFA secrets and WebAuthn credentials for a user.
 	ResetMFA(context.Context, *ResetMFAReq) (*ResetMFAResp, error)
 	// ListMFADevices lists registered MFA authenticators for a user.
@@ -601,6 +633,12 @@ func (UnimplementedDexServer) ListUserIdentities(context.Context, *ListUserIdent
 }
 func (UnimplementedDexServer) DeleteUserIdentity(context.Context, *DeleteUserIdentityReq) (*DeleteUserIdentityResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteUserIdentity not implemented")
+}
+func (UnimplementedDexServer) LockUserIdentity(context.Context, *LockUserIdentityReq) (*LockUserIdentityResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method LockUserIdentity not implemented")
+}
+func (UnimplementedDexServer) UnlockUserIdentity(context.Context, *UnlockUserIdentityReq) (*UnlockUserIdentityResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnlockUserIdentity not implemented")
 }
 func (UnimplementedDexServer) ResetMFA(context.Context, *ResetMFAReq) (*ResetMFAResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResetMFA not implemented")
@@ -1106,6 +1144,42 @@ func _Dex_DeleteUserIdentity_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Dex_LockUserIdentity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LockUserIdentityReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).LockUserIdentity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Dex_LockUserIdentity_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).LockUserIdentity(ctx, req.(*LockUserIdentityReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Dex_UnlockUserIdentity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnlockUserIdentityReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).UnlockUserIdentity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Dex_UnlockUserIdentity_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).UnlockUserIdentity(ctx, req.(*UnlockUserIdentityReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Dex_ResetMFA_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ResetMFAReq)
 	if err := dec(in); err != nil {
@@ -1306,6 +1380,14 @@ var Dex_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteUserIdentity",
 			Handler:    _Dex_DeleteUserIdentity_Handler,
+		},
+		{
+			MethodName: "LockUserIdentity",
+			Handler:    _Dex_LockUserIdentity_Handler,
+		},
+		{
+			MethodName: "UnlockUserIdentity",
+			Handler:    _Dex_UnlockUserIdentity_Handler,
 		},
 		{
 			MethodName: "ResetMFA",

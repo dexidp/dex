@@ -2,6 +2,7 @@ package apiserver
 
 import (
 	"bytes"
+	"errors"
 	"log/slog"
 	"net"
 	"slices"
@@ -1309,6 +1310,171 @@ func TestGetUserIdentity(t *testing.T) {
 	}
 }
 
+// TestLockUserIdentity covers the missing half of #5176: nothing but a direct
+// storage edit could set BlockedUntil, so an operator could not lock an account
+// through the API at all. The lock is the field the login paths already check,
+// so this test pins that the call writes it and that it refuses a time that
+// would not lock anything.
+func TestLockUserIdentity(t *testing.T) {
+	t.Setenv("DEX_API_SESSIONS_IDENTITIES_CRUD", "true")
+
+	logger := newLogger(t)
+	s := memory.New(logger)
+
+	client := newAPI(t, s, logger)
+	defer client.Close()
+
+	ctx := t.Context()
+
+	now := time.Now().UTC().Round(time.Second)
+	if err := s.CreateUserIdentity(ctx, storage.UserIdentity{
+		UserID: "user1", ConnectorID: "conn1",
+		Claims: storage.Claims{Email: "test@test.com"}, CreatedAt: now, LastLogin: now,
+	}); err != nil {
+		t.Fatalf("create user identity: %v", err)
+	}
+
+	blockedUntil := now.Add(2 * time.Hour)
+	resp, err := client.LockUserIdentity(ctx, &api.LockUserIdentityReq{
+		UserId: "user1", ConnectorId: "conn1", BlockedUntil: blockedUntil.Unix(),
+	})
+	if err != nil {
+		t.Fatalf("lock user identity: %v", err)
+	}
+	if resp.NotFound {
+		t.Error("expected identity to be found")
+	}
+
+	stored, err := s.GetUserIdentity(ctx, "user1", "conn1")
+	if err != nil {
+		t.Fatalf("get user identity: %v", err)
+	}
+	if !stored.BlockedUntil.Equal(blockedUntil) {
+		t.Errorf("expected blocked_until %v, got %v", blockedUntil, stored.BlockedUntil)
+	}
+
+	// The lock is visible through GetUserIdentity as the Unix seconds the
+	// admin UI reads back.
+	idResp, err := client.GetUserIdentity(ctx, &api.GetUserIdentityReq{UserId: "user1", ConnectorId: "conn1"})
+	if err != nil {
+		t.Fatalf("get user identity through API: %v", err)
+	}
+	if got := idResp.Identity.BlockedUntil; got != blockedUntil.Unix() {
+		t.Errorf("expected blocked_until %d through the API, got %d", blockedUntil.Unix(), got)
+	}
+
+	// A zero or past blocked_until would store a lock that never applies, so
+	// the call refuses it instead of reporting a lock that is not in force.
+	for _, tc := range []struct {
+		name  string
+		until int64
+	}{
+		{name: "zero", until: 0},
+		{name: "past", until: now.Add(-time.Hour).Unix()},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := client.LockUserIdentity(ctx, &api.LockUserIdentityReq{
+				UserId: "user1", ConnectorId: "conn1", BlockedUntil: tc.until,
+			}); err == nil {
+				t.Errorf("LockUserIdentity should reject blocked_until %d", tc.until)
+			}
+		})
+	}
+
+	// The rejected calls must not have touched the stored lock.
+	stored, err = s.GetUserIdentity(ctx, "user1", "conn1")
+	if err != nil {
+		t.Fatalf("get user identity: %v", err)
+	}
+	if !stored.BlockedUntil.Equal(blockedUntil) {
+		t.Errorf("rejected calls changed blocked_until to %v", stored.BlockedUntil)
+	}
+
+	// No identity stored: nothing was locked, and the response says so rather
+	// than silently creating one.
+	resp, err = client.LockUserIdentity(ctx, &api.LockUserIdentityReq{
+		UserId: "missing", ConnectorId: "conn1", BlockedUntil: blockedUntil.Unix(),
+	})
+	if err != nil {
+		t.Fatalf("lock missing identity: %v", err)
+	}
+	if !resp.NotFound {
+		t.Error("expected not_found for a user with no stored identity")
+	}
+}
+
+// TestUnlockUserIdentity covers lifting the lock set by LockUserIdentity,
+// including that unlocking a never-locked identity is a no-op success (the
+// caller asked for a state, not for a change) and that the two calls compose.
+func TestUnlockUserIdentity(t *testing.T) {
+	t.Setenv("DEX_API_SESSIONS_IDENTITIES_CRUD", "true")
+
+	logger := newLogger(t)
+	s := memory.New(logger)
+
+	client := newAPI(t, s, logger)
+	defer client.Close()
+
+	ctx := t.Context()
+
+	now := time.Now().UTC().Round(time.Second)
+	if err := s.CreateUserIdentity(ctx, storage.UserIdentity{
+		UserID: "user1", ConnectorID: "conn1",
+		Claims: storage.Claims{Email: "test@test.com"}, CreatedAt: now, LastLogin: now,
+	}); err != nil {
+		t.Fatalf("create user identity: %v", err)
+	}
+
+	// Never locked: unlocking succeeds. Reporting not_found here would suggest
+	// the identity is missing, which it is not.
+	resp, err := client.UnlockUserIdentity(ctx, &api.UnlockUserIdentityReq{UserId: "user1", ConnectorId: "conn1"})
+	if err != nil {
+		t.Fatalf("unlock never-locked identity: %v", err)
+	}
+	if resp.NotFound {
+		t.Error("expected the identity to be found")
+	}
+
+	if _, err := client.LockUserIdentity(ctx, &api.LockUserIdentityReq{
+		UserId: "user1", ConnectorId: "conn1", BlockedUntil: now.Add(2 * time.Hour).Unix(),
+	}); err != nil {
+		t.Fatalf("lock user identity: %v", err)
+	}
+
+	resp, err = client.UnlockUserIdentity(ctx, &api.UnlockUserIdentityReq{UserId: "user1", ConnectorId: "conn1"})
+	if err != nil {
+		t.Fatalf("unlock user identity: %v", err)
+	}
+	if resp.NotFound {
+		t.Error("expected the identity to be found")
+	}
+
+	stored, err := s.GetUserIdentity(ctx, "user1", "conn1")
+	if err != nil {
+		t.Fatalf("get user identity: %v", err)
+	}
+	if !stored.BlockedUntil.IsZero() {
+		t.Errorf("expected blocked_until cleared, got %v", stored.BlockedUntil)
+	}
+
+	// Other fields survive both calls.
+	if stored.Claims.Email != "test@test.com" {
+		t.Errorf("expected email to be preserved, got '%s'", stored.Claims.Email)
+	}
+
+	// No identity stored: report it, do not create one.
+	resp, err = client.UnlockUserIdentity(ctx, &api.UnlockUserIdentityReq{UserId: "missing", ConnectorId: "conn1"})
+	if err != nil {
+		t.Fatalf("unlock missing identity: %v", err)
+	}
+	if !resp.NotFound {
+		t.Error("expected not_found for a user with no stored identity")
+	}
+	if _, err := s.GetUserIdentity(ctx, "missing", "conn1"); !errors.Is(err, storage.ErrNotFound) {
+		t.Errorf("unlocking created an identity: %v", err)
+	}
+}
+
 func TestListUserIdentities(t *testing.T) {
 	t.Setenv("DEX_API_SESSIONS_IDENTITIES_CRUD", "true")
 
@@ -1752,6 +1918,12 @@ func TestMissingSessionsIdentitiesCRUDFeatureFlag(t *testing.T) {
 	if _, err := client.DeleteUserIdentity(ctx, &api.DeleteUserIdentityReq{UserId: "u", ConnectorId: "c"}); err == nil {
 		t.Error("DeleteUserIdentity should fail without feature flag")
 	}
+	if _, err := client.LockUserIdentity(ctx, &api.LockUserIdentityReq{UserId: "u", ConnectorId: "c", BlockedUntil: time.Now().Add(time.Hour).Unix()}); err == nil {
+		t.Error("LockUserIdentity should fail without feature flag")
+	}
+	if _, err := client.UnlockUserIdentity(ctx, &api.UnlockUserIdentityReq{UserId: "u", ConnectorId: "c"}); err == nil {
+		t.Error("UnlockUserIdentity should fail without feature flag")
+	}
 	if _, err := client.ResetMFA(ctx, &api.ResetMFAReq{UserId: "u", ConnectorId: "c"}); err == nil {
 		t.Error("ResetMFA should fail without feature flag")
 	}
@@ -1858,6 +2030,18 @@ func TestSessionsIdentitiesValidation(t *testing.T) {
 	}
 	if _, err := client.DeleteMFASecret(ctx, &api.DeleteMFASecretReq{UserId: "u", ConnectorId: "c"}); err == nil {
 		t.Error("DeleteMFASecret should reject empty authenticator_id")
+	}
+	if _, err := client.LockUserIdentity(ctx, &api.LockUserIdentityReq{ConnectorId: "c", BlockedUntil: time.Now().Add(time.Hour).Unix()}); err == nil {
+		t.Error("LockUserIdentity should reject empty user_id")
+	}
+	if _, err := client.LockUserIdentity(ctx, &api.LockUserIdentityReq{UserId: "u", BlockedUntil: time.Now().Add(time.Hour).Unix()}); err == nil {
+		t.Error("LockUserIdentity should reject empty connector_id")
+	}
+	if _, err := client.UnlockUserIdentity(ctx, &api.UnlockUserIdentityReq{ConnectorId: "c"}); err == nil {
+		t.Error("UnlockUserIdentity should reject empty user_id")
+	}
+	if _, err := client.UnlockUserIdentity(ctx, &api.UnlockUserIdentityReq{UserId: "u"}); err == nil {
+		t.Error("UnlockUserIdentity should reject empty connector_id")
 	}
 	if _, err := client.RevokeConsent(ctx, &api.RevokeConsentReq{UserId: "u", ConnectorId: "c"}); err == nil {
 		t.Error("RevokeConsent should reject empty client_id")
