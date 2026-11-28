@@ -764,3 +764,73 @@ func TestConnectorDataPersistence(t *testing.T) {
 	require.Equal(t, connectorData, storedSession.ConnectorData,
 		"ConnectorData should be persisted in offline session storage")
 }
+
+// hintsCallbackConnector is a callback connector which records the hints it is
+// given and returns them in its login URL.
+type hintsCallbackConnector struct {
+	hints *connector.LoginHints
+}
+
+func (c *hintsCallbackConnector) LoginURL(s connector.Scopes, callbackURL, state string) (string, []byte, error) {
+	return "https://upstream.example.com/auth?plain=true", nil, nil
+}
+
+func (c *hintsCallbackConnector) LoginURLWithHints(s connector.Scopes, callbackURL, state string, hints connector.LoginHints) (string, []byte, error) {
+	c.hints = &hints
+	return "https://upstream.example.com/auth?hints=true", nil, nil
+}
+
+func (c *hintsCallbackConnector) HandleCallback(s connector.Scopes, connData []byte, r *http.Request) (connector.Identity, error) {
+	return connector.Identity{}, errors.New("not used")
+}
+
+func TestHandleConnectorLoginPassesHints(t *testing.T) {
+	tests := []struct {
+		name          string
+		query         string
+		wantLoginHint string
+		wantPrompt    string
+	}{
+		{
+			name:          "login hint and prompt",
+			query:         "&login_hint=jane%40example.com&prompt=select_account",
+			wantLoginHint: "jane@example.com",
+			wantPrompt:    "select_account",
+		},
+		{
+			name:       "prompt in canonical order",
+			query:      "&prompt=select_account+consent",
+			wantPrompt: "consent select_account",
+		},
+		{
+			name:  "no hints",
+			query: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			httpServer, s := newTestServer(t, nil)
+			defer httpServer.Close()
+
+			require.NoError(t, s.storage.CreateClient(ctx, storage.Client{
+				ID:           "test-client",
+				Secret:       "secret",
+				RedirectURIs: []string{"http://example.com/callback"},
+			}))
+			conn := &hintsCallbackConnector{}
+			registerTestConnector(t, s, "hints", conn)
+
+			rr := httptest.NewRecorder()
+			reqURL := httpServer.URL + "/auth/hints?response_type=code&client_id=test-client&redirect_uri=http://example.com/callback&scope=openid" + tc.query
+			s.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, reqURL, nil))
+
+			require.Equal(t, http.StatusFound, rr.Code)
+			require.Equal(t, "https://upstream.example.com/auth?hints=true", rr.Header().Get("Location"))
+			require.NotNil(t, conn.hints)
+			require.Equal(t, tc.wantLoginHint, conn.hints.LoginHint)
+			require.Equal(t, tc.wantPrompt, conn.hints.Prompt)
+		})
+	}
+}

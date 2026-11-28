@@ -144,8 +144,9 @@ func (c *Config) Open(id string, logger *slog.Logger) (conn connector.Connector,
 }
 
 var (
-	_ connector.CallbackConnector = (*googleConnector)(nil)
-	_ connector.RefreshConnector  = (*googleConnector)(nil)
+	_ connector.CallbackConnector   = (*googleConnector)(nil)
+	_ connector.LoginHintsConnector = (*googleConnector)(nil)
+	_ connector.RefreshConnector    = (*googleConnector)(nil)
 )
 
 type googleConnector struct {
@@ -169,6 +170,10 @@ func (c *googleConnector) Close() error {
 }
 
 func (c *googleConnector) LoginURL(s connector.Scopes, callbackURL, state string) (string, []byte, error) {
+	return c.LoginURLWithHints(s, callbackURL, state, connector.LoginHints{})
+}
+
+func (c *googleConnector) LoginURLWithHints(s connector.Scopes, callbackURL, state string, hints connector.LoginHints) (string, []byte, error) {
 	if c.redirectURI != callbackURL {
 		return "", nil, fmt.Errorf("expected callback URL %q did not match the URL in the config %q", callbackURL, c.redirectURI)
 	}
@@ -182,11 +187,58 @@ func (c *googleConnector) LoginURL(s connector.Scopes, callbackURL, state string
 		opts = append(opts, oauth2.SetAuthURLParam("hd", preferredDomain))
 	}
 
+	if hints.LoginHint != "" {
+		opts = append(opts, oauth2.SetAuthURLParam("login_hint", hints.LoginHint))
+	}
+
+	prompt := googlePrompt(c.promptType, hints.Prompt, s.OfflineAccess)
 	if s.OfflineAccess {
-		opts = append(opts, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", c.promptType))
+		opts = append(opts, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", prompt))
+	} else if prompt != "" {
+		opts = append(opts, oauth2.SetAuthURLParam("prompt", prompt))
 	}
 
 	return c.oauth2Config.AuthCodeURL(state, opts...), nil, nil
+}
+
+// googlePrompt returns the prompt parameter to send to Google.
+//
+// Of the requested values, "consent" and "select_account" are passed on.
+// "none" is dropped: Google answers it with an error such as login_required
+// when it cannot sign the user in silently, and the server does not return
+// that error to the client. "login" has no equivalent at Google and is
+// dropped.
+//
+// When offline access is requested, the configured prompt type is kept and
+// the requested values are added to it: Google gives a refresh token only
+// when it shows its consent screen or on the first grant, so dropping
+// "consent" from an offline request would leave Dex without a refresh token
+// for a user it has none for.
+func googlePrompt(configured, requested string, offlineAccess bool) string {
+	var values []string
+	for _, v := range strings.Fields(requested) {
+		if v == "consent" || v == "select_account" {
+			values = append(values, v)
+		}
+	}
+
+	if !offlineAccess {
+		return strings.Join(values, " ")
+	}
+
+	var combined []string
+	for _, v := range strings.Fields(configured) {
+		if v == "none" && len(values) > 0 {
+			continue
+		}
+		combined = append(combined, v)
+	}
+	for _, v := range values {
+		if !slices.Contains(combined, v) {
+			combined = append(combined, v)
+		}
+	}
+	return strings.Join(combined, " ")
 }
 
 type oauth2Error struct {

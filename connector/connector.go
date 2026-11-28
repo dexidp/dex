@@ -126,6 +126,30 @@ type CallbackConnector interface {
 	HandleCallback(s Scopes, connData []byte, r *http.Request) (identity Identity, err error)
 }
 
+// LoginHints holds values of the client's authorization request that a
+// callback connector can pass on to the upstream identity provider.
+type LoginHints struct {
+	// LoginHint is the OpenID Connect "login_hint" parameter: the identifier
+	// the end user is expected to sign in with, such as an email address.
+	LoginHint string
+
+	// Prompt is the validated OpenID Connect "prompt" parameter: values among
+	// "none", "login", "consent" and "select_account", separated by spaces.
+	Prompt string
+}
+
+// LoginHintsConnector is an optional interface for callback connectors which
+// pass hints of the client's authorization request on to the upstream
+// identity provider. When a callback connector implements it, the server calls
+// LoginURLWithHints instead of LoginURL.
+type LoginHintsConnector interface {
+	CallbackConnector
+
+	// LoginURLWithHints returns the same URL as LoginURL, with the hints added
+	// in the form the upstream identity provider understands.
+	LoginURLWithHints(s Scopes, callbackURL, state string, hints LoginHints) (string, []byte, error)
+}
+
 // SAMLConnector represents SAML connectors which implement the HTTP POST binding.
 //
 //	RelayState is handled by the server.
