@@ -533,11 +533,18 @@ func TestLoginURLWithHints(t *testing.T) {
 			expectPrompt:   true,
 		},
 		{
-			name:              "requested none replaces the configured prompt type",
+			name:              "requested none is dropped without offline access",
+			scopes:            connector.Scopes{},
+			hints:             connector.LoginHints{Prompt: "none", LoginHint: "jane@example.com"},
+			expectedLoginHint: "jane@example.com",
+			expectedPrompt:    "",
+		},
+		{
+			name:              "requested none is dropped and the configured prompt type is kept with offline access",
 			scopes:            connector.Scopes{OfflineAccess: true},
 			hints:             connector.LoginHints{Prompt: "none", LoginHint: "jane@example.com"},
 			expectedLoginHint: "jane@example.com",
-			expectedPrompt:    "none",
+			expectedPrompt:    "consent",
 			expectPrompt:      true,
 		},
 		{

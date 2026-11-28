@@ -201,23 +201,23 @@ func (c *googleConnector) LoginURLWithHints(s connector.Scopes, callbackURL, sta
 	return c.oauth2Config.AuthCodeURL(state, opts...), nil, nil
 }
 
-// googlePrompt returns the prompt parameter to send to Google, which accepts
-// "none", "consent" and "select_account".
+// googlePrompt returns the prompt parameter to send to Google.
 //
-// A request for "none" is sent alone, since Google refuses it with any other
-// value. Otherwise, when offline access is requested, the configured prompt
-// type is kept and the requested values are added to it: Google gives a
-// refresh token only when it shows its consent screen or on the first grant,
-// so dropping "consent" from an offline request would leave Dex without a
-// refresh token for a user it has none for. "login" has no equivalent at
-// Google and is dropped.
+// Of the requested values, "consent" and "select_account" are passed on.
+// "none" is dropped: Google answers it with an error such as login_required
+// when it cannot sign the user in silently, and the server does not return
+// that error to the client. "login" has no equivalent at Google and is
+// dropped.
+//
+// When offline access is requested, the configured prompt type is kept and
+// the requested values are added to it: Google gives a refresh token only
+// when it shows its consent screen or on the first grant, so dropping
+// "consent" from an offline request would leave Dex without a refresh token
+// for a user it has none for.
 func googlePrompt(configured, requested string, offlineAccess bool) string {
 	var values []string
 	for _, v := range strings.Fields(requested) {
-		switch v {
-		case "none":
-			return "none"
-		case "consent", "select_account":
+		if v == "consent" || v == "select_account" {
 			values = append(values, v)
 		}
 	}
